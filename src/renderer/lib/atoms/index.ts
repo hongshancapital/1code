@@ -658,3 +658,10 @@ export const sessionInfoAtom = atomWithStorage<SessionInfo | null>(
   undefined,
   { getOnInit: true },
 )
+
+// Disabled MCP servers per project path (persisted to localStorage)
+// Key: project path, Value: array of disabled server names
+export const disabledMcpServersAtom = atomWithStorage<Record<string, string[]>>(
+  "1code:disabled-mcp-servers",
+  {},
+)
