@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is this?
 
-**21st Agents** - A local-first Electron desktop app for AI-powered code assistance. Users create chat sessions linked to local project folders, interact with Claude in Plan or Agent mode, and see real-time tool execution (bash, file edits, web search, etc.).
+**1Code** - A local-first Electron desktop app for AI-powered code assistance. Users create chat sessions linked to local project folders, interact with Claude in Plan or Agent mode, and see real-time tool execution (bash, file edits, web search, etc.).
+
+The app has two UI modes:
+- **Agents Mode**: Full-featured mode with onboarding, authentication, Git/Diff panels
+- **Cowork Mode** (default): Simplified layout focused on chat + right panel (tasks, deliverables, file tree)
 
 ## Commands
 
@@ -38,23 +42,33 @@ src/
 │       │   ├── index.ts     # DB init, auto-migrate on startup
 │       │   ├── schema/      # Drizzle table definitions
 │       │   └── utils.ts     # ID generation
-│       └── trpc/routers/    # tRPC routers (projects, chats, claude)
+│       └── trpc/routers/    # tRPC routers (projects, chats, claude, files)
 │
 ├── preload/                 # IPC bridge (context isolation)
 │   └── index.ts             # Exposes desktopApi + tRPC bridge
 │
 └── renderer/                # React 19 UI
-    ├── App.tsx              # Root with providers
+    ├── App.tsx              # Root with providers, mode switch (Cowork/Agents)
     ├── features/
-    │   ├── agents/          # Main chat interface
+    │   ├── agents/          # Main chat interface (shared by both modes)
     │   │   ├── main/        # active-chat.tsx, new-chat-form.tsx
     │   │   ├── ui/          # Tool renderers, preview, diff view
     │   │   ├── commands/    # Slash commands (/plan, /agent, /clear)
     │   │   ├── atoms/       # Jotai atoms for agent state
     │   │   └── stores/      # Zustand store for sub-chats
+    │   ├── cowork/          # Cowork mode layout and components
+    │   │   ├── cowork-layout.tsx      # Main layout (sidebar + chat + right panel)
+    │   │   ├── cowork-content.tsx     # Chat area wrapper
+    │   │   ├── cowork-right-panel.tsx # Right panel (tasks + deliverables + file tree)
+    │   │   ├── task-panel.tsx         # Todo list progress display
+    │   │   ├── deliverables-panel.tsx # Files created/modified by Claude
+    │   │   ├── file-tree-panel.tsx    # Project file browser with lazy loading
+    │   │   ├── file-preview/          # Multi-format file preview (text, image, pdf, office)
+    │   │   ├── atoms.ts               # Cowork-specific Jotai atoms
+    │   │   └── use-deliverables-listener.ts  # IPC listener for file changes
     │   ├── sidebar/         # Chat list, archive, navigation
     │   ├── sub-chats/       # Tab/sidebar sub-chat management
-    │   └── layout/          # Main layout with resizable panels
+    │   └── layout/          # Agents mode layout with resizable panels
     ├── components/ui/       # Radix UI wrappers (button, dialog, etc.)
     └── lib/
         ├── atoms/           # Global Jotai atoms
@@ -106,6 +120,13 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 - Session resume via `sessionId` stored in SubChat
 - Message streaming via tRPC subscription (`claude.onMessage`)
 
+### Cowork Mode Architecture
+- **Mode Switch**: `isCoworkModeAtom` in `src/renderer/features/cowork/atoms.ts` (persisted, default true)
+- **Layout**: Three-panel layout: left sidebar (chats) + center (chat) + right panel (tasks/deliverables/files)
+- **Deliverables Tracking**: `useDeliverablesListener` hook listens for `file-changed` IPC events from Claude's Write/Edit tools
+- **File Preview**: Supports text, markdown, images, PDF, video, audio, and Office documents (via LibreOffice conversion)
+- **File Tree**: Lazy-loading directory browser using `files.listDirectory` tRPC endpoint
+
 ## Tech Stack
 
 | Layer | Tech |
@@ -133,6 +154,9 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 - `src/renderer/features/agents/atoms/index.ts` - Agent UI state atoms
 - `src/renderer/features/agents/main/active-chat.tsx` - Main chat component
 - `src/main/lib/trpc/routers/claude.ts` - Claude SDK integration
+- `src/renderer/features/cowork/atoms.ts` - Cowork mode state (panel widths, expanded sections, deliverables)
+- `src/renderer/features/cowork/cowork-layout.tsx` - Cowork mode main layout
+- `src/main/lib/trpc/routers/files.ts` - File system operations (search, listDirectory, readFile, convertToPdf)
 
 ## Debugging First Install Issues
 
@@ -222,6 +246,11 @@ npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
 - Drizzle ORM setup with schema (projects, chats, sub_chats)
 - Auto-migration on app startup
 - tRPC routers structure
+- Cowork mode with simplified UI (default mode)
+- File tree panel with lazy loading
+- Deliverables tracking (files created/modified by Claude)
+- Multi-format file preview (text, image, PDF, video, audio, Office)
+- Task progress panel showing Claude's todo list
 
 **In Progress:**
 - Replacing `mock-api.ts` with real tRPC calls in renderer
