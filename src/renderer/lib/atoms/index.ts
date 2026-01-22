@@ -716,3 +716,10 @@ export const sessionInfoAtom = atomWithStorage<SessionInfo | null>(
 // DevTools unlock state (hidden feature - click Beta tab 5 times to enable)
 // Persisted per-session only (not in localStorage for security)
 export const devToolsUnlockedAtom = atom<boolean>(false)
+
+// Disabled MCP servers per project path (persisted to localStorage)
+// Key: project path, Value: array of disabled server names
+export const disabledMcpServersAtom = atomWithStorage<Record<string, string[]>>(
+  "1code:disabled-mcp-servers",
+  {},
+)

@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import {
   agentsLoginModalOpenAtom,
   customClaudeConfigAtom,
+  disabledMcpServersAtom,
   extendedThinkingEnabledAtom,
   historyEnabledAtom,
   sessionInfoAtom,
@@ -189,7 +190,13 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const subId = this.config.subChatId.slice(-8)
     let chunkCount = 0
     let lastChunkType = ""
-    console.log(`[SD] R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"}`)
+
+    // Get disabled MCP servers for this project
+    const disabledServersMap = appStore.get(disabledMcpServersAtom)
+    const projectPath = this.config.projectPath || this.config.cwd
+    const disabledMcpServers = disabledServersMap[projectPath] || []
+
+    console.log(`[SD] R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"} disabledMcp=${disabledMcpServers.join(",") || "none"}`)
 
     return new ReadableStream({
       start: (controller) => {
@@ -209,6 +216,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
             historyEnabled,
             offlineModeEnabled,
             ...(images.length > 0 && { images }),
+            ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
           },
           {
             onData: (chunk: UIMessageChunk) => {
