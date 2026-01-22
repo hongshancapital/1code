@@ -8,6 +8,8 @@ import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext
 import { selectedProjectAtom, selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { AgentsLayout } from "./features/layout/agents-layout"
+import { CoworkLayout } from "./features/cowork/cowork-layout"
+import { isCoworkModeAtom } from "./features/cowork/atoms"
 import {
   AnthropicOnboardingPage,
   ApiKeyOnboardingPage,
@@ -42,6 +44,7 @@ function ThemedToaster() {
  * Main content router - decides which page to show based on onboarding state
  */
 function AppContent() {
+  const isCoworkMode = useAtomValue(isCoworkModeAtom)
   const billingMethod = useAtomValue(billingMethodAtom)
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const anthropicOnboardingCompleted = useAtomValue(
@@ -105,6 +108,18 @@ function AppContent() {
     const exists = projects.some((p) => p.id === selectedProject.id)
     return exists ? selectedProject : null
   }, [selectedProject, projects, isLoadingProjects])
+
+  // ============================================================================
+  // Cowork Mode: Skip all auth/onboarding, go directly to CoworkLayout
+  // The layout handles project selection internally
+  // ============================================================================
+  if (isCoworkMode) {
+    return <CoworkLayout />
+  }
+
+  // ============================================================================
+  // Original 21st Agents Mode: Full onboarding flow
+  // ============================================================================
 
   // Determine which page to show:
   // 1. No billing method selected -> BillingMethodPage

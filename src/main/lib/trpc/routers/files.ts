@@ -176,7 +176,7 @@ function filterEntries(
       const bStarts = bName.startsWith(queryLower)
       if (aStarts && !bStarts) return -1
       if (!aStarts && bStarts) return 1
-      
+
       // Priority 3: If both start with query, shorter name = better match
       if (aStarts && bStarts) {
         if (aName.length !== bName.length) {
@@ -237,7 +237,7 @@ export const filesRouter = router({
 
         // Get entry list (cached or fresh scan)
         const entries = await getEntryList(projectPath)
-        
+
         // Debug: log folder count
         const folderCount = entries.filter(e => e.type === "folder").length
         const fileCount = entries.filter(e => e.type === "file").length
@@ -264,19 +264,172 @@ export const filesRouter = router({
     }),
 
   /**
-   * Read file contents from filesystem
+   * List contents of a specific directory (non-recursive, for lazy loading)
    */
-  readFile: publicProcedure
-    .input(z.object({ filePath: z.string() }))
+  listDirectory: publicProcedure
+    .input(
+      z.object({
+        projectPath: z.string(),
+        relativePath: z.string().default(""),
+      })
+    )
     .query(async ({ input }) => {
-      const { filePath } = input
+      const { projectPath, relativePath } = input
+
+      if (!projectPath) {
+        return []
+      }
 
       try {
+        const targetPath = relativePath ? join(projectPath, relativePath) : projectPath
+
+        // Verify the path exists and is a directory
+        const pathStat = await stat(targetPath)
+        if (!pathStat.isDirectory()) {
+          console.warn(`[files] Not a directory: ${targetPath}`)
+          return []
+        }
+
+        const dirEntries = await readdir(targetPath, { withFileTypes: true })
+        const results: Array<{ name: string; path: string; type: "file" | "folder" }> = []
+
+        for (const entry of dirEntries) {
+          const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name
+
+          if (entry.isDirectory()) {
+            // Skip ignored directories
+            if (IGNORED_DIRS.has(entry.name)) continue
+            // Skip hidden directories (except .github, .vscode, etc.)
+            if (entry.name.startsWith(".") && !entry.name.startsWith(".github") && !entry.name.startsWith(".vscode")) continue
+
+            results.push({
+              name: entry.name,
+              path: entryRelativePath,
+              type: "folder",
+            })
+          } else if (entry.isFile()) {
+            // Skip ignored files
+            if (IGNORED_FILES.has(entry.name)) continue
+
+            // Check extension
+            const ext = entry.name.includes(".") ? "." + entry.name.split(".").pop()?.toLowerCase() : ""
+            if (IGNORED_EXTENSIONS.has(ext)) {
+              // Allow specific lock files
+              if (!ALLOWED_LOCK_FILES.has(entry.name)) continue
+            }
+
+            results.push({
+              name: entry.name,
+              path: entryRelativePath,
+              type: "file",
+            })
+          }
+        }
+
+        // Sort: folders first, then alphabetically
+        results.sort((a, b) => {
+          if (a.type !== b.type) {
+            return a.type === "folder" ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+
+        return results
+      } catch (error) {
+        console.error(`[files] Error listing directory:`, error)
+        return []
+      }
+    }),
+
+  /**
+   * Read file content (for preview)
+   */
+  readFile: publicProcedure
+    .input(
+      z.object({
+        path: z.string(),
+        maxSize: z.number().default(1024 * 1024), // 1MB default max
+      })
+    )
+    .query(async ({ input }) => {
+      const { path: filePath, maxSize } = input
+
+      try {
+        // Check file exists and get size
+        const fileStat = await stat(filePath)
+
+        if (!fileStat.isFile()) {
+          throw new Error("Not a file")
+        }
+
+        if (fileStat.size > maxSize) {
+          throw new Error(`File too large (${Math.round(fileStat.size / 1024)}KB > ${Math.round(maxSize / 1024)}KB limit)`)
+        }
+
+        // Read file content
         const content = await readFile(filePath, "utf-8")
         return content
       } catch (error) {
-        console.error(`[files] Error reading file ${filePath}:`, error)
-        throw new Error(`Failed to read file: ${error instanceof Error ? error.message : "Unknown error"}`)
+        console.error(`[files] Error reading file:`, error)
+        throw error
+      }
+    }),
+
+  /**
+   * Read binary file as base64 (for images, PDFs, etc.)
+   */
+  readBinaryFile: publicProcedure
+    .input(
+      z.object({
+        path: z.string(),
+        maxSize: z.number().default(10 * 1024 * 1024), // 10MB default max for binary files
+      })
+    )
+    .query(async ({ input }) => {
+      const { path: filePath, maxSize } = input
+
+      try {
+        // Check file exists and get size
+        const fileStat = await stat(filePath)
+
+        if (!fileStat.isFile()) {
+          throw new Error("Not a file")
+        }
+
+        if (fileStat.size > maxSize) {
+          throw new Error(`File too large (${Math.round(fileStat.size / 1024)}KB > ${Math.round(maxSize / 1024)}KB limit)`)
+        }
+
+        // Read file as buffer and convert to base64
+        const buffer = await readFile(filePath)
+        const base64 = buffer.toString("base64")
+
+        // Determine MIME type from extension
+        const ext = filePath.split(".").pop()?.toLowerCase() || ""
+        const mimeTypes: Record<string, string> = {
+          // Images
+          png: "image/png",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          gif: "image/gif",
+          webp: "image/webp",
+          svg: "image/svg+xml",
+          ico: "image/x-icon",
+          bmp: "image/bmp",
+          avif: "image/avif",
+          // Documents
+          pdf: "application/pdf",
+        }
+        const mimeType = mimeTypes[ext] || "application/octet-stream"
+
+        return {
+          base64,
+          mimeType,
+          size: fileStat.size,
+        }
+      } catch (error) {
+        console.error(`[files] Error reading binary file:`, error)
+        throw error
       }
     }),
 
