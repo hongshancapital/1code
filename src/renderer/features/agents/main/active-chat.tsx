@@ -3916,6 +3916,8 @@ export function ChatView({
   onOpenPreview,
   onOpenDiff,
   onOpenTerminal,
+  hideGitFeatures = false,
+  rightHeaderSlot,
 }: {
   chatId: string
   isSidebarOpen: boolean
@@ -3927,6 +3929,10 @@ export function ChatView({
   onOpenPreview?: () => void
   onOpenDiff?: () => void
   onOpenTerminal?: () => void
+  /** Hide Git-related features (diff, terminal, preview, PR status) - used in Cowork mode */
+  hideGitFeatures?: boolean
+  /** Custom slot for additional buttons in the header right area */
+  rightHeaderSlot?: React.ReactNode
 }) {
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [selectedModelId] = useAtom(lastSelectedModelIdAtom)
@@ -5556,18 +5562,19 @@ Make sure to preserve all functionality from both branches when resolving confli
                         onCreateNew={handleCreateNewSubChat}
                         isMobile={false}
                         onBackToChats={onBackToChats}
-                        onOpenPreview={onOpenPreview}
-                        canOpenPreview={canOpenPreview}
-                        onOpenDiff={() => setIsDiffSidebarOpen(true)}
-                        canOpenDiff={canOpenDiff}
-                        isDiffSidebarOpen={isDiffSidebarOpen}
-                        diffStats={diffStats}
+                        onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
+                        canOpenPreview={hideGitFeatures ? false : canOpenPreview}
+                        onOpenDiff={hideGitFeatures ? undefined : () => setIsDiffSidebarOpen(true)}
+                        canOpenDiff={hideGitFeatures ? false : canOpenDiff}
+                        isDiffSidebarOpen={hideGitFeatures ? false : isDiffSidebarOpen}
+                        diffStats={hideGitFeatures ? undefined : diffStats}
                       />
                     </>
                   )}
                 </div>
                 {/* Open Preview Button - shows when preview is closed (desktop only) */}
-                {!isMobileFullscreen &&
+                {!hideGitFeatures &&
+                  !isMobileFullscreen &&
                   !isPreviewSidebarOpen &&
                   sandboxId &&
                   (canOpenPreview ? (
@@ -5601,7 +5608,8 @@ Make sure to preserve all functionality from both branches when resolving confli
                     </PreviewSetupHoverCard>
                   ))}
                 {/* Terminal Button - shows when terminal is closed and worktree exists (desktop only) */}
-                {!isMobileFullscreen &&
+                {!hideGitFeatures &&
+                  !isMobileFullscreen &&
                   !isTerminalSidebarOpen &&
                   worktreePath && (
                     <Tooltip delayDuration={500}>
@@ -5643,6 +5651,8 @@ Make sure to preserve all functionality from both branches when resolving confli
                     </TooltipContent>
                   </Tooltip>
                 )}
+                {/* Custom right header slot - used by Cowork mode for panel toggle */}
+                {rightHeaderSlot}
               </div>
             </div>
           )}
@@ -5780,10 +5790,10 @@ Make sure to preserve all functionality from both branches when resolving confli
           )}
         </div>
 
-        {/* Diff View - hidden on mobile fullscreen and when diff is not available */}
+        {/* Diff View - hidden on mobile fullscreen, when diff is not available, or when hideGitFeatures is true */}
         {/* Supports three display modes: side-peek (sidebar), center-peek (dialog), full-page */}
         {/* Wrapped in DiffStateProvider to isolate diff state and prevent ChatView re-renders */}
-        {canOpenDiff && !isMobileFullscreen && (
+        {!hideGitFeatures && canOpenDiff && !isMobileFullscreen && (
           <DiffStateProvider
             isDiffSidebarOpen={isDiffSidebarOpen}
             parsedFileDiffs={parsedFileDiffs}
@@ -5842,8 +5852,8 @@ Make sure to preserve all functionality from both branches when resolving confli
           </DiffStateProvider>
         )}
 
-        {/* Preview Sidebar - hidden on mobile fullscreen and when preview is not available */}
-        {canOpenPreview && !isMobileFullscreen && (
+        {/* Preview Sidebar - hidden on mobile fullscreen, when preview is not available, or when hideGitFeatures is true */}
+        {!hideGitFeatures && canOpenPreview && !isMobileFullscreen && (
           <ResizableSidebar
             isOpen={isPreviewSidebarOpen}
             onClose={() => setIsPreviewSidebarOpen(false)}
@@ -5910,8 +5920,8 @@ Make sure to preserve all functionality from both branches when resolving confli
           </ResizableSidebar>
         )}
 
-        {/* Terminal Sidebar - shows when worktree exists (desktop only) */}
-        {worktreePath && (
+        {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden when hideGitFeatures is true */}
+        {!hideGitFeatures && worktreePath && (
           <TerminalSidebar
             chatId={chatId}
             cwd={worktreePath}
