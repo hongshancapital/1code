@@ -14,4 +14,22 @@ declare global {
   }
 }
 
+// Type declarations for pptx-preview
+declare module "pptx-preview" {
+  interface PptxPreviewerOptions {
+    width?: number
+    height?: number
+  }
+
+  interface PptxPreviewer {
+    preview(arrayBuffer: ArrayBuffer): Promise<void>
+    destroy?(): void
+  }
+
+  export function init(
+    container: HTMLElement,
+    options?: PptxPreviewerOptions
+  ): PptxPreviewer
+}
+
 export {}

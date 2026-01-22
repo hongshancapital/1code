@@ -158,6 +158,29 @@ function handleDeepLink(url: string): void {
   }
 }
 
+// Register custom scheme for local file access BEFORE app is ready
+// This must be called before app.whenReady()
+// CRITICAL: This registration happens at module load time, before any async code
+console.log("[local-file] Registering scheme as privileged (before app ready)...")
+try {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: "local-file",
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        stream: true,
+        bypassCSP: true,
+        corsEnabled: true, // 允许跨域请求
+      },
+    },
+  ])
+  console.log("[local-file] Scheme registered successfully")
+} catch (err) {
+  console.error("[local-file] Failed to register scheme:", err)
+}
+
 // Register protocol BEFORE app is ready
 console.log("[Protocol] ========== PROTOCOL REGISTRATION ==========")
 console.log("[Protocol] Protocol:", PROTOCOL)
@@ -498,6 +521,51 @@ if (gotTheLock) {
 
     // Register protocol handler (must be after app is ready)
     initialRegistration = registerProtocol()
+
+    // Register local-file protocol for secure file access from renderer
+    // IMPORTANT: Must register to the specific session used by BrowserWindow (persist:main)
+    const ses = session.fromPartition("persist:main")
+    ses.protocol.handle("local-file", async (request) => {
+      // URL format: local-file://localhost/absolute/path/to/file
+      // We use "localhost" as a fixed hostname to avoid path mangling
+      // The actual file path is in the pathname (URL-encoded)
+      const url = new URL(request.url)
+      let filePath = decodeURIComponent(url.pathname)
+
+      // On Windows, pathname might start with /C:/ - remove leading slash
+      if (process.platform === "win32" && filePath.match(/^\/[A-Za-z]:\//)) {
+        filePath = filePath.slice(1)
+      }
+
+      console.log("[local-file] Request:", request.url)
+      console.log("[local-file] Host:", url.hostname, "Pathname:", url.pathname)
+      console.log("[local-file] Resolved path:", filePath)
+
+      // Security: only allow reading files, no directory traversal
+      if (filePath.includes("..")) {
+        console.warn("[local-file] Blocked path traversal:", filePath)
+        return new Response("Forbidden", { status: 403 })
+      }
+
+      // Check if file exists
+      if (!existsSync(filePath)) {
+        console.warn("[local-file] File not found:", filePath)
+        return new Response("Not Found", { status: 404 })
+      }
+
+      try {
+        // Use net.fetch with file:// protocol to read the file
+        const fileUrl = pathToFileURL(filePath).href
+        console.log("[local-file] Fetching:", fileUrl)
+        const response = await net.fetch(fileUrl)
+        console.log("[local-file] Response status:", response.status)
+        return response
+      } catch (error) {
+        console.error("[local-file] Error reading file:", filePath, error)
+        return new Response("Internal Server Error", { status: 500 })
+      }
+    })
+    console.log("[local-file] Protocol handler registered to persist:main session")
 
     // Handle deep link on macOS (app already running)
     app.on("open-url", (event, url) => {
