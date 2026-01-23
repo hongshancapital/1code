@@ -749,7 +749,7 @@ export type SessionInfo = {
 // Persisted to localStorage so MCP tools are visible after page refresh
 // Updated when a new chat session starts
 export const sessionInfoAtom = atomWithStorage<SessionInfo | null>(
-  "21st-session-info",
+  "hong-session-info",
   null,
   undefined,
   { getOnInit: true },
