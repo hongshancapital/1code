@@ -4,12 +4,57 @@ import { useEffect, useRef, useCallback } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
+import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom } from "../../../lib/atoms"
+import { appStore } from "../../../lib/jotai-store"
 
 // Track pending notifications count for badge
 const pendingNotificationsAtom = atomWithStorage<number>(
   "desktop-pending-notifications",
   0,
 )
+
+// Notification types for different scenarios
+export type NotificationType = "complete" | "error" | "user-input-required"
+
+// Notification config for each type
+const notificationConfig: Record<NotificationType, { title: string; getBody: (name: string) => string }> = {
+  complete: {
+    title: "Agent finished",
+    getBody: (name) => `${name} completed the task`,
+  },
+  error: {
+    title: "Agent failed",
+    getBody: (name) => `${name} encountered an error`,
+  },
+  "user-input-required": {
+    title: "Input required",
+    getBody: (name) => `${name} needs your input`,
+  },
+}
+
+/**
+ * Play notification sound if enabled in settings
+ * Supports custom sound file path from settings
+ */
+function playNotificationSound() {
+  const isSoundEnabled = appStore.get(soundNotificationsEnabledAtom)
+  if (!isSoundEnabled) return
+
+  const customSoundPath = appStore.get(customNotificationSoundAtom)
+  const soundSrc = customSoundPath
+    ? `local-file://${customSoundPath}`
+    : "./sound.mp3"
+
+  try {
+    const audio = new Audio(soundSrc)
+    audio.volume = 1.0
+    audio.play().catch((err) => {
+      console.error("Failed to play notification sound:", err)
+    })
+  } catch (err) {
+    console.error("Failed to create audio:", err)
+  }
+}
 
 // Track window focus state
 let isWindowFocused = true
@@ -123,26 +168,78 @@ export function useDesktopNotifications() {
   }, [pendingCount])
 
   /**
-   * Show a notification for agent completion
-   * Only shows if window is not focused (in desktop app)
+   * Show a notification with optional sound
+   * Notification is only shown when window is not focused
+   * Sound behavior:
+   * - user-input-required: always plays sound (needs immediate attention)
+   * - error: always plays sound (important to know about failures)
+   * - complete: caller controls via playSound parameter (to avoid double-playing)
    */
-  const notifyAgentComplete = useCallback(
-    (agentName: string) => {
+  const notify = useCallback(
+    (agentName: string, type: NotificationType = "complete", playSound: boolean = false) => {
       if (!isDesktopApp() || typeof window === "undefined") return
 
-      // Only notify if window is not focused
-      if (!isWindowFocused) {
+      const config = notificationConfig[type]
+
+      // user-input-required and error need immediate attention, always play sound
+      // complete: caller controls via playSound parameter
+      const shouldPlaySound = type === "user-input-required" || type === "error" || playSound
+      if (shouldPlaySound) {
+        playNotificationSound()
+      }
+
+      // Check if we should show notification based on settings and focus state
+      const alwaysShow = appStore.get(alwaysShowNotificationsAtom)
+      const shouldShowNotification = alwaysShow || !isWindowFocused
+
+      if (shouldShowNotification) {
         // Increment badge count
         setPendingCount((prev) => prev + 1)
 
         // Show native notification
         window.desktopApi?.showNotification({
-          title: "Agent finished",
-          body: `${agentName} completed the task`,
+          title: config.title,
+          body: config.getBody(agentName),
         })
       }
     },
     [setPendingCount],
+  )
+
+  /**
+   * Show a notification for agent completion
+   * Sound is NOT played by this function - caller should handle sound separately
+   * Only shows notification if window is not focused (in desktop app)
+   */
+  const notifyAgentComplete = useCallback(
+    (agentName: string) => {
+      notify(agentName, "complete", false)
+    },
+    [notify],
+  )
+
+  /**
+   * Show a notification for agent error/failure
+   * Always plays sound (important to know about failures)
+   * Only shows notification if window is not focused
+   */
+  const notifyAgentError = useCallback(
+    (agentName: string) => {
+      notify(agentName, "error")
+    },
+    [notify],
+  )
+
+  /**
+   * Show a notification when user input is required
+   * Always plays sound (needs immediate user attention)
+   * Only shows notification if window is not focused
+   */
+  const notifyUserInputRequired = useCallback(
+    (agentName: string) => {
+      notify(agentName, "user-input-required")
+    },
+    [notify],
   )
 
   /**
@@ -153,7 +250,10 @@ export function useDesktopNotifications() {
   }, [])
 
   return {
+    notify,
     notifyAgentComplete,
+    notifyAgentError,
+    notifyUserInputRequired,
     isAppFocused,
     pendingCount,
     clearBadge: () => {
@@ -164,16 +264,47 @@ export function useDesktopNotifications() {
 }
 
 /**
- * Standalone function to show notification (for use outside React components)
+ * Standalone function to show notification with sound (for use outside React components)
+ * Sound behavior:
+ * - user-input-required: always plays sound (needs immediate attention)
+ * - error: always plays sound (important to know about failures)
+ * - complete: only plays sound if playSound=true
  */
-export function showAgentNotification(agentName: string) {
+export function showAgentNotification(agentName: string, type: NotificationType = "complete", playSound: boolean = false) {
   if (!isDesktopApp() || typeof window === "undefined") return
 
-  // Only notify if window is not focused
-  if (!document.hasFocus()) {
+  const config = notificationConfig[type]
+  const isFocused = document.hasFocus()
+
+  // user-input-required and error need immediate attention, always play sound
+  // complete: caller controls via playSound parameter
+  const shouldPlaySound = type === "user-input-required" || type === "error" || playSound
+  if (shouldPlaySound) {
+    playNotificationSound()
+  }
+
+  // Check if we should show notification based on settings and focus state
+  const alwaysShow = appStore.get(alwaysShowNotificationsAtom)
+  const shouldShowNotification = alwaysShow || !isFocused
+
+  if (shouldShowNotification) {
     window.desktopApi?.showNotification({
-      title: "Agent finished",
-      body: `${agentName} completed the task`,
+      title: config.title,
+      body: config.getBody(agentName),
     })
   }
+}
+
+/**
+ * Standalone function to show error notification with sound
+ */
+export function showAgentErrorNotification(agentName: string) {
+  showAgentNotification(agentName, "error")
+}
+
+/**
+ * Standalone function to show user input required notification with sound
+ */
+export function showUserInputRequiredNotification(agentName: string) {
+  showAgentNotification(agentName, "user-input-required")
 }

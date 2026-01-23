@@ -23,6 +23,7 @@ import {
   pendingUserQuestionsAtom,
 } from "../atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
+import { showUserInputRequiredNotification } from "../../sidebar/hooks/use-desktop-notifications"
 
 // Error categories and their user-friendly messages
 const ERROR_TOAST_CONFIG: Record<
@@ -203,7 +204,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
               chunkCount++
               lastChunkType = chunk.type
 
-              // Handle AskUserQuestion - show question UI
+              // Handle AskUserQuestion - show question UI and notify user
               if (chunk.type === "ask-user-question") {
                 const currentMap = appStore.get(pendingUserQuestionsAtom)
                 const newMap = new Map(currentMap)
@@ -214,6 +215,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
                   questions: chunk.questions,
                 })
                 appStore.set(pendingUserQuestionsAtom, newMap)
+
+                // Show notification and play sound when user input is required
+                showUserInputRequiredNotification("Agent")
               }
 
               // Handle AskUserQuestion timeout - clear pending question immediately

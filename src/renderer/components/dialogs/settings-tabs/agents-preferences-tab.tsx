@@ -4,7 +4,6 @@ import {
   analyticsOptOutAtom,
   ctrlTabTargetAtom,
   extendedThinkingEnabledAtom,
-  soundNotificationsEnabledAtom,
   type CtrlTabTarget,
 } from "../../../lib/atoms"
 import { Kbd } from "../../ui/kbd"
@@ -38,7 +37,6 @@ export function AgentsPreferencesTab() {
   const [thinkingEnabled, setThinkingEnabled] = useAtom(
     extendedThinkingEnabledAtom,
   )
-  const [soundEnabled, setSoundEnabled] = useAtom(soundNotificationsEnabledAtom)
   const [analyticsOptOut, setAnalyticsOptOut] = useAtom(analyticsOptOutAtom)
   const [ctrlTabTarget, setCtrlTabTarget] = useAtom(ctrlTabTargetAtom)
   const isNarrowScreen = useIsNarrowScreen()
