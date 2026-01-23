@@ -4,8 +4,9 @@ import { trpc } from "../../../lib/trpc"
 import { Button, buttonVariants } from "../../ui/button"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
-import { Plus, Trash2, ChevronDown } from "lucide-react"
+import { Plus, Trash2, ChevronDown, Sparkles, Code } from "lucide-react"
 import { AIPenIcon } from "../../ui/icons"
+import { cn } from "../../../lib/utils"
 import {
   Select,
   SelectContent,
@@ -104,11 +105,32 @@ export function AgentsProjectWorktreeTab({
         }
         return current
       })
-      // Switch to account tab
-      setSettingsActiveTab("account")
+      // Switch to profile tab
+      setSettingsActiveTab("profile")
     },
     onError: (err) => {
       toast.error(`Failed to delete project: ${err.message}`)
+    },
+  })
+
+  // Update project mode mutation
+  const utils = trpc.useUtils()
+  const updateModeMutation = trpc.projects.updateMode.useMutation({
+    onSuccess: (updatedProject) => {
+      if (updatedProject) {
+        toast.success(`Project mode changed to ${updatedProject.mode}`)
+        utils.projects.list.invalidate()
+        utils.projects.get.invalidate({ id: projectId })
+        // Update selected project if it's the current one
+        setSelectedProject((current) =>
+          current?.id === projectId
+            ? { ...current, mode: updatedProject.mode as "cowork" | "coding" }
+            : current
+        )
+      }
+    },
+    onError: (err) => {
+      toast.error(`Failed to update mode: ${err.message}`)
     },
   })
 
@@ -215,15 +237,17 @@ export function AgentsProjectWorktreeTab({
 
   const cursorExists = configData?.available?.cursor?.exists ?? false
 
+  const isCodingMode = project?.mode === "coding"
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       {!isNarrowScreen && (
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col space-y-1.5 text-center sm:text-left">
-            <h3 className="text-sm font-semibold text-foreground">Worktree Setup</h3>
+            <h3 className="text-sm font-semibold text-foreground">Project Settings</h3>
             <p className="text-xs text-muted-foreground">
-              Configure setup commands that run when a new worktree is created
+              Configure project mode and worktree settings
             </p>
           </div>
           <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -259,7 +283,78 @@ export function AgentsProjectWorktreeTab({
         </div>
       )}
 
-      {/* Config Location */}
+      {/* Project Mode */}
+      <div className="space-y-2">
+        <div className="pb-2">
+          <h4 className="text-sm font-medium text-foreground">
+            Project Mode
+          </h4>
+          <p className="text-xs text-muted-foreground mt-1">
+            Choose how you want to work with this project
+          </p>
+        </div>
+
+        <div className="bg-background rounded-lg border border-border overflow-hidden">
+          <div className="p-4">
+            <div className="flex gap-3">
+              {/* Cowork Mode */}
+              <button
+                onClick={() => updateModeMutation.mutate({ id: projectId, mode: "cowork" })}
+                disabled={updateModeMutation.isPending}
+                className={cn(
+                  "flex-1 p-3 rounded-lg border-2 text-left transition-colors",
+                  !isCodingMode
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-accent/50"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={cn(
+                    "p-1.5 rounded-md",
+                    !isCodingMode ? "bg-primary text-primary-foreground" : "bg-muted"
+                  )}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-sm font-medium">Cowork</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Simplified mode for collaboration. No Git features.
+                </p>
+              </button>
+
+              {/* Coding Mode */}
+              <button
+                onClick={() => updateModeMutation.mutate({ id: projectId, mode: "coding" })}
+                disabled={updateModeMutation.isPending}
+                className={cn(
+                  "flex-1 p-3 rounded-lg border-2 text-left transition-colors",
+                  isCodingMode
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-accent/50"
+                )}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={cn(
+                    "p-1.5 rounded-md",
+                    isCodingMode ? "bg-primary text-primary-foreground" : "bg-muted"
+                  )}>
+                    <Code className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-sm font-medium">Coding</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Full developer experience with Git, branches, and worktrees.
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Worktree Config - Only show in Coding mode */}
+      {isCodingMode && (
+        <>
+          {/* Config Location */}
       <div className="space-y-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">
@@ -524,6 +619,8 @@ export function AgentsProjectWorktreeTab({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }
