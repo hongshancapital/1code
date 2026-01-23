@@ -82,6 +82,7 @@ import {
   type AgentsMentionsEditorHandle,
   type FileMentionOption,
 } from "../mentions"
+import { pendingFileReferenceAtom } from "../../cowork/atoms"
 import { AgentImageItem } from "../ui/agent-image-item"
 import { AgentPastedTextItem } from "../ui/agent-pasted-text-item"
 import { AgentsHeaderControls } from "../ui/agents-header-controls"
@@ -208,6 +209,7 @@ export function NewChatForm({
       setSelectedProject(null)
     }
   }, [selectedProject, projectsList, validatedProject, setSelectedProject])
+
   const [lastSelectedAgentId, setLastSelectedAgentId] = useAtom(
     lastSelectedAgentIdAtom,
   )
@@ -216,6 +218,9 @@ export function NewChatForm({
   )
   const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
   const [workMode, setWorkMode] = useAtom(lastSelectedWorkModeAtom)
+
+  // File reference from file tree panel
+  const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
   const debugMode = useAtomValue(agentsDebugModeAtom)
   const customClaudeConfig = useAtomValue(customClaudeConfigAtom)
   const normalizedCustomClaudeConfig =
@@ -838,6 +843,28 @@ export function NewChatForm({
     }
   }, [])
 
+  // Listen for pending file reference and insert as mention
+  useEffect(() => {
+    if (pendingFileReference && editorRef.current && validatedProject) {
+      const { path, name, type } = pendingFileReference
+      // Create mention option
+      const mentionId = type === "folder"
+        ? `${MENTION_PREFIXES.FOLDER}local:${path}`
+        : `${MENTION_PREFIXES.FILE}local:${path}`
+      const mention: FileMentionOption = {
+        id: mentionId,
+        label: name,
+        path: path,
+        repository: "local",
+        type: type,
+      }
+      // Insert mention at end of editor directly
+      editorRef.current.insertMentionAtEnd(mention)
+      // Clear the pending reference
+      setPendingFileReference(null)
+    }
+  }, [pendingFileReference, setPendingFileReference, validatedProject])
+
   // Filter all repos by search (combined list) and sort by preview status
   const filteredRepos = repos
     .filter(
@@ -1458,27 +1485,48 @@ export function NewChatForm({
       </div>
 
       <div className="flex flex-1 items-center justify-center overflow-y-auto relative">
-        <div className="w-full max-w-2xl space-y-4 md:space-y-6 relative z-10 px-4">
-          {/* Title - only show when project is selected */}
-          {validatedProject && (
-            <div className="text-center">
-              <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
-                What do you want to get done?
-              </h1>
-            </div>
-          )}
+        <div className="w-full max-w-2xl space-y-6 md:space-y-8 relative z-10 px-4">
+          {/* Title */}
+          <div className="text-center mb-2">
+            <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
+              {validatedProject
+                ? "What do you want to get done?"
+                : "Select a folder to get started"}
+            </h1>
+            {!validatedProject && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Choose a project folder to enable the chat
+              </p>
+            )}
+          </div>
 
-          {/* Input Area or Select Repo State */}
+          {/* Input Area - shown for both states */}
           {!validatedProject ? (
-            // No project selected - show select repo button (like Sign in button)
-            <div className="flex justify-center">
-              <button
+            // No project selected - show disabled input with folder selector
+            <div className="relative w-full">
+              <div
+                className="relative w-full cursor-pointer"
                 onClick={handleOpenFolder}
-                disabled={openFolder.isPending}
-                className="h-8 px-3 bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-primary/90 active:scale-[0.97] shadow-[0_0_0_0.5px_rgb(23,23,23),inset_0_0_0_1px_rgba(255,255,255,0.14)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {openFolder.isPending ? "Opening..." : "Select repo"}
-              </button>
+                <div className="border bg-input-background relative z-10 p-2 rounded-xl opacity-60">
+                  <div className="p-1 min-h-[44px] text-sm text-muted-foreground">
+                    Select a folder to start chatting...
+                  </div>
+                  <div className="flex items-center justify-between w-full pt-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleOpenFolder()
+                      }}
+                      disabled={openFolder.isPending}
+                      className="flex items-center gap-1.5 px-2 py-1 text-sm text-primary hover:text-primary/80 transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-primary/10 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>{openFolder.isPending ? "Opening..." : "Select Folder"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             // Project selected - show input form

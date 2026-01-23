@@ -57,6 +57,7 @@ export type AgentsMentionsEditorHandle = {
   focus: () => void
   blur: () => void
   insertMention: (option: FileMentionOption) => void
+  insertMentionAtEnd: (option: FileMentionOption) => void // Insert mention at end without trigger
   triggerMention: () => void // Trigger @ mention dropdown programmatically (for @ button)
   getValue: () => string
   setValue: (value: string) => void
@@ -1331,6 +1332,59 @@ export const AgentsMentionsEditor = memo(
               setHasContent(true)
               onContentChange?.(true)
             }
+          },
+
+          // Insert mention at end of editor without requiring trigger state
+          // Used for file tree reference button
+          insertMentionAtEnd: (option: FileMentionOption) => {
+            const editor = editorRef.current
+            if (!editor) return
+
+            // Focus the editor first
+            editor.focus()
+
+            // Get or create selection at end
+            const sel = window.getSelection()
+            if (!sel) return
+
+            // Move cursor to end
+            sel.selectAllChildren(editor)
+            sel.collapseToEnd()
+
+            const range = sel.getRangeAt(0)
+
+            // Check if we need to add a space before the mention
+            const lastText = editor.textContent || ""
+            const needsSpace = lastText.length > 0 && !/\s$/.test(lastText)
+
+            // Create mention node
+            const mentionNode = createMentionNode(option)
+
+            // Insert space if needed
+            if (needsSpace) {
+              const space = document.createTextNode(" ")
+              range.insertNode(space)
+              range.setStartAfter(space)
+              range.collapse(true)
+            }
+
+            // Insert mention node
+            range.insertNode(mentionNode)
+
+            // Add space after and move cursor
+            const spaceAfter = document.createTextNode(" ")
+            mentionNode.after(spaceAfter)
+
+            // Move cursor after the space
+            const newRange = document.createRange()
+            newRange.setStartAfter(spaceAfter)
+            newRange.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(newRange)
+
+            // Update hasContent
+            setHasContent(true)
+            onContentChange?.(true)
           },
 
           // Trigger @ mention dropdown programmatically (for @ button click)
