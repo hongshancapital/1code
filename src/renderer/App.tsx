@@ -12,13 +12,16 @@ import {
   AnthropicOnboardingPage,
   ApiKeyOnboardingPage,
   BillingMethodPage,
+  LiteLLMOnboardingPage,
   SelectRepoPage,
   WelcomePage,
 } from "./features/onboarding"
 import { identify, initAnalytics, shutdown } from "./lib/analytics"
 import {
-  anthropicOnboardingCompletedAtom, apiKeyOnboardingCompletedAtom,
-  billingMethodAtom
+  anthropicOnboardingCompletedAtom,
+  apiKeyOnboardingCompletedAtom,
+  billingMethodAtom,
+  litellmOnboardingCompletedAtom,
 } from "./lib/atoms"
 import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
@@ -58,6 +61,7 @@ function AppContent() {
     anthropicOnboardingCompletedAtom
   )
   const apiKeyOnboardingCompleted = useAtomValue(apiKeyOnboardingCompletedAtom)
+  const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
 
   // Migration: If user already completed Anthropic onboarding but has no billing method set,
   // automatically set it to "claude-subscription" (legacy users before billing method was added)
@@ -103,6 +107,11 @@ function AppContent() {
     !apiKeyOnboardingCompleted
   ) {
     return <ApiKeyOnboardingPage />
+  }
+
+  // Step 4: LiteLLM selected but not completed -> LiteLLM config
+  if (billingMethod === "litellm" && !litellmOnboardingCompleted) {
+    return <LiteLLMOnboardingPage />
   }
 
   // ============================================================================

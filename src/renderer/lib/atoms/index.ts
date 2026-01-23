@@ -615,8 +615,35 @@ export const isFullscreenAtom = atom<boolean | null>(null)
 // "claude-subscription" = use Claude Pro/Max via OAuth
 // "api-key" = use Anthropic API key directly
 // "custom-model" = use custom base URL and model (e.g. for proxies or alternative providers)
+// "litellm" = use LiteLLM proxy with model selection from /models endpoint
 // null = not yet selected (show billing method selection screen)
-export type BillingMethod = "claude-subscription" | "api-key" | "custom-model" | null
+export type BillingMethod = "claude-subscription" | "api-key" | "custom-model" | "litellm" | null
+
+// LiteLLM configuration
+export type LiteLLMConfig = {
+  baseUrl: string
+  apiKey: string
+  selectedModel: string
+}
+
+export const litellmConfigAtom = atomWithStorage<LiteLLMConfig>(
+  "agents:litellm-config",
+  {
+    baseUrl: "",
+    apiKey: "",
+    selectedModel: "",
+  },
+  undefined,
+  { getOnInit: true },
+)
+
+// LiteLLM onboarding completed flag
+export const litellmOnboardingCompletedAtom = atomWithStorage<boolean>(
+  "onboarding:litellm-completed",
+  false,
+  undefined,
+  { getOnInit: true },
+)
 
 export const billingMethodAtom = atomWithStorage<BillingMethod>(
   "onboarding:billing-method",
