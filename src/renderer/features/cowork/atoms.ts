@@ -136,6 +136,20 @@ export const filePreviewDisplayModeAtom = atomWithStorage<FilePreviewDisplayMode
 // Current preview file path (null = closed)
 export const filePreviewPathAtom = atom<string | null>(null)
 
+// ============================================================================
+// File Reference Insertion (File Tree -> Chat Input)
+// ============================================================================
+
+// Pending file reference to insert into chat input
+// When set, chat input components should insert this file as a mention and clear the atom
+export interface PendingFileReference {
+  path: string
+  name: string
+  type: "file" | "folder"
+}
+
+export const pendingFileReferenceAtom = atom<PendingFileReference | null>(null)
+
 // File preview dialog open state (derived from path)
 export const filePreviewOpenAtom = atom(
   (get) => get(filePreviewPathAtom) !== null,

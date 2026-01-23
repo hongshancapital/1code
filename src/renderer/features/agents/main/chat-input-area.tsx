@@ -1,6 +1,6 @@
 "use client"
 
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Zap } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -56,6 +56,8 @@ import {
   type FileMentionOption,
 } from "../mentions"
 import { AgentContextIndicator, type MessageTokenData } from "../ui/agent-context-indicator"
+import { pendingFileReferenceAtom } from "../../cowork/atoms"
+import { MENTION_PREFIXES } from "../mentions"
 import { AgentDiffTextContextItem } from "../ui/agent-diff-text-context-item"
 import { AgentFileItem } from "../ui/agent-file-item"
 import { AgentImageItem } from "../ui/agent-image-item"
@@ -391,6 +393,31 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   // Plan mode - global atom
   const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
+
+  // File reference from file tree panel
+  const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
+
+  // Listen for pending file reference and insert as mention
+  useEffect(() => {
+    if (pendingFileReference && editorRef.current && projectPath) {
+      const { path, name, type } = pendingFileReference
+      // Create mention option
+      const mentionId = type === "folder"
+        ? `${MENTION_PREFIXES.FOLDER}local:${path}`
+        : `${MENTION_PREFIXES.FILE}local:${path}`
+      const mention: FileMentionOption = {
+        id: mentionId,
+        label: name,
+        path: path,
+        repository: "local",
+        type: type,
+      }
+      // Insert mention at end of editor directly
+      editorRef.current.insertMentionAtEnd(mention)
+      // Clear the pending reference
+      setPendingFileReference(null)
+    }
+  }, [pendingFileReference, setPendingFileReference, editorRef, projectPath])
 
   // Refs for draft saving
   const currentSubChatIdRef = useRef<string>(subChatId)
