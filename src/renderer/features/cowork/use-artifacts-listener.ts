@@ -1,21 +1,16 @@
-import { useEffect, useMemo } from "react"
-import { useSetAtom } from "jotai"
+import { useEffect } from "react"
+import { useStore } from "jotai"
 import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atoms"
 
 /**
  * Hook to listen for file-changed events from Claude tools
- * and automatically add them to the artifacts list for the current session
+ * and automatically add them to the artifacts list for the correct session
  *
- * Uses subChatId to group artifacts by session (sub-chat).
- * Each session has its own artifacts list.
+ * Uses subChatId from the event to store artifacts in the correct session.
+ * The parameter is only used for logging/debugging.
  */
-export function useArtifactsListener(subChatId: string | null) {
-  const effectiveId = subChatId || "default"
-  const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(effectiveId),
-    [effectiveId]
-  )
-  const setArtifacts = useSetAtom(artifactsAtom)
+export function useArtifactsListener(currentSubChatId: string | null) {
+  const store = useStore()
 
   useEffect(() => {
     if (!window.desktopApi?.onFileChanged) {
@@ -23,35 +18,42 @@ export function useArtifactsListener(subChatId: string | null) {
       return
     }
 
-    console.log("[Artifacts] Listening for file changes, subChatId:", effectiveId)
+    console.log("[Artifacts] Setting up file change listener, currentSubChatId:", currentSubChatId)
 
     const unsubscribe = window.desktopApi.onFileChanged((data) => {
-      console.log("[Artifacts] Received file-changed event:", data)
-
-      const { filePath, type, contexts } = data as {
+      const { filePath, type, subChatId: eventSubChatId, contexts } = data as {
         filePath: string
         type: string
         subChatId: string
         contexts?: ArtifactContext[]
       }
-      console.log("[Artifacts] Processing file change:", filePath, type, "contexts:", contexts?.length ?? 0)
 
-      // Update artifacts list
-      setArtifacts((prev) => {
+      // Use the subChatId from the event, fallback to "default"
+      const targetSubChatId = eventSubChatId || "default"
+
+      console.log("[Artifacts] Processing file change:", filePath, "type:", type, "targetSubChatId:", targetSubChatId)
+
+      // Get the atom for the target subChatId
+      const artifactsAtom = artifactsAtomFamily(targetSubChatId)
+
+      // Update artifacts using store.set with updater function
+      // This ensures the atomFamily's custom setter is triggered properly
+      store.set(artifactsAtom, (prev: Artifact[]) => {
         const existing = prev.find((d) => d.path === filePath)
 
         // Determine status based on tool type and existing state
         let status: Artifact["status"] = "modified"
-        if (type === "tool-Write") {
-          // Write tool could be creating or modifying
+        if (type === "tool-Write" || type === "tool-MarkArtifact") {
+          // Write tool and MarkArtifact could be creating or modifying
           status = existing ? "modified" : "created"
         } else if (type === "tool-Edit") {
           status = "modified"
         }
 
+        let newArtifacts: Artifact[]
         if (existing) {
           // Update existing entry, merge contexts
-          return prev.map((d) =>
+          newArtifacts = prev.map((d) =>
             d.path === filePath
               ? {
                   ...d,
@@ -63,7 +65,7 @@ export function useArtifactsListener(subChatId: string | null) {
           )
         } else {
           // Add new entry
-          return [
+          newArtifacts = [
             ...prev,
             {
               path: filePath,
@@ -73,11 +75,17 @@ export function useArtifactsListener(subChatId: string | null) {
             },
           ]
         }
+
+        console.log("[Artifacts] Updated artifacts for subChatId:", targetSubChatId, "count:", newArtifacts.length)
+        return newArtifacts
       })
     })
 
-    return unsubscribe
-  }, [effectiveId, setArtifacts])
+    return () => {
+      console.log("[Artifacts] Cleaning up file change listener")
+      unsubscribe()
+    }
+  }, [store, currentSubChatId])
 }
 
 /**
