@@ -157,8 +157,30 @@ contextBridge.exposeInMainWorld("desktopApi", {
   },
 
   // File change events (from Claude Write/Edit tools)
-  onFileChanged: (callback: (data: { filePath: string; type: string; subChatId: string }) => void) => {
-    const handler = (_event: unknown, data: { filePath: string; type: string; subChatId: string }) => callback(data)
+  onFileChanged: (callback: (data: {
+    filePath: string
+    type: string
+    subChatId: string
+    contexts?: Array<{
+      type: "file" | "url"
+      filePath?: string
+      toolType?: "Read" | "Glob" | "Grep"
+      url?: string
+      title?: string
+    }>
+  }) => void) => {
+    const handler = (_event: unknown, data: {
+      filePath: string
+      type: string
+      subChatId: string
+      contexts?: Array<{
+        type: "file" | "url"
+        filePath?: string
+        toolType?: "Read" | "Glob" | "Grep"
+        url?: string
+        title?: string
+      }>
+    }) => callback(data)
     ipcRenderer.on("file-changed", handler)
     return () => ipcRenderer.removeListener("file-changed", handler)
   },

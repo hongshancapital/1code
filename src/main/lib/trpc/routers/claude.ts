@@ -107,6 +107,105 @@ function parseMentions(prompt: string): {
 }
 
 /**
+ * Artifact context type - represents files or URLs used as context for an artifact
+ */
+interface ArtifactContext {
+  type: "file" | "url"
+  filePath?: string
+  toolType?: "Read" | "Glob" | "Grep"
+  url?: string
+  title?: string
+}
+
+/**
+ * Extract artifact contexts from message parts
+ * Collects all Read/Glob/Grep/WebFetch/WebSearch tool calls that preceded Write/Edit
+ */
+function extractArtifactContexts(parts: any[]): ArtifactContext[] {
+  const contexts: ArtifactContext[] = []
+  const seenFiles = new Set<string>()
+  const seenUrls = new Set<string>()
+
+  for (const part of parts) {
+    // File read
+    if (part.type === "tool-Read" && part.input?.file_path && part.state === "result") {
+      const filePath = part.input.file_path
+      if (!seenFiles.has(filePath)) {
+        seenFiles.add(filePath)
+        contexts.push({
+          type: "file",
+          filePath,
+          toolType: "Read",
+        })
+      }
+    }
+
+    // File search (Glob) - extract matched files from output
+    if (part.type === "tool-Glob" && part.state === "result") {
+      const files = Array.isArray(part.output) ? part.output : []
+      for (const file of files.slice(0, 10)) { // Limit to 10 files
+        if (typeof file === "string" && !seenFiles.has(file)) {
+          seenFiles.add(file)
+          contexts.push({
+            type: "file",
+            filePath: file,
+            toolType: "Glob",
+          })
+        }
+      }
+    }
+
+    // Content search (Grep)
+    if (part.type === "tool-Grep" && part.input?.path && part.state === "result") {
+      const filePath = part.input.path
+      if (!seenFiles.has(filePath)) {
+        seenFiles.add(filePath)
+        contexts.push({
+          type: "file",
+          filePath,
+          toolType: "Grep",
+        })
+      }
+    }
+
+    // Web fetch
+    if (part.type === "tool-WebFetch" && part.input?.url && part.state === "result") {
+      const url = part.input.url
+      if (!seenUrls.has(url)) {
+        seenUrls.add(url)
+        contexts.push({
+          type: "url",
+          url,
+        })
+      }
+    }
+
+    // Web search - extract URLs from output if available
+    if (part.type === "tool-WebSearch" && part.state === "result") {
+      // WebSearch output structure may vary, try to extract URLs
+      const output = part.output
+      if (output && typeof output === "object") {
+        // Handle array of results
+        const results = Array.isArray(output) ? output : (output.results || [])
+        for (const result of results.slice(0, 5)) { // Limit to 5 URLs
+          const url = result.url || result.link
+          if (url && typeof url === "string" && !seenUrls.has(url)) {
+            seenUrls.add(url)
+            contexts.push({
+              type: "url",
+              url,
+              title: result.title,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  return contexts
+}
+
+/**
  * Decrypt token using Electron's safeStorage
  */
 function decryptToken(encrypted: string): string {
@@ -1460,12 +1559,16 @@ ${prompt}
                         if (toolPart.type === "tool-Write" || toolPart.type === "tool-Edit") {
                           const filePath = toolPart.input?.file_path
                           if (filePath) {
+                            // Extract contexts from all tool calls in this message
+                            const contexts = extractArtifactContexts(parts)
+                            console.log(`[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`)
                             const windows = BrowserWindow.getAllWindows()
                             for (const win of windows) {
                               win.webContents.send("file-changed", {
                                 filePath,
                                 type: toolPart.type,
-                                subChatId: input.subChatId
+                                subChatId: input.subChatId,
+                                contexts,
                               })
                             }
                           }
