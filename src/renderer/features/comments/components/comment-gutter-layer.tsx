@@ -6,7 +6,7 @@ import {
   useState,
   type RefObject,
 } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import { createPortal } from "react-dom"
 import { activeCommentInputAtom, lineSelectionAtom } from "../atoms"
 import { CommentIndicator, CommentAddButton } from "./comment-indicator"
@@ -38,13 +38,10 @@ interface LineInfo {
 }
 
 /**
- * CommentGutterLayer - Overlay layer for adding comments to diff view
+ * CommentGutterLayer - Adds comment controls to diff view line numbers
  *
- * This component creates an invisible overlay on top of the diff view
- * that handles:
- * - Detecting line hover and showing "+" buttons
- * - Drag selection for multi-line comments
- * - Displaying comment indicators for existing comments
+ * Uses direct DOM manipulation to inject hover buttons into the diff view
+ * without blocking user interaction with the diff content.
  */
 export const CommentGutterLayer = memo(function CommentGutterLayer({
   chatId,
@@ -59,135 +56,110 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
   const { addComment, closeCommentInput } = useCommentActions(chatId)
 
   const [hoveredLine, setHoveredLine] = useState<LineInfo | null>(null)
-  const [lineElements, setLineElements] = useState<LineInfo[]>([])
+  const [lineInfoCache, setLineInfoCache] = useState<Map<HTMLElement, LineInfo>>(new Map())
   const isDragging = useRef(false)
   const dragStartLine = useRef<LineInfo | null>(null)
 
-  // Scan for line elements when diff view updates
+  // Scan for line elements and set up event listeners
   useEffect(() => {
     const container = diffViewContainerRef.current
     if (!container) return
 
-    const scanLines = () => {
-      const lines: LineInfo[] = []
+    const lineInfoMap = new Map<HTMLElement, LineInfo>()
 
-      // Find all line number cells in the diff view
-      // @git-diff-view uses .diff-line-num class for line numbers
-      const lineNumCells = container.querySelectorAll(".diff-line-num")
+    const getLineInfo = (cell: HTMLElement): LineInfo | null => {
+      if (lineInfoMap.has(cell)) {
+        return lineInfoMap.get(cell)!
+      }
 
-      lineNumCells.forEach((cell) => {
-        const lineNumText = cell.textContent?.trim()
-        if (!lineNumText || lineNumText === "...") return
+      const lineNumText = cell.textContent?.trim()
+      if (!lineNumText || lineNumText === "...") return null
 
-        const lineNumber = parseInt(lineNumText, 10)
-        if (isNaN(lineNumber)) return
+      const lineNumber = parseInt(lineNumText, 10)
+      if (isNaN(lineNumber)) return null
 
-        // Determine side (old/new) based on cell position or class
-        // In unified mode, we need to check the cell's position in the row
-        // In split mode, left side is old, right side is new
-        const row = cell.closest("tr")
-        if (!row) return
+      const row = cell.closest("tr")
+      if (!row) return null
 
-        const cells = Array.from(row.querySelectorAll(".diff-line-num"))
-        const cellIndex = cells.indexOf(cell as HTMLElement)
+      // Determine side based on class or position
+      let side: "old" | "new" = "new"
+      if (cell.classList.contains("diff-line-old-num")) {
+        side = "old"
+      } else if (cell.classList.contains("diff-line-new-num")) {
+        side = "new"
+      } else if (diffMode === "split") {
+        const cells = Array.from(row.querySelectorAll(".diff-line-num, .diff-line-old-num, .diff-line-new-num"))
+        const cellIndex = cells.indexOf(cell)
+        side = cellIndex === 0 ? "old" : "new"
+      }
 
-        let side: "old" | "new" = "new"
-        if (diffMode === "split") {
-          // In split mode: first cell is old, second is new
-          side = cellIndex === 0 ? "old" : "new"
-        } else {
-          // In unified mode: check if row has deletion or addition class
-          const rowClasses = row.className
-          if (rowClasses.includes("diff-line-del")) {
-            side = "old"
-          } else if (rowClasses.includes("diff-line-add")) {
-            side = "new"
-          }
-        }
-
-        const rect = cell.getBoundingClientRect()
-        lines.push({
-          element: cell as HTMLElement,
-          lineNumber,
-          side,
-          rect,
-        })
-      })
-
-      setLineElements(lines)
+      const rect = cell.getBoundingClientRect()
+      const info: LineInfo = { element: cell, lineNumber, side, rect }
+      lineInfoMap.set(cell, info)
+      return info
     }
 
-    // Initial scan
-    scanLines()
-
-    // Re-scan on scroll and resize
-    const observer = new MutationObserver(scanLines)
-    observer.observe(container, { childList: true, subtree: true })
-
-    const handleScroll = () => {
-      requestAnimationFrame(scanLines)
+    // Mouse enter handler for line number cells
+    const handleMouseEnter = (event: MouseEvent) => {
+      if (isDragging.current) return
+      const cell = event.currentTarget as HTMLElement
+      const info = getLineInfo(cell)
+      if (info) {
+        // Update rect on hover (in case of scroll)
+        info.rect = cell.getBoundingClientRect()
+        setHoveredLine(info)
+      }
     }
 
-    container.addEventListener("scroll", handleScroll)
-    window.addEventListener("resize", handleScroll)
+    const handleMouseLeave = () => {
+      if (!isDragging.current) {
+        setHoveredLine(null)
+      }
+    }
 
+    // Find all line number cells and add listeners
+    const lineNumCells = container.querySelectorAll(
+      ".diff-line-num, .diff-line-old-num, .diff-line-new-num"
+    )
+
+    lineNumCells.forEach((cell) => {
+      const el = cell as HTMLElement
+      // Add hover cursor style
+      el.style.cursor = "pointer"
+      el.addEventListener("mouseenter", handleMouseEnter)
+      el.addEventListener("mouseleave", handleMouseLeave)
+    })
+
+    setLineInfoCache(lineInfoMap)
+
+    // Cleanup
     return () => {
-      observer.disconnect()
-      container.removeEventListener("scroll", handleScroll)
-      window.removeEventListener("resize", handleScroll)
+      lineNumCells.forEach((cell) => {
+        const el = cell as HTMLElement
+        el.style.cursor = ""
+        el.removeEventListener("mouseenter", handleMouseEnter)
+        el.removeEventListener("mouseleave", handleMouseLeave)
+      })
     }
   }, [diffViewContainerRef, diffMode])
 
-  // Handle mouse move to detect hovered line
-  const handleMouseMove = useCallback(
-    (event: React.MouseEvent) => {
-      if (isDragging.current) return
-
-      const mouseY = event.clientY
-      const mouseX = event.clientX
-
-      // Find the line closest to the mouse position
-      let closestLine: LineInfo | null = null
-      let closestDistance = Infinity
-
-      for (const line of lineElements) {
-        // Check if mouse is near the line number cell
-        if (
-          mouseY >= line.rect.top &&
-          mouseY <= line.rect.bottom &&
-          mouseX >= line.rect.left - 30 && // Allow some padding for the + button
-          mouseX <= line.rect.right + 10
-        ) {
-          const distance = Math.abs(mouseY - (line.rect.top + line.rect.height / 2))
-          if (distance < closestDistance) {
-            closestDistance = distance
-            closestLine = line
-          }
-        }
-      }
-
-      setHoveredLine(closestLine)
-    },
-    [lineElements]
-  )
-
-  // Handle mouse leave
-  const handleMouseLeave = useCallback(() => {
-    if (!isDragging.current) {
-      setHoveredLine(null)
-    }
+  // Get code content for a line
+  const getLineCode = useCallback((line: LineInfo): string => {
+    const row = line.element.closest("tr")
+    // Try different selectors for content
+    const contentCell = row?.querySelector(
+      ".diff-line-content-item, .diff-line-new-content, .diff-line-old-content, .diff-line-content"
+    )
+    return contentCell?.textContent || ""
   }, [])
 
-  // Handle click on add button (single line)
+  // Handle click to add comment (single line)
   const handleAddClick = useCallback(
     (line: LineInfo, event: React.MouseEvent) => {
       event.stopPropagation()
       event.preventDefault()
 
-      // Get the code content for this line
-      const row = line.element.closest("tr")
-      const contentCell = row?.querySelector(".diff-line-content-item")
-      const selectedCode = contentCell?.textContent || undefined
+      const selectedCode = getLineCode(line)
 
       setActiveInput({
         filePath,
@@ -196,18 +168,17 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
           endLine: line.lineNumber,
           side: line.side,
         },
-        selectedCode,
+        selectedCode: selectedCode || undefined,
         anchorRect: line.rect,
         source: "diff-view",
       })
     },
-    [filePath, setActiveInput]
+    [filePath, setActiveInput, getLineCode]
   )
 
   // Handle mouse down for drag selection
   const handleMouseDown = useCallback(
     (line: LineInfo, event: React.MouseEvent) => {
-      // Only start drag on left click
       if (event.button !== 0) return
 
       event.preventDefault()
@@ -224,48 +195,84 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     [filePath, setLineSelection]
   )
 
-  // Handle mouse move during drag
+  // Handle drag selection
   useEffect(() => {
     if (!lineSelection || !isDragging.current) return
 
     const handleGlobalMouseMove = (event: MouseEvent) => {
-      const mouseY = event.clientY
+      const container = diffViewContainerRef.current
+      if (!container) return
 
-      // Find the line at current mouse position
-      for (const line of lineElements) {
-        if (
-          mouseY >= line.rect.top &&
-          mouseY <= line.rect.bottom &&
-          line.side === lineSelection.side
-        ) {
-          setLineSelection((prev) =>
-            prev ? { ...prev, currentLine: line.lineNumber } : null
-          )
+      // Find line at mouse position
+      const cells = container.querySelectorAll(
+        ".diff-line-num, .diff-line-old-num, .diff-line-new-num"
+      )
+
+      for (const cell of Array.from(cells)) {
+        const rect = cell.getBoundingClientRect()
+        if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
+          const lineNumText = cell.textContent?.trim()
+          if (!lineNumText || lineNumText === "...") continue
+
+          const lineNumber = parseInt(lineNumText, 10)
+          if (isNaN(lineNumber)) continue
+
+          // Check if same side
+          let side: "old" | "new" = "new"
+          if (cell.classList.contains("diff-line-old-num")) {
+            side = "old"
+          } else if (cell.classList.contains("diff-line-new-num")) {
+            side = "new"
+          }
+
+          if (side === lineSelection.side) {
+            setLineSelection((prev) =>
+              prev ? { ...prev, currentLine: lineNumber } : null
+            )
+          }
           break
         }
       }
     }
 
     const handleGlobalMouseUp = () => {
-      if (!isDragging.current || !dragStartLine.current) return
+      if (!isDragging.current || !dragStartLine.current || !lineSelection) {
+        isDragging.current = false
+        return
+      }
 
       isDragging.current = false
       const startLine = lineSelection.startLine
       const endLine = lineSelection.currentLine
-
-      // Get selected code content
       const minLine = Math.min(startLine, endLine)
       const maxLine = Math.max(startLine, endLine)
+
+      // Get selected code
+      const container = diffViewContainerRef.current
       let selectedCode = ""
 
-      for (const line of lineElements) {
-        if (
-          line.lineNumber >= minLine &&
-          line.lineNumber <= maxLine &&
-          line.side === lineSelection.side
-        ) {
-          const row = line.element.closest("tr")
-          const contentCell = row?.querySelector(".diff-line-content-item")
+      if (container) {
+        const cells = container.querySelectorAll(
+          ".diff-line-num, .diff-line-old-num, .diff-line-new-num"
+        )
+
+        for (const cell of Array.from(cells)) {
+          const lineNumText = cell.textContent?.trim()
+          if (!lineNumText) continue
+          const lineNum = parseInt(lineNumText, 10)
+          if (isNaN(lineNum) || lineNum < minLine || lineNum > maxLine) continue
+
+          // Check side
+          let side: "old" | "new" = "new"
+          if (cell.classList.contains("diff-line-old-num")) {
+            side = "old"
+          }
+          if (side !== lineSelection.side) continue
+
+          const row = cell.closest("tr")
+          const contentCell = row?.querySelector(
+            ".diff-line-content-item, .diff-line-new-content, .diff-line-old-content"
+          )
           if (contentCell?.textContent) {
             selectedCode += contentCell.textContent + "\n"
           }
@@ -273,23 +280,19 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
       }
 
       // Open comment input
-      const startLineInfo = lineElements.find(
-        (l) => l.lineNumber === minLine && l.side === lineSelection.side
-      )
+      const startRect = dragStartLine.current.element.getBoundingClientRect()
 
-      if (startLineInfo) {
-        setActiveInput({
-          filePath,
-          lineRange: {
-            startLine: minLine,
-            endLine: maxLine,
-            side: lineSelection.side,
-          },
-          selectedCode: selectedCode.trimEnd() || undefined,
-          anchorRect: startLineInfo.rect,
-          source: "diff-view",
-        })
-      }
+      setActiveInput({
+        filePath,
+        lineRange: {
+          startLine: minLine,
+          endLine: maxLine,
+          side: lineSelection.side,
+        },
+        selectedCode: selectedCode.trimEnd() || undefined,
+        anchorRect: startRect,
+        source: "diff-view",
+      })
 
       setLineSelection(null)
       dragStartLine.current = null
@@ -302,7 +305,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
       document.removeEventListener("mousemove", handleGlobalMouseMove)
       document.removeEventListener("mouseup", handleGlobalMouseUp)
     }
-  }, [lineSelection, lineElements, filePath, setActiveInput, setLineSelection])
+  }, [lineSelection, diffViewContainerRef, filePath, setActiveInput, setLineSelection])
 
   // Handle comment submission
   const handleSubmitComment = useCallback(
@@ -323,7 +326,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     [activeInput, addComment, closeCommentInput, onCommentAdded]
   )
 
-  // Check if a line has comments
+  // Get comment count for a line
   const getCommentCountForLine = useCallback(
     (lineNumber: number, side: "old" | "new") => {
       return comments.filter((c) => {
@@ -335,75 +338,37 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     [comments]
   )
 
-  // Determine if a line is in the current selection
-  const isLineInSelection = useCallback(
-    (lineNumber: number, side: "old" | "new") => {
-      if (!lineSelection || lineSelection.side !== side) return false
-      const minLine = Math.min(lineSelection.startLine, lineSelection.currentLine)
-      const maxLine = Math.max(lineSelection.startLine, lineSelection.currentLine)
-      return lineNumber >= minLine && lineNumber <= maxLine
-    },
-    [lineSelection]
-  )
-
+  // Render floating UI elements using portal
   const container = diffViewContainerRef.current
   if (!container) return null
 
+  const commentCount = hoveredLine
+    ? getCommentCountForLine(hoveredLine.lineNumber, hoveredLine.side)
+    : 0
+
   return (
     <>
-      {/* Invisible overlay for mouse tracking */}
-      <div
-        className="absolute inset-0 z-10 pointer-events-none"
-        style={{ pointerEvents: "auto" }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
-        {/* Render indicators and buttons for each line */}
-        {lineElements.map((line) => {
-          const commentCount = getCommentCountForLine(line.lineNumber, line.side)
-          const isHovered = hoveredLine?.lineNumber === line.lineNumber && hoveredLine?.side === line.side
-          const isInSelection = isLineInSelection(line.lineNumber, line.side)
-          const containerRect = container.getBoundingClientRect()
-
-          // Calculate position relative to container
-          const top = line.rect.top - containerRect.top
-          const left = line.rect.left - containerRect.left - 24 // Position left of line number
-
-          return (
-            <div
-              key={`${line.lineNumber}-${line.side}`}
-              className={cn(
-                "absolute flex items-center gap-0.5 group/line",
-                isInSelection && "bg-blue-500/20"
-              )}
-              style={{
-                top: `${top}px`,
-                left: `${left}px`,
-                height: `${line.rect.height}px`,
-                width: "24px",
-              }}
-            >
-              {/* Comment indicator for existing comments */}
-              {commentCount > 0 && (
-                <CommentIndicator
-                  count={commentCount}
-                  size="sm"
-                  className="absolute left-0"
-                />
-              )}
-
-              {/* Add button (shown on hover when no existing comments) */}
-              {isHovered && commentCount === 0 && (
-                <CommentAddButton
-                  onClick={(e) => handleAddClick(line, e)}
-                  onMouseDown={(e) => handleMouseDown(line, e)}
-                  className="absolute left-0 opacity-100"
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {/* Floating add button - rendered via portal to avoid z-index issues */}
+      {hoveredLine && createPortal(
+        <div
+          className="fixed z-50 flex items-center"
+          style={{
+            top: hoveredLine.rect.top + hoveredLine.rect.height / 2,
+            left: hoveredLine.rect.left - 20,
+            transform: "translateY(-50%)",
+          }}
+        >
+          {commentCount > 0 ? (
+            <CommentIndicator count={commentCount} size="sm" />
+          ) : (
+            <CommentAddButton
+              onClick={(e) => handleAddClick(hoveredLine, e)}
+              onMouseDown={(e) => handleMouseDown(hoveredLine, e)}
+            />
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Comment input popup */}
       {activeInput && activeInput.filePath === filePath && (
