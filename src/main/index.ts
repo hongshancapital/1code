@@ -1,8 +1,9 @@
 import * as Sentry from "@sentry/electron/main"
 import { app, BrowserWindow, Menu, session } from "electron"
-import { existsSync, readFileSync, readlinkSync, unlinkSync } from "fs"
+import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { createServer } from "http"
 import { join } from "path"
+import { Readable } from "stream"
 import { AuthManager, initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
 import {
   identify,
@@ -580,10 +581,79 @@ if (gotTheLock) {
     // Register local-file protocol for secure file access from renderer
     // IMPORTANT: Must register to the specific session used by BrowserWindow (persist:main)
     const ses = session.fromPartition("persist:main")
+
+    // Helper: Get MIME type from file extension
+    const getMimeType = (filePath: string): string => {
+      const ext = filePath.toLowerCase().split(".").pop() || ""
+      const mimeTypes: Record<string, string> = {
+        // Video
+        mp4: "video/mp4",
+        webm: "video/webm",
+        mov: "video/quicktime",
+        mkv: "video/x-matroska",
+        m4v: "video/x-m4v",
+        ogv: "video/ogg",
+        avi: "video/x-msvideo",
+        "3gp": "video/3gpp",
+        // Audio
+        mp3: "audio/mpeg",
+        wav: "audio/wav",
+        ogg: "audio/ogg",
+        flac: "audio/flac",
+        m4a: "audio/mp4",
+        aac: "audio/aac",
+        wma: "audio/x-ms-wma",
+        opus: "audio/opus",
+        aiff: "audio/aiff",
+        // Image
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        webp: "image/webp",
+        svg: "image/svg+xml",
+        bmp: "image/bmp",
+        ico: "image/x-icon",
+        avif: "image/avif",
+        tiff: "image/tiff",
+        heic: "image/heic",
+        heif: "image/heif",
+        // Document
+        pdf: "application/pdf",
+        // Text
+        txt: "text/plain",
+        html: "text/html",
+        htm: "text/html",
+        css: "text/css",
+        js: "text/javascript",
+        json: "application/json",
+        xml: "application/xml",
+      }
+      return mimeTypes[ext] || "application/octet-stream"
+    }
+
+    // Helper: Convert Node.js Readable stream to Web ReadableStream
+    const convertNodeStreamToWeb = (nodeStream: Readable): ReadableStream<Uint8Array> => {
+      return new ReadableStream({
+        start(controller) {
+          nodeStream.on("data", (chunk: Buffer) => {
+            controller.enqueue(new Uint8Array(chunk))
+          })
+          nodeStream.on("end", () => {
+            controller.close()
+          })
+          nodeStream.on("error", (err) => {
+            controller.error(err)
+          })
+        },
+        cancel() {
+          nodeStream.destroy()
+        },
+      })
+    }
+
     ses.protocol.handle("local-file", async (request) => {
       // URL format: local-file://localhost/absolute/path/to/file
-      // We use "localhost" as a fixed hostname to avoid path mangling
-      // The actual file path is in the pathname (URL-encoded)
       const url = new URL(request.url)
       let filePath = decodeURIComponent(url.pathname)
 
@@ -592,35 +662,76 @@ if (gotTheLock) {
         filePath = filePath.slice(1)
       }
 
-      console.log("[local-file] Request:", request.url)
-      console.log("[local-file] Host:", url.hostname, "Pathname:", url.pathname)
-      console.log("[local-file] Resolved path:", filePath)
-
       // Security: only allow reading files, no directory traversal
       if (filePath.includes("..")) {
         console.warn("[local-file] Blocked path traversal:", filePath)
         return new Response("Forbidden", { status: 403 })
       }
 
-      // Check if file exists
       if (!existsSync(filePath)) {
         console.warn("[local-file] File not found:", filePath)
         return new Response("Not Found", { status: 404 })
       }
 
       try {
-        // Use net.fetch with file:// protocol to read the file
-        const fileUrl = pathToFileURL(filePath).href
-        console.log("[local-file] Fetching:", fileUrl)
-        const response = await net.fetch(fileUrl)
-        console.log("[local-file] Response status:", response.status)
-        return response
+        const stat = statSync(filePath)
+        const fileSize = stat.size
+        const mimeType = getMimeType(filePath)
+        const rangeHeader = request.headers.get("range")
+
+        // Handle Range request for video/audio seeking
+        if (rangeHeader) {
+          const rangeMatch = rangeHeader.match(/bytes=(\d*)-(\d*)/)
+          if (rangeMatch) {
+            const start = rangeMatch[1] ? parseInt(rangeMatch[1], 10) : 0
+            const end = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : fileSize - 1
+
+            // Validate range
+            if (start >= fileSize || start > end) {
+              return new Response("Range Not Satisfiable", {
+                status: 416,
+                headers: { "Content-Range": `bytes */${fileSize}` },
+              })
+            }
+
+            const chunkSize = end - start + 1
+            const stream = createReadStream(filePath, { start, end })
+            const readableStream = convertNodeStreamToWeb(stream)
+
+            console.log("[local-file] 206 Partial Content:", filePath, `${start}-${end}/${fileSize}`)
+
+            return new Response(readableStream, {
+              status: 206,
+              headers: {
+                "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+                "Accept-Ranges": "bytes",
+                "Content-Length": String(chunkSize),
+                "Content-Type": mimeType,
+              },
+            })
+          }
+        }
+
+        // No Range request - return full file with Accept-Ranges header
+        const stream = createReadStream(filePath)
+        const readableStream = convertNodeStreamToWeb(stream)
+
+        console.log("[local-file] 200 OK:", filePath, `${fileSize} bytes`)
+
+        return new Response(readableStream, {
+          status: 200,
+          headers: {
+            "Accept-Ranges": "bytes",
+            "Content-Length": String(fileSize),
+            "Content-Type": mimeType,
+          },
+        })
       } catch (error) {
         console.error("[local-file] Error reading file:", filePath, error)
         return new Response("Internal Server Error", { status: 500 })
       }
     })
-    console.log("[local-file] Protocol handler registered to persist:main session")
+    console.log("[local-file] Protocol handler registered with Range request support")
 
     // Handle deep link on macOS (app already running)
     app.on("open-url", (event, url) => {
