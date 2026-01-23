@@ -8,7 +8,7 @@ import { exec } from "node:child_process"
 import { promisify } from "node:util"
 import { existsSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
-import { getGitRemoteInfo } from "../../git"
+import { getGitRemoteInfo, isGitRepo } from "../../git"
 import { trackProjectOpened } from "../../analytics"
 import { getLaunchDirectory } from "../../cli"
 
@@ -43,12 +43,10 @@ export const projectsRouter = router({
 
   /**
    * Open folder picker and create project
-   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
+   * Mode is auto-detected: "coding" if folder has .git, "cowork" otherwise
    */
   openFolder: publicProcedure
-    .input(z.object({ mode: z.enum(["cowork", "coding"]).optional() }).optional())
-    .mutation(async ({ input, ctx }) => {
-      const mode = input?.mode ?? "cowork"
+    .mutation(async ({ ctx }) => {
     const window = ctx.getWindow?.() ?? BrowserWindow.getFocusedWindow()
 
     if (!window) {
@@ -77,8 +75,12 @@ export const projectsRouter = router({
     const folderPath = result.filePaths[0]!
     const folderName = basename(folderPath)
 
-    // Get git remote info
+    // Check if folder is a git repo and get remote info
+    const hasGit = await isGitRepo(folderPath)
     const gitInfo = await getGitRemoteInfo(folderPath)
+
+    // Auto-detect mode: "coding" if has git, "cowork" otherwise
+    const mode = hasGit ? "coding" : "cowork"
 
     const db = getDatabase()
 
@@ -90,7 +92,7 @@ export const projectsRouter = router({
       .get()
 
     if (existing) {
-      // Update the updatedAt timestamp and git info (in case remote changed)
+      // Update the updatedAt timestamp, git info, and mode based on current git status
       const updatedProject = db
         .update(projects)
         .set({
@@ -99,6 +101,7 @@ export const projectsRouter = router({
           gitProvider: gitInfo.provider,
           gitOwner: gitInfo.owner,
           gitRepo: gitInfo.repo,
+          mode, // Update mode based on current git status
         })
         .where(eq(projects.id, existing.id))
         .returning()
@@ -139,7 +142,7 @@ export const projectsRouter = router({
 
   /**
    * Create a project from a known path
-   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
+   * Mode is auto-detected if not specified: "coding" if folder has .git, "cowork" otherwise
    */
   create: publicProcedure
     .input(z.object({
@@ -150,7 +153,6 @@ export const projectsRouter = router({
     .mutation(async ({ input }) => {
       const db = getDatabase()
       const name = input.name || basename(input.path)
-      const mode = input.mode ?? "cowork"
 
       // Check if project already exists
       const existing = db
@@ -163,8 +165,12 @@ export const projectsRouter = router({
         return existing
       }
 
-      // Get git remote info
+      // Check if folder is a git repo and get remote info
+      const hasGit = await isGitRepo(input.path)
       const gitInfo = await getGitRemoteInfo(input.path)
+
+      // Use provided mode or auto-detect based on git status
+      const mode = input.mode ?? (hasGit ? "coding" : "cowork")
 
       return db
         .insert(projects)
@@ -309,7 +315,7 @@ export const projectsRouter = router({
           return existing
         }
 
-        // Create project for existing clone
+        // Create project for existing clone (always coding mode for GitHub clones)
         const gitInfo = await getGitRemoteInfo(clonePath)
         const newProject = db
           .insert(projects)
@@ -320,6 +326,7 @@ export const projectsRouter = router({
             gitProvider: gitInfo.provider,
             gitOwner: gitInfo.owner,
             gitRepo: gitInfo.repo,
+            mode: "coding",
           })
           .returning()
           .get()
@@ -338,7 +345,7 @@ export const projectsRouter = router({
       const cloneUrl = `https://github.com/${owner}/${repo}.git`
       await execAsync(`git clone "${cloneUrl}" "${clonePath}"`)
 
-      // Get git info and create project
+      // Get git info and create project (always coding mode for GitHub clones)
       const db = getDatabase()
       const gitInfo = await getGitRemoteInfo(clonePath)
 
@@ -351,6 +358,7 @@ export const projectsRouter = router({
           gitProvider: gitInfo.provider,
           gitOwner: gitInfo.owner,
           gitRepo: gitInfo.repo,
+          mode: "coding",
         })
         .returning()
         .get()
@@ -380,5 +388,58 @@ export const projectsRouter = router({
         .where(eq(projects.id, input.id))
         .returning()
         .get()
+    }),
+
+  /**
+   * Refresh project mode based on current git status
+   * Auto-detects: "coding" if folder has .git, "cowork" otherwise
+   */
+  refreshMode: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      // Get project
+      const project = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, input.id))
+        .get()
+
+      if (!project) {
+        return null
+      }
+
+      // Check if folder is a git repo
+      const hasGit = await isGitRepo(project.path)
+      const mode = hasGit ? "coding" : "cowork"
+
+      // Get fresh git info
+      const gitInfo = await getGitRemoteInfo(project.path)
+
+      // Update project with new mode and git info
+      const updatedProject = db
+        .update(projects)
+        .set({
+          updatedAt: new Date(),
+          mode,
+          gitRemoteUrl: gitInfo.remoteUrl,
+          gitProvider: gitInfo.provider,
+          gitOwner: gitInfo.owner,
+          gitRepo: gitInfo.repo,
+        })
+        .where(eq(projects.id, input.id))
+        .returning()
+        .get()
+
+      // Track project opened
+      if (updatedProject) {
+        trackProjectOpened({
+          id: updatedProject.id,
+          hasGitRemote: !!gitInfo.remoteUrl,
+        })
+      }
+
+      return updatedProject
     }),
 })
