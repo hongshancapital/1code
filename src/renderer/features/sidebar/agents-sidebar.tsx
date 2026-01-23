@@ -1262,7 +1262,7 @@ export function AgentsSidebar({
   const showWorkspaceIcon = useAtomValue(showWorkspaceIconAtom)
 
   // Desktop: use selectedProject instead of teams
-  const [selectedProject] = useAtom(selectedProjectAtom)
+  const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
 
   // Fetch all chats (no project filter)
   const { data: agentChats } = trpc.chats.list.useQuery({})
@@ -1846,11 +1846,31 @@ export function AgentsSidebar({
     // In multi-select mode, clicking on the item still navigates to the chat
     // Only clicking on the checkbox toggles selection
     setSelectedChatId(chatId)
+
+    // Sync selectedProject when clicking a chat from a different project
+    // This ensures the UI mode (cowork/coding) switches correctly
+    const clickedChat = filteredChats.find((c) => c.id === chatId)
+    if (clickedChat && clickedChat.projectId !== selectedProject?.id) {
+      const project = projectsMap.get(clickedChat.projectId)
+      if (project) {
+        setSelectedProject({
+          id: project.id,
+          name: project.name,
+          path: project.path,
+          gitRemoteUrl: project.gitRemoteUrl,
+          gitProvider: project.gitProvider as "github" | "gitlab" | "bitbucket" | null,
+          gitOwner: project.gitOwner,
+          gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding",
+        })
+      }
+    }
+
     // On mobile, notify parent to switch to chat mode
     if (isMobileFullscreen && onChatSelect) {
       onChatSelect()
     }
-  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, isMobileFullscreen, onChatSelect])
+  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, isMobileFullscreen, onChatSelect, selectedProject?.id, projectsMap, setSelectedProject])
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent, chatId: string) => {
     e.stopPropagation()
