@@ -27,7 +27,18 @@ import {
   CustomAgentIcon,
   OriginalMCPIcon,
 } from "../../../components/ui/icons"
-import { ChevronRight } from "lucide-react"
+import {
+  ChevronRight,
+  Image,
+  FileImage,
+  FileVideo,
+  FileAudio,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  FileType,
+  File,
+} from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -125,6 +136,7 @@ const CATEGORY_OPTIONS: FileMentionOption[] = [
 
 // Known file extensions with icons
 const KNOWN_FILE_ICON_EXTENSIONS = new Set([
+  // Code files
   "tsx",
   "ts",
   "js",
@@ -172,8 +184,60 @@ const KNOWN_FILE_ICON_EXTENSIONS = new Set([
   "svelte",
   "astro",
   "swift",
-  "pdf",
+  // Image files
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
   "svg",
+  "ico",
+  "bmp",
+  "avif",
+  "tiff",
+  "heic",
+  "heif",
+  // PDF
+  "pdf",
+  // Video files
+  "mp4",
+  "webm",
+  "mov",
+  "avi",
+  "mkv",
+  "m4v",
+  "ogv",
+  "3gp",
+  // Audio files
+  "mp3",
+  "wav",
+  "ogg",
+  "flac",
+  "m4a",
+  "aac",
+  "wma",
+  "opus",
+  "aiff",
+  // Office documents
+  "docx",
+  "doc",
+  "xlsx",
+  "xls",
+  "xlsm",
+  "xlsb",
+  "pptx",
+  "ppt",
+  // Archive files
+  "zip",
+  "tar",
+  "gz",
+  "rar",
+  "7z",
+  // Font files
+  "ttf",
+  "otf",
+  "woff",
+  "woff2",
 ])
 
 // Get file icon component based on file extension
@@ -312,10 +376,73 @@ export function getFileIconByExtension(
       return AstroIcon
     case "swift":
       return SwiftIcon
-    case "pdf":
-      return PDFIcon
+    // Image files
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "ico":
+    case "bmp":
+    case "avif":
+    case "tiff":
+    case "heic":
+    case "heif":
+      return FileImage
+    // SVG - use custom icon
     case "svg":
       return SVGIcon
+    // PDF - use custom icon
+    case "pdf":
+      return PDFIcon
+    // Video files
+    case "mp4":
+    case "webm":
+    case "mov":
+    case "avi":
+    case "mkv":
+    case "m4v":
+    case "ogv":
+    case "3gp":
+      return FileVideo
+    // Audio files
+    case "mp3":
+    case "wav":
+    case "ogg":
+    case "flac":
+    case "m4a":
+    case "aac":
+    case "wma":
+    case "opus":
+    case "aiff":
+      return FileAudio
+    // Office documents - Word
+    case "docx":
+    case "doc":
+      return FileText
+    // Office documents - Excel
+    case "xlsx":
+    case "xls":
+    case "xlsm":
+    case "xlsb":
+      return FileSpreadsheet
+    // Office documents - PowerPoint
+    case "pptx":
+    case "ppt":
+      return Presentation
+    // Archive files
+    case "zip":
+    case "tar":
+    case "gz":
+    case "rar":
+    case "7z":
+      return File
+    // Font files
+    case "ttf":
+    case "otf":
+    case "woff":
+    case "woff2":
+      return FileType
     default:
       return returnNullForUnknown ? null : FilesIcon
   }
