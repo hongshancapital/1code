@@ -2,7 +2,7 @@
 
 import { ChevronRight, ExternalLink, Loader2, RefreshCw } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
@@ -185,6 +185,7 @@ export function AgentsMcpTab() {
   // tRPC
   const startOAuthMutation = trpc.claude.startMcpOAuth.useMutation()
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
+  const testConnectionsMutation = trpc.claude.testMcpConnections.useMutation()
 
   // Process groups for display (filter out empty groups)
   const groups = useMemo(
@@ -200,10 +201,29 @@ export function AgentsMcpTab() {
     setExpandedServer(expandedServer === serverKey ? null : serverKey)
   }
 
-  const handleRefresh = useCallback(async (silent = false) => {
+  const handleRefresh = useCallback(async (silent = false, testConnections = false) => {
     setIsRefreshing(true)
     try {
-      await refetch()
+      if (testConnections) {
+        // First fetch config to get project paths
+        const configResult = await refetch()
+        const groups = configResult.data?.groups || []
+
+        // Find a project path to test connections with
+        const projectPath = groups.find(g => g.projectPath)?.projectPath
+        if (projectPath) {
+          try {
+            await testConnectionsMutation.mutateAsync({ projectPath })
+          } catch {
+            // Ignore test connection errors, just proceed with refresh
+          }
+          // Refetch again to get updated statuses from cache
+          await refetch()
+        }
+      } else {
+        await refetch()
+      }
+
       if (!silent) {
         toast.success("Refreshed MCP servers")
       }
@@ -214,11 +234,15 @@ export function AgentsMcpTab() {
     } finally {
       setIsRefreshing(false)
     }
-  }, [refetch])
+  }, [refetch, testConnectionsMutation])
 
-  // Refresh on every tab access (component mount)
+  // Initial load on mount - test connections and refresh
+  const hasInitialized = useRef(false)
   useEffect(() => {
-    handleRefresh(true)
+    if (!hasInitialized.current) {
+      hasInitialized.current = true
+      handleRefresh(true, true)
+    }
   }, [handleRefresh])
 
   const handleAuth = async (serverName: string, projectPath: string | null) => {
@@ -255,7 +279,7 @@ export function AgentsMcpTab() {
           <div className="flex items-center gap-1">
             <h3 className="text-sm font-semibold text-foreground">MCP Servers</h3>
             <button
-              onClick={() => handleRefresh()}
+              onClick={() => handleRefresh(false, true)}
               disabled={isRefreshing}
               className="h-6 w-6 inline-flex items-center justify-center text-foreground/50 hover:text-foreground disabled:opacity-50 disabled:pointer-events-none transition-colors"
             >
