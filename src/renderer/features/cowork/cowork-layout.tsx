@@ -140,7 +140,8 @@ export function CoworkLayout() {
   const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
 
   // Listen for file changes from Claude tools and add to artifacts
-  useArtifactsListener(activeSubChatId)
+  // NOTE: Use selectedChatId (not activeSubChatId) to group artifacts by chat
+  useArtifactsListener(selectedChatId)
 
   // Desktop user state
   const [desktopUser, setDesktopUser] = useState<{

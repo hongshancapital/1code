@@ -4,10 +4,13 @@ import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atom
 
 /**
  * Hook to listen for file-changed events from Claude tools
- * and automatically add them to the artifacts list for the current sub-chat
+ * and automatically add them to the artifacts list for the current chat
+ *
+ * NOTE: Uses chatId (not subChatId) to group artifacts by chat.
+ * All sub-chats within a chat share the same artifacts list.
  */
-export function useArtifactsListener(subChatId: string | null) {
-  const effectiveId = subChatId || "default"
+export function useArtifactsListener(chatId: string | null) {
+  const effectiveId = chatId || "default"
   const artifactsAtom = useMemo(
     () => artifactsAtomFamily(effectiveId),
     [effectiveId]
@@ -20,17 +23,12 @@ export function useArtifactsListener(subChatId: string | null) {
       return
     }
 
-    console.log("[Artifacts] Listening for file changes, subChatId:", effectiveId)
+    console.log("[Artifacts] Listening for file changes, chatId:", effectiveId)
 
     const unsubscribe = window.desktopApi.onFileChanged((data) => {
       console.log("[Artifacts] Received file-changed event:", data)
-      console.log("[Artifacts] Current effectiveId:", effectiveId, "Event subChatId:", data.subChatId)
-
-      // Only process events for this sub-chat
-      if (data.subChatId !== effectiveId) {
-        console.log("[Artifacts] Ignoring event - subChatId mismatch")
-        return
-      }
+      // NOTE: We no longer filter by subChatId - all files created in any sub-chat
+      // of this chat will be shown in the artifacts panel
 
       const { filePath, type, contexts } = data as {
         filePath: string
