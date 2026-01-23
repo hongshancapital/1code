@@ -60,7 +60,7 @@ export const fileTreeSelectedPathAtom = atom<string | null>(null)
 export const fileTreeSearchQueryAtom = atom<string>("")
 
 // ============================================================================
-// Artifacts State (per sub-chat)
+// Artifacts State (per chat - all sub-chats share the same artifacts)
 // ============================================================================
 
 // Context information for an artifact (files read, URLs visited)
@@ -82,7 +82,7 @@ export interface Artifact {
   contexts?: ArtifactContext[]
 }
 
-// All artifacts storage - keyed by subChatId (persisted to localStorage)
+// All artifacts storage - keyed by chatId (persisted to localStorage)
 import { atomFamily } from "jotai/utils"
 
 const allArtifactsStorageAtom = atomWithStorage<Record<string, Artifact[]>>(
@@ -92,13 +92,20 @@ const allArtifactsStorageAtom = atomWithStorage<Record<string, Artifact[]>>(
   { getOnInit: true }
 )
 
-// atomFamily to get/set artifacts per subChatId
-export const artifactsAtomFamily = atomFamily((subChatId: string) =>
+// atomFamily to get/set artifacts per chatId
+// Supports both direct value and updater function: setArtifacts(newArr) or setArtifacts(prev => newArr)
+type ArtifactsSetter = Artifact[] | ((prev: Artifact[]) => Artifact[])
+
+export const artifactsAtomFamily = atomFamily((chatId: string) =>
   atom(
-    (get) => get(allArtifactsStorageAtom)[subChatId] ?? [],
-    (get, set, newArtifacts: Artifact[]) => {
+    (get) => get(allArtifactsStorageAtom)[chatId] ?? [],
+    (get, set, update: ArtifactsSetter) => {
       const current = get(allArtifactsStorageAtom)
-      set(allArtifactsStorageAtom, { ...current, [subChatId]: newArtifacts })
+      const prevArtifacts = current[chatId] ?? []
+      // Support both direct value and updater function
+      const newArtifacts = typeof update === "function" ? update(prevArtifacts) : update
+      console.log("[Artifacts] Setting artifacts for chatId:", chatId, "count:", newArtifacts.length)
+      set(allArtifactsStorageAtom, { ...current, [chatId]: newArtifacts })
     }
   )
 )

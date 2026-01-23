@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { getFileIconByExtension } from "../agents/mentions/agents-file-mention"
 import { ChevronRight, FileEdit, FilePlus, FileX, FolderOpen, Globe, Package } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
+import { selectedAgentChatIdAtom } from "../agents/atoms"
 import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atoms"
 import { filePreviewPathAtom } from "./atoms"
-import { useSetAtom } from "jotai"
 
 // ============================================================================
 // Types
@@ -21,10 +20,11 @@ interface ArtifactsPanelProps {
 // ============================================================================
 
 export function useArtifactsCount(): number {
-  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  // Use chatId (not subChatId) to get artifacts for the entire chat
+  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
   const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(activeSubChatId || "default"),
-    [activeSubChatId]
+    () => artifactsAtomFamily(selectedChatId || "default"),
+    [selectedChatId]
   )
   const [rawArtifacts] = useAtom(artifactsAtom)
   const artifacts = Array.isArray(rawArtifacts) ? rawArtifacts : []
@@ -48,22 +48,6 @@ function ArtifactStatusIcon({ status }: { status: Artifact["status"] }) {
       return <FileX className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
     default:
       return <FileEdit className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-  }
-}
-
-/**
- * Get status label
- */
-function getStatusLabel(status: Artifact["status"]): string {
-  switch (status) {
-    case "created":
-      return "新建"
-    case "modified":
-      return "修改"
-    case "deleted":
-      return "删除"
-    default:
-      return status
   }
 }
 
@@ -120,6 +104,7 @@ function ContextItem({
 
 /**
  * Individual artifact item
+ * Layout: [StatusIcon] [FileIcon] [FileName/Path] [ContextIndicator]
  */
 function ArtifactItem({
   artifact,
@@ -145,25 +130,7 @@ function ArtifactItem({
         )}
         onClick={onClick}
       >
-        {/* Expand button for contexts */}
-        {hasContexts ? (
-          <button
-            className="p-0.5 -m-0.5 hover:bg-accent rounded"
-            onClick={(e) => {
-              e.stopPropagation()
-              setExpanded(!expanded)
-            }}
-          >
-            <ChevronRight className={cn(
-              "h-3 w-3 text-muted-foreground transition-transform",
-              expanded && "rotate-90"
-            )} />
-          </button>
-        ) : (
-          <div className="w-4" /> // Spacer for alignment
-        )}
-
-        {/* Status icon */}
+        {/* Status icon (green/yellow/red) */}
         <ArtifactStatusIcon status={artifact.status} />
 
         {/* File icon */}
@@ -177,28 +144,29 @@ function ArtifactItem({
               {dirPath}
             </span>
           )}
-          {artifact.description && (
-            <span className="text-muted-foreground/80 text-[10px] truncate block">
-              {artifact.description}
-            </span>
-          )}
         </div>
 
-        {/* Status badge */}
-        <span className={cn(
-          "text-[10px] px-1.5 py-0.5 rounded flex-shrink-0",
-          artifact.status === "created" && "bg-green-500/10 text-green-500",
-          artifact.status === "modified" && "bg-yellow-500/10 text-yellow-500",
-          artifact.status === "deleted" && "bg-red-500/10 text-red-500"
-        )}>
-          {getStatusLabel(artifact.status)}
-        </span>
+        {/* Context indicator (right side) */}
+        {hasContexts && (
+          <button
+            className="flex items-center gap-0.5 text-muted-foreground/60 hover:text-muted-foreground"
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpanded(!expanded)
+            }}
+          >
+            <span className="text-[10px]">{artifact.contexts!.length}</span>
+            <ChevronRight className={cn(
+              "h-3 w-3 transition-transform",
+              expanded && "rotate-90"
+            )} />
+          </button>
+        )}
       </div>
 
       {/* Expanded contexts */}
       {expanded && hasContexts && (
-        <div className="ml-8 mr-2 mb-2 pl-2 border-l border-border/50">
-          <div className="text-[9px] text-muted-foreground/60 mb-1">上下文</div>
+        <div className="ml-6 py-1 px-2 space-y-0.5">
           {artifact.contexts!.map((ctx, i) => (
             <ContextItem
               key={i}
@@ -229,10 +197,11 @@ function EmptyState() {
 // ============================================================================
 
 export function ArtifactsPanelContent({ onFileSelect }: ArtifactsPanelProps) {
-  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  // Use chatId (not subChatId) to get artifacts for the entire chat
+  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
   const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(activeSubChatId || "default"),
-    [activeSubChatId]
+    () => artifactsAtomFamily(selectedChatId || "default"),
+    [selectedChatId]
   )
   const [rawArtifacts] = useAtom(artifactsAtom)
   const setPreviewPath = useSetAtom(filePreviewPathAtom)
