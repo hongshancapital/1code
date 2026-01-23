@@ -101,19 +101,24 @@ export function AgentsDebugTab() {
 
   const clearAllDataMutation = trpc.debug.clearAllData.useMutation({
     onSuccess: () => {
+      // Clear localStorage (onboarding state, preferences, etc.)
+      localStorage.clear()
       toast.success("All data cleared. Reloading...")
       setTimeout(() => window.location.reload(), 500)
     },
     onError: (error) => toast.error(error.message),
   })
 
-  const logoutMutation = trpc.debug.logout.useMutation({
-    onSuccess: () => {
-      toast.success("Logged out. Reloading...")
-      setTimeout(() => window.location.reload(), 500)
-    },
-    onError: (error) => toast.error(error.message),
-  })
+  // Reset onboarding state (clear localStorage keys related to onboarding)
+  const handleResetOnboarding = () => {
+    // Clear onboarding-related localStorage keys
+    localStorage.removeItem("onboarding:billing-method")
+    localStorage.removeItem("onboarding:anthropic-completed")
+    localStorage.removeItem("onboarding:api-key-completed")
+    localStorage.removeItem("onboarding:litellm-completed")
+    toast.success("Onboarding reset. Reloading...")
+    setTimeout(() => window.location.reload(), 500)
+  }
 
   const openFolderMutation = trpc.debug.openUserDataFolder.useMutation({
     onError: (error) => toast.error(error.message),
@@ -430,13 +435,12 @@ export function AgentsDebugTab() {
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("Logout? You will need to sign in again.")) {
-                logoutMutation.mutate()
+              if (confirm("Reset onboarding? You will see the welcome screen again.")) {
+                handleResetOnboarding()
               }
             }}
-            disabled={logoutMutation.isPending}
           >
-            {logoutMutation.isPending ? "..." : "Logout"}
+            Reset Onboarding
           </Button>
           <Button
             variant="destructive"
