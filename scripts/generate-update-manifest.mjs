@@ -3,17 +3,20 @@
 /**
  * Generate update manifest files for electron-updater
  *
- * This script generates `latest-mac.yml` (for arm64) and `latest-mac-x64.yml` files
- * that electron-updater uses to check for and download updates.
+ * This script generates manifest files that electron-updater uses to check for and download updates:
+ *   - `latest-mac.yml` (for Mac arm64)
+ *   - `latest-mac-x64.yml` (for Mac x64)
+ *   - `latest.yml` (for Windows)
  *
  * Usage:
  *   node scripts/generate-update-manifest.mjs
  *
- * The script expects ZIP files to exist in the release/ directory:
- *   - Agents-{version}-arm64-mac.zip
- *   - Agents-{version}-mac.zip
+ * The script expects these files to exist in the release/ directory:
+ *   - Hong-{version}-arm64-mac.zip (Mac arm64)
+ *   - Hong-{version}-mac.zip (Mac x64)
+ *   - Hong Setup {version}.exe (Windows)
  *
- * Run this after `npm run dist` to generate the manifest files.
+ * Run this after packaging to generate the manifest files.
  */
 
 import { createHash } from "crypto"
@@ -48,32 +51,39 @@ function getFileSize(filePath) {
 }
 
 /**
- * Find ZIP file matching pattern in release directory
+ * Find file matching pattern in release directory
  */
-function findZipFile(pattern) {
+function findFile(pattern, extension = ".zip") {
   if (!existsSync(releaseDir)) {
     console.error(`Release directory not found: ${releaseDir}`)
     process.exit(1)
   }
 
   const files = readdirSync(releaseDir)
-  const match = files.find((f) => f.includes(pattern) && f.endsWith(".zip"))
+  const match = files.find((f) => f.includes(pattern) && f.endsWith(extension))
   return match ? join(releaseDir, match) : null
 }
 
 /**
- * Generate manifest for a specific architecture
+ * Find ZIP file matching pattern in release directory
  */
-function generateManifest(arch) {
+function findZipFile(pattern) {
+  return findFile(pattern, ".zip")
+}
+
+/**
+ * Generate manifest for Mac (specific architecture)
+ */
+function generateMacManifest(arch) {
   // electron-builder names files differently:
-  // arm64: Agents-{version}-arm64-mac.zip
-  // x64: Agents-{version}-mac.zip
+  // arm64: Hong-{version}-arm64-mac.zip
+  // x64: Hong-{version}-mac.zip
   const pattern = arch === "arm64" ? `${version}-arm64-mac` : `${version}-mac`
   const zipPath = findZipFile(pattern)
 
   if (!zipPath) {
     console.warn(`Warning: ZIP file not found for pattern: ${pattern}`)
-    console.warn(`Skipping ${arch} manifest generation`)
+    console.warn(`Skipping Mac ${arch} manifest generation`)
     return null
   }
 
@@ -81,16 +91,34 @@ function generateManifest(arch) {
   const sha512 = calculateSha512(zipPath)
   const size = getFileSize(zipPath)
 
+  // Also find the DMG file for the manifest
+  const dmgPattern = arch === "arm64" ? `${version}-arm64.dmg` : `${version}.dmg`
+  const dmgPath = findFile(dmgPattern, ".dmg")
+
+  const files = [
+    {
+      url: zipName,
+      sha512,
+      size,
+    },
+  ]
+
+  // Add DMG to manifest if it exists
+  if (dmgPath) {
+    const dmgName = dmgPath.split("/").pop()
+    const dmgSha512 = calculateSha512(dmgPath)
+    const dmgSize = getFileSize(dmgPath)
+    files.push({
+      url: dmgName,
+      sha512: dmgSha512,
+      size: dmgSize,
+    })
+  }
+
   // electron-updater manifest format
   const manifest = {
     version,
-    files: [
-      {
-        url: zipName,
-        sha512,
-        size,
-      },
-    ],
+    files,
     path: zipName,
     sha512,
     releaseDate: new Date().toISOString(),
@@ -110,6 +138,56 @@ function generateManifest(arch) {
   console.log(`Generated ${manifestFileName}:`)
   console.log(`  Version: ${version}`)
   console.log(`  File: ${zipName}`)
+  console.log(`  Size: ${formatBytes(size)}`)
+  console.log(`  SHA512: ${sha512.substring(0, 20)}...`)
+  console.log()
+
+  return manifestPath
+}
+
+/**
+ * Generate manifest for Windows
+ */
+function generateWindowsManifest() {
+  // Windows installer: Hong Setup {version}.exe
+  const pattern = `Setup ${version}`
+  const exePath = findFile(pattern, ".exe")
+
+  if (!exePath) {
+    console.warn(`Warning: Windows installer not found for pattern: ${pattern}`)
+    console.warn("Skipping Windows manifest generation")
+    return null
+  }
+
+  const exeName = exePath.split("/").pop()
+  const sha512 = calculateSha512(exePath)
+  const size = getFileSize(exePath)
+
+  // electron-updater manifest format for Windows
+  const manifest = {
+    version,
+    files: [
+      {
+        url: exeName,
+        sha512,
+        size,
+      },
+    ],
+    path: exeName,
+    sha512,
+    releaseDate: new Date().toISOString(),
+  }
+
+  const manifestFileName = "latest.yml"
+  const manifestPath = join(releaseDir, manifestFileName)
+
+  // Convert to YAML format
+  const yaml = objectToYaml(manifest)
+  writeFileSync(manifestPath, yaml)
+
+  console.log(`Generated ${manifestFileName}:`)
+  console.log(`  Version: ${version}`)
+  console.log(`  File: ${exeName}`)
   console.log(`  Size: ${formatBytes(size)}`)
   console.log(`  SHA512: ${sha512.substring(0, 20)}...`)
   console.log()
@@ -170,12 +248,16 @@ console.log(`Version: ${version}`)
 console.log(`Release dir: ${releaseDir}`)
 console.log()
 
-const arm64Manifest = generateManifest("arm64")
-const x64Manifest = generateManifest("x64")
+// Generate Mac manifests
+const arm64Manifest = generateMacManifest("arm64")
+const x64Manifest = generateMacManifest("x64")
 
-if (!arm64Manifest && !x64Manifest) {
+// Generate Windows manifest
+const windowsManifest = generateWindowsManifest()
+
+if (!arm64Manifest && !x64Manifest && !windowsManifest) {
   console.error("No manifest files were generated!")
-  console.error("Make sure you have built the app with: npm run dist")
+  console.error("Make sure you have built the app with: bun run release")
   process.exit(1)
 }
 
@@ -186,13 +268,17 @@ console.log("Next steps:")
 console.log("1. Upload the following files to cowork.hongshan.com/releases/desktop/:")
 if (arm64Manifest) {
   console.log(`   - latest-mac.yml`)
-  console.log(`   - Agents-${version}-arm64-mac.zip`)
-  console.log(`   - Agents-${version}-arm64.dmg (for manual download)`)
+  console.log(`   - Hong-${version}-arm64-mac.zip`)
+  console.log(`   - Hong-${version}-arm64.dmg (for manual download)`)
 }
 if (x64Manifest) {
   console.log(`   - latest-mac-x64.yml`)
-  console.log(`   - Agents-${version}-mac.zip`)
-  console.log(`   - Agents-${version}.dmg (for manual download)`)
+  console.log(`   - Hong-${version}-mac.zip`)
+  console.log(`   - Hong-${version}.dmg (for manual download)`)
+}
+if (windowsManifest) {
+  console.log(`   - latest.yml`)
+  console.log(`   - Hong Setup ${version}.exe`)
 }
 console.log("2. Create a release entry in the admin dashboard")
 console.log("=".repeat(50))
