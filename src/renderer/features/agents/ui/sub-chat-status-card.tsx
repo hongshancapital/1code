@@ -15,7 +15,9 @@ import {
   filteredDiffFilesAtom,
   filteredSubChatIdAtom,
   type SubChatFileChange,
+  type ProjectMode,
 } from "../atoms"
+import { filePreviewPathAtom } from "../../cowork/atoms"
 
 // Animated dots component that cycles through ., .., ...
 function AnimatedDots() {
@@ -41,6 +43,8 @@ interface SubChatStatusCardProps {
   onStop?: () => void
   /** Whether there's a queue card above this one - affects border radius */
   hasQueueCardAbove?: boolean
+  /** Project mode - "cowork" hides git features, "coding" shows full git features */
+  projectMode?: ProjectMode
 }
 
 export const SubChatStatusCard = memo(function SubChatStatusCard({
@@ -52,8 +56,11 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
   worktreePath,
   onStop,
   hasQueueCardAbove = false,
+  projectMode = "coding",
 }: SubChatStatusCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const isCodingMode = projectMode === "coding"
+
   // Use per-chat atom family instead of legacy global atom
   const diffSidebarAtom = useMemo(
     () => diffSidebarOpenAtomFamily(chatId),
@@ -63,15 +70,17 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
   const setFilteredDiffFiles = useSetAtom(filteredDiffFilesAtom)
   const setFilteredSubChatId = useSetAtom(filteredSubChatIdAtom)
   const setFocusedDiffFile = useSetAtom(agentsFocusedDiffFileAtom)
+  const setFilePreviewPath = useSetAtom(filePreviewPathAtom)
 
   // Listen for file changes from Claude Write/Edit tools
   useFileChangeListener(worktreePath)
 
-  // Fetch git status to filter out committed files
+  // Fetch git status to filter out committed files (only in Coding mode)
   const { data: gitStatus } = trpc.changes.getStatus.useQuery(
     { worktreePath: worktreePath || "", defaultBranch: "main" },
     {
-      enabled: !!worktreePath && changedFiles.length > 0 && !isStreaming,
+      // Only query git status in Coding mode
+      enabled: isCodingMode && !!worktreePath && changedFiles.length > 0 && !isStreaming,
       // No polling - updates triggered by file-changed events from Claude tools
       staleTime: 30000,
       placeholderData: (prev) => prev,
@@ -79,15 +88,24 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
   )
 
   // Filter changedFiles to only include files that are still uncommitted
-  const uncommittedFiles = useMemo(() => {
-    console.log(`[StatusCard] Computing uncommittedFiles:`, {
+  // In Cowork mode, show all files without git filtering
+  const displayFiles = useMemo(() => {
+    console.log(`[StatusCard] Computing displayFiles:`, {
       changedFilesCount: changedFiles.length,
       changedFiles: changedFiles.map(f => f.displayPath),
       hasGitStatus: !!gitStatus,
       worktreePath,
       isStreaming,
+      isCodingMode,
     })
 
+    // In Cowork mode, show all changed files (no git filtering)
+    if (!isCodingMode) {
+      console.log(`[StatusCard] Cowork mode - returning all changedFiles`)
+      return changedFiles
+    }
+
+    // Coding mode: filter by git status
     // If no git status yet, no worktreePath, or still streaming - show all files
     if (!gitStatus || !worktreePath || isStreaming) {
       console.log(`[StatusCard] Returning all changedFiles (no filter)`)
@@ -123,24 +141,24 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
     })
     console.log(`[StatusCard] Filtered result:`, filtered.map(f => f.displayPath))
     return filtered
-  }, [changedFiles, gitStatus, worktreePath, isStreaming])
+  }, [changedFiles, gitStatus, worktreePath, isStreaming, isCodingMode])
 
   // Calculate totals from uncommitted files only
   const totals = useMemo(() => {
     let additions = 0
     let deletions = 0
-    for (const file of uncommittedFiles) {
+    for (const file of displayFiles) {
       additions += file.additions
       deletions += file.deletions
     }
-    return { additions, deletions, fileCount: uncommittedFiles.length }
-  }, [uncommittedFiles])
+    return { additions, deletions, fileCount: displayFiles.length }
+  }, [displayFiles])
 
   // Check if there's expandable content (only files now)
-  const hasExpandableContent = uncommittedFiles.length > 0
+  const hasExpandableContent = displayFiles.length > 0
 
   // Don't show if no changed files - only show when there are files to review
-  if (uncommittedFiles.length === 0) {
+  if (displayFiles.length === 0) {
     console.log(`[StatusCard] Returning null - no uncommitted files`)
     return null
   }
@@ -148,7 +166,7 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
   const handleReview = () => {
     // Set filter to only show files from this sub-chat
     // Use displayPath (relative path) to match git diff paths
-    const filePaths = uncommittedFiles.map((f) => f.displayPath)
+    const filePaths = displayFiles.map((f) => f.displayPath)
     console.log('[SubChatStatusCard] handleReview:', { subChatId, filePaths })
     setFilteredDiffFiles(filePaths.length > 0 ? filePaths : null)
     // Also set subchat ID filter for ChangesPanel - use the prop, not activeSubChatId from store
@@ -232,18 +250,20 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
             </Button>
           )}
 
-          {/* Review button */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              handleReview()
-            }}
-            className="h-6 px-3 text-xs font-medium rounded-md transition-transform duration-150 active:scale-[0.97]"
-          >
-            Review
-          </Button>
+          {/* Review button - only show in Coding mode */}
+          {isCodingMode && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleReview()
+              }}
+              className="h-6 px-3 text-xs font-medium rounded-md transition-transform duration-150 active:scale-[0.97]"
+            >
+              Review
+            </Button>
+          )}
         </div>
       </div>
 
@@ -258,18 +278,24 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
             className="overflow-hidden"
           >
             <div className="border-t border-border max-h-[200px] overflow-y-auto">
-              {uncommittedFiles.map((file) => {
+              {displayFiles.map((file) => {
                 const FileIcon = getFileIconByExtension(file.displayPath)
 
                 const handleFileClick = () => {
-                  // Set filter to only show files from this sub-chat
-                  // Use displayPath (relative path) to match git diff paths
-                  const filePaths = uncommittedFiles.map((f) => f.displayPath)
-                  setFilteredDiffFiles(filePaths.length > 0 ? filePaths : null)
-                  // Set focus on this specific file
-                  setFocusedDiffFile(file.displayPath)
-                  // Open diff sidebar
-                  setDiffSidebarOpen(true)
+                  if (isCodingMode) {
+                    // Coding mode: Open diff sidebar
+                    // Set filter to only show files from this sub-chat
+                    // Use displayPath (relative path) to match git diff paths
+                    const filePaths = displayFiles.map((f) => f.displayPath)
+                    setFilteredDiffFiles(filePaths.length > 0 ? filePaths : null)
+                    // Set focus on this specific file
+                    setFocusedDiffFile(file.displayPath)
+                    // Open diff sidebar
+                    setDiffSidebarOpen(true)
+                  } else {
+                    // Cowork mode: Open file preview
+                    setFilePreviewPath(file.filePath)
+                  }
                 }
 
                 const handleKeyDown = (e: React.KeyboardEvent) => {

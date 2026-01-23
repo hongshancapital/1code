@@ -152,6 +152,9 @@ export const lastSelectedRepoAtom = atomWithStorage<SavedRepo>(
   { getOnInit: true },
 )
 
+// Project mode type
+export type ProjectMode = "cowork" | "coding"
+
 // Selected local project (persisted)
 export type SelectedProject = {
   id: string
@@ -161,6 +164,7 @@ export type SelectedProject = {
   gitProvider?: "github" | "gitlab" | "bitbucket" | null
   gitOwner?: string | null
   gitRepo?: string | null
+  mode: ProjectMode
 } | null
 
 export const selectedProjectAtom = atomWithStorage<SelectedProject>(
@@ -602,3 +606,10 @@ export const viewedFilesAtomFamily = atomFamily((chatId: string) =>
     },
   ),
 )
+
+// Derived atom for current project mode
+// Returns "cowork" when no project is selected (default)
+export const currentProjectModeAtom = atom((get) => {
+  const project = get(selectedProjectAtom)
+  return project?.mode ?? "cowork"
+})

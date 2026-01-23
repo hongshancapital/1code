@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react"
 import { useAtom, useAtomValue } from "jotai"
 import { FolderOpen } from "lucide-react"
-import { showOfflineModeFeaturesAtom } from "../../../lib/atoms"
 import {
   Popover,
   PopoverContent,
@@ -25,22 +24,19 @@ import { Input } from "../../../components/ui/input"
 import { Button } from "../../../components/ui/button"
 import { IconChevronDown, CheckIcon, FolderPlusIcon, GitHubIcon } from "../../../components/ui/icons"
 import { trpc } from "../../../lib/trpc"
-import { selectedProjectAtom } from "../atoms"
+import { selectedProjectAtom, currentProjectModeAtom } from "../atoms"
 
 // Helper component to render project icon (avatar or folder)
 function ProjectIcon({
   gitOwner,
   gitProvider,
   className = "h-4 w-4",
-  isOffline = false,
 }: {
   gitOwner?: string | null
   gitProvider?: string | null
   className?: string
-  isOffline?: boolean
 }) {
-  // In offline mode, don't try to load remote images
-  if (!isOffline && gitOwner && gitProvider === "github") {
+  if (gitOwner && gitProvider === "github") {
     return (
       <img
         src={`https://github.com/${gitOwner}.png?size=64`}
@@ -58,17 +54,14 @@ function ProjectIcon({
 
 export function ProjectSelector() {
   const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
+  const projectMode = useAtomValue(currentProjectModeAtom)
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [githubDialogOpen, setGithubDialogOpen] = useState(false)
   const [githubUrl, setGithubUrl] = useState("")
 
-  // Check if offline mode is enabled and if we're actually offline
-  const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
-  const { data: ollamaStatus } = trpc.ollama.getStatus.useQuery(undefined, {
-    enabled: showOfflineFeatures,
-  })
-  const isOffline = showOfflineFeatures && ollamaStatus ? !ollamaStatus.internet.online : false
+  // Cowork mode uses folder terminology, Coding mode uses repo terminology
+  const isCoworkMode = projectMode === "cowork"
 
   // Fetch projects from DB
   const { data: projects, isLoading: isLoadingProjects } = trpc.projects.list.useQuery()
@@ -116,6 +109,7 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding",
         })
       }
     },
@@ -148,6 +142,7 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding",
         })
         setGithubDialogOpen(false)
         setGithubUrl("")
@@ -180,6 +175,7 @@ export function ProjectSelector() {
           | null,
         gitOwner: project.gitOwner,
         gitRepo: project.gitRepo,
+        mode: project.mode as "cowork" | "coding",
       })
       setOpen(false)
     }
@@ -197,7 +193,7 @@ export function ProjectSelector() {
     return exists ? selectedProject : null
   }, [selectedProject, projects, isLoadingProjects])
 
-  // If no projects exist and none selected - show direct "Add repository" button
+  // If no projects exist and none selected - show direct "Open folder" button
   if (!validSelection && (!projects || projects.length === 0) && !isLoadingProjects) {
     return (
       <button
@@ -206,7 +202,7 @@ export function ProjectSelector() {
         className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
       >
         <FolderPlusIcon className="h-3.5 w-3.5" />
-        <span>{openFolder.isPending ? "Adding..." : "Add repository"}</span>
+        <span>{openFolder.isPending ? "Adding..." : isCoworkMode ? "Open folder" : "Add repository"}</span>
       </button>
     )
   }
@@ -228,10 +224,9 @@ export function ProjectSelector() {
           <ProjectIcon
             gitOwner={validSelection?.gitOwner}
             gitProvider={validSelection?.gitProvider}
-            isOffline={isOffline}
           />
           <span className="truncate max-w-[120px]">
-            {validSelection?.name || "Select repo"}
+            {validSelection?.name || (isCoworkMode ? "Select folder" : "Select repo")}
           </span>
           <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
         </button>
@@ -239,7 +234,7 @@ export function ProjectSelector() {
       <PopoverContent className="w-64 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search repos..."
+            placeholder={isCoworkMode ? "Search folders..." : "Search repos..."}
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -262,7 +257,6 @@ export function ProjectSelector() {
                       <ProjectIcon
                         gitOwner={project.gitOwner}
                         gitProvider={project.gitProvider}
-                        isOffline={isOffline}
                       />
                       <span className="truncate flex-1">{project.name}</span>
                       {isSelected && (
@@ -283,18 +277,20 @@ export function ProjectSelector() {
               className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
             >
               <FolderPlusIcon className="h-4 w-4 text-muted-foreground" />
-              <span>{openFolder.isPending ? "Adding..." : "Add repository"}</span>
+              <span>{openFolder.isPending ? "Adding..." : isCoworkMode ? "Open folder" : "Add repository"}</span>
             </button>
-            <button
-              onClick={() => {
-                setOpen(false)
-                setGithubDialogOpen(true)
-              }}
-              className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
-            >
-              <GitHubIcon className="h-4 w-4 text-muted-foreground" />
-              <span>Add from GitHub</span>
-            </button>
+            {!isCoworkMode && (
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  setGithubDialogOpen(true)
+                }}
+                className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
+              >
+                <GitHubIcon className="h-4 w-4 text-muted-foreground" />
+                <span>Add from GitHub</span>
+              </button>
+            )}
           </div>
         </Command>
       </PopoverContent>

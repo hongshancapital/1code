@@ -4,15 +4,16 @@ import { useEffect, useMemo } from "react"
 import { Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
-import { selectedProjectAtom } from "./features/agents/atoms"
+import { selectedProjectAtom, currentProjectModeAtom } from "./features/agents/atoms"
 import { AgentsLayout } from "./features/layout/agents-layout"
 import { CoworkLayout } from "./features/cowork/cowork-layout"
-import { isCoworkModeAtom } from "./features/cowork/atoms"
+import { isCoworkModeAtom } from "./features/cowork/atoms" // Legacy fallback for no-project state
 import {
   AnthropicOnboardingPage,
   ApiKeyOnboardingPage,
   BillingMethodPage,
   SelectRepoPage,
+  WelcomePage,
 } from "./features/onboarding"
 import { identify, initAnalytics, shutdown } from "./lib/analytics"
 import {
@@ -42,14 +43,21 @@ function ThemedToaster() {
  * Main content router - decides which page to show based on onboarding state
  */
 function AppContent() {
-  const isCoworkMode = useAtomValue(isCoworkModeAtom)
+  // Project mode: "cowork" (simplified) or "coding" (full git features)
+  // Uses project-level mode if project selected, otherwise falls back to global setting
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const globalCoworkMode = useAtomValue(isCoworkModeAtom) // Fallback for no-project state
+  const selectedProject = useAtomValue(selectedProjectAtom)
+
+  // Determine effective mode: project mode takes precedence, fallback to global
+  const isCoworkMode = selectedProject ? projectMode === "cowork" : globalCoworkMode
+
   const billingMethod = useAtomValue(billingMethodAtom)
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const anthropicOnboardingCompleted = useAtomValue(
     anthropicOnboardingCompletedAtom
   )
   const apiKeyOnboardingCompleted = useAtomValue(apiKeyOnboardingCompletedAtom)
-  const selectedProject = useAtomValue(selectedProjectAtom)
 
   // Migration: If user already completed Anthropic onboarding but has no billing method set,
   // automatically set it to "claude-subscription" (legacy users before billing method was added)
@@ -75,31 +83,21 @@ function AppContent() {
   }, [selectedProject, projects, isLoadingProjects])
 
   // ============================================================================
-  // Cowork Mode: Skip all auth/onboarding, go directly to CoworkLayout
-  // The layout handles project selection internally
-  // ============================================================================
-  if (isCoworkMode) {
-    return <CoworkLayout />
-  }
-
-  // ============================================================================
-  // Original 21st Agents Mode: Full onboarding flow
+  // Onboarding Flow (applies to ALL modes)
+  // First-time users must configure Claude before using the app
   // ============================================================================
 
-  // Determine which page to show:
-  // 1. No billing method selected -> BillingMethodPage
-  // 2. Claude subscription selected but not completed -> AnthropicOnboardingPage
-  // 3. API key or custom model selected but not completed -> ApiKeyOnboardingPage
-  // 4. No valid project selected -> SelectRepoPage
-  // 5. Otherwise -> AgentsLayout
+  // Step 1: No billing method selected -> Show Welcome Page
   if (!billingMethod) {
-    return <BillingMethodPage />
+    return <WelcomePage />
   }
 
+  // Step 2: Claude subscription selected but not completed -> Anthropic OAuth
   if (billingMethod === "claude-subscription" && !anthropicOnboardingCompleted) {
     return <AnthropicOnboardingPage />
   }
 
+  // Step 3: API key or custom model selected but not completed -> API Key config
   if (
     (billingMethod === "api-key" || billingMethod === "custom-model") &&
     !apiKeyOnboardingCompleted
@@ -107,6 +105,17 @@ function AppContent() {
     return <ApiKeyOnboardingPage />
   }
 
+  // ============================================================================
+  // Cowork Mode: After onboarding, go directly to CoworkLayout
+  // The layout handles project selection internally
+  // ============================================================================
+  if (isCoworkMode) {
+    return <CoworkLayout />
+  }
+
+  // ============================================================================
+  // Coding Mode (Agents): Full layout with project selection
+  // ============================================================================
   if (!validatedProject && !isLoadingProjects) {
     return <SelectRepoPage />
   }
@@ -131,18 +140,18 @@ export function App() {
     }
     syncOptOutStatus()
 
-    // Identify user if already authenticated
-    const identifyUser = async () => {
+    // Identify device for analytics (no user auth required)
+    const identifyDevice = async () => {
       try {
-        const user = await window.desktopApi?.getUser()
-        if (user?.id) {
-          identify(user.id, { email: user.email, name: user.name })
+        const deviceId = await window.desktopApi?.getDeviceId()
+        if (deviceId) {
+          identify(deviceId, { type: "device" })
         }
       } catch (error) {
-        console.warn("[Analytics] Failed to identify user:", error)
+        console.warn("[Analytics] Failed to identify device:", error)
       }
     }
-    identifyUser()
+    identifyDevice()
 
     // Cleanup on unmount
     return () => {

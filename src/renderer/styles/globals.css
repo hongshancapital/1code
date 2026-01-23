@@ -8,70 +8,72 @@
 
 @layer base {
   :root {
+    /* HS Light theme - emerald green accent */
+    /* Main content: white, Sidebar: #fafafa for subtle layer separation */
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 228 100% 50%;
-    /* #0034FF - same for all themes */
+    --popover-foreground: 0 0% 9%;
+    --primary: 152 100% 39%;
+    /* #00C853 - emerald green */
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --input-background: 240 4.8% 95.9%;
-    --ring: 228 100% 50%;
-    /* Same as primary - blue focus ring */
-    --selection: 228 100% 50% / 0.25;
-    /* Text selection background - primary at 25% */
+    --border: 0 0% 92%;
+    --input: 0 0% 92%;
+    --input-background: 0 0% 100%;
+    --ring: 152 100% 39%;
+    /* Same as primary - green focus ring */
+    --selection: 152 100% 39% / 0.2;
+    /* Text selection background - primary at 20% */
     --radius: 0.5rem;
     /* Plan Mode Colors */
     --plan-mode: 33 83% 67%;
     --plan-mode-foreground: 0 0% 8%;
-    /* Timeline/Content background */
+    /* Timeline/Sidebar background - very subtle gray #fafafa */
     --tl-background: 0 0% 98%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 240 4.8% 95.9%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 9%;
-    /* #171717 */
-    --popover-foreground: 0 0% 98%;
-    --primary: 228 100% 50%;
-    /* #0034FF - same for all themes */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 5.9% 10%;
-    --muted-foreground: 240 4.4% 58%;
-    --accent: 240 5.9% 10%;
-    --accent-foreground: 0 0% 98%;
+    /* HS Dark theme - emerald green accent */
+    /* Main content: #0a0a0a, Sidebar: #141414 for layer separation */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 90%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 90%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 90%;
+    --primary: 152 100% 39%;
+    /* #00C853 - emerald green */
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 90%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    /* #30302E - matches Claude input color */
-    --input-background: 60 2% 18%;
-    --ring: 228 100% 50%;
-    /* Same as primary - blue focus ring */
-    --selection: 228 100% 50% / 0.3;
-    /* Text selection background - primary at 30% */
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --input-background: 0 0% 10%;
+    --ring: 152 100% 39%;
+    /* Same as primary - green focus ring */
+    --selection: 152 100% 39% / 0.25;
+    /* Text selection background - primary at 25% */
     /* Plan Mode Colors */
     --plan-mode: 33 83% 67%;
     --plan-mode-foreground: 0 0% 8%;
-    /* Timeline/Content background - matches Claude input color #30302E */
-    --tl-background: 60 2% 18%;
+    /* Timeline/Sidebar background - slightly lighter for layer separation */
+    --tl-background: 0 0% 8%;
   }
 }
 

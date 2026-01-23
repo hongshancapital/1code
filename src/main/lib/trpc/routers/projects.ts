@@ -34,8 +34,12 @@ export const projectsRouter = router({
 
   /**
    * Open folder picker and create project
+   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
    */
-  openFolder: publicProcedure.mutation(async ({ ctx }) => {
+  openFolder: publicProcedure
+    .input(z.object({ mode: z.enum(["cowork", "coding"]).optional() }).optional())
+    .mutation(async ({ input, ctx }) => {
+      const mode = input?.mode ?? "cowork"
     const window = ctx.getWindow?.() ?? BrowserWindow.getFocusedWindow()
 
     if (!window) {
@@ -110,6 +114,7 @@ export const projectsRouter = router({
         gitProvider: gitInfo.provider,
         gitOwner: gitInfo.owner,
         gitRepo: gitInfo.repo,
+        mode,
       })
       .returning()
       .get()
@@ -125,12 +130,18 @@ export const projectsRouter = router({
 
   /**
    * Create a project from a known path
+   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
    */
   create: publicProcedure
-    .input(z.object({ path: z.string(), name: z.string().optional() }))
+    .input(z.object({
+      path: z.string(),
+      name: z.string().optional(),
+      mode: z.enum(["cowork", "coding"]).optional(),
+    }))
     .mutation(async ({ input }) => {
       const db = getDatabase()
       const name = input.name || basename(input.path)
+      const mode = input.mode ?? "cowork"
 
       // Check if project already exists
       const existing = db
@@ -155,6 +166,7 @@ export const projectsRouter = router({
           gitProvider: gitInfo.provider,
           gitOwner: gitInfo.owner,
           gitRepo: gitInfo.repo,
+          mode,
         })
         .returning()
         .get()
@@ -340,5 +352,24 @@ export const projectsRouter = router({
       })
 
       return newProject
+    }),
+
+  /**
+   * Update project mode
+   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
+   */
+  updateMode: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      mode: z.enum(["cowork", "coding"]),
+    }))
+    .mutation(({ input }) => {
+      const db = getDatabase()
+      return db
+        .update(projects)
+        .set({ mode: input.mode, updatedAt: new Date() })
+        .where(eq(projects.id, input.id))
+        .returning()
+        .get()
     }),
 })

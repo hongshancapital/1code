@@ -31,6 +31,7 @@ import { QueueProcessor } from "../agents/components/queue-processor"
 import {
   coworkRightPanelWidthAtom,
   coworkRightPanelOpenAtom,
+  coworkRightPanelUserClosedAtom,
 } from "./atoms"
 import { CoworkRightPanel } from "./cowork-right-panel"
 import { CoworkContent } from "./cowork-content"
@@ -101,6 +102,10 @@ export function CoworkLayout() {
 
   // Right panel state
   const [rightPanelOpen, setRightPanelOpen] = useAtom(coworkRightPanelOpenAtom)
+  const [rightPanelUserClosed, setRightPanelUserClosed] = useAtom(coworkRightPanelUserClosedAtom)
+
+  // Right panel should only show when a chat is selected (not on start page)
+  const shouldShowRightPanel = selectedChatId && rightPanelOpen
 
   // Fetch projects
   const { data: projects, isLoading: isLoadingProjects } =
@@ -140,8 +145,8 @@ export function CoworkLayout() {
   const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
 
   // Listen for file changes from Claude tools and add to artifacts
-  // NOTE: Use selectedChatId (not activeSubChatId) to group artifacts by chat
-  useArtifactsListener(selectedChatId)
+  // Use activeSubChatId to group artifacts by session (sub-chat)
+  useArtifactsListener(activeSubChatId)
 
   // Desktop user state
   const [desktopUser, setDesktopUser] = useState<{
@@ -196,6 +201,16 @@ export function CoworkLayout() {
     }
   }, [selectedChatId, setChatId])
 
+  // Auto-open right panel when entering a chat (unless user manually closed it before)
+  const prevSelectedChatIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    // Only trigger when transitioning from no chat to a chat
+    if (selectedChatId && !prevSelectedChatIdRef.current && !rightPanelUserClosed) {
+      setRightPanelOpen(true)
+    }
+    prevSelectedChatIdRef.current = selectedChatId
+  }, [selectedChatId, rightPanelUserClosed, setRightPanelOpen])
+
   // Chat search toggle
   const toggleChatSearch = useSetAtom(toggleSearchAtom)
 
@@ -219,11 +234,21 @@ export function CoworkLayout() {
 
   const handleCloseRightPanel = useCallback(() => {
     setRightPanelOpen(false)
-  }, [setRightPanelOpen])
+    setRightPanelUserClosed(true) // Mark as user manually closed
+  }, [setRightPanelOpen, setRightPanelUserClosed])
 
   const handleToggleRightPanel = useCallback(() => {
-    setRightPanelOpen((prev) => !prev)
-  }, [setRightPanelOpen])
+    setRightPanelOpen((prev) => {
+      if (prev) {
+        // Closing - mark as user manually closed
+        setRightPanelUserClosed(true)
+      } else {
+        // Opening - clear the user closed flag
+        setRightPanelUserClosed(false)
+      }
+      return !prev
+    })
+  }, [setRightPanelOpen, setRightPanelUserClosed])
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -276,9 +301,9 @@ export function CoworkLayout() {
             />
           </div>
 
-          {/* Right Panel - Tasks & Files */}
+          {/* Right Panel - Tasks & Files (only show when in a chat) */}
           <ResizableSidebar
-            isOpen={!isMobile && rightPanelOpen}
+            isOpen={!isMobile && !!shouldShowRightPanel}
             onClose={handleCloseRightPanel}
             widthAtom={coworkRightPanelWidthAtom}
             minWidth={RIGHT_PANEL_MIN_WIDTH}

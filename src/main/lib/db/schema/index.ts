@@ -20,6 +20,8 @@ export const projects = sqliteTable("projects", {
   gitProvider: text("git_provider"), // "github" | "gitlab" | "bitbucket" | null
   gitOwner: text("git_owner"),
   gitRepo: text("git_repo"),
+  // Project mode: "cowork" (simplified, no git) or "coding" (full features with git)
+  mode: text("mode").notNull().default("cowork"),
 })
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -98,6 +100,57 @@ export const claudeCodeCredentials = sqliteTable("claude_code_credentials", {
   userId: text("user_id"), // Desktop auth user ID (for reference)
 })
 
+// ============ MODEL USAGE ============
+// Records token usage for each Claude API call
+export const modelUsage = sqliteTable("model_usage", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  // Relationships
+  subChatId: text("sub_chat_id")
+    .notNull()
+    .references(() => subChats.id, { onDelete: "cascade" }),
+  chatId: text("chat_id")
+    .notNull()
+    .references(() => chats.id, { onDelete: "cascade" }),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  // Model info
+  model: text("model").notNull(),
+  // Token usage
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  // Cost in USD (stored as text for decimal precision)
+  costUsd: text("cost_usd"),
+  // Session info (for deduplication)
+  sessionId: text("session_id"),
+  messageUuid: text("message_uuid"), // SDK message UUID for deduplication
+  // Request metadata
+  mode: text("mode"), // "plan" | "agent"
+  durationMs: integer("duration_ms"),
+  // Timestamp
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+})
+
+export const modelUsageRelations = relations(modelUsage, ({ one }) => ({
+  subChat: one(subChats, {
+    fields: [modelUsage.subChatId],
+    references: [subChats.id],
+  }),
+  chat: one(chats, {
+    fields: [modelUsage.chatId],
+    references: [chats.id],
+  }),
+  project: one(projects, {
+    fields: [modelUsage.projectId],
+    references: [projects.id],
+  }),
+}))
+
 // ============ TYPE EXPORTS ============
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
@@ -107,3 +160,5 @@ export type SubChat = typeof subChats.$inferSelect
 export type NewSubChat = typeof subChats.$inferInsert
 export type ClaudeCodeCredential = typeof claudeCodeCredentials.$inferSelect
 export type NewClaudeCodeCredential = typeof claudeCodeCredentials.$inferInsert
+export type ModelUsage = typeof modelUsage.$inferSelect
+export type NewModelUsage = typeof modelUsage.$inferInsert

@@ -2,10 +2,10 @@
   "name": "21st-desktop",
   "version": "0.0.33",
   "private": true,
-  "description": "1Code - UI for parallel work with AI agents",
+  "description": "Hóng - UI for parallel work with AI agents",
   "author": {
-    "name": "21st.dev",
-    "email": "support@21st.dev"
+    "name": "HongShan",
+    "email": "lite@hongshan.com"
   },
   "main": "out/main/index.js",
   "scripts": {
@@ -127,11 +127,11 @@
   },
   "build": {
     "appId": "dev.21st.agents",
-    "productName": "1Code",
+    "productName": "Hóng",
     "npmRebuild": true,
     "protocols": [
       {
-        "name": "1Code",
+        "name": "Hóng",
         "schemes": [
           "twentyfirst-agents"
         ]
@@ -234,7 +234,7 @@
     },
     "publish": {
       "provider": "generic",
-      "url": "https://cdn.21st.dev/releases/desktop"
+      "url": "https://cowork.hongshan.com/releases/desktop"
     }
   }
 }

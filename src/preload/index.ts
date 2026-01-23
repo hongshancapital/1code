@@ -111,7 +111,7 @@ contextBridge.exposeInMainWorld("desktopApi", {
   showNotification: (options: { title: string; body: string }) =>
     ipcRenderer.invoke("app:show-notification", options),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
-  selectAudioFile: () => ipcRenderer.invoke("dialog:select-audio-file") as Promise<string | null>,
+  selectAudioFile: (): Promise<string | null> => ipcRenderer.invoke("dialog:select-audio-file"),
 
   // API base URL (for fetch requests to server)
   getApiBaseUrl: () => ipcRenderer.invoke("app:get-api-base-url"),
@@ -120,25 +120,8 @@ contextBridge.exposeInMainWorld("desktopApi", {
   clipboardWrite: (text: string) => ipcRenderer.invoke("clipboard:write", text),
   clipboardRead: () => ipcRenderer.invoke("clipboard:read"),
 
-  // Auth methods
-  getUser: () => ipcRenderer.invoke("auth:get-user"),
-  isAuthenticated: () => ipcRenderer.invoke("auth:is-authenticated"),
-  logout: () => ipcRenderer.invoke("auth:logout"),
-  startAuthFlow: () => ipcRenderer.invoke("auth:start-flow"),
-  submitAuthCode: (code: string) => ipcRenderer.invoke("auth:submit-code", code),
-  updateUser: (updates: { name?: string }) => ipcRenderer.invoke("auth:update-user", updates),
-
-  // Auth events
-  onAuthSuccess: (callback: (user: any) => void) => {
-    const handler = (_event: unknown, user: any) => callback(user)
-    ipcRenderer.on("auth:success", handler)
-    return () => ipcRenderer.removeListener("auth:success", handler)
-  },
-  onAuthError: (callback: (error: string) => void) => {
-    const handler = (_event: unknown, error: string) => callback(error)
-    ipcRenderer.on("auth:error", handler)
-    return () => ipcRenderer.removeListener("auth:error", handler)
-  },
+  // Device ID (for identifying this device to backend APIs)
+  getDeviceId: () => ipcRenderer.invoke("device:get-id"),
 
   // Shortcut events (from main process menu accelerators)
   onShortcutNewAgent: (callback: () => void) => {
@@ -243,27 +226,8 @@ export interface DesktopApi {
   getApiBaseUrl: () => Promise<string>
   clipboardWrite: (text: string) => Promise<void>
   clipboardRead: () => Promise<string>
-  // Auth
-  getUser: () => Promise<{
-    id: string
-    email: string
-    name: string | null
-    imageUrl: string | null
-    username: string | null
-  } | null>
-  isAuthenticated: () => Promise<boolean>
-  logout: () => Promise<void>
-  startAuthFlow: () => Promise<void>
-  submitAuthCode: (code: string) => Promise<void>
-  updateUser: (updates: { name?: string }) => Promise<{
-    id: string
-    email: string
-    name: string | null
-    imageUrl: string | null
-    username: string | null
-  } | null>
-  onAuthSuccess: (callback: (user: any) => void) => () => void
-  onAuthError: (callback: (error: string) => void) => () => void
+  // Device ID
+  getDeviceId: () => Promise<string>
   // Shortcuts
   onShortcutNewAgent: (callback: () => void) => () => void
   // File changes

@@ -1,19 +1,11 @@
 import { eq } from "drizzle-orm"
 import { safeStorage, shell } from "electron"
 import { z } from "zod"
-import { getAuthManager } from "../../../index"
 import { getExistingClaudeToken } from "../../claude-token"
 import { getApiUrl } from "../../config"
 import { claudeCodeCredentials, getDatabase } from "../../db"
+import { getDeviceId, getDeviceInfo } from "../../device-id"
 import { publicProcedure, router } from "../index"
-
-/**
- * Get desktop auth token for server API calls
- */
-async function getDesktopToken(): Promise<string | null> {
-  const authManager = getAuthManager()
-  return authManager.getValidToken()
-}
 
 /**
  * Encrypt token using Electron's safeStorage
@@ -38,8 +30,7 @@ function decryptToken(encrypted: string): string {
 }
 
 function storeOAuthToken(oauthToken: string) {
-  const authManager = getAuthManager()
-  const user = authManager.getUser()
+  const deviceId = getDeviceId()
 
   const encryptedToken = encryptToken(oauthToken)
   const db = getDatabase()
@@ -53,7 +44,7 @@ function storeOAuthToken(oauthToken: string) {
       id: "default",
       oauthToken: encryptedToken,
       connectedAt: new Date(),
-      userId: user?.id ?? null,
+      userId: deviceId, // Use device ID instead of user ID
     })
     .run()
 }
@@ -82,17 +73,21 @@ export const claudeCodeRouter = router({
 
   /**
    * Start OAuth flow - calls server to create sandbox
+   * Uses device ID for identification
    */
   startAuth: publicProcedure.mutation(async () => {
-    const token = await getDesktopToken()
-    if (!token) {
-      throw new Error("Not authenticated with 21st.dev")
-    }
+    const deviceInfo = getDeviceInfo()
 
     // Server creates sandbox (has CodeSandbox SDK)
     const response = await fetch(`${getApiUrl()}/api/auth/claude-code/start`, {
       method: "POST",
-      headers: { "x-desktop-token": token },
+      headers: {
+        "Content-Type": "application/json",
+        "x-device-id": deviceInfo.deviceId,
+        "x-device-platform": deviceInfo.platform,
+        "x-device-arch": deviceInfo.arch,
+        "x-app-version": deviceInfo.appVersion,
+      },
     })
 
     if (!response.ok) {

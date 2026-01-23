@@ -183,7 +183,7 @@ console.log("=".repeat(50))
 console.log("Manifest generation complete!")
 console.log()
 console.log("Next steps:")
-console.log("1. Upload the following files to cdn.21st.dev/releases/desktop/:")
+console.log("1. Upload the following files to cowork.hongshan.com/releases/desktop/:")
 if (arm64Manifest) {
   console.log(`   - latest-mac.yml`)
   console.log(`   - Agents-${version}-arm64-mac.zip`)
