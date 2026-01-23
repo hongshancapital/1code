@@ -4,16 +4,15 @@ import * as React from "react"
 
 import { cn } from "../../lib/utils"
 
-// The outer border for the default button variant is always pure black (rgb(23,23,23)),
-// and does not change in dark mode. The inner shadow remains theme-dependent.
+// Primary button with subtle inner highlight, no outer border
 const buttonVariants = cva(
   "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/70 disabled:opacity-50 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          // Outer border always black, inner shadow is theme-dependent
-          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_0_0.5px_rgb(23,23,23),inset_0_0_0_1px_rgba(255,255,255,0.14)] dark:shadow-[0_0_0_0.5px_rgb(23,23,23),inset_0_0_0_1px_rgba(0,0,0,0.14)]",
+          // Clean primary button with subtle inner highlight
+          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]",
         brand:
           "relative cursor-pointer space-x-2 font-regular dark:text-foreground ease-out duration-200 outline-0 focus-visible:outline-4 focus-visible:outline-offset-1 border bg-gradient-to-b from-[hsl(var(--primary-gradient-start))] to-[hsl(var(--primary-gradient-end))] hover:opacity-90 text-primary-foreground border-[hsl(var(--primary-gradient-start))] focus-visible:outline-[hsl(var(--primary-gradient-start))] data-[state=open]:opacity-90 data-[state=open]:outline-[hsl(var(--primary-gradient-start))] disabled:border-transparent",
         destructive:

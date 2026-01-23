@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
 import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
 import { currentTodosAtomFamily } from "../agents/atoms"
@@ -59,14 +59,21 @@ function TodoStatusIcon({ status }: { status: TodoItem["status"] }) {
 /**
  * Individual task item in the list
  */
-function TaskItem({ todo }: { todo: TodoItem }) {
+const TaskItem = ({
+  todo,
+  itemRef,
+}: {
+  todo: TodoItem
+  itemRef?: React.RefObject<HTMLDivElement>
+}) => {
   const isCompleted = todo.status === "completed"
   const isInProgress = todo.status === "in_progress"
 
   return (
     <div
+      ref={itemRef}
       className={cn(
-        "flex items-start gap-2.5 p-2.5 rounded-lg transition-colors",
+        "flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg transition-colors",
         isInProgress && "bg-accent/50"
       )}
     >
@@ -74,10 +81,11 @@ function TaskItem({ todo }: { todo: TodoItem }) {
       <div className="flex-1 min-w-0">
         <p
           className={cn(
-            "text-xs leading-relaxed",
+            "text-xs leading-normal truncate",
             isCompleted && "line-through text-muted-foreground",
             isInProgress && "text-foreground font-medium"
           )}
+          title={isInProgress && todo.activeForm ? todo.activeForm : todo.content}
         >
           {isInProgress && todo.activeForm ? todo.activeForm : todo.content}
         </p>
@@ -114,14 +122,28 @@ export function TaskPanelContent() {
   const [todoState] = useAtom(todosAtom)
   const todos = todoState.todos
 
+  // Ref for current in-progress task
+  const inProgressRef = useRef<HTMLDivElement>(null)
+
   // Calculate progress
   const completedCount = todos.filter((t) => t.status === "completed").length
   const totalCount = todos.length
   const progressPercent =
     totalCount > 0 ? (completedCount / totalCount) * 100 : 0
 
-  // Find current task
-  const currentTask = todos.find((t) => t.status === "in_progress")
+  // Find current task index
+  const currentTaskIndex = todos.findIndex((t) => t.status === "in_progress")
+  const currentTask = currentTaskIndex >= 0 ? todos[currentTaskIndex] : null
+
+  // Auto-scroll to current in-progress task when it changes
+  useEffect(() => {
+    if (inProgressRef.current) {
+      inProgressRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      })
+    }
+  }, [currentTaskIndex])
 
   if (todos.length === 0) {
     return <EmptyState />
@@ -168,7 +190,11 @@ export function TaskPanelContent() {
       {/* Task List */}
       <div className="p-2 space-y-0.5">
         {todos.map((todo, index) => (
-          <TaskItem key={`${todo.content}-${index}`} todo={todo} />
+          <TaskItem
+            key={`${todo.content}-${index}`}
+            todo={todo}
+            itemRef={index === currentTaskIndex ? inProgressRef : undefined}
+          />
         ))}
       </div>
     </div>

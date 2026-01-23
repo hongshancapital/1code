@@ -43,8 +43,8 @@ body:has([data-agents-page]) [data-sonner-toast] {
 /* Dark theme */
 .dark [data-agents-page] {
   /* Override muted to be brighter for better code block visibility */
-  --muted: 0 0% 14%;
-  /* ~#242424 - visible on dark backgrounds */
+  --muted: 0 0% 18%;
+  /* ~#2e2e2e - visible on dark backgrounds */
   --muted-foreground: 0 0% 55%;
 
   /* Custom text selection colors - uses theme's editor.selectionBackground */
@@ -178,7 +178,7 @@ body:has([data-agents-page]) [data-sonner-toast] {
     /* Reset hover/focus background - use inherit to match parent or selected state */
     transition: none !important;
   }
-  
+
   /* Override Tailwind hover utilities specifically */
   [data-agents-page] .hover\:bg-foreground\/5:hover,
   [data-agents-page] .hover\:text-foreground:hover,
@@ -188,7 +188,7 @@ body:has([data-agents-page]) [data-sonner-toast] {
     background-color: unset !important;
     color: unset !important;
   }
-  
+
   /* Ensure active state provides immediate feedback */
   [data-agents-page] button:active,
   [data-agents-page] [role="button"]:active,
@@ -238,7 +238,7 @@ body:has([data-agents-page]) .canvas-dialog,
   /* #171717 */
 
   /* Override muted to be brighter for better code block visibility */
-  --muted: 0 0% 14%;
+  --muted: 0 0% 18%;
   --muted-foreground: 0 0% 55%;
 }
 

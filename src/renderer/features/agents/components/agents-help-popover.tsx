@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"
 import { KeyboardIcon } from "../../../components/ui/icons"
-import { DiscordIcon } from "../../../icons"
 import { useSetAtom } from "jotai"
 import { agentsSettingsDialogOpenAtom, agentsSettingsDialogActiveTabAtom } from "../../../lib/atoms"
 
@@ -33,10 +32,6 @@ export function AgentsHelpPopover({
   const open = controlledOpen ?? internalOpen
   const setOpen = controlledOnOpenChange ?? setInternalOpen
 
-  const handleCommunityClick = () => {
-    window.open("https://discord.gg/8ektTZGnj4", "_blank")
-  }
-
   const handleKeyboardShortcutsClick = () => {
     setOpen(false)
     setSettingsActiveTab("keyboard")
@@ -47,11 +42,6 @@ export function AgentsHelpPopover({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="w-36">
-        <DropdownMenuItem onClick={handleCommunityClick} className="gap-2">
-          <DiscordIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="flex-1">Discord</span>
-        </DropdownMenuItem>
-
         {!isMobile && (
           <DropdownMenuItem
             onClick={handleKeyboardShortcutsClick}

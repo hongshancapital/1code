@@ -34,6 +34,15 @@ export const coworkRightPanelOpenAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Track if user has manually closed the right panel (persisted)
+// Used to determine whether to auto-open panel when entering a chat
+export const coworkRightPanelUserClosedAtom = atomWithStorage<boolean>(
+  "cowork:rightPanelUserClosed",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
 // ============================================================================
 // Section Collapse State
 // ============================================================================
@@ -92,20 +101,20 @@ const allArtifactsStorageAtom = atomWithStorage<Record<string, Artifact[]>>(
   { getOnInit: true }
 )
 
-// atomFamily to get/set artifacts per chatId
+// atomFamily to get/set artifacts per subChatId (session)
 // Supports both direct value and updater function: setArtifacts(newArr) or setArtifacts(prev => newArr)
 type ArtifactsSetter = Artifact[] | ((prev: Artifact[]) => Artifact[])
 
-export const artifactsAtomFamily = atomFamily((chatId: string) =>
+export const artifactsAtomFamily = atomFamily((subChatId: string) =>
   atom(
-    (get) => get(allArtifactsStorageAtom)[chatId] ?? [],
+    (get) => get(allArtifactsStorageAtom)[subChatId] ?? [],
     (get, set, update: ArtifactsSetter) => {
       const current = get(allArtifactsStorageAtom)
-      const prevArtifacts = current[chatId] ?? []
+      const prevArtifacts = current[subChatId] ?? []
       // Support both direct value and updater function
       const newArtifacts = typeof update === "function" ? update(prevArtifacts) : update
-      console.log("[Artifacts] Setting artifacts for chatId:", chatId, "count:", newArtifacts.length)
-      set(allArtifactsStorageAtom, { ...current, [chatId]: newArtifacts })
+      console.log("[Artifacts] Setting artifacts for subChatId:", subChatId, "count:", newArtifacts.length)
+      set(allArtifactsStorageAtom, { ...current, [subChatId]: newArtifacts })
     }
   )
 )

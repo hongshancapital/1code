@@ -79,7 +79,9 @@ const SUPPORTED_LANGUAGES: shiki.BundledLanguage[] = [
  */
 const DEFAULT_THEMES: shiki.BundledTheme[] = [
   "github-dark",
+  "github-dark-high-contrast",
   "github-light",
+  "github-light-high-contrast",
   "vitesse-dark",
   "vitesse-light",
   "min-dark",
@@ -92,6 +94,10 @@ const DEFAULT_THEMES: shiki.BundledTheme[] = [
  * Only themes WITHOUT tokenColors need mapping - themes with tokenColors use their own
  */
 const THEME_TO_SHIKI_MAP: Record<string, shiki.BundledTheme> = {
+  // HS dark uses high-contrast for bright text on dark background
+  // HS light uses standard GitHub light for dark text on light background
+  "hs-dark": "github-dark-high-contrast",
+  "hs-light": "github-light",
   // 21st themes use GitHub themes (no tokenColors)
   "21st-dark": "github-dark",
   "21st-light": "github-light",
@@ -172,17 +178,17 @@ function getShikiThemeForHighlighting(themeId: string): string {
   if (themeId in THEME_TO_SHIKI_MAP) {
     return THEME_TO_SHIKI_MAP[themeId]
   }
-  
+
   // If it's already a shiki bundled theme, use it directly
   if (isShikiBundledTheme(themeId)) {
     return themeId
   }
-  
+
   // If the theme is loaded in our cache (has tokenColors), use it directly
   if (fullThemesCache.has(themeId)) {
     return themeId
   }
-  
+
   // Check the theme type and use appropriate default
   const builtinTheme = getBuiltinThemeById(themeId)
   if (builtinTheme) {
@@ -192,7 +198,7 @@ function getShikiThemeForHighlighting(themeId: string): string {
     }
     return builtinTheme.type === "light" ? "github-light" : "github-dark"
   }
-  
+
   // Default to github-dark
   return "github-dark"
 }

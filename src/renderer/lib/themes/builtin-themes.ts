@@ -1,6 +1,6 @@
 /**
  * Built-in VS Code themes with full color definitions
- * 
+ *
  * These themes include both UI colors and are compatible with Shiki for syntax highlighting.
  * Each theme has been curated to work well with the app's design system.
  */
@@ -588,10 +588,161 @@ const CLAUDE_DARK: VSCodeFullTheme = {
 }
 
 /**
+ * HS Dark theme colors
+ * Dark theme with emerald green accent - inspired by Jiminy style
+ */
+const HS_DARK: VSCodeFullTheme = {
+  id: "hs-dark",
+  name: "HS Dark",
+  type: "dark",
+  source: "builtin",
+  colors: {
+    // Main content area - darkest
+    "editor.background": "#0a0a0a",
+    "editorPane.background": "#0a0a0a",
+    "editor.foreground": "#e5e5e5",
+    "foreground": "#e5e5e5",
+    // Sidebar - slightly lighter for layer separation
+    "sideBar.background": "#141414",
+    "sideBar.foreground": "#a3a3a3",
+    "sideBar.border": "#262626",
+    // Activity bar - same as sidebar
+    "activityBar.background": "#141414",
+    "activityBar.foreground": "#a3a3a3",
+    "activityBarBadge.background": "#00C853",
+    "activityBarBadge.foreground": "#000000",
+    // Panel (right side) - same as sidebar
+    "panel.background": "#141414",
+    "panel.border": "#262626",
+    // Tabs
+    "tab.activeBackground": "#0a0a0a",
+    "tab.inactiveBackground": "#141414",
+    "tab.inactiveForeground": "#737373",
+    "editorGroupHeader.tabsBackground": "#141414",
+    // Dropdowns and inputs
+    "dropdown.background": "#1a1a1a",
+    "dropdown.foreground": "#e5e5e5",
+    "input.background": "#1a1a1a",
+    "input.border": "#333333",
+    "input.foreground": "#e5e5e5",
+    // Accent colors
+    "focusBorder": "#00C853",
+    "textLink.foreground": "#00C853",
+    "textLink.activeForeground": "#4ade80",
+    "list.activeSelectionBackground": "#00C85320",
+    "list.hoverBackground": "#1f1f1f",
+    "editor.selectionBackground": "#00C85330",
+    "editorLineNumber.foreground": "#525252",
+    "descriptionForeground": "#a3a3a3",
+    "errorForeground": "#ef4444",
+    "button.background": "#00C853",
+    "button.foreground": "#000000",
+    "button.secondaryBackground": "#262626",
+    "button.secondaryForeground": "#e5e5e5",
+    // Terminal colors
+    "terminal.background": "#0a0a0a",
+    "terminal.foreground": "#e5e5e5",
+    "terminal.ansiBlack": "#171717",
+    "terminal.ansiRed": "#ef4444",
+    "terminal.ansiGreen": "#00C853",
+    "terminal.ansiYellow": "#eab308",
+    "terminal.ansiBlue": "#3b82f6",
+    "terminal.ansiMagenta": "#a855f7",
+    "terminal.ansiCyan": "#06b6d4",
+    "terminal.ansiWhite": "#e5e5e5",
+    "terminal.ansiBrightBlack": "#737373",
+    "terminal.ansiBrightRed": "#f87171",
+    "terminal.ansiBrightGreen": "#4ade80",
+    "terminal.ansiBrightYellow": "#facc15",
+    "terminal.ansiBrightBlue": "#60a5fa",
+    "terminal.ansiBrightMagenta": "#c084fc",
+    "terminal.ansiBrightCyan": "#22d3ee",
+    "terminal.ansiBrightWhite": "#fafafa",
+  },
+}
+
+/**
+ * HS Light theme colors
+ * Light theme with emerald green accent - inspired by Jiminy style
+ */
+const HS_LIGHT: VSCodeFullTheme = {
+  id: "hs-light",
+  name: "HS Light",
+  type: "light",
+  source: "builtin",
+  colors: {
+    // Main content area - pure white
+    "editor.background": "#ffffff",
+    "editorPane.background": "#ffffff",
+    "editor.foreground": "#171717",
+    "foreground": "#171717",
+    // Sidebar - very subtle gray for layer separation
+    "sideBar.background": "#fafafa",
+    "sideBar.foreground": "#525252",
+    "sideBar.border": "#ebebeb",
+    // Activity bar - same as sidebar
+    "activityBar.background": "#fafafa",
+    "activityBar.foreground": "#525252",
+    "activityBarBadge.background": "#00C853",
+    "activityBarBadge.foreground": "#ffffff",
+    // Panel (right side) - same as sidebar
+    "panel.background": "#fafafa",
+    "panel.border": "#ebebeb",
+    // Tabs
+    "tab.activeBackground": "#ffffff",
+    "tab.inactiveBackground": "#fafafa",
+    "tab.inactiveForeground": "#737373",
+    "editorGroupHeader.tabsBackground": "#fafafa",
+    // Dropdowns and inputs
+    "dropdown.background": "#ffffff",
+    "dropdown.foreground": "#171717",
+    "input.background": "#ffffff",
+    "input.border": "#e5e5e5",
+    "input.foreground": "#171717",
+    // Accent colors
+    "focusBorder": "#00C853",
+    "textLink.foreground": "#00A844",
+    "textLink.activeForeground": "#008836",
+    "list.activeSelectionBackground": "#00C85320",
+    "list.hoverBackground": "#f0f0f0",
+    "editor.selectionBackground": "#00C85325",
+    "editorLineNumber.foreground": "#a3a3a3",
+    "descriptionForeground": "#737373",
+    "errorForeground": "#dc2626",
+    "button.background": "#00C853",
+    "button.foreground": "#ffffff",
+    "button.secondaryBackground": "#f0f0f0",
+    "button.secondaryForeground": "#171717",
+    // Terminal colors
+    "terminal.background": "#fafafa",
+    "terminal.foreground": "#171717",
+    "terminal.ansiBlack": "#171717",
+    "terminal.ansiRed": "#dc2626",
+    "terminal.ansiGreen": "#00A844",
+    "terminal.ansiYellow": "#ca8a04",
+    "terminal.ansiBlue": "#2563eb",
+    "terminal.ansiMagenta": "#9333ea",
+    "terminal.ansiCyan": "#0891b2",
+    "terminal.ansiWhite": "#f5f5f5",
+    "terminal.ansiBrightBlack": "#525252",
+    "terminal.ansiBrightRed": "#ef4444",
+    "terminal.ansiBrightGreen": "#22c55e",
+    "terminal.ansiBrightYellow": "#eab308",
+    "terminal.ansiBrightBlue": "#3b82f6",
+    "terminal.ansiBrightMagenta": "#a855f7",
+    "terminal.ansiBrightCyan": "#06b6d4",
+    "terminal.ansiBrightWhite": "#fafafa",
+  },
+}
+
+/**
  * All built-in themes
  */
 export const BUILTIN_THEMES: VSCodeFullTheme[] = [
-  // 21st Default themes (first)
+  // HS Default themes (first - default themes)
+  HS_DARK,
+  HS_LIGHT,
+  // 21st themes
   TWENTYFIRST_DARK,
   TWENTYFIRST_LIGHT,
   // Cursor themes
@@ -626,8 +777,8 @@ export function getBuiltinThemesByType(type: "light" | "dark"): VSCodeFullTheme[
 /**
  * Default theme IDs for light/dark modes
  */
-export const DEFAULT_LIGHT_THEME_ID = "21st-light"
-export const DEFAULT_DARK_THEME_ID = "21st-dark"
+export const DEFAULT_LIGHT_THEME_ID = "hs-light"
+export const DEFAULT_DARK_THEME_ID = "hs-dark"
 
 /**
  * Set of builtin theme names (lowercase) for filtering discovered themes

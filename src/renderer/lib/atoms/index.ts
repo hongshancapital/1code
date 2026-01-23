@@ -165,7 +165,6 @@ export const clearSubChatSelectionAtom = atom(null, (_get, set) => {
 
 // Settings dialog
 export type SettingsTab =
-  | "profile"
   | "appearance"
   | "preferences"
   | "notifications"
@@ -178,7 +177,7 @@ export type SettingsTab =
   | "beta"
   | "keyboard"
   | `project-${string}` // Dynamic project tabs
-export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("profile")
+export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("appearance")
 export const agentsSettingsDialogOpenAtom = atom<boolean>(false)
 
 export type CustomClaudeConfig = {
@@ -677,7 +676,7 @@ export const billingMethodAtom = atomWithStorage<BillingMethod>(
 )
 
 // Whether user has completed Anthropic OAuth during onboarding
-// This is used to show the onboarding screen after 21st.dev sign-in
+// This is used to show the onboarding screen after sign-in
 // Reset on logout
 export const anthropicOnboardingCompletedAtom = atomWithStorage<boolean>(
   "onboarding:anthropic-completed",

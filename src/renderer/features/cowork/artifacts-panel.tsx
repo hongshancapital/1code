@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react"
-import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { getFileIconByExtension } from "../agents/mentions/agents-file-mention"
 import { ChevronRight, FileEdit, FilePlus, FileX, FolderOpen, Globe, Package } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { selectedAgentChatIdAtom } from "../agents/atoms"
+import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
 import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atoms"
 import { filePreviewPathAtom } from "./atoms"
 
@@ -20,11 +20,11 @@ interface ArtifactsPanelProps {
 // ============================================================================
 
 export function useArtifactsCount(): number {
-  // Use chatId (not subChatId) to get artifacts for the entire chat
-  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
+  // Use activeSubChatId to get artifacts for the current session
+  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
   const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(selectedChatId || "default"),
-    [selectedChatId]
+    () => artifactsAtomFamily(activeSubChatId || "default"),
+    [activeSubChatId]
   )
   const [rawArtifacts] = useAtom(artifactsAtom)
   const artifacts = Array.isArray(rawArtifacts) ? rawArtifacts : []
@@ -197,11 +197,11 @@ function EmptyState() {
 // ============================================================================
 
 export function ArtifactsPanelContent({ onFileSelect }: ArtifactsPanelProps) {
-  // Use chatId (not subChatId) to get artifacts for the entire chat
-  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
+  // Use activeSubChatId to get artifacts for the current session
+  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
   const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(selectedChatId || "default"),
-    [selectedChatId]
+    () => artifactsAtomFamily(activeSubChatId || "default"),
+    [activeSubChatId]
   )
   const [rawArtifacts] = useAtom(artifactsAtom)
   const setPreviewPath = useSetAtom(filePreviewPathAtom)

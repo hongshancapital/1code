@@ -1,7 +1,6 @@
 import { router, publicProcedure } from "../index"
 import { getDatabase, projects, chats, subChats } from "../../db"
 import { app, shell } from "electron"
-import { getAuthManager } from "../../../index"
 import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
 
@@ -91,13 +90,12 @@ export const debugRouter = router({
   }),
 
   /**
-   * Logout (clear auth only)
+   * Reset onboarding state
+   * Clears localStorage flags to restart onboarding flow
    */
-  logout: publicProcedure.mutation(() => {
-    const authManager = getAuthManager()
-    authManager.logout()
-    console.log("[Debug] User logged out")
-    return { success: true }
+  resetOnboarding: publicProcedure.mutation(() => {
+    console.log("[Debug] Reset onboarding - this clears localStorage on renderer side")
+    return { success: true, message: "Clear localStorage:billing-method, localStorage:anthropic-onboarding-completed, localStorage:api-key-onboarding-completed in renderer" }
   }),
 
   /**

@@ -238,7 +238,7 @@ npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
 
 ### Auto-Update Flow
 
-1. App checks `https://cdn.21st.dev/releases/desktop/latest-mac.yml` on startup and when window regains focus (with 1 min cooldown)
+1. App checks `https://cowork.hongshan.com/releases/desktop/latest-mac.yml` on startup and when window regains focus (with 1 min cooldown)
 2. If version in manifest > current version, shows "Update Available" banner
 3. User clicks Download → downloads ZIP in background
 4. User clicks "Restart Now" → installs update and restarts

@@ -24,8 +24,6 @@ import {
 } from "../agents/stores/sub-chat-store"
 import { useShallow } from "zustand/react/shallow"
 import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
-import { Button } from "../../components/ui/button"
-import { PanelRight } from "lucide-react"
 
 // Mocks for unused features
 const useSearchParams = () => ({ get: () => null })
@@ -242,17 +240,7 @@ export function CoworkContent({
             ) : (
               <div className="h-full flex flex-col relative overflow-hidden">
                 <NewChatForm key={`new-chat-${newChatFormKeyRef.current}`} />
-                {/* Right panel toggle button for new chat */}
-                <div className="absolute top-2 right-2 z-10">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={onToggleRightPanel}
-                  >
-                    <PanelRight className="h-4 w-4" />
-                  </Button>
-                </div>
+                {/* No right panel button on start page - panel only shows in chat */}
               </div>
             )}
           </div>
