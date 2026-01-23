@@ -1092,8 +1092,8 @@ const SidebarHeader = memo(function SidebarHeader({
           <div className="flex-1 min-w-0">
             <div className="h-6 px-1.5 flex items-center max-w-full">
               <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-                <div className="flex items-center justify-center flex-shrink-0">
-                  <Logo className="w-3.5 h-3.5" />
+                <div className="flex items-center justify-center flex-shrink-0 w-4 h-4 rounded overflow-hidden">
+                  <img src="icon.png" alt="Hóng" className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1 overflow-hidden">
                   <div className="text-sm font-medium text-foreground truncate">
