@@ -1187,12 +1187,12 @@ export function NewChatForm({
 
   // Memoized callbacks to prevent re-renders
   const handleMentionTrigger = useCallback(
-    ({ searchText, rect }: { searchText: string; rect: DOMRect }) => {
+    ({ searchText, rect, options }: { searchText: string; rect: DOMRect; options?: { showFilesList?: boolean } }) => {
       if (validatedProject) {
         setMentionSearchText(searchText)
         setMentionPosition({ top: rect.top, left: rect.left })
-        // Reset subpage state when opening dropdown
-        setShowingFilesList(false)
+        // Reset subpage state when opening dropdown (unless options specify otherwise)
+        setShowingFilesList(options?.showFilesList ?? false)
         setShowingSkillsList(false)
         setShowingAgentsList(false)
         setShowingToolsList(false)

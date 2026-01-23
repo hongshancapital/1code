@@ -48,6 +48,9 @@ export const MENTION_PREFIXES = {
 type TriggerPayload = {
   searchText: string
   rect: DOMRect
+  options?: {
+    showFilesList?: boolean // Directly show files list (skip category selection)
+  }
 }
 
 // Export SlashTriggerPayload for slash commands
@@ -1498,7 +1501,8 @@ export const AgentsMentionsEditor = memo(
               )
             }
 
-            onTrigger({ searchText: "", rect })
+            // When triggered via @ button, skip to files list directly
+            onTrigger({ searchText: "", rect, options: { showFilesList: true } })
           },
         }),
         [onCloseTrigger, onCloseSlashTrigger, resolveMention, onContentChange, immediateSaveUndoState, onTrigger],
