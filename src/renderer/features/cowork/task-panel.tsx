@@ -101,7 +101,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
       <ListTodo className="h-8 w-8 mb-2 opacity-40" />
-      <p className="text-xs">暂无任务</p>
+      <p className="text-xs">No tasks</p>
     </div>
   )
 }
@@ -181,7 +181,7 @@ export function TaskPanelContent() {
           {completedCount === totalCount && totalCount > 0 && (
             <div className="flex items-center gap-2 text-xs">
               <CheckCircle2 className="h-3 w-3 text-green-500" />
-              <span className="text-muted-foreground">所有任务已完成</span>
+              <span className="text-muted-foreground">All tasks completed</span>
             </div>
           )}
         </div>
@@ -228,7 +228,7 @@ export function TaskPanel({ onClose, showHeader = true }: TaskPanelProps) {
         <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <ListTodo className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium">任务</span>
+            <span className="text-xs font-medium">Tasks</span>
           </div>
           <div className="flex items-center gap-2">
             {totalCount > 0 && (

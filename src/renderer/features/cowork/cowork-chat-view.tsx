@@ -51,7 +51,7 @@ export function CoworkChatView({
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        {rightPanelOpen ? "关闭工作区面板" : "打开工作区面板"}
+        {rightPanelOpen ? "Close workspace panel" : "Open workspace panel"}
       </TooltipContent>
     </Tooltip>
   )
