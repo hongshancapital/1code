@@ -20,6 +20,7 @@ import { createRollbackStash } from "../../git/stash"
 import { checkInternetConnection, checkOllamaStatus, getOllamaConfig } from "../../ollama"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
+import { createArtifactMcpServer } from "../../mcp/artifact-server"
 
 /**
  * Parse @[agent:name], @[skill:name], and @[tool:name] mentions from prompt text
@@ -499,35 +500,56 @@ export async function warmupMcpCache(): Promise<void> {
       }
     }
 
-    // Find projects with MCP servers (excluding worktrees)
-    // Merge global MCP with project-level MCP (project overrides global)
+    // For warmup, we only need to test each unique MCP server once
+    // Instead of warming up every project, just warm up global servers once
+    // This avoids spawning dozens of processes for all projects
     const projectsWithMcp: Array<{ path: string; servers: Record<string, any> }> = []
+
+    // Only warm up global MCP servers (once is enough to cache their status)
+    if (hasGlobalMcp) {
+      // Use first project path or home directory as cwd
+      const firstProjectPath = Object.keys(config.projects || {})[0] || os.homedir()
+      projectsWithMcp.push({
+        path: firstProjectPath,
+        servers: globalMcpServers,
+      })
+    }
+
+    // Also warm up any project-specific MCP servers (not global ones)
     for (const [projectPath, projectConfig] of Object.entries(config.projects || {})) {
-      // Skip worktrees - they're temporary git working directories and inherit MCP from parent
+      // Skip worktrees
       if (projectPath.includes("/.21st/worktrees/") || projectPath.includes("\\.21st\\worktrees\\")) {
         continue
       }
 
       const projectMcpServers = (projectConfig as any)?.mcpServers || {}
-      // Merge: global first, then project-level overrides
-      const mergedServers = { ...globalMcpServers, ...projectMcpServers }
+      // Only include project-specific servers (not already in global)
+      const uniqueProjectServers: Record<string, any> = {}
+      for (const [name, config] of Object.entries(projectMcpServers)) {
+        if (!globalMcpServers[name]) {
+          uniqueProjectServers[name] = config
+        }
+      }
 
-      if (Object.keys(mergedServers).length > 0) {
+      if (Object.keys(uniqueProjectServers).length > 0) {
         projectsWithMcp.push({
           path: projectPath,
-          servers: mergedServers
+          servers: uniqueProjectServers,
         })
       }
     }
 
     if (projectsWithMcp.length === 0) {
-      console.log("[MCP Warmup] No MCP servers configured (excluding worktrees) - skipping warmup")
+      console.log("[MCP Warmup] No MCP servers configured - skipping warmup")
       return
     }
 
-    // Get SDK
+    console.log(`[MCP Warmup] Will warm up ${projectsWithMcp.length} MCP configurations`)
+
+    // Get SDK and bundled Claude binary
     const sdk = await import("@anthropic-ai/claude-agent-sdk")
     const claudeQuery = sdk.query
+    const claudeBinaryPath = getBundledClaudeBinaryPath()
 
     // Warm up each project
     for (const project of projectsWithMcp) {
@@ -546,6 +568,7 @@ export async function warmupMcpCache(): Promise<void> {
             env: buildClaudeEnv(),
             permissionMode: "bypassPermissions" as const,
             allowDangerouslySkipPermissions: true,
+            pathToClaudeCodeExecutable: claudeBinaryPath,
           }
         })
 
@@ -933,60 +956,24 @@ export const claudeRouter = router({
 
               // Read MCP servers from ~/.claude.json for the original project path
               // These will be passed directly to the SDK via options.mcpServers
-              // OPTIMIZATION: Cache MCP config by file mtime to avoid re-parsing on every message
+              // Simple approach: always merge global + project-level MCP servers
               const claudeJsonSource = path.join(os.homedir(), ".claude.json")
-              console.log(`[claude] Reading MCP config from ${claudeJsonSource}, projectPath=${input.projectPath}, cwd=${input.cwd}`)
+              const lookupPath = input.projectPath || input.cwd
+              console.log(`[claude] Reading MCP config from ${claudeJsonSource}, lookupPath=${lookupPath}`)
               try {
-                const stats = await fs.stat(claudeJsonSource).catch(() => null)
+                const configContent = await fs.readFile(claudeJsonSource, "utf-8")
+                const claudeConfig = JSON.parse(configContent)
 
-                if (stats) {
-                  const currentMtime = stats.mtimeMs
-                  const cached = mcpConfigCache.get(claudeJsonSource)
-                  const lookupPath = input.projectPath || input.cwd
+                // Get global MCP servers (top-level mcpServers in ~/.claude.json)
+                const globalServers = claudeConfig.mcpServers || {}
+                // Get project-specific MCP servers
+                const projectServers = claudeConfig.projects?.[lookupPath]?.mcpServers || {}
+                // Merge: global first, then project-level overrides
+                mcpServersForSdk = { ...globalServers, ...projectServers }
 
-                  // Check if we have a valid cache entry
-                  if (cached && cached.mtime === currentMtime) {
-                    mcpServersForSdk = cached.config?.[lookupPath] || cached.config?.["__global__"]
-                    console.log(`[claude] MCP config from cache for ${lookupPath}:`, mcpServersForSdk ? Object.keys(mcpServersForSdk) : "none (falling back to global)")
-                  } else {
-                    // Read and parse config
-                    const originalConfig = JSON.parse(await fs.readFile(claudeJsonSource, "utf-8"))
-
-                    // Get global MCP servers (top-level mcpServers)
-                    const globalMcpServers = originalConfig.mcpServers || {}
-
-                    // Cache the merged config (global + project-level) by lookup path
-                    const projectsConfig: Record<string, any> = {}
-                    for (const [projPath, projConfig] of Object.entries(originalConfig.projects || {})) {
-                      const projectMcpServers = (projConfig as any)?.mcpServers || {}
-                      // Merge: global first, then project-level overrides
-                      const mergedServers = { ...globalMcpServers, ...projectMcpServers }
-                      if (Object.keys(mergedServers).length > 0) {
-                        projectsConfig[projPath] = mergedServers
-                      }
-                    }
-
-                    // Also store global config for paths not in projects
-                    if (Object.keys(globalMcpServers).length > 0) {
-                      projectsConfig["__global__"] = globalMcpServers
-                    }
-
-                    mcpConfigCache.set(claudeJsonSource, {
-                      config: projectsConfig,
-                      mtime: currentMtime,
-                    })
-
-                    mcpServersForSdk = projectsConfig[lookupPath] || projectsConfig["__global__"]
-                    console.log(`[claude] MCP config loaded for ${lookupPath}:`, mcpServersForSdk ? Object.keys(mcpServersForSdk) : "none")
-                  }
-
-                  // Debug: log the final MCP servers
-                  if (mcpServersForSdk) {
-                    console.log(`[claude] Final MCP servers for SDK:`, Object.keys(mcpServersForSdk))
-                  } else {
-                    console.log(`[claude] No MCP servers found for path: ${lookupPath}`)
-                  }
-                }
+                console.log(`[claude] Global MCP servers: ${Object.keys(globalServers).join(", ") || "none"}`)
+                console.log(`[claude] Project MCP servers: ${Object.keys(projectServers).join(", ") || "none"}`)
+                console.log(`[claude] Final MCP servers for SDK: ${Object.keys(mcpServersForSdk).join(", ") || "none"}`)
               } catch (configErr) {
                 console.error(`[claude] Failed to read MCP config:`, configErr)
               }
@@ -1059,6 +1046,18 @@ export const claudeRouter = router({
             // OPTIMIZATION: Cache is populated at app startup via warmupMcpCache()
             let mcpServersFiltered: Record<string, any> | undefined
 
+            // Create artifacts file path for this sub-chat session
+            // Each sub-chat (session) has its own artifacts list
+            const artifactsFilePath = path.join(app.getPath("userData"), "artifacts", `${input.subChatId}.json`)
+            const artifactsDir = path.dirname(artifactsFilePath)
+            if (!existsSync(artifactsDir)) {
+              mkdirSync(artifactsDir, { recursive: true })
+            }
+            // Initialize empty file if not exists
+            if (!existsSync(artifactsFilePath)) {
+              writeFileSync(artifactsFilePath, "[]", "utf-8")
+            }
+
             // Skip MCP servers entirely in offline mode (Ollama) - they slow down initialization by 60+ seconds
             if (mcpServersForSdk && !isUsingOllama) {
               const lookupPath = input.projectPath || input.cwd
@@ -1098,46 +1097,20 @@ export const claudeRouter = router({
                 )
                 console.log(`[claude] MCP after user-disabled filter: ${Object.keys(mcpServersFiltered).join(", ") || "none"}`)
               }
-
-              // Add built-in MCP servers (artifact-marker)
-              // These are always available and cannot be disabled
-              // Use npx tsx to run TypeScript directly (works in both dev and prod)
-              const artifactServerPath = app.isPackaged
-                ? path.join(process.resourcesPath, "mcp", "artifact-server.js")
-                : path.join(__dirname, "..", "..", "..", "..", "src", "main", "lib", "mcp", "artifact-server.ts")
-
-              // Create artifacts file path for this sub-chat session
-              // Each sub-chat (session) has its own artifacts list
-              const artifactsFilePath = path.join(app.getPath("userData"), "artifacts", `${input.subChatId}.json`)
-              const artifactsDir = path.dirname(artifactsFilePath)
-              if (!existsSync(artifactsDir)) {
-                mkdirSync(artifactsDir, { recursive: true })
-              }
-              // Initialize empty file if not exists
-              if (!existsSync(artifactsFilePath)) {
-                writeFileSync(artifactsFilePath, "[]", "utf-8")
-              }
-
-              const builtinMcpServers = {
-                "artifact-marker": {
-                  command: app.isPackaged ? "node" : "npx",
-                  args: app.isPackaged
-                    ? [artifactServerPath]
-                    : ["tsx", artifactServerPath],
-                  env: {
-                    ARTIFACTS_FILE: artifactsFilePath,
-                  },
-                },
-              }
-              mcpServersFiltered = {
-                ...builtinMcpServers,
-                ...(mcpServersFiltered || {}),
-              }
-              console.log(`[claude] MCP with builtins: ${Object.keys(mcpServersFiltered).join(", ")}`)
             } else if (isUsingOllama) {
               console.log('[Ollama] Skipping MCP servers to speed up initialization')
               mcpServersFiltered = undefined
             }
+
+            // Create SDK MCP server for artifact marking
+            // This uses createSdkMcpServer for inline integration (no external process)
+            const artifactMcpServer = await createArtifactMcpServer({
+              subChatId: input.subChatId,
+              artifactsFilePath: artifactsFilePath,
+              // Function to extract contexts from current message parts
+              getContexts: () => extractArtifactContexts(parts),
+            })
+            console.log(`[claude] Created artifact MCP server for subChatId: ${input.subChatId}`)
 
             // Log SDK configuration for debugging
             if (isUsingOllama) {
@@ -1170,7 +1143,11 @@ export const claudeRouter = router({
                 // Register mentioned agents with SDK via options.agents
                 ...(Object.keys(agentsOption).length > 0 && { agents: agentsOption }),
                 // Pass filtered MCP servers (only working/unknown ones, skip failed/needs-auth)
-                ...(mcpServersFiltered && Object.keys(mcpServersFiltered).length > 0 && { mcpServers: mcpServersFiltered }),
+                // Also include the artifact-marker SDK MCP server
+                mcpServers: {
+                  ...(mcpServersFiltered || {}),
+                  "artifact-marker": artifactMcpServer,
+                },
                 env: finalEnv,
                 permissionMode:
                   input.mode === "plan"
@@ -1944,6 +1921,110 @@ export const claudeRouter = router({
         }
       })
     }),
+
+  /**
+   * Get ALL MCP servers configuration (global + all projects)
+   * Used by Settings page to show all configured MCP servers
+   */
+  getAllMcpConfig: publicProcedure.query(async () => {
+    try {
+      const claudeJsonPath = path.join(os.homedir(), ".claude.json")
+      const exists = await fs.stat(claudeJsonPath).then(() => true).catch(() => false)
+
+      if (!exists) {
+        console.log(`[getAllMcpConfig] ~/.claude.json does not exist`)
+        return { groups: [] }
+      }
+
+      const configContent = await fs.readFile(claudeJsonPath, "utf-8")
+      const config = JSON.parse(configContent)
+
+      const groups: Array<{
+        groupName: string
+        projectPath: string | null
+        mcpServers: Array<{
+          name: string
+          status: string
+          tools: string[]
+          needsAuth: boolean
+          config: Record<string, unknown>
+        }>
+      }> = []
+
+      // Load cached MCP statuses from disk
+      loadMcpStatusFromDisk()
+
+      // Helper to find status for a server from any cached project
+      // Global servers may have been tested with any project path
+      const findStatusInAnyCache = (serverName: string): string => {
+        for (const [, statuses] of mcpServerStatusCache) {
+          if (statuses.has(serverName)) {
+            return statuses.get(serverName) || "pending"
+          }
+        }
+        return "pending"
+      }
+
+      // Helper to convert server config to display format
+      // Uses cached status if available
+      const convertServers = (servers: Record<string, any> | undefined, projectPath?: string, isGlobal = false) => {
+        if (!servers) return []
+
+        // Try to get cached statuses for this path
+        const cachedStatuses = projectPath ? mcpServerStatusCache.get(projectPath) : undefined
+
+        return Object.entries(servers).map(([name, serverConfig]) => {
+          // Check cache for status
+          let status = "pending" as string
+          if (cachedStatuses?.has(name)) {
+            status = cachedStatuses.get(name) || "pending"
+          } else if (isGlobal) {
+            // For global servers, search across all cached projects
+            status = findStatusInAnyCache(name)
+          }
+
+          return {
+            name,
+            status,
+            tools: [] as string[],
+            needsAuth: serverConfig.authType === "oauth" || serverConfig.authType === "bearer",
+            config: serverConfig as Record<string, unknown>,
+          }
+        })
+      }
+
+      // Global MCPs first (root level mcpServers in ~/.claude.json)
+      const globalMcpServers = config.mcpServers || {}
+      if (Object.keys(globalMcpServers).length > 0) {
+        groups.push({
+          groupName: "Global",
+          projectPath: null,
+          mcpServers: convertServers(globalMcpServers, undefined, true),
+        })
+      }
+
+      // Per-project MCPs
+      if (config.projects) {
+        for (const [projectPath, projectConfig] of Object.entries(config.projects || {})) {
+          const projectMcpServers = (projectConfig as any)?.mcpServers
+          if (projectMcpServers && Object.keys(projectMcpServers).length > 0) {
+            const groupName = projectPath.split("/").pop() || projectPath
+            groups.push({
+              groupName,
+              projectPath,
+              mcpServers: convertServers(projectMcpServers, projectPath),
+            })
+          }
+        }
+      }
+
+      console.log(`[getAllMcpConfig] Found ${groups.length} groups with MCP servers`)
+      return { groups }
+    } catch (error) {
+      console.error("[getAllMcpConfig] Error:", error)
+      return { groups: [], error: String(error) }
+    }
+  }),
 
   /**
    * Get MCP servers configuration for a project
