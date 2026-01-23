@@ -11,13 +11,14 @@ import { AudioPreview } from "./audio-preview"
 import { WordPreview } from "./word-preview"
 import { ExcelPreview } from "./excel-preview"
 import { PptPreview } from "./ppt-preview"
+import { HtmlPreview } from "./html-preview"
 
 interface FilePreviewProps {
   filePath: string
   className?: string
 }
 
-type FileType = "text" | "markdown" | "image" | "pdf" | "video" | "audio" | "word" | "excel" | "ppt" | "unsupported"
+type FileType = "text" | "markdown" | "html" | "image" | "pdf" | "video" | "audio" | "word" | "excel" | "ppt" | "unsupported"
 
 // Determine file type from extension
 function getFileType(fileName: string): FileType {
@@ -26,6 +27,11 @@ function getFileType(fileName: string): FileType {
   // Markdown files
   if (["md", "mdx", "markdown"].includes(ext)) {
     return "markdown"
+  }
+
+  // HTML files
+  if (["html", "htm"].includes(ext)) {
+    return "html"
   }
 
   // Image files
@@ -68,7 +74,7 @@ function getFileType(fileName: string): FileType {
     // JavaScript/TypeScript
     "js", "jsx", "ts", "tsx", "mjs", "cjs",
     // Web
-    "html", "htm", "css", "scss", "sass", "less", "vue", "svelte",
+    "css", "scss", "sass", "less", "vue", "svelte",
     // Data formats
     "json", "jsonc", "json5", "yaml", "yml", "toml", "xml", "csv",
     // Shell/Scripts
@@ -117,13 +123,13 @@ export function FilePreview({ filePath, className }: FilePreviewProps) {
   const { data: content, isLoading, error } = trpc.files.readFile.useQuery(
     { path: filePath },
     {
-      enabled: fileType === "text" || fileType === "markdown",
+      enabled: fileType === "text" || fileType === "markdown" || fileType === "html",
       staleTime: 30000,
     }
   )
 
   // Loading state (only for text-based files that need tRPC)
-  if (isLoading && (fileType === "text" || fileType === "markdown")) {
+  if (isLoading && (fileType === "text" || fileType === "markdown" || fileType === "html")) {
     return (
       <div className={cn("h-full flex items-center justify-center", className)}>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -132,7 +138,7 @@ export function FilePreview({ filePath, className }: FilePreviewProps) {
   }
 
   // Error state (only for text-based files)
-  if (error && (fileType === "text" || fileType === "markdown")) {
+  if (error && (fileType === "text" || fileType === "markdown" || fileType === "html")) {
     return (
       <div className={cn("h-full flex flex-col items-center justify-center gap-2 text-destructive", className)}>
         <FileQuestion className="h-8 w-8 opacity-60" />
@@ -146,6 +152,9 @@ export function FilePreview({ filePath, className }: FilePreviewProps) {
   switch (fileType) {
     case "markdown":
       return <MarkdownPreview content={content || ""} className={className} />
+
+    case "html":
+      return <HtmlPreview content={content || ""} fileName={fileName} className={className} />
 
     case "text":
       return <TextPreview content={content || ""} fileName={fileName} className={className} />

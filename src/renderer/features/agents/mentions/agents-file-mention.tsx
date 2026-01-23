@@ -29,7 +29,6 @@ import {
 } from "../../../components/ui/icons"
 import {
   ChevronRight,
-  Image,
   FileImage,
   FileVideo,
   FileAudio,
