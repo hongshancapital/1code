@@ -1,5 +1,5 @@
 import { useAtom } from "jotai"
-import { ChevronLeft, ChevronRight, FolderOpen, X } from "lucide-react"
+import { Bell, ChevronLeft, ChevronRight, FolderOpen, X } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -19,6 +19,7 @@ import { AgentsDebugTab } from "./settings-tabs/agents-debug-tab"
 import { AgentsKeyboardTab } from "./settings-tabs/agents-keyboard-tab"
 import { AgentsMcpTab } from "./settings-tabs/agents-mcp-tab"
 import { AgentsModelsTab } from "./settings-tabs/agents-models-tab"
+import { AgentsNotificationsTab } from "./settings-tabs/agents-notifications-tab"
 import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
 import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
 import { AgentsProjectWorktreeTab } from "./settings-tabs/agents-project-worktree-tab"
@@ -108,6 +109,12 @@ const MAIN_TABS = [
     description: "Claude behavior settings",
   },
   {
+    id: "notifications" as SettingsTab,
+    label: "Notifications",
+    icon: Bell,
+    description: "Configure notification sounds and behavior",
+  },
+  {
     id: "models" as SettingsTab,
     label: "Models",
     icon: BrainFilledIcon,
@@ -179,7 +186,7 @@ function TabButton({ tab, isActive, onClick, isNarrow }: TabButtonProps) {
           ? "h-12 rounded-lg bg-foreground/5 hover:bg-foreground/10"
           : "h-7 rounded-md",
         !isNarrow && isActive
-          ? "bg-foreground/10 text-foreground font-medium hover:bg-foreground/15 hover:text-foreground"
+          ? "bg-primary/15 text-primary font-medium hover:bg-primary/20"
           : !isNarrow
             ? "text-muted-foreground hover:bg-foreground/5 hover:text-foreground font-medium"
             : "text-foreground font-medium",
@@ -194,7 +201,7 @@ function TabButton({ tab, isActive, onClick, isNarrow }: TabButtonProps) {
             : isNarrow
               ? "opacity-70"
               : isActive
-                ? "opacity-100"
+                ? "opacity-100 text-primary"
                 : "opacity-50",
         )}
       />
@@ -354,6 +361,8 @@ export function AgentsSettingsDialog({
         return <AgentsKeyboardTab />
       case "preferences":
         return <AgentsPreferencesTab />
+      case "notifications":
+        return <AgentsNotificationsTab />
       case "models":
         return <AgentsModelsTab />
       case "skills":

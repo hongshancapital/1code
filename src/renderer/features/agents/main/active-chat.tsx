@@ -121,6 +121,7 @@ import {
   setLoading,
   subChatFilesAtom,
   undoStackAtom,
+  currentProjectModeAtom,
   type SelectedCommit
 } from "../atoms"
 import { AgentSendButton } from "../components/agent-send-button"
@@ -1899,6 +1900,9 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // PR creation loading state - from atom to allow resetting after message sent
   const setIsCreatingPr = useSetAtom(isCreatingPrAtom)
+
+  // Project mode - "cowork" (simplified, no git) or "coding" (full features)
+  const projectMode = useAtomValue(currentProjectModeAtom)
 
   // Rollback state
   const [isRollingBack, setIsRollingBack] = useState(false)
@@ -4057,6 +4061,7 @@ const ChatViewInner = memo(function ChatViewInner({
                   worktreePath={projectPath}
                   onStop={handleStop}
                   hasQueueCardAbove={queue.length > 0}
+                  projectMode={projectMode}
                 />
               )}
             </div>
@@ -4166,7 +4171,7 @@ export function ChatView({
   const setUndoStack = useSetAtom(undoStackAtom)
   const setSelectedFilePath = useSetAtom(selectedDiffFilePathAtom)
   const setFilteredDiffFiles = useSetAtom(filteredDiffFilesAtom)
-  const { notifyAgentComplete } = useDesktopNotifications()
+  const { notifyAgentComplete, notifyAgentError } = useDesktopNotifications()
 
   // Check if any chat has unseen changes
   const hasAnyUnseenChanges = unseenChanges.size > 0
@@ -5336,6 +5341,9 @@ Make sure to preserve all functionality from both branches when resolving confli
         onError: () => {
           // Sync status to global store on error (allows queue to continue)
           useStreamingStatusStore.getState().setStatus(subChatId, "ready")
+
+          // Show error notification with sound
+          notifyAgentError(agentChat?.name || "Agent")
         },
         // Clear loading when streaming completes (works even if component unmounted)
         onFinish: () => {
@@ -5416,6 +5424,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       selectedChatId,
       setUnseenChanges,
       notifyAgentComplete,
+      notifyAgentError,
     ],
   )
 
@@ -5491,6 +5500,9 @@ Make sure to preserve all functionality from both branches when resolving confli
         onError: () => {
           // Sync status to global store on error (allows queue to continue)
           useStreamingStatusStore.getState().setStatus(newId, "ready")
+
+          // Show error notification with sound
+          notifyAgentError(agentChat?.name || "Agent")
         },
         // Clear loading when streaming completes
         onFinish: () => {
@@ -5565,6 +5577,7 @@ Make sure to preserve all functionality from both branches when resolving confli
     selectedChatId,
     setUnseenChanges,
     notifyAgentComplete,
+    notifyAgentError,
     agentChat?.name,
   ])
 

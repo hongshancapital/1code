@@ -168,6 +168,7 @@ export type SettingsTab =
   | "profile"
   | "appearance"
   | "preferences"
+  | "notifications"
   | "models"
   | "skills"
   | "agents"
@@ -363,6 +364,25 @@ export const soundNotificationsEnabledAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Preferences - Always Show Notifications
+// When enabled, show system notifications even when the app window is focused
+// Default: false (only show notifications when window is not focused)
+export const alwaysShowNotificationsAtom = atomWithStorage<boolean>(
+  "preferences:always-show-notifications",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
+// Preferences - Custom Notification Sound
+// Path to custom notification sound file (null = use default sound.mp3)
+export const customNotificationSoundAtom = atomWithStorage<string | null>(
+  "preferences:custom-notification-sound",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
 // Preferences - Desktop Notifications (Windows)
 // When enabled, show Windows desktop notification when agent completes work
 export const desktopNotificationsEnabledAtom = atomWithStorage<boolean>(
@@ -484,7 +504,7 @@ export const selectedFullThemeIdAtom = atomWithStorage<string | null>(
  */
 export const systemLightThemeIdAtom = atomWithStorage<string>(
   "preferences:system-light-theme-id",
-  "21st-light", // Default light theme
+  "hs-light", // Default light theme (HS)
   undefined,
   { getOnInit: true },
 )
@@ -494,7 +514,7 @@ export const systemLightThemeIdAtom = atomWithStorage<string>(
  */
 export const systemDarkThemeIdAtom = atomWithStorage<string>(
   "preferences:system-dark-theme-id",
-  "21st-dark", // Default dark theme
+  "hs-dark", // Default dark theme (HS)
   undefined,
   { getOnInit: true },
 )
