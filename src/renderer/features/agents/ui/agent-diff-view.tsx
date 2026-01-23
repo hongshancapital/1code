@@ -78,6 +78,10 @@ import {
   type DiffHighlighter,
 } from "../../../lib/themes/diff-view-highlighter"
 import { useCodeTheme } from "../../../lib/hooks/use-code-theme"
+// Comment feature imports
+import { CommentGutterLayer } from "../../comments/components/comment-gutter-layer"
+import { pendingCommentsAtomFamily } from "../../comments/atoms"
+import type { ReviewComment } from "../../comments/types"
 
 // Simple fast string hash (djb2 algorithm) for content change detection
 function hashString(str: string): string {
@@ -374,6 +378,10 @@ interface FileDiffCardProps {
   isViewed: boolean
   /** Callback to toggle viewed state */
   onToggleViewed: (fileKey: string, diffText: string) => void
+  /** Chat ID for comment storage */
+  chatId: string
+  /** Comments for this file */
+  fileComments: ReviewComment[]
 }
 
 // Custom comparator to prevent unnecessary re-renders
@@ -399,6 +407,13 @@ const fileDiffCardAreEqual = (
   if (prev.worktreePath !== next.worktreePath) return false
   // Viewed state
   if (prev.isViewed !== next.isViewed) return false
+  // Comment state
+  if (prev.chatId !== next.chatId) return false
+  if (prev.fileComments.length !== next.fileComments.length) return false
+  // Deep compare comments (by id) for efficient checks
+  for (let i = 0; i < prev.fileComments.length; i++) {
+    if (prev.fileComments[i]?.id !== next.fileComments[i]?.id) return false
+  }
   return true
 }
 
@@ -418,11 +433,14 @@ const FileDiffCard = memo(function FileDiffCard({
   onDiscardFile,
   isViewed,
   onToggleViewed,
+  chatId,
+  fileComments,
 }: FileDiffCardProps) {
   const diffViewRef = useRef<{ getDiffFileInstance: () => DiffFile } | null>(
     null,
   )
   const diffCardRef = useRef<HTMLDivElement>(null)
+  const diffContentRef = useRef<HTMLDivElement>(null)
   const prevExpandedRef = useRef(isFullExpanded)
 
   // tRPC mutations for file operations
@@ -747,7 +765,7 @@ const FileDiffCard = memo(function FileDiffCard({
               </span>
             </div>
           ) : (
-            <div className="agent-diff-wrapper">
+            <div ref={diffContentRef} className="agent-diff-wrapper relative">
               <DiffErrorBoundary fileName={file.newPath || file.oldPath} rawDiff={file.diffText}>
                 <DiffView
                   ref={diffViewRef}
@@ -759,6 +777,14 @@ const FileDiffCard = memo(function FileDiffCard({
                   registerHighlighter={shikiHighlighter ?? undefined}
                 />
               </DiffErrorBoundary>
+              {/* Comment layer overlay */}
+              <CommentGutterLayer
+                chatId={chatId}
+                filePath={displayPath}
+                diffViewContainerRef={diffContentRef}
+                comments={fileComments}
+                diffMode={diffMode === DiffModeEnum.Split ? "split" : "unified"}
+              />
             </div>
           )}
         </div>
@@ -916,6 +942,14 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     const handleDiscardFile = useCallback((filePath: string) => {
       setDiscardFilePath(filePath)
     }, [])
+
+    // Get pending comments for this chat
+    const pendingComments = useAtomValue(pendingCommentsAtomFamily(chatId))
+
+    // Get comments for a specific file
+    const getFileComments = useCallback((filePath: string): ReviewComment[] => {
+      return pendingComments.filter((c) => c.filePath === filePath)
+    }, [pendingComments])
 
     // Viewed files state for tracking reviewed files (GitHub-style)
     const [viewedFiles, setViewedFiles] = useAtom(viewedFilesAtomFamily(chatId))
@@ -2065,6 +2099,8 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
                         onDiscardFile={handleDiscardFile}
                         isViewed={isFileViewed(file.key, file.diffText)}
                         onToggleViewed={handleToggleViewed}
+                        chatId={chatId}
+                        fileComments={getFileComments(file.newPath !== "/dev/null" ? file.newPath : file.oldPath)}
                       />
                     </div>
                   </div>
