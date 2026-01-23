@@ -15,6 +15,7 @@ import {
 } from "../../../components/ui/dropdown-menu"
 import {
   AgentIcon,
+  AtSignIcon,
   AttachIcon,
   CheckIcon,
   ClaudeCodeIcon,
@@ -1044,6 +1045,18 @@ export const ChatInputArea = memo(function ChatInputArea({
                     isCompacting={isCompacting}
                     disabled={isStreaming}
                   />
+
+                  {/* @ mention button - only show when project context is available */}
+                  {(projectPath || repository || sandboxId) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                      onClick={() => editorRef.current?.triggerMention()}
+                    >
+                      <AtSignIcon className="h-4 w-4" />
+                    </Button>
+                  )}
 
                   {/* Attachment button */}
                   <Button

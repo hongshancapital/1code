@@ -224,7 +224,7 @@ export function CoworkContent({
         {/* Main content */}
         <div
           className="flex-1 min-w-0 overflow-hidden flex flex-col"
-          style={{ minWidth: "350px" }}
+          style={{ minWidth: "400px" }}
         >
           {/* Chat content */}
           <div className="flex-1 overflow-hidden">
