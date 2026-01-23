@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * Generate macOS icon with proper rounded corners for all macOS versions
+ * Generate macOS (.icns) and Windows (.ico) icons from a source PNG
  *
- * This script creates a properly rounded macOS app icon that looks good on:
- * - macOS Sequoia (26+) - where system applies automatic rounding
- * - Older macOS versions (Big Sur, Monterey, Ventura) - where manual rounding is needed
+ * This script creates properly formatted app icons for:
+ * - macOS: .icns with proper rounded corners (squircle shape)
+ * - Windows: .ico with multiple sizes
  *
  * Based on Apple's macOS Big Sur icon guidelines:
  * - 1024x1024 canvas
  * - 824x824 content area (centered)
- * - ~18% corner radius (185.4px for 1024x1024)
+ * - ~22% corner radius for content area
  * - 100px transparent padding on all sides
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -27,10 +27,11 @@ const __dirname = dirname(__filename);
 const BUILD_DIR = join(__dirname, '../build');
 const INPUT_ICON = join(BUILD_DIR, 'icon.png');
 const ICONSET_DIR = join(BUILD_DIR, 'icon.iconset');
-const OUTPUT_ICON = join(BUILD_DIR, 'icon.icns');
+const OUTPUT_ICNS = join(BUILD_DIR, 'icon.icns');
+const OUTPUT_ICO = join(BUILD_DIR, 'icon.ico');
 
-// Icon specifications
-const ICON_SIZES = [
+// macOS icon specifications
+const ICNS_SIZES = [
   { size: 16, scale: 1 },
   { size: 16, scale: 2 },
   { size: 32, scale: 1 },
@@ -42,6 +43,9 @@ const ICON_SIZES = [
   { size: 512, scale: 1 },
   { size: 512, scale: 2 },
 ];
+
+// Windows ICO sizes (256 only for simplicity)
+const ICO_SIZES = [256];
 
 /**
  * Create an SVG rounded rectangle path (Apple's squircle approximation)
@@ -128,8 +132,71 @@ async function generateIconSize(sourcePath, size, scale, outputDir) {
   return { filename, actualSize };
 }
 
+/**
+ * Generate Windows .ico file
+ * ICO format: header + directory entries + image data (PNG format)
+ */
+async function generateIco(sourcePath, outputPath) {
+  console.log('\n🪟 Generating Windows ICO file...');
+
+  const images = [];
+
+  // Generate PNG buffers for each size (from source, not rounded)
+  for (const size of ICO_SIZES) {
+    const buffer = await sharp(sourcePath)
+      .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    images.push({ size, data: buffer });
+    console.log(`   ✓ Generated ${size}x${size} PNG`);
+  }
+
+  // Build ICO file
+  // ICO Header: 6 bytes
+  const headerSize = 6;
+  const dirEntrySize = 16;
+  const numImages = images.length;
+
+  // Calculate total size
+  let dataOffset = headerSize + (dirEntrySize * numImages);
+  const buffers = [];
+
+  // ICO Header
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);      // Reserved
+  header.writeUInt16LE(1, 2);      // Type: 1 = ICO
+  header.writeUInt16LE(numImages, 4); // Number of images
+  buffers.push(header);
+
+  // Directory entries
+  for (const { size, data } of images) {
+    const entry = Buffer.alloc(16);
+    entry.writeUInt8(size < 256 ? size : 0, 0);   // Width (0 = 256)
+    entry.writeUInt8(size < 256 ? size : 0, 1);   // Height (0 = 256)
+    entry.writeUInt8(0, 2);                        // Color palette
+    entry.writeUInt8(0, 3);                        // Reserved
+    entry.writeUInt16LE(1, 4);                     // Color planes
+    entry.writeUInt16LE(32, 6);                    // Bits per pixel
+    entry.writeUInt32LE(data.length, 8);           // Image size
+    entry.writeUInt32LE(dataOffset, 12);           // Image offset
+    buffers.push(entry);
+    dataOffset += data.length;
+  }
+
+  // Image data
+  for (const { data } of images) {
+    buffers.push(data);
+  }
+
+  // Write ICO file
+  const icoBuffer = Buffer.concat(buffers);
+  writeFileSync(outputPath, icoBuffer);
+
+  console.log(`   ✓ Created ${outputPath.split('/').pop()}`);
+}
+
 async function main() {
-  console.log('🎨 Generating macOS icon with proper rounded corners...\n');
+  console.log('🎨 Generating app icons (macOS .icns + Windows .ico)...\n');
 
   // Check input file
   if (!existsSync(INPUT_ICON)) {
@@ -138,7 +205,7 @@ async function main() {
   }
 
   console.log(`📂 Input:  ${INPUT_ICON}`);
-  console.log(`📂 Output: ${OUTPUT_ICON}\n`);
+  console.log(`📂 Output: ${OUTPUT_ICNS}, ${OUTPUT_ICO}\n`);
 
   // Create iconset directory
   if (existsSync(ICONSET_DIR)) {
@@ -146,7 +213,10 @@ async function main() {
   }
   mkdirSync(ICONSET_DIR, { recursive: true });
 
-  // Step 1: Create rounded version
+  // ═══════════════════════════════════════════════════════════════
+  // Step 1: Generate macOS .icns
+  // ═══════════════════════════════════════════════════════════════
+  console.log('🍎 Generating macOS ICNS file...');
   console.log('1️⃣  Creating rounded squircle shape...');
 
   const roundedSource = join(ICONSET_DIR, 'source-rounded.png');
@@ -154,10 +224,10 @@ async function main() {
 
   console.log('   ✓ Created rounded icon with proper squircle shape\n');
 
-  // Step 2: Generate all sizes
+  // Generate all sizes for iconset
   console.log('2️⃣  Generating all required icon sizes...');
 
-  for (const { size, scale } of ICON_SIZES) {
+  for (const { size, scale } of ICNS_SIZES) {
     const { filename, actualSize } = await generateIconSize(
       roundedSource,
       size,
@@ -172,32 +242,33 @@ async function main() {
     rmSync(roundedSource);
   }
 
-  // Step 3: Create .icns file
+  // Create .icns file
   console.log('\n3️⃣  Creating .icns file...');
 
   try {
-    execSync(`iconutil -c icns "${ICONSET_DIR}" -o "${OUTPUT_ICON}"`, { stdio: 'pipe' });
-
-    console.log(`   ✓ Created ${OUTPUT_ICON.split('/').pop()}`);
+    execSync(`iconutil -c icns "${ICONSET_DIR}" -o "${OUTPUT_ICNS}"`, { stdio: 'pipe' });
+    console.log(`   ✓ Created ${OUTPUT_ICNS.split('/').pop()}`);
 
     // Clean up iconset directory
     rmSync(ICONSET_DIR, { recursive: true });
-
-    console.log('\n✅ Success! Icon generated with proper macOS rounded corners');
-    console.log(`   File: ${OUTPUT_ICON}`);
-    console.log('\n📝 This icon will now look correct on:');
-    console.log('   • macOS Sequoia (26+) - system auto-rounding');
-    console.log('   • macOS Ventura, Monterey, Big Sur - manual rounding');
-    console.log('   • Older macOS versions');
-    console.log('\n🔄 Next steps:');
-    console.log('   1. Update package.json to use: "icon": "build/icon.icns"');
-    console.log('   2. Rebuild your app: npm run package:mac');
 
   } catch (error) {
     console.error('\n❌ Error creating .icns file:', error.message);
     console.error('   Make sure you\'re running on macOS with iconutil available');
     process.exit(1);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Step 2: Generate Windows .ico (uses original square icon)
+  // ═══════════════════════════════════════════════════════════════
+  await generateIco(INPUT_ICON, OUTPUT_ICO);
+
+  // ═══════════════════════════════════════════════════════════════
+  // Done!
+  // ═══════════════════════════════════════════════════════════════
+  console.log('\n✅ Success! Icons generated:');
+  console.log(`   • ${OUTPUT_ICNS} (macOS)`);
+  console.log(`   • ${OUTPUT_ICO} (Windows)`);
 }
 
 main().catch(error => {
