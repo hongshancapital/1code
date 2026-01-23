@@ -68,7 +68,7 @@ export function WelcomePage() {
             <img
               src="icon.png"
               alt="Hóng Logo"
-              className="w-16 h-16 rounded-2xl"
+              className="w-64 h-64 rounded-2xl -mb-20"
             />
           </div>
           <div className="space-y-1">
