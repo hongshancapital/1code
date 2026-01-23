@@ -29,11 +29,20 @@ export const AgentExitPlanModeTool = memo(function AgentExitPlanModeTool({
   }
 
   return (
-    <div className="text-foreground px-2 pt-3 border-t border-border/50" data-plan-section="true">
-      <div className="text-[12px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-1">
-        Plan
+    <div
+      className="mx-2 mt-3 rounded-lg overflow-hidden border border-plan-mode/30"
+      data-plan-section="true"
+    >
+      {/* Plan 标签头部 - 使用 plan-mode 颜色 */}
+      <div className="bg-plan-mode/15 px-3 py-1.5 border-b border-plan-mode/20">
+        <span className="text-[11px] uppercase tracking-wider font-semibold text-plan-mode">
+          Plan
+        </span>
       </div>
-      <ChatMarkdownRenderer content={planText} size="sm" />
+      {/* Plan 内容区域 - 淡色背景 */}
+      <div className="bg-plan-mode/5 px-3 py-2">
+        <ChatMarkdownRenderer content={planText} size="sm" />
+      </div>
     </div>
   )
 }, areToolPropsEqual)
