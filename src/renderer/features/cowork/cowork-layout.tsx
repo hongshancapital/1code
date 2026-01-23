@@ -34,7 +34,7 @@ import {
 } from "./atoms"
 import { CoworkRightPanel } from "./cowork-right-panel"
 import { CoworkContent } from "./cowork-content"
-import { useDeliverablesListener } from "./use-deliverables-listener"
+import { useArtifactsListener } from "./use-artifacts-listener"
 import { FilePreviewDialog } from "./file-preview"
 
 // ============================================================================
@@ -139,8 +139,8 @@ export function CoworkLayout() {
   const setChatId = useAgentSubChatStore((state) => state.setChatId)
   const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
 
-  // Listen for file changes from Claude tools and add to deliverables
-  useDeliverablesListener(activeSubChatId)
+  // Listen for file changes from Claude tools and add to artifacts
+  useArtifactsListener(activeSubChatId)
 
   // Desktop user state
   const [desktopUser, setDesktopUser] = useState<{

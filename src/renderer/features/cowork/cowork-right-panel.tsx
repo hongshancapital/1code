@@ -6,9 +6,9 @@ import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
 
 import { CollapsibleSection } from "./collapsible-section"
 import { TaskPanelContent } from "./task-panel"
-import { DeliverablesPanelContent, useDeliverablesCount } from "./deliverables-panel"
+import { ArtifactsPanelContent, useArtifactsCount } from "./artifacts-panel"
 import { FileTreePanel } from "./file-tree-panel"
-import { taskSectionExpandedAtom, deliverablesSectionExpandedAtom, filePreviewPathAtom } from "./atoms"
+import { taskSectionExpandedAtom, artifactsSectionExpandedAtom, filePreviewPathAtom } from "./atoms"
 
 // ============================================================================
 // Main Component - Three collapsible vertical sections
@@ -27,16 +27,16 @@ export function CoworkRightPanel() {
   const taskCount = todoState.todos.length
   const completedCount = todoState.todos.filter((t) => t.status === "completed").length
 
-  // Deliverables count
-  const deliverablesCount = useDeliverablesCount()
+  // Artifacts count
+  const artifactsCount = useArtifactsCount()
 
   // Section expand states
   const [taskExpanded, setTaskExpanded] = useAtom(taskSectionExpandedAtom)
-  const [deliverablesExpanded, setDeliverablesExpanded] = useAtom(deliverablesSectionExpandedAtom)
+  const [artifactsExpanded, setArtifactsExpanded] = useAtom(artifactsSectionExpandedAtom)
 
   // Compute effective expanded state (auto logic when null)
   const isTaskExpanded = taskExpanded === null ? taskCount > 0 : taskExpanded
-  const isDeliverablesExpanded = deliverablesExpanded === null ? deliverablesCount > 0 : deliverablesExpanded
+  const isArtifactsExpanded = artifactsExpanded === null ? artifactsCount > 0 : artifactsExpanded
 
   // File preview
   const setFilePreviewPath = useSetAtom(filePreviewPathAtom)
@@ -53,8 +53,8 @@ export function CoworkRightPanel() {
     [selectedProject?.path, setFilePreviewPath]
   )
 
-  // Handle file selection from deliverables (already absolute path)
-  const handleDeliverableSelect = useCallback(
+  // Handle file selection from artifacts (already absolute path)
+  const handleArtifactSelect = useCallback(
     (absolutePath: string) => {
       setFilePreviewPath(absolutePath)
     },
@@ -71,11 +71,11 @@ export function CoworkRightPanel() {
     }
   }
 
-  const handleToggleDeliverables = () => {
-    if (deliverablesExpanded === null) {
-      setDeliverablesExpanded(!isDeliverablesExpanded)
+  const handleToggleArtifacts = () => {
+    if (artifactsExpanded === null) {
+      setArtifactsExpanded(!isArtifactsExpanded)
     } else {
-      setDeliverablesExpanded(!deliverablesExpanded)
+      setArtifactsExpanded(!artifactsExpanded)
     }
   }
 
@@ -103,23 +103,23 @@ export function CoworkRightPanel() {
           </div>
         </CollapsibleSection>
 
-        {/* Section 2: Deliverables (collapsible) */}
+        {/* Section 2: Artifacts (collapsible) */}
         <CollapsibleSection
           title="交付物"
           icon={<Package className="h-3.5 w-3.5 text-muted-foreground" />}
           badge={
-            deliverablesCount > 0 ? (
+            artifactsCount > 0 ? (
               <span className="text-xs text-muted-foreground tabular-nums">
-                {deliverablesCount} 个文件
+                {artifactsCount} 个文件
               </span>
             ) : null
           }
-          isExpanded={isDeliverablesExpanded}
-          onToggle={handleToggleDeliverables}
-          className={isDeliverablesExpanded ? "flex-shrink-0 max-h-[35%]" : "flex-shrink-0"}
+          isExpanded={isArtifactsExpanded}
+          onToggle={handleToggleArtifacts}
+          className={isArtifactsExpanded ? "flex-shrink-0 max-h-[35%]" : "flex-shrink-0"}
         >
           <div className="h-full overflow-auto">
-            <DeliverablesPanelContent onFileSelect={handleDeliverableSelect} />
+            <ArtifactsPanelContent onFileSelect={handleArtifactSelect} />
           </div>
         </CollapsibleSection>
 
