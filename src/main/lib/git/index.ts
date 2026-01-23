@@ -51,7 +51,7 @@ export interface GitRemoteInfo {
 /**
  * Check if a path is a git repository
  */
-async function isGitRepo(path: string): Promise<boolean> {
+export async function isGitRepo(path: string): Promise<boolean> {
 	try {
 		await execAsync("git rev-parse --git-dir", { cwd: path });
 		return true;

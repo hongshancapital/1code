@@ -613,3 +613,31 @@ export const currentProjectModeAtom = atom((get) => {
   const project = get(selectedProjectAtom)
   return project?.mode ?? "cowork"
 })
+
+// ============================================================================
+// Coding Mode Layout - File Tree Panel and Bottom Terminal
+// ============================================================================
+
+// File Tree Panel (右侧) - 打开状态
+export const codingFileTreePanelOpenAtom = atomWithStorage<boolean>(
+  "coding:fileTreePanelOpen",
+  false, // 默认关闭
+  undefined,
+  { getOnInit: true },
+)
+
+// File Tree Panel (右侧) - 宽度
+export const codingFileTreePanelWidthAtom = atomWithStorage<number>(
+  "coding:fileTreePanelWidth",
+  280, // 默认宽度
+  undefined,
+  { getOnInit: true },
+)
+
+// Terminal Panel (底部) - 高度
+export const codingTerminalPanelHeightAtom = atomWithStorage<number>(
+  "coding:terminalPanelHeight",
+  300, // 默认高度
+  undefined,
+  { getOnInit: true },
+)

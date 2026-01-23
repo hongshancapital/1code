@@ -160,24 +160,45 @@ export function ProjectSelector() {
     await cloneFromGitHub.mutateAsync({ repoUrl: githubUrl.trim() })
   }
 
-  const handleSelectProject = (projectId: string) => {
+  // Refresh mode mutation - re-detects git status and updates mode
+  const refreshMode = trpc.projects.refreshMode.useMutation({
+    onSuccess: (project) => {
+      if (project) {
+        // Update cache with refreshed project data
+        utils.projects.list.setData(undefined, (oldData) => {
+          if (!oldData) return [project]
+          return oldData.map((p) =>
+            p.id === project.id ? project : p,
+          )
+        })
+
+        setSelectedProject({
+          id: project.id,
+          name: project.name,
+          path: project.path,
+          gitRemoteUrl: project.gitRemoteUrl,
+          gitProvider: project.gitProvider as
+            | "github"
+            | "gitlab"
+            | "bitbucket"
+            | null,
+          gitOwner: project.gitOwner,
+          gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding",
+        })
+      }
+    },
+  })
+
+  const handleSelectProject = async (projectId: string) => {
     const project = projects?.find((p) => p.id === projectId)
     if (project) {
-      setSelectedProject({
-        id: project.id,
-        name: project.name,
-        path: project.path,
-        gitRemoteUrl: project.gitRemoteUrl,
-        gitProvider: project.gitProvider as
-          | "github"
-          | "gitlab"
-          | "bitbucket"
-          | null,
-        gitOwner: project.gitOwner,
-        gitRepo: project.gitRepo,
-        mode: project.mode as "cowork" | "coding",
-      })
+      // Close menu immediately for better UX
       setOpen(false)
+
+      // Refresh mode based on current git status
+      // This will re-detect if folder has .git and update mode accordingly
+      await refreshMode.mutateAsync({ id: projectId })
     }
   }
 
