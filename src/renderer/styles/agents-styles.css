@@ -385,3 +385,83 @@ body:has([data-agents-page]) .canvas-dialog,
   margin-top: 0;
   margin-bottom: 0;
 }
+
+/* ========================================
+   12. COMMENT SYSTEM STYLES
+   ======================================== */
+
+/* Comment add button - appears on line hover */
+.comment-add-btn {
+  @apply w-5 h-5 rounded bg-blue-500 text-white
+         flex items-center justify-center
+         opacity-0 group-hover/line:opacity-100
+         cursor-pointer hover:bg-blue-600
+         transition-opacity text-sm font-medium;
+}
+
+/* Comment indicator - shows count on lines with comments */
+.comment-indicator {
+  @apply w-4 h-4 rounded-full bg-yellow-500
+         text-[10px] text-white flex items-center justify-center
+         font-medium cursor-pointer hover:bg-yellow-600 transition-colors;
+}
+
+/* Line selection highlight during drag */
+.comment-line-selecting,
+[data-comment-selecting="true"] {
+  @apply bg-blue-500/20;
+}
+
+/* Comment input popup */
+.comment-input-popup {
+  @apply absolute z-50 w-[400px]
+         bg-popover border border-border rounded-lg shadow-xl;
+}
+
+/* Code line with comment gutter */
+.code-line-with-gutter {
+  @apply group/line relative;
+}
+
+.code-line-with-gutter:hover .comment-add-btn {
+  @apply opacity-100;
+}
+
+/* Diff view comment overlay */
+.diff-comment-overlay {
+  @apply absolute inset-0 z-10 pointer-events-none;
+}
+
+.diff-comment-overlay > * {
+  @apply pointer-events-auto;
+}
+
+/* Comment summary panel */
+.comment-summary-panel {
+  @apply flex flex-col h-full;
+}
+
+.comment-summary-panel-header {
+  @apply px-4 py-3 border-b flex-shrink-0;
+}
+
+.comment-summary-panel-content {
+  @apply flex-1 overflow-auto;
+}
+
+.comment-summary-panel-footer {
+  @apply px-4 py-3 border-t bg-muted/30 flex-shrink-0;
+}
+
+/* Comment card in summary panel */
+.comment-card {
+  @apply group relative p-2 rounded-md border bg-card
+         hover:border-primary/50 cursor-pointer transition-colors;
+}
+
+.comment-card-delete {
+  @apply absolute top-2 right-2 p-1 rounded
+         opacity-0 group-hover:opacity-100
+         hover:bg-destructive/10 text-muted-foreground hover:text-destructive
+         transition-opacity;
+}

@@ -1,12 +1,24 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, memo } from "react"
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { Loader2 } from "lucide-react"
+import { CodeWithLineNumbers } from "../../comments/components/code-with-line-numbers"
+import type { ReviewComment } from "../../comments/types"
 
 interface TextPreviewProps {
   content: string
   fileName: string
   className?: string
+  /** Enable comment mode with line numbers and comment controls */
+  enableComments?: boolean
+  /** Chat ID for comment storage (required when enableComments is true) */
+  chatId?: string
+  /** File path for comment association (required when enableComments is true) */
+  filePath?: string
+  /** Existing comments for this file */
+  comments?: ReviewComment[]
+  /** Callback when a comment is added */
+  onCommentAdded?: (comment: ReviewComment) => void
 }
 
 // Map file extensions to Shiki language identifiers
@@ -141,7 +153,59 @@ function getLanguageFromFileName(fileName: string): string {
   return langMap[ext] || "text"
 }
 
-export function TextPreview({ content, fileName, className }: TextPreviewProps) {
+/**
+ * TextPreview - Code file preview with optional comment support
+ *
+ * When `enableComments` is true, displays with line numbers and comment controls.
+ * Otherwise, renders basic syntax highlighted code.
+ */
+export const TextPreview = memo(function TextPreview({
+  content,
+  fileName,
+  className,
+  enableComments = false,
+  chatId,
+  filePath,
+  comments = [],
+  onCommentAdded,
+}: TextPreviewProps) {
+  // If comments are enabled and required props are provided, use CodeWithLineNumbers
+  if (enableComments && chatId && filePath) {
+    return (
+      <CodeWithLineNumbers
+        content={content}
+        fileName={fileName}
+        chatId={chatId}
+        filePath={filePath}
+        comments={comments}
+        className={className}
+        onCommentAdded={onCommentAdded}
+      />
+    )
+  }
+
+  // Basic syntax highlighted preview (no comments)
+  return (
+    <BasicTextPreview
+      content={content}
+      fileName={fileName}
+      className={className}
+    />
+  )
+})
+
+/**
+ * BasicTextPreview - Simple syntax highlighted code without line numbers
+ */
+const BasicTextPreview = memo(function BasicTextPreview({
+  content,
+  fileName,
+  className,
+}: {
+  content: string
+  fileName: string
+  className?: string
+}) {
   const [html, setHtml] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -213,4 +277,4 @@ export function TextPreview({ content, fileName, className }: TextPreviewProps) 
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
-}
+})
