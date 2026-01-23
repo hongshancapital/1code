@@ -246,7 +246,7 @@ const sizeStyles: Record<
 }
 
 // Custom code component that uses our theme system
-function createCodeComponent(codeTheme: string, size: MarkdownSize, styles: typeof sizeStyles.md) {
+function createCodeComponent(codeTheme: string, size: MarkdownSize, styles: typeof sizeStyles.md, isStreaming: boolean) {
   return function CodeComponent({ className, children, ...props }: any) {
     const match = /language-(\w+)/.exec(className || "")
     const language = match ? match[1] : undefined
@@ -257,6 +257,20 @@ function createCodeComponent(codeTheme: string, size: MarkdownSize, styles: type
     const isCodeBlock = language || (codeContent.includes("\n") && codeContent.length > 100)
 
     if (isCodeBlock) {
+      // During streaming, if content is very short (< 10 chars), it's likely an incomplete
+      // code block being formed (e.g., just the language identifier like "co" for "code")
+      // Show a placeholder instead of the partial content
+      if (isStreaming && codeContent.trim().length < 10 && !codeContent.includes("\n")) {
+        return (
+          <div className="mt-2 mb-4 rounded-[10px] bg-muted/50 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+              <div className="h-3 w-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+              <span>Writing code...</span>
+            </div>
+          </div>
+        )
+      }
+
       return (
         <CodeBlock
           language={language}
@@ -403,9 +417,9 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
         </td>
       ),
       pre: ({ children }: any) => <>{children}</>,
-      code: createCodeComponent(codeTheme, size, styles),
+      code: createCodeComponent(codeTheme, size, styles, isStreaming),
     }),
-    [styles, codeTheme, size],
+    [styles, codeTheme, size, isStreaming],
   )
 
   return (
@@ -667,7 +681,7 @@ const MemoizedMarkdownBlock = memo(
           </td>
         ),
         pre: ({ children }: any) => <>{children}</>,
-        code: createCodeComponent(codeTheme, size, styles),
+        code: createCodeComponent(codeTheme, size, styles, false),
       }),
       [styles, codeTheme, size],
     )
