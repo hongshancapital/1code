@@ -59,13 +59,13 @@ src/
     │   ├── cowork/          # Cowork mode layout and components
     │   │   ├── cowork-layout.tsx      # Main layout (sidebar + chat + right panel)
     │   │   ├── cowork-content.tsx     # Chat area wrapper
-    │   │   ├── cowork-right-panel.tsx # Right panel (tasks + deliverables + file tree)
+    │   │   ├── cowork-right-panel.tsx # Right panel (tasks + artifacts + file tree)
     │   │   ├── task-panel.tsx         # Todo list progress display
-    │   │   ├── deliverables-panel.tsx # Files created/modified by Claude
+    │   │   ├── artifacts-panel.tsx    # Files created/modified by Claude with context tracking
     │   │   ├── file-tree-panel.tsx    # Project file browser with lazy loading
     │   │   ├── file-preview/          # Multi-format file preview (text, image, pdf, office)
-    │   │   ├── atoms.ts               # Cowork-specific Jotai atoms
-    │   │   └── use-deliverables-listener.ts  # IPC listener for file changes
+    │   │   ├── atoms.ts               # Cowork-specific Jotai atoms (Artifact, ArtifactContext)
+    │   │   └── use-artifacts-listener.ts  # IPC listener for file changes with contexts
     │   ├── sidebar/         # Chat list, archive, navigation
     │   ├── sub-chats/       # Tab/sidebar sub-chat management
     │   └── layout/          # Agents mode layout with resizable panels
@@ -122,8 +122,11 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 
 ### Cowork Mode Architecture
 - **Mode Switch**: `isCoworkModeAtom` in `src/renderer/features/cowork/atoms.ts` (persisted, default true)
-- **Layout**: Three-panel layout: left sidebar (chats) + center (chat) + right panel (tasks/deliverables/files)
-- **Deliverables Tracking**: `useDeliverablesListener` hook listens for `file-changed` IPC events from Claude's Write/Edit tools
+- **Layout**: Three-panel layout: left sidebar (chats) + center (chat) + right panel (tasks/artifacts/files)
+- **Artifacts Tracking**: `useArtifactsListener` hook listens for `file-changed` IPC events from Claude's Write/Edit tools
+  - Each artifact tracks its contexts: files read (Read/Glob/Grep) and URLs visited (WebFetch/WebSearch)
+  - Expandable UI shows contexts for each artifact
+  - Click file context to open file preview, click URL to open in system browser
 - **File Preview**: Supports text, markdown, images, PDF, video, audio, and Office documents (via LibreOffice conversion)
 - **File Tree**: Lazy-loading directory browser using `files.listDirectory` tRPC endpoint
 
@@ -154,7 +157,7 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 - `src/renderer/features/agents/atoms/index.ts` - Agent UI state atoms
 - `src/renderer/features/agents/main/active-chat.tsx` - Main chat component
 - `src/main/lib/trpc/routers/claude.ts` - Claude SDK integration
-- `src/renderer/features/cowork/atoms.ts` - Cowork mode state (panel widths, expanded sections, deliverables)
+- `src/renderer/features/cowork/atoms.ts` - Cowork mode state (panel widths, expanded sections, artifacts with contexts)
 - `src/renderer/features/cowork/cowork-layout.tsx` - Cowork mode main layout
 - `src/main/lib/trpc/routers/files.ts` - File system operations (search, listDirectory, readFile, convertToPdf)
 
@@ -248,7 +251,7 @@ npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
 - tRPC routers structure
 - Cowork mode with simplified UI (default mode)
 - File tree panel with lazy loading
-- Deliverables tracking (files created/modified by Claude)
+- Artifacts tracking with context (files created/modified by Claude, with source files and URLs)
 - Multi-format file preview (text, image, PDF, video, audio, Office)
 - Task progress panel showing Claude's todo list
 
