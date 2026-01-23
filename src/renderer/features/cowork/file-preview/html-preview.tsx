@@ -1,20 +1,21 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
-import { ChatMarkdownRenderer } from "../../../components/chat-markdown-renderer"
 import { Loader2, Code, Eye } from "lucide-react"
 
-interface MarkdownPreviewProps {
+interface HtmlPreviewProps {
   content: string
+  fileName: string
   className?: string
 }
 
 type TabType = "preview" | "source"
 
-export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
+export function HtmlPreview({ content, fileName, className }: HtmlPreviewProps) {
   const [activeTab, setActiveTab] = useState<TabType>("preview")
   const [highlightedHtml, setHighlightedHtml] = useState<string>("")
   const [isHighlighting, setIsHighlighting] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Syntax highlight for source view
   useEffect(() => {
@@ -26,7 +27,7 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
     async function highlight() {
       try {
         const result = await codeToHtml(content, {
-          lang: "markdown",
+          lang: "html",
           theme: "github-dark-default",
         })
 
@@ -55,6 +56,19 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
 
     return () => {
       cancelled = true
+    }
+  }, [content, activeTab])
+
+  // Update iframe content when switching to preview
+  useEffect(() => {
+    if (activeTab !== "preview" || !iframeRef.current) return
+
+    const iframe = iframeRef.current
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (doc) {
+      doc.open()
+      doc.write(content)
+      doc.close()
     }
   }, [content, activeTab])
 
@@ -87,9 +101,12 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === "preview" ? (
-          <div className="h-full overflow-auto p-4">
-            <ChatMarkdownRenderer content={content} size="md" />
-          </div>
+          <iframe
+            ref={iframeRef}
+            className="w-full h-full border-0 bg-white"
+            sandbox="allow-scripts allow-same-origin"
+            title={`Preview: ${fileName}`}
+          />
         ) : isHighlighting ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
