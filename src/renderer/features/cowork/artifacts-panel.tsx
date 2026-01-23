@@ -187,7 +187,7 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
       <Package className="h-8 w-8 mb-2 opacity-40" />
-      <p className="text-xs">暂无交付物</p>
+      <p className="text-xs">No artifacts</p>
     </div>
   )
 }
@@ -199,12 +199,16 @@ function EmptyState() {
 export function ArtifactsPanelContent({ onFileSelect }: ArtifactsPanelProps) {
   // Use activeSubChatId to get artifacts for the current session
   const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  const effectiveId = activeSubChatId || "default"
   const artifactsAtom = useMemo(
-    () => artifactsAtomFamily(activeSubChatId || "default"),
-    [activeSubChatId]
+    () => artifactsAtomFamily(effectiveId),
+    [effectiveId]
   )
   const [rawArtifacts] = useAtom(artifactsAtom)
   const setPreviewPath = useSetAtom(filePreviewPathAtom)
+
+  // Debug logging
+  console.log("[ArtifactsPanel] activeSubChatId:", activeSubChatId, "effectiveId:", effectiveId, "rawArtifacts:", rawArtifacts)
 
   // Ensure artifacts is always an array
   const artifacts = Array.isArray(rawArtifacts) ? rawArtifacts : []
@@ -296,11 +300,11 @@ export function ArtifactsPanel({ onFileSelect }: ArtifactsPanelProps) {
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <Package className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">交付物</span>
+          <span className="text-xs font-medium">Artifacts</span>
         </div>
         {artifactsCount > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">
-            {artifactsCount} 个文件
+            {artifactsCount} {artifactsCount === 1 ? "file" : "files"}
           </span>
         )}
       </div>

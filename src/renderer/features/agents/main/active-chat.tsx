@@ -39,6 +39,7 @@ import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   ArrowDown,
   ChevronDown,
+  FolderTree,
   ListTree,
   TerminalSquare
 } from "lucide-react"
@@ -79,7 +80,10 @@ import { DiffFullPageView } from "../../changes/components/diff-full-page-view"
 import { DiffSidebarHeader } from "../../changes/components/diff-sidebar-header"
 import { getStatusIndicator } from "../../changes/utils/status"
 import { terminalSidebarOpenAtom } from "../../terminal/atoms"
-import { TerminalSidebar } from "../../terminal/terminal-sidebar"
+import { TerminalSidebar, TerminalBottomPanel } from "../../terminal"
+import { FileTreePanel } from "../../cowork/file-tree-panel"
+import { FilePreviewDialog } from "../../cowork/file-preview"
+import { filePreviewPathAtom } from "../../cowork/atoms"
 import {
   agentsChangesPanelCollapsedAtom,
   agentsChangesPanelWidthAtom,
@@ -90,6 +94,8 @@ import {
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
   clearLoading,
+  codingFileTreePanelOpenAtom,
+  codingFileTreePanelWidthAtom,
   compactingSubChatsAtom,
   diffSidebarOpenAtomFamily,
   diffViewDisplayModeAtom,
@@ -3973,6 +3979,13 @@ export function ChatView({
   const [isTerminalSidebarOpen, setIsTerminalSidebarOpen] = useAtom(
     terminalSidebarOpenAtom,
   )
+  // File tree panel state (Coding mode only)
+  const [isFileTreePanelOpen, setIsFileTreePanelOpen] = useAtom(
+    codingFileTreePanelOpenAtom,
+  )
+  const setFilePreviewPath = useSetAtom(filePreviewPathAtom)
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
   const [diffStats, setDiffStatsRaw] = useState({
     fileCount: 0,
     additions: 0,
@@ -4296,6 +4309,18 @@ export function ChatView({
 
   // Desktop: use worktreePath instead of sandbox
   const worktreePath = agentChat?.worktreePath as string | null
+
+  // Handle file selection from file tree (relative path converted to absolute)
+  const handleFileTreeSelect = useCallback(
+    (relativePath: string) => {
+      const absolutePath = worktreePath
+        ? `${worktreePath}/${relativePath}`
+        : relativePath
+      setFilePreviewPath(absolutePath)
+    },
+    [worktreePath, setFilePreviewPath]
+  )
+
   // Desktop: original project path for MCP config lookup
   const originalProjectPath = (agentChat as any)?.project?.path as string | undefined
   // Fallback for web: use sandbox_id
@@ -5521,6 +5546,9 @@ Make sure to preserve all functionality from both branches when resolving confli
 
   return (
     <div className="flex h-full flex-col">
+      {/* File Preview Dialog - for file tree preview */}
+      <FilePreviewDialog />
+
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Chat Panel */}
@@ -5640,6 +5668,31 @@ Make sure to preserve all functionality from both branches when resolving confli
                       <TooltipContent side="bottom">
                         Open terminal
                         <Kbd>⌘J</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* File Tree Button - shows in Coding mode (desktop only) */}
+                {!hideGitFeatures &&
+                  !isMobileFullscreen &&
+                  isCodingMode &&
+                  worktreePath && (
+                    <Tooltip delayDuration={500}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setIsFileTreePanelOpen(!isFileTreePanelOpen)}
+                          className={cn(
+                            "h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2",
+                            isFileTreePanelOpen && "bg-foreground/10"
+                          )}
+                          aria-label={isFileTreePanelOpen ? "Close file tree" : "Open file tree"}
+                        >
+                          <FolderTree className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {isFileTreePanelOpen ? "关闭文件树" : "打开文件树"}
                       </TooltipContent>
                     </Tooltip>
                   )}
@@ -5933,15 +5986,41 @@ Make sure to preserve all functionality from both branches when resolving confli
           </ResizableSidebar>
         )}
 
-        {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden when hideGitFeatures is true */}
-        {!hideGitFeatures && worktreePath && (
+        {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden in Coding mode (uses bottom panel instead) */}
+        {!hideGitFeatures && worktreePath && !isCodingMode && (
           <TerminalSidebar
             chatId={chatId}
             cwd={worktreePath}
             workspaceId={chatId}
           />
         )}
+
+        {/* File Tree Panel - Coding mode only (右侧) */}
+        {!hideGitFeatures && isCodingMode && worktreePath && (
+          <ResizableSidebar
+            isOpen={isFileTreePanelOpen}
+            onClose={() => setIsFileTreePanelOpen(false)}
+            widthAtom={codingFileTreePanelWidthAtom}
+            side="right"
+            minWidth={200}
+            maxWidth={400}
+            showResizeTooltip={true}
+            className="bg-background border-l"
+            style={{ borderLeftWidth: "0.5px" }}
+          >
+            <FileTreePanel projectPath={worktreePath} onFileSelect={handleFileTreeSelect} />
+          </ResizableSidebar>
+        )}
       </div>
+
+      {/* Terminal Bottom Panel - Coding mode only (底部) */}
+      {!hideGitFeatures && isCodingMode && worktreePath && !isMobileFullscreen && (
+        <TerminalBottomPanel
+          chatId={chatId}
+          cwd={worktreePath}
+          workspaceId={chatId}
+        />
+      )}
     </div>
   )
 }

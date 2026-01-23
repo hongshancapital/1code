@@ -1,8 +1,9 @@
 import { useMemo, useCallback } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ListTodo, Package } from "lucide-react"
-import { selectedProjectAtom, currentTodosAtomFamily } from "../agents/atoms"
+import { selectedProjectAtom, selectedAgentChatIdAtom, currentTodosAtomFamily } from "../agents/atoms"
 import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
+import { api } from "../../lib/mock-api"
 
 import { CollapsibleSection } from "./collapsible-section"
 import { TaskPanelContent } from "./task-panel"
@@ -16,6 +17,16 @@ import { taskSectionExpandedAtom, artifactsSectionExpandedAtom, filePreviewPathA
 
 export function CoworkRightPanel() {
   const selectedProject = useAtomValue(selectedProjectAtom)
+  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
+
+  // Fetch current chat data to get worktree path
+  const { data: chatData } = api.agents.getAgentChat.useQuery(
+    { chatId: selectedChatId! },
+    { enabled: !!selectedChatId }
+  )
+
+  // Use chat's worktreePath if available, otherwise fall back to project path
+  const effectivePath = chatData?.worktreePath || selectedProject?.path
 
   // Task count for auto-collapse logic
   const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
@@ -45,12 +56,12 @@ export function CoworkRightPanel() {
   const handleFileTreeSelect = useCallback(
     (relativePath: string) => {
       // Convert relative path to absolute path
-      const absolutePath = selectedProject?.path
-        ? `${selectedProject.path}/${relativePath}`
+      const absolutePath = effectivePath
+        ? `${effectivePath}/${relativePath}`
         : relativePath
       setFilePreviewPath(absolutePath)
     },
-    [selectedProject?.path, setFilePreviewPath]
+    [effectivePath, setFilePreviewPath]
   )
 
   // Handle file selection from artifacts (already absolute path)
@@ -85,7 +96,7 @@ export function CoworkRightPanel() {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Section 1: Tasks (collapsible) */}
         <CollapsibleSection
-          title="任务"
+          title="Tasks"
           icon={<ListTodo className="h-3.5 w-3.5 text-muted-foreground" />}
           badge={
             taskCount > 0 ? (
@@ -105,12 +116,12 @@ export function CoworkRightPanel() {
 
         {/* Section 2: Artifacts (collapsible) */}
         <CollapsibleSection
-          title="交付物"
+          title="Artifacts"
           icon={<Package className="h-3.5 w-3.5 text-muted-foreground" />}
           badge={
             artifactsCount > 0 ? (
               <span className="text-xs text-muted-foreground tabular-nums">
-                {artifactsCount} 个文件
+                {artifactsCount} {artifactsCount === 1 ? "file" : "files"}
               </span>
             ) : null
           }
@@ -126,7 +137,7 @@ export function CoworkRightPanel() {
         {/* Section 3: File Tree (always expanded, takes remaining space) */}
         <div className="flex-1 min-h-[100px] overflow-hidden border-t">
           <FileTreePanel
-            projectPath={selectedProject?.path}
+            projectPath={effectivePath}
             onFileSelect={handleFileTreeSelect}
             showHeader={true}
           />
