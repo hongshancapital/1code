@@ -62,7 +62,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <X className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>关闭</TooltipContent>
+                <TooltipContent>Close</TooltipContent>
               </Tooltip>
 
               <Tooltip delayDuration={300}>
@@ -71,7 +71,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <Minimize2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>退出全屏</TooltipContent>
+                <TooltipContent>Exit Fullscreen</TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -99,7 +99,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <ExternalLink className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>在 Finder 中显示</TooltipContent>
+                <TooltipContent>Show in Finder</TooltipContent>
               </Tooltip>
             </div>
           ) : (
@@ -111,7 +111,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <ExternalLink className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>在资源管理器中显示</TooltipContent>
+                <TooltipContent>Show in Explorer</TooltipContent>
               </Tooltip>
 
               <Tooltip delayDuration={300}>
@@ -120,7 +120,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <Minimize2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>退出全屏</TooltipContent>
+                <TooltipContent>Exit Fullscreen</TooltipContent>
               </Tooltip>
 
               <Tooltip delayDuration={300}>
@@ -129,7 +129,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                     <X className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>关闭</TooltipContent>
+                <TooltipContent>Close</TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -164,7 +164,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <X className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>关闭</TooltipContent>
+                  <TooltipContent>Close</TooltipContent>
                 </Tooltip>
 
                 <Tooltip delayDuration={300}>
@@ -173,7 +173,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <Maximize2 className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>全屏</TooltipContent>
+                  <TooltipContent>Fullscreen</TooltipContent>
                 </Tooltip>
               </div>
             )}
@@ -201,7 +201,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>在 Finder 中显示</TooltipContent>
+                  <TooltipContent>Show in Finder</TooltipContent>
                 </Tooltip>
               </div>
             ) : (
@@ -213,7 +213,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>在资源管理器中显示</TooltipContent>
+                  <TooltipContent>Show in Explorer</TooltipContent>
                 </Tooltip>
 
                 <Tooltip delayDuration={300}>
@@ -222,7 +222,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <Maximize2 className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>全屏</TooltipContent>
+                  <TooltipContent>Fullscreen</TooltipContent>
                 </Tooltip>
 
                 <Tooltip delayDuration={300}>
@@ -231,7 +231,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
                       <X className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>关闭</TooltipContent>
+                  <TooltipContent>Close</TooltipContent>
                 </Tooltip>
               </div>
             )}
