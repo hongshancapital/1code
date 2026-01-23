@@ -723,12 +723,16 @@ export const ChatInputArea = memo(function ChatInputArea({
               <div className="relative">
                 <AgentsMentionsEditor
                   ref={editorRef}
-                  onTrigger={({ searchText, rect }) => {
+                  onTrigger={({ searchText, rect, options }) => {
                     // Desktop: use projectPath for local file search
                     if (projectPath || repository) {
                       setMentionSearchText(searchText)
                       setMentionPosition({ top: rect.top, left: rect.left })
                       setShowMentionDropdown(true)
+                      // If options.showFilesList is true (from @ button click), skip to files list
+                      if (options?.showFilesList) {
+                        setShowingFilesList(true)
+                      }
                     }
                   }}
                   onCloseTrigger={() => {
