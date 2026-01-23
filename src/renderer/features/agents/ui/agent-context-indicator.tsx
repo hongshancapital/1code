@@ -106,18 +106,14 @@ export const AgentContextIndicator = memo(function AgentContextIndicator({
   const percentUsed = Math.min(100, (totalTokens / contextWindow) * 100)
   const isEmpty = totalTokens === 0
 
-  const isClickable = onCompact && !disabled && !isCompacting
+  const canCompact = onCompact && !disabled && !isCompacting && !isEmpty
 
   return (
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
         <div
-          onClick={isClickable ? onCompact : undefined}
           className={cn(
-            "h-4 w-4 flex items-center justify-center",
-            isClickable
-              ? "cursor-pointer hover:opacity-70 transition-opacity"
-              : "cursor-default",
+            "h-4 w-4 flex items-center justify-center cursor-default",
             disabled && "opacity-50",
             className,
           )}
@@ -131,24 +127,36 @@ export const AgentContextIndicator = memo(function AgentContextIndicator({
         </div>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={8}>
-        <p className="text-xs">
+        <div className="text-xs">
           {isEmpty ? (
             <span className="text-muted-foreground">
               Context: 0 / {formatTokens(contextWindow)}
             </span>
           ) : (
             <>
-              <span className="font-mono font-medium text-foreground">
-                {percentUsed.toFixed(1)}%
-              </span>
-              <span className="text-muted-foreground mx-1">·</span>
-              <span className="text-muted-foreground">
-                {formatTokens(totalTokens)} /{" "}
-                {formatTokens(contextWindow)} context
-              </span>
+              <p>
+                <span className="font-mono font-medium text-foreground">
+                  {percentUsed.toFixed(1)}%
+                </span>
+                <span className="text-muted-foreground mx-1">·</span>
+                <span className="text-muted-foreground">
+                  {formatTokens(totalTokens)} / {formatTokens(contextWindow)} context
+                </span>
+              </p>
+              {canCompact && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCompact()
+                  }}
+                  className="mt-2 w-full px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                >
+                  Compact
+                </button>
+              )}
             </>
           )}
-        </p>
+        </div>
       </TooltipContent>
     </Tooltip>
   )
