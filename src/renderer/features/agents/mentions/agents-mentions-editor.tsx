@@ -57,6 +57,7 @@ export type AgentsMentionsEditorHandle = {
   focus: () => void
   blur: () => void
   insertMention: (option: FileMentionOption) => void
+  triggerMention: () => void // Trigger @ mention dropdown programmatically (for @ button)
   getValue: () => string
   setValue: (value: string) => void
   clear: () => void
@@ -1331,8 +1332,122 @@ export const AgentsMentionsEditor = memo(
               onContentChange?.(true)
             }
           },
+
+          // Trigger @ mention dropdown programmatically (for @ button click)
+          triggerMention: () => {
+            const editor = editorRef.current
+            if (!editor) return
+
+            // Focus the editor first
+            editor.focus()
+
+            // Get or create selection at end
+            const sel = window.getSelection()
+            if (!sel) return
+
+            // Move cursor to end if no selection
+            if (sel.rangeCount === 0) {
+              sel.selectAllChildren(editor)
+              sel.collapseToEnd()
+            }
+
+            const range = sel.getRangeAt(0)
+
+            // Check if we need to add a space before @
+            // If cursor is not at start and previous char is not whitespace
+            const node = range.startContainer
+            let needsSpace = false
+            if (node.nodeType === Node.TEXT_NODE) {
+              const text = node.textContent || ""
+              const offset = range.startOffset
+              if (offset > 0 && text[offset - 1] && !/\s/.test(text[offset - 1])) {
+                needsSpace = true
+              }
+            } else if (node === editor && editor.lastChild) {
+              // Cursor at element level, check last text content
+              const lastText = editor.textContent || ""
+              if (lastText.length > 0 && !/\s/.test(lastText[lastText.length - 1])) {
+                needsSpace = true
+              }
+            }
+
+            // Insert space + @ or just @
+            const textToInsert = needsSpace ? " @" : "@"
+            const atNode = document.createTextNode(textToInsert)
+            range.insertNode(atNode)
+
+            // Move cursor after the @
+            const newRange = document.createRange()
+            newRange.setStartAfter(atNode)
+            newRange.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(newRange)
+
+            // Update hasContent
+            setHasContent(true)
+            onContentChange?.(true)
+
+            // Set trigger state
+            // Calculate global index of @
+            let globalIndex = 0
+            const walker = document.createTreeWalker(
+              editor,
+              NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+            )
+            let walkNode: Node | null = walker.nextNode()
+            while (walkNode) {
+              if (walkNode === atNode) {
+                globalIndex += needsSpace ? 1 : 0 // Account for space if added
+                break
+              }
+              if (walkNode.nodeType === Node.TEXT_NODE) {
+                globalIndex += (walkNode.textContent || "").length
+              } else if (walkNode.nodeType === Node.ELEMENT_NODE) {
+                const el = walkNode as HTMLElement
+                if (el.hasAttribute("data-mention-id")) {
+                  const id = el.getAttribute("data-mention-id") || ""
+                  globalIndex += `@[${id}]`.length
+                  let next: Node | null = el.nextSibling
+                  if (next) {
+                    walker.currentNode = next
+                    walkNode = next
+                    continue
+                  }
+                }
+              }
+              walkNode = walker.nextNode()
+            }
+
+            triggerActive.current = true
+            triggerStartIndex.current = globalIndex
+
+            // Get cursor position for dropdown
+            const cursorRect = newRange.getBoundingClientRect()
+            // Fallback to editor position if cursor rect is invalid (empty editor or focus issue)
+            const isValidRect = cursorRect.left !== 0 || cursorRect.top !== 0 || cursorRect.width !== 0
+            let rect: DOMRect
+            if (isValidRect) {
+              rect = new DOMRect(
+                cursorRect.left,
+                cursorRect.top,
+                0,
+                cursorRect.height
+              )
+            } else {
+              // Use editor element position as fallback
+              const editorRect = editor.getBoundingClientRect()
+              rect = new DOMRect(
+                editorRect.left,
+                editorRect.bottom,
+                0,
+                20 // approximate line height
+              )
+            }
+
+            onTrigger({ searchText: "", rect })
+          },
         }),
-        [onCloseTrigger, onCloseSlashTrigger, resolveMention, onContentChange, immediateSaveUndoState],
+        [onCloseTrigger, onCloseSlashTrigger, resolveMention, onContentChange, immediateSaveUndoState, onTrigger],
       )
 
       return (
