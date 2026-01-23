@@ -944,6 +944,9 @@ export function NewChatForm({
         })
       }
     },
+    onError: (error) => {
+      toast.error(`Failed to open folder: ${error.message}`)
+    },
   })
 
   const handleOpenFolder = async () => {
