@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is this?
 
-**1Code** - A local-first Electron desktop app for AI-powered code assistance. Users create chat sessions linked to local project folders, interact with Claude in Plan or Agent mode, and see real-time tool execution (bash, file edits, web search, etc.).
+**Hong** (previously 1Code) - A local-first Electron desktop app for AI-powered code assistance. Users create chat sessions linked to local project folders, interact with Claude in Plan or Agent mode, and see real-time tool execution (bash, file edits, web search, etc.).
 
 The app has two UI modes:
 - **Agents Mode**: Full-featured mode with onboarding, authentication, Git/Diff panels
-- **Cowork Mode** (default): Simplified layout focused on chat + right panel (tasks, deliverables, file tree)
+- **Cowork Mode** (default): Simplified layout focused on chat + right panel (tasks, artifacts, file tree)
 
 ## Commands
 
@@ -42,7 +42,11 @@ src/
 │       │   ├── index.ts     # DB init, auto-migrate on startup
 │       │   ├── schema/      # Drizzle table definitions
 │       │   └── utils.ts     # ID generation
-│       └── trpc/routers/    # tRPC routers (projects, chats, claude, files)
+│       ├── git/             # Git operations (status, diff, staging, worktree, stash)
+│       ├── lsp/             # Language Server Protocol integration
+│       │   ├── manager.ts   # LSP session management (tsserver, tsgo)
+│       │   └── types.ts     # LSP type definitions
+│       └── trpc/routers/    # tRPC routers
 │
 ├── preload/                 # IPC bridge (context isolation)
 │   └── index.ts             # Exposes desktopApi + tRPC bridge
@@ -52,29 +56,38 @@ src/
     ├── features/
     │   ├── agents/          # Main chat interface (shared by both modes)
     │   │   ├── main/        # active-chat.tsx, new-chat-form.tsx
-    │   │   ├── ui/          # Tool renderers, preview, diff view
+    │   │   ├── ui/          # Tool renderers, sub-chat components
     │   │   ├── commands/    # Slash commands (/plan, /agent, /clear)
     │   │   ├── atoms/       # Jotai atoms for agent state
     │   │   └── stores/      # Zustand store for sub-chats
     │   ├── cowork/          # Cowork mode layout and components
     │   │   ├── cowork-layout.tsx      # Main layout (sidebar + chat + right panel)
-    │   │   ├── cowork-content.tsx     # Chat area wrapper
-    │   │   ├── cowork-right-panel.tsx # Right panel (tasks + artifacts + file tree)
-    │   │   ├── task-panel.tsx         # Todo list progress display
-    │   │   ├── artifacts-panel.tsx    # Files created/modified by Claude with context tracking
     │   │   ├── file-tree-panel.tsx    # Project file browser with lazy loading
-    │   │   ├── file-preview/          # Multi-format file preview (text, image, pdf, office)
-    │   │   ├── atoms.ts               # Cowork-specific Jotai atoms (Artifact, ArtifactContext)
-    │   │   └── use-artifacts-listener.ts  # IPC listener for file changes with contexts
+    │   │   ├── file-preview/          # Multi-format preview with Monaco editor
+    │   │   │   ├── code-editor.tsx    # Monaco editor with LSP integration
+    │   │   │   └── text-preview.tsx   # Read-only text preview
+    │   │   ├── atoms.ts               # Cowork state (artifacts, editor mode, content search)
+    │   │   └── use-artifacts-listener.ts  # IPC listener for file changes
+    │   ├── comments/        # Code review comment system
+    │   │   ├── atoms.ts     # Comment state with localStorage persistence
+    │   │   ├── types.ts     # ReviewComment, CommentThread, LineRange types
+    │   │   └── components/  # Gutter layer, indicators, input
+    │   ├── runner/          # Script runner integration
+    │   │   ├── run-config-selector.tsx # Package.json script selector
+    │   │   └── use-run-session-listener.ts # Terminal session management
+    │   ├── terminal/        # Integrated terminal
+    │   ├── changes/         # Git changes panel (staging, commit, history)
     │   ├── sidebar/         # Chat list, archive, navigation
-    │   ├── sub-chats/       # Tab/sidebar sub-chat management
     │   └── layout/          # Agents mode layout with resizable panels
     ├── components/ui/       # Radix UI wrappers (button, dialog, etc.)
     └── lib/
         ├── atoms/           # Global Jotai atoms
+        │   ├── index.ts     # Core atoms (selectedProject, selectedChat)
+        │   └── runner.ts    # Script runner state atoms
+        ├── lsp/             # LSP client hook
+        │   └── use-lsp-client.ts  # Monaco LSP integration
         ├── stores/          # Global Zustand stores
-        ├── trpc.ts          # Real tRPC client
-        └── mock-api.ts      # DEPRECATED - being replaced with real tRPC
+        └── trpc.ts          # tRPC client
 ```
 
 ## Database (Drizzle ORM)
@@ -84,34 +97,38 @@ src/
 **Schema:** `src/main/lib/db/schema/index.ts`
 
 ```typescript
-// Three main tables:
-projects    → id, name, path (local folder), timestamps
-chats       → id, name, projectId, worktree fields, timestamps
-sub_chats   → id, name, chatId, sessionId, mode, messages (JSON)
+// Main tables:
+projects           → id, name, path, mode, git remote info, timestamps
+chats              → id, name, projectId, worktree/branch fields, PR tracking
+sub_chats          → id, name, chatId, sessionId, streamId, mode, messages (JSON)
+claude_code_credentials → OAuth token storage (encrypted)
+model_usage        → Token usage tracking per API call
 ```
 
 **Auto-migration:** On app start, `initDatabase()` runs migrations from `drizzle/` folder (dev) or `resources/migrations` (packaged).
 
-**Queries:**
-```typescript
-import { getDatabase, projects, chats } from "../lib/db"
-import { eq } from "drizzle-orm"
+## tRPC Routers
 
-const db = getDatabase()
-const allProjects = db.select().from(projects).all()
-const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all()
-```
+All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
+
+| Router | Purpose |
+|--------|---------|
+| `projects` | CRUD for local project folders |
+| `chats` | Chat/sub-chat management |
+| `claude` | Claude SDK integration (streaming, session resume) |
+| `files` | File operations (read, write, search, listDirectory) |
+| `changes` | Git operations (status, diff, stage, commit) |
+| `lsp` | Language Server Protocol (completions, hover, diagnostics) |
+| `runner` | Runtime detection, script execution |
+| `terminal` | PTY terminal management |
 
 ## Key Patterns
 
-### IPC Communication
-- Uses **tRPC** with `trpc-electron` for type-safe main↔renderer communication
-- All backend calls go through tRPC routers, not raw IPC
-- Preload exposes `window.desktopApi` for native features (window controls, clipboard, notifications)
-
 ### State Management
 - **Jotai**: UI state (selected chat, sidebar open, preview settings)
-- **Zustand**: Sub-chat tabs and pinned state (persisted to localStorage)
+  - `atomFamily` for per-entity state (artifacts per subChatId, comments per chatId)
+  - `atomWithStorage` for localStorage persistence
+- **Zustand**: Sub-chat tabs and pinned state
 - **React Query**: Server state via tRPC (auto-caching, refetch)
 
 ### Claude Integration
@@ -120,15 +137,28 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 - Session resume via `sessionId` stored in SubChat
 - Message streaming via tRPC subscription (`claude.onMessage`)
 
-### Cowork Mode Architecture
-- **Mode Switch**: `isCoworkModeAtom` in `src/renderer/features/cowork/atoms.ts` (persisted, default true)
-- **Layout**: Three-panel layout: left sidebar (chats) + center (chat) + right panel (tasks/artifacts/files)
-- **Artifacts Tracking**: `useArtifactsListener` hook listens for `file-changed` IPC events from Claude's Write/Edit tools
-  - Each artifact tracks its contexts: files read (Read/Glob/Grep) and URLs visited (WebFetch/WebSearch)
-  - Expandable UI shows contexts for each artifact
-  - Click file context to open file preview, click URL to open in system browser
-- **File Preview**: Supports text, markdown, images, PDF, video, audio, and Office documents (via LibreOffice conversion)
-- **File Tree**: Lazy-loading directory browser using `files.listDirectory` tRPC endpoint
+### LSP Integration
+- **Manager** (`src/main/lib/lsp/manager.ts`): Manages tsserver/tsgo processes
+- **Client Hook** (`src/renderer/lib/lsp/use-lsp-client.ts`): Connects Monaco to LSP
+- Features: Completions, hover, diagnostics, go-to-definition, find references
+- Supports TypeScript/JavaScript with tsserver (tsgo experimental)
+
+### Code Review Comments
+- Comments stored per chatId in localStorage via `atomFamily`
+- Types: `ReviewComment`, `LineRange` (supports single/multi-line, diff sides)
+- Sources: "diff-view" | "file-preview" | "github-pr" (future)
+- Persisted until submitted to AI
+
+### File Preview with Monaco Editor
+- Two modes: "view" (read-only) and "edit" (Monaco with LSP)
+- Cmd+S to save, dirty state tracking
+- Worker setup for syntax highlighting in Electron environment
+- Language detection from file extension (50+ languages)
+
+### Artifacts Tracking
+- `useArtifactsListener` hook listens for `file-changed` IPC events
+- Each artifact tracks contexts: files read (Read/Glob/Grep) and URLs visited
+- Stored per subChatId in localStorage
 
 ## Tech Stack
 
@@ -139,6 +169,7 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 | Components | Radix UI, Lucide icons, Motion, Sonner |
 | State | Jotai, Zustand, React Query |
 | Backend | tRPC, Drizzle ORM, better-sqlite3 |
+| Editor | Monaco Editor with LSP |
 | AI | @anthropic-ai/claude-code |
 | Package Manager | bun |
 
@@ -153,17 +184,14 @@ const projectChats = db.select().from(chats).where(eq(chats.projectId, id)).all(
 
 - `electron.vite.config.ts` - Build config (main/preload/renderer entries)
 - `src/main/lib/db/schema/index.ts` - Drizzle schema (source of truth)
-- `src/main/lib/db/index.ts` - DB initialization + auto-migrate
-- `src/renderer/features/agents/atoms/index.ts` - Agent UI state atoms
+- `src/main/lib/lsp/manager.ts` - LSP session management
 - `src/renderer/features/agents/main/active-chat.tsx` - Main chat component
-- `src/main/lib/trpc/routers/claude.ts` - Claude SDK integration
-- `src/renderer/features/cowork/atoms.ts` - Cowork mode state (panel widths, expanded sections, artifacts with contexts)
-- `src/renderer/features/cowork/cowork-layout.tsx` - Cowork mode main layout
-- `src/main/lib/trpc/routers/files.ts` - File system operations (search, listDirectory, readFile, convertToPdf)
+- `src/renderer/features/cowork/atoms.ts` - Cowork state (artifacts, editor, search)
+- `src/renderer/features/comments/atoms.ts` - Code review comment state
+- `src/renderer/lib/lsp/use-lsp-client.ts` - Monaco LSP integration
+- `src/main/lib/trpc/routers/index.ts` - All tRPC routers
 
 ## Debugging First Install Issues
-
-When testing auth flows or behavior for new users, you need to simulate a fresh install:
 
 ```bash
 # 1. Clear all app data (auth, database, settings)
@@ -177,29 +205,25 @@ defaults delete dev.21st.agents.dev  # Dev mode
 defaults delete dev.21st.agents      # Production
 
 # 4. Run in dev mode with clean state
-cd apps/desktop
 bun run dev
 ```
-
-**Common First-Install Bugs:**
-- **OAuth deep link not working**: macOS Launch Services may not immediately recognize protocol handlers on first app launch. User may need to click "Sign in" again after the first attempt.
-- **Folder dialog not appearing**: Window focus timing issues on first launch. Fixed by ensuring window focus before showing `dialog.showOpenDialog()`.
 
 **Dev vs Production App:**
 - Dev mode uses `twentyfirst-agents-dev://` protocol
 - Dev mode uses separate userData path (`~/Library/Application Support/Agents Dev/`)
-- This prevents conflicts between dev and production installs
 
 ## Releasing a New Version
 
 ### Prerequisites for Notarization
-
 - Keychain profile: `21st-notarize`
 - Create with: `xcrun notarytool store-credentials "21st-notarize" --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID`
 
 ### Release Commands
 
 ```bash
+# Bump version first
+npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
+
 # Full release (build, sign, submit notarization, upload to CDN)
 bun run release
 
@@ -210,56 +234,42 @@ bun run dist:manifest      # Generate latest-mac.yml manifests
 ./scripts/upload-release-wrangler.sh  # Submit notarization & upload to R2 CDN
 ```
 
-### Bump Version Before Release
-
-```bash
-npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
-```
-
 ### After Release Script Completes
 
 1. Wait for notarization (2-5 min): `xcrun notarytool history --keychain-profile "21st-notarize"`
 2. Staple DMGs: `cd release && xcrun stapler staple *.dmg`
-3. Re-upload stapled DMGs to R2 and GitHub (see RELEASE.md for commands)
+3. Re-upload stapled DMGs to R2 and GitHub (see RELEASE.md)
 4. Update changelog: `gh release edit v0.0.X --notes "..."`
-5. **Upload manifests (triggers auto-updates!)** — see RELEASE.md
+5. Upload manifests (triggers auto-updates!)
 6. Sync to public: `./scripts/sync-to-public.sh`
-
-### Files Uploaded to CDN
-
-| File | Purpose |
-|------|---------|
-| `latest-mac.yml` | Manifest for arm64 auto-updates |
-| `latest-mac-x64.yml` | Manifest for Intel auto-updates |
-| `1Code-{version}-arm64-mac.zip` | Auto-update payload (arm64) |
-| `1Code-{version}-mac.zip` | Auto-update payload (Intel) |
-| `1Code-{version}-arm64.dmg` | Manual download (arm64) |
-| `1Code-{version}.dmg` | Manual download (Intel) |
 
 ### Auto-Update Flow
 
-1. App checks `https://cowork.hongshan.com/releases/desktop/latest-mac.yml` on startup and when window regains focus (with 1 min cooldown)
+1. App checks `https://cowork.hongshan.com/releases/desktop/latest-mac.yml` on startup and focus
 2. If version in manifest > current version, shows "Update Available" banner
 3. User clicks Download → downloads ZIP in background
 4. User clicks "Restart Now" → installs update and restarts
 
-## Current Status (WIP)
+## Current Status
 
 **Done:**
-- Drizzle ORM setup with schema (projects, chats, sub_chats)
-- Auto-migration on app startup
-- tRPC routers structure
-- Cowork mode with simplified UI (default mode)
+- Drizzle ORM with auto-migration
+- tRPC routers (17 routers covering all features)
+- Cowork mode with simplified UI (default)
 - File tree panel with lazy loading
-- Artifacts tracking with context (files created/modified by Claude, with source files and URLs)
+- Artifacts tracking with context
 - Multi-format file preview (text, image, PDF, video, audio, Office)
-- Task progress panel showing Claude's todo list
+- Task progress panel
+- Monaco code editor with LSP integration (TS/JS)
+- Code review comment system (Diff View + File Preview)
+- Script runner integration with runtime detection
+- Git operations (status, diff, staging, stash)
+- Model usage tracking
 
 **In Progress:**
-- Replacing `mock-api.ts` with real tRPC calls in renderer
-- ProjectSelector component (local folder picker)
+- GitHub PR integration for comments
+- tsgo experimental backend support
 
 **Planned:**
 - Git worktree per chat (isolation)
-- Claude Code execution in worktree path
 - Full feature parity with web app
