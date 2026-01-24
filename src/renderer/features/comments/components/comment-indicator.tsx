@@ -90,7 +90,6 @@ export const CommentAddButton = memo(function CommentAddButton({
         "w-5 h-5 rounded",
         "bg-blue-500 text-white text-sm font-medium",
         "hover:bg-blue-600 transition-all",
-        "opacity-0 group-hover/line:opacity-100",
         "cursor-pointer select-none",
         className
       )}
