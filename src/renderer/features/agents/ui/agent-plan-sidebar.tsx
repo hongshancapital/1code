@@ -29,7 +29,7 @@ export function AgentPlanSidebar({
 
   // Fetch plan file content using tRPC
   const { data: planContent, isLoading, error, refetch } = trpc.files.readFile.useQuery(
-    { filePath: planPath! },
+    { path: planPath! },
     { enabled: !!planPath }
   )
 
