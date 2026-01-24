@@ -15,6 +15,8 @@ import { worktreeConfigRouter } from "./worktree-config"
 import { commandsRouter } from "./commands"
 import { voiceRouter } from "./voice"
 import { usageRouter } from "./usage"
+import { runnerRouter } from "./runner"
+import { lspRouter } from "./lsp"
 import { createGitRouter } from "../../git"
 import { BrowserWindow } from "electron"
 
@@ -40,6 +42,8 @@ export function createAppRouter(getWindow: () => BrowserWindow | null) {
     commands: commandsRouter,
     voice: voiceRouter,
     usage: usageRouter,
+    runner: runnerRouter,
+    lsp: lspRouter,
     // Git operations - named "changes" to match Superset API
     changes: createGitRouter(),
   })
