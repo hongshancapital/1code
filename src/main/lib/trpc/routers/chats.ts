@@ -10,7 +10,7 @@ import {
   trackWorkspaceCreated,
   trackWorkspaceDeleted,
 } from "../../analytics"
-import { chats, getDatabase, projects, subChats } from "../../db"
+import { chats, getDatabase, modelUsage, projects, subChats } from "../../db"
 import {
   createWorktreeForChat,
   fetchGitHubPRStatus,
@@ -1422,6 +1422,183 @@ export const chatsRouter = router({
 
     return pendingApprovals
   }),
+
+  /**
+   * Get sub-chat preview data for hover popup
+   * Parses messages to extract user inputs with file changes and token usage
+   */
+  getSubChatPreview: publicProcedure
+    .input(z.object({ subChatId: z.string() }))
+    .query(({ input }) => {
+      const db = getDatabase()
+      const subChat = db
+        .select()
+        .from(subChats)
+        .where(eq(subChats.id, input.subChatId))
+        .get()
+
+      if (!subChat) return null
+
+      // 从 model_usage 表获取该 subChat 的所有 token 使用记录
+      const usageRecords = db
+        .select()
+        .from(modelUsage)
+        .where(eq(modelUsage.subChatId, input.subChatId))
+        .orderBy(modelUsage.createdAt)
+        .all()
+
+      // 计算总 token 使用量
+      let totalSubChatTokens = 0
+      const usageModes: string[] = []
+      for (const record of usageRecords) {
+        totalSubChatTokens += record.totalTokens || 0
+        if (record.mode) usageModes.push(record.mode)
+      }
+
+      const messages = JSON.parse(subChat.messages || "[]") as Array<{
+        id: string
+        role: string
+        parts?: Array<{
+          type: string
+          text?: string
+          input?: { file_path?: string; old_string?: string; new_string?: string; content?: string }
+          output?: { additions?: number; deletions?: number }
+        }>
+        metadata?: {
+          inputTokens?: number
+          outputTokens?: number
+          totalTokens?: number
+        }
+      }>
+
+      const inputs: Array<{
+        messageId: string
+        index: number
+        content: string
+        mode: string
+        fileCount: number
+        additions: number
+        deletions: number
+        totalTokens: number
+      }> = []
+
+      // 跟踪当前模式状态，用于检测每条消息的模式
+      let currentMode: string = subChat.mode || "agent"
+      let usageIndex = 0
+
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i]
+        if (!msg || msg.role !== "user") continue
+
+        // 提取用户输入文本
+        const textPart = msg.parts?.find((p) => p.type === "text")
+        const content = textPart?.text || ""
+
+        // 检测用户是否通过 /plan 或 /agent 命令切换模式
+        const trimmedContent = content.trim().toLowerCase()
+        if (trimmedContent === "/plan" || trimmedContent.startsWith("/plan ")) {
+          currentMode = "plan"
+        } else if (trimmedContent === "/agent" || trimmedContent.startsWith("/agent ")) {
+          currentMode = "agent"
+        }
+
+        // 统计后续 assistant 消息的 token 和文件变更
+        let additions = 0
+        let deletions = 0
+        const modifiedFiles = new Set<string>()
+        let isPlanModeResponse = false
+
+        // 找到下一个 user 消息的索引
+        let nextUserIndex = messages.length
+        for (let j = i + 1; j < messages.length; j++) {
+          if (messages[j]?.role === "user") {
+            nextUserIndex = j
+            break
+          }
+        }
+
+        for (let j = i + 1; j < nextUserIndex; j++) {
+          const assistantMsg = messages[j]
+          if (!assistantMsg || assistantMsg.role !== "assistant") continue
+
+          // 文件变更统计和模式检测
+          for (const part of assistantMsg.parts || []) {
+            if (part.type === "tool-Edit" || part.type === "tool-Write") {
+              const filePath = part.input?.file_path
+              if (filePath) modifiedFiles.add(filePath)
+
+              // 计算行数变更
+              if (part.type === "tool-Edit" && part.input) {
+                const oldLines = (part.input.old_string || "").split("\n").length
+                const newLines = (part.input.new_string || "").split("\n").length
+                if (newLines > oldLines) {
+                  additions += newLines - oldLines
+                } else {
+                  deletions += oldLines - newLines
+                }
+              } else if (part.type === "tool-Write" && part.input?.content) {
+                additions += (part.input.content || "").split("\n").length
+              }
+            }
+
+            // 检测 ExitPlanMode 或 tool-ExitPlanMode，说明这是 plan 模式的响应
+            if (part.type === "tool-ExitPlanMode" || part.type === "ExitPlanMode") {
+              isPlanModeResponse = true
+            }
+          }
+        }
+
+        // 从 model_usage 表获取该输入对应的 token 数据
+        // 策略：按顺序消费 usageRecords，直到遇到下一个用户输入
+        let totalTokens = 0
+        while (usageIndex < usageRecords.length) {
+          const record = usageRecords[usageIndex]
+          // 消费这条记录
+          totalTokens += record?.totalTokens || 0
+          // 从 model_usage 的 mode 字段判断模式
+          if (record?.mode === "plan") {
+            isPlanModeResponse = true
+          }
+          usageIndex++
+
+          // 如果还有更多用户输入，只消费一条 usage 记录
+          // 因为通常一个用户输入对应一次 API 调用
+          // 但如果是最后一个用户输入，消费所有剩余记录
+          if (i < messages.length - 1) {
+            // 检查是否还有下一个用户消息
+            let hasMoreUserMessages = false
+            for (let k = i + 1; k < messages.length; k++) {
+              if (messages[k]?.role === "user") {
+                hasMoreUserMessages = true
+                break
+              }
+            }
+            if (hasMoreUserMessages) break
+          }
+        }
+
+        // 确定最终模式：如果检测到 ExitPlanMode 或 usage 记录标记为 plan，则是 plan 模式
+        const messageMode = isPlanModeResponse ? "plan" : currentMode
+
+        inputs.push({
+          messageId: msg.id,
+          index: inputs.length + 1,
+          content: content.slice(0, 60),
+          mode: messageMode,
+          fileCount: modifiedFiles.size,
+          additions,
+          deletions,
+          totalTokens,
+        })
+      }
+
+      return {
+        subChatId: subChat.id,
+        subChatName: subChat.name || "New Chat",
+        mode: subChat.mode || "agent",
+        inputs,
+      }
+    }),
 
   /**
    * Get worktree status for archive dialog
