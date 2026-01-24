@@ -81,6 +81,7 @@ import { toast } from "sonner"
 import { AgentsRenameSubChatDialog } from "../agents/components/agents-rename-subchat-dialog"
 import { SearchCombobox } from "../../components/ui/search-combobox"
 import { SubChatContextMenu } from "../agents/ui/sub-chat-context-menu"
+import { SubChatHoverPreview } from "../agents/ui/sub-chat-hover-preview"
 import { formatTimeAgo } from "../agents/utils/format-time-ago"
 import { pluralize } from "../agents/utils/pluralize"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -1225,7 +1226,19 @@ export function AgentsSubChatsSidebar({
                               : null
 
                           return (
-                            <ContextMenu key={subChat.id}>
+                            <SubChatHoverPreview
+                              key={subChat.id}
+                              subChatId={subChat.id}
+                              onInputClick={(messageId) => {
+                                handleSubChatClick(subChat.id)
+                                setTimeout(() => {
+                                  document.querySelector(`[data-message-id="${messageId}"]`)
+                                    ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                                }, 100)
+                              }}
+                            >
+                            <div>
+                            <ContextMenu>
                               <ContextMenuTrigger asChild>
                                 <div
                                   data-subchat-index={globalIndex}
@@ -1444,6 +1457,8 @@ export function AgentsSubChatsSidebar({
                                 />
                               )}
                             </ContextMenu>
+                            </div>
+                            </SubChatHoverPreview>
                           )
                         })}
                       </div>
@@ -1499,7 +1514,19 @@ export function AgentsSubChatsSidebar({
                               : null
 
                           return (
-                            <ContextMenu key={subChat.id}>
+                            <SubChatHoverPreview
+                              key={subChat.id}
+                              subChatId={subChat.id}
+                              onInputClick={(messageId) => {
+                                handleSubChatClick(subChat.id)
+                                setTimeout(() => {
+                                  document.querySelector(`[data-message-id="${messageId}"]`)
+                                    ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                                }, 100)
+                              }}
+                            >
+                            <div>
+                            <ContextMenu>
                               <ContextMenuTrigger asChild>
                                 <div
                                   data-subchat-index={globalIndex}
@@ -1718,6 +1745,8 @@ export function AgentsSubChatsSidebar({
                                 />
                               )}
                             </ContextMenu>
+                            </div>
+                            </SubChatHoverPreview>
                           )
                         })}
                       </div>
