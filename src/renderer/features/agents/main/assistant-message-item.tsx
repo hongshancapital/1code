@@ -28,7 +28,7 @@ import { AgentWebFetchTool } from "../ui/agent-web-fetch-tool"
 import { AgentWebSearchCollapsible } from "../ui/agent-web-search-collapsible"
 import {
   CopyButton,
-  PlayButton,
+  // PlayButton, // TODO: TTS 功能暂时隐藏，后续启用
   getMessageTextContent,
 } from "../ui/message-action-buttons"
 import { MemoizedTextPart } from "./memoized-text-part"
@@ -640,10 +640,12 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
               text={getMessageTextContent(message)}
               isMobile={isMobile}
             />
+            {/* TODO: TTS 功能暂时隐藏，后续启用
             <PlayButton
               text={getMessageTextContent(message)}
               isMobile={isMobile}
             />
+            */}
             {onRollback && (message.metadata as any)?.sdkMessageUuid && (
               <button
                 onClick={() => onRollback(message)}
