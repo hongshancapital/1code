@@ -10,7 +10,7 @@ import {
   agentsSubChatsSidebarModeAtom,
   agentsSubChatsSidebarWidthAtom,
 } from "../agents/atoms"
-import { selectedTeamIdAtom } from "../../lib/atoms"
+import { selectedTeamIdAtom, selectedProjectAtom } from "../../lib/atoms"
 import { NewChatForm } from "../agents/main/new-chat-form"
 import { ChatView } from "../agents/main/active-chat"
 import { CoworkChatView } from "./cowork-chat-view"
@@ -56,6 +56,7 @@ export function CoworkContent({
   const [subChatsSidebarMode, setSubChatsSidebarMode] = useAtom(
     agentsSubChatsSidebarModeAtom
   )
+  const selectedProject = useAtomValue(selectedProjectAtom)
 
   const hasOpenedSubChatsSidebar = useRef(false)
   const wasSubChatsSidebarOpen = useRef(false)
@@ -244,6 +245,7 @@ export function CoworkContent({
               </div>
             )}
           </div>
+
         </div>
       </div>
     </>
