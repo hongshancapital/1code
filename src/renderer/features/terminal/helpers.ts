@@ -172,13 +172,17 @@ export function createTerminalInstance(
     xterm.registerLinkProvider(filePathLinkProvider)
   }
 
-  // 9. Fit to get actual dimensions
+  // 9. Fit to get actual dimensions - only if container has valid size
   console.log("[Terminal:create] Step 9: Fitting terminal")
-  try {
-    fitAddon.fit()
-    console.log("[Terminal:create] Fit successful - cols:", xterm.cols, "rows:", xterm.rows)
-  } catch (err) {
-    console.log("[Terminal:create] Fit failed:", err)
+  if (rect.width > 0 && rect.height > 0) {
+    try {
+      fitAddon.fit()
+      console.log("[Terminal:create] Fit successful - cols:", xterm.cols, "rows:", xterm.rows)
+    } catch (err) {
+      console.log("[Terminal:create] Fit failed:", err)
+    }
+  } else {
+    console.log("[Terminal:create] Skipping fit - container has no size yet")
   }
 
   console.log("[Terminal:create] Complete!")
@@ -357,16 +361,14 @@ function getTerminalCoordsFromEvent(
   const y = event.clientY - rect.top
 
   // Access internal render service for cell dimensions
-  const dimensions = (
-    xterm as unknown as {
-      _core?: {
-        _renderService?: {
-          dimensions?: { css: { cell: { width: number; height: number } } }
-        }
-      }
-    }
-  )._core?._renderService?.dimensions
+  // Note: _core and _renderService may not be available immediately after terminal creation
+  const core = (xterm as unknown as { _core?: unknown })._core
+  if (!core) return null
 
+  const renderService = (core as { _renderService?: unknown })._renderService
+  if (!renderService) return null
+
+  const dimensions = (renderService as { dimensions?: { css?: { cell?: { width: number; height: number } } } }).dimensions
   if (!dimensions?.css?.cell) return null
 
   const cellWidth = dimensions.css.cell.width

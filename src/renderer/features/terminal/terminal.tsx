@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from "react"
 import type { Terminal as XTerm } from "xterm"
 import type { FitAddon } from "@xterm/addon-fit"
 import type { SearchAddon } from "@xterm/addon-search"
@@ -25,14 +25,19 @@ import { TerminalSearch } from "./TerminalSearch"
 import type { TerminalProps, TerminalStreamEvent } from "./types"
 import "xterm/css/xterm.css"
 
-export function Terminal({
+export interface TerminalRef {
+  scrollToBottom: () => void
+  clear: () => void
+}
+
+export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal({
   paneId,
   cwd,
   workspaceId,
   tabId,
   initialCommands,
   initialCwd,
-}: TerminalProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -46,6 +51,22 @@ export function Terminal({
     initialCwd || cwd,
   )
   const setGlobalCwds = useSetAtom(terminalCwdAtom)
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    scrollToBottom: () => {
+      try {
+        xtermRef.current?.scrollToBottom()
+      } catch (err) {
+        console.warn("[Terminal] scrollToBottom failed:", err)
+      }
+    },
+    clear: () => {
+      // Don't use xterm.clear() directly as it can crash due to _renderService.dimensions issue
+      // Instead, just clear scrollback on the backend - the terminal will be cleared when re-attached
+      console.log("[Terminal] clear requested - skipping xterm.clear() to avoid crash")
+    },
+  }), [])
 
   // Theme detection
   const { resolvedTheme } = useTheme()
@@ -129,16 +150,51 @@ export function Terminal({
     enabled: true,
   })
 
-  // Initialize terminal
+  // Track if container has valid size - reset when paneId changes
+  const [hasValidSize, setHasValidSize] = useState(false)
+
+  // Reset hasValidSize when paneId changes
+  useEffect(() => {
+    setHasValidSize(false)
+  }, [paneId])
+
+  // Monitor container size - only set hasValidSize to true once container has dimensions
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
+    const checkSize = () => {
+      const rect = container.getBoundingClientRect()
+      // Also check isConnected to ensure container is in DOM
+      if (rect.width > 0 && rect.height > 0 && container.isConnected) {
+        setHasValidSize(true)
+      }
+    }
+
+    // Check immediately
+    checkSize()
+
+    // Also check on next frame (after React render completes)
+    const rafId = requestAnimationFrame(checkSize)
+
+    // Also observe for changes
+    const resizeObserver = new ResizeObserver(checkSize)
+    resizeObserver.observe(container)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      resizeObserver.disconnect()
+    }
+  }, [paneId]) // Re-run when paneId changes
+
+  // Initialize terminal - only when container has valid size
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !hasValidSize) return
+
     console.log("[Terminal:useEffect] MOUNT - paneId:", paneId)
-    console.log(
-      "[Terminal:useEffect] Container rect:",
-      container.getBoundingClientRect(),
-    )
+    const rect = container.getBoundingClientRect()
+    console.log("[Terminal:useEffect] Container rect:", rect)
 
     let isUnmounted = false
 
@@ -185,7 +241,11 @@ export function Terminal({
     // Restart terminal after exit
     const restartTerminal = () => {
       isExitedRef.current = false
-      xterm.clear()
+      try {
+        xterm.clear()
+      } catch (err) {
+        console.warn("[Terminal] clear failed in restartTerminal:", err)
+      }
       createOrAttachRef.current(
         {
           paneId,
@@ -266,7 +326,11 @@ export function Terminal({
     const keyDisposable = xterm.onKey(handleKeyPress)
 
     const handleClear = () => {
-      xterm.clear()
+      try {
+        xterm.clear()
+      } catch (err) {
+        console.warn("[Terminal] clear failed in handleClear:", err)
+      }
       clearScrollbackRef.current({ paneId })
     }
 
@@ -334,7 +398,7 @@ export function Terminal({
     }
     // Note: terminalCwd is accessed via ref to avoid remounting on cwd changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paneId, cwd, workspaceId, tabId, initialCwd, initialCommands, isDark])
+  }, [paneId, cwd, workspaceId, tabId, initialCwd, initialCommands, isDark, hasValidSize])
 
   // Update theme when isDark changes or VS Code theme changes (without recreating terminal)
   useEffect(() => {
@@ -415,4 +479,4 @@ export function Terminal({
       />
     </div>
   )
-}
+})

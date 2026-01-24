@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/tooltip"
 import { IconDoubleChevronDown } from "@/components/ui/icons"
 import { Kbd } from "@/components/ui/kbd"
-import { Terminal } from "./terminal"
+import { Terminal, type TerminalRef } from "./terminal"
 import { TerminalTabs } from "./terminal-tabs"
+import { RunTerminalHeader } from "./run-terminal-header"
 import { getDefaultTerminalBg } from "./helpers"
 import {
   terminalSidebarOpenAtom,
@@ -23,12 +24,12 @@ import {
 } from "./atoms"
 import { codingTerminalPanelHeightAtom } from "@/features/agents/atoms"
 import { trpc } from "@/lib/trpc"
-import type { TerminalInstance } from "./types"
+import type { TerminalInstance, RunConfig } from "./types"
 
 // Animation constants
 const PANEL_ANIMATION_DURATION_SECONDS = 0 // Disabled for performance
 const PANEL_ANIMATION_DURATION_MS = 0
-const ANIMATION_BUFFER_MS = 0
+const ANIMATION_BUFFER_MS = 50 // Small buffer to ensure DOM layout is complete before xterm init
 
 interface TerminalBottomPanelProps {
   /** Chat ID - used to scope terminals to this chat */
@@ -37,6 +38,8 @@ interface TerminalBottomPanelProps {
   workspaceId: string
   tabId?: string
   initialCommands?: string[]
+  /** Project path for Run functionality - enables script detection */
+  projectPath?: string
 }
 
 /**
@@ -49,8 +52,9 @@ function generateTerminalId(): string {
 /**
  * Generate a paneId for TerminalManager
  */
-function generatePaneId(chatId: string, terminalId: string): string {
-  return `${chatId}:term:${terminalId}`
+function generatePaneId(chatId: string, terminalId: string, type: "shell" | "run" = "shell"): string {
+  const prefix = type === "run" ? "run" : "term"
+  return `${chatId}:${prefix}:${terminalId}`
 }
 
 /**
@@ -75,6 +79,7 @@ export function TerminalBottomPanel({
   workspaceId,
   tabId,
   initialCommands,
+  projectPath,
 }: TerminalBottomPanelProps) {
   const [isOpen, setIsOpen] = useAtom(terminalSidebarOpenAtom)
   const [allTerminals, setAllTerminals] = useAtom(terminalsAtom)
@@ -115,8 +120,11 @@ export function TerminalBottomPanel({
     [terminals, activeTerminalId],
   )
 
-  // tRPC mutation for killing terminal sessions
+  // tRPC mutations
   const killMutation = trpc.terminal.kill.useMutation()
+  const signalMutation = trpc.terminal.signal.useMutation()
+  const clearMutation = trpc.terminal.clearScrollback.useMutation()
+  const writeMutation = trpc.terminal.write.useMutation()
 
   // Refs to avoid callback recreation
   const chatIdRef = useRef(chatId)
@@ -126,13 +134,13 @@ export function TerminalBottomPanel({
   const activeTerminalIdRef = useRef(activeTerminalId)
   activeTerminalIdRef.current = activeTerminalId
 
-  // Create a new terminal - stable callback
+  // Create a new shell terminal - stable callback
   const createTerminal = useCallback(() => {
     const currentChatId = chatIdRef.current
     const currentTerminals = terminalsRef.current
 
     const id = generateTerminalId()
-    const paneId = generatePaneId(currentChatId, id)
+    const paneId = generatePaneId(currentChatId, id, "shell")
     const name = getNextTerminalName(currentTerminals)
 
     const newTerminal: TerminalInstance = {
@@ -140,6 +148,7 @@ export function TerminalBottomPanel({
       paneId,
       name,
       createdAt: Date.now(),
+      type: "shell",
     }
 
     setAllTerminals((prev) => ({
@@ -153,6 +162,64 @@ export function TerminalBottomPanel({
       [currentChatId]: id,
     }))
   }, [setAllTerminals, setAllActiveIds])
+
+  // Create a new run terminal - stable callback
+  const createRunTerminal = useCallback((runConfig: RunConfig) => {
+    const currentChatId = chatIdRef.current
+    const currentTerminals = terminalsRef.current
+
+    // Check if a run terminal with the same script already exists
+    const existingRun = currentTerminals.find(
+      t => t.type === "run" && t.runConfig?.scriptName === runConfig.scriptName
+    )
+
+    if (existingRun) {
+      // Switch to existing run terminal instead of creating a new one
+      setAllActiveIds((prev) => ({
+        ...prev,
+        [currentChatId]: existingRun.id,
+      }))
+      return existingRun.id
+    }
+
+    const id = generateTerminalId()
+    const paneId = generatePaneId(currentChatId, id, "run")
+
+    const newTerminal: TerminalInstance = {
+      id,
+      paneId,
+      name: runConfig.scriptName,
+      createdAt: Date.now(),
+      type: "run",
+      runConfig,
+      status: "running",
+    }
+
+    setAllTerminals((prev) => ({
+      ...prev,
+      [currentChatId]: [...(prev[currentChatId] || []), newTerminal],
+    }))
+
+    // Set as active and open panel
+    setAllActiveIds((prev) => ({
+      ...prev,
+      [currentChatId]: id,
+    }))
+    setIsOpen(true)
+
+    return id
+  }, [setAllTerminals, setAllActiveIds, setIsOpen])
+
+  // Update run terminal status
+  const updateRunStatus = useCallback((terminalId: string, status: "idle" | "running" | "stopped") => {
+    const currentChatId = chatIdRef.current
+    setAllTerminals((prev) => ({
+      ...prev,
+      [currentChatId]: (prev[currentChatId] || []).map((t) =>
+        t.id === terminalId ? { ...t, status } : t
+      ),
+    }))
+  }, [setAllTerminals])
 
   // Select a terminal - stable callback
   const selectTerminal = useCallback(
@@ -284,6 +351,58 @@ export function TerminalBottomPanel({
     setIsOpen(false)
   }, [setIsOpen])
 
+  // Terminal ref for scroll control
+  const terminalRef = useRef<TerminalRef | null>(null)
+
+  // Run terminal control handlers
+  const handleRunRestart = useCallback(async () => {
+    if (!activeTerminal?.runConfig || activeTerminal.type !== "run") return
+
+    // Update status to running
+    updateRunStatus(activeTerminal.id, "running")
+
+    // Send SIGTERM to stop current process
+    try {
+      await signalMutation.mutateAsync({ paneId: activeTerminal.paneId, signal: "SIGTERM" })
+    } catch {
+      // Ignore errors if process already exited
+    }
+
+    // Wait for process to exit
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Clear and re-execute command
+    await clearMutation.mutateAsync({ paneId: activeTerminal.paneId })
+    await writeMutation.mutateAsync({
+      paneId: activeTerminal.paneId,
+      data: activeTerminal.runConfig.command + "\n"
+    })
+  }, [activeTerminal, updateRunStatus, signalMutation, clearMutation, writeMutation])
+
+  const handleRunStop = useCallback(async () => {
+    if (!activeTerminal || activeTerminal.type !== "run") return
+
+    // Update status to stopped
+    updateRunStatus(activeTerminal.id, "stopped")
+
+    try {
+      await signalMutation.mutateAsync({ paneId: activeTerminal.paneId, signal: "SIGTERM" })
+    } catch {
+      // Ignore errors if process already exited
+    }
+  }, [activeTerminal, updateRunStatus, signalMutation])
+
+  const handleRunClear = useCallback(async () => {
+    if (!activeTerminal) return
+    // Clear scrollback on the backend - this will clear the terminal output
+    // Note: We don't call xterm.clear() directly due to potential crash with _renderService.dimensions
+    await clearMutation.mutateAsync({ paneId: activeTerminal.paneId })
+  }, [activeTerminal, clearMutation])
+
+  const handleScrollToBottom = useCallback(() => {
+    terminalRef.current?.scrollToBottom()
+  }, [])
+
   // Delay terminal rendering until animation completes to avoid xterm.js sizing issues
   const [canRenderTerminal, setCanRenderTerminal] = useState(false)
   const wasOpenRef = useRef(false)
@@ -379,15 +498,30 @@ export function TerminalBottomPanel({
               cwds={terminalCwds}
               initialCwd={cwd}
               terminalBg={terminalBg}
+              projectPath={projectPath}
               onSelectTerminal={selectTerminal}
               onCloseTerminal={closeTerminal}
               onCloseOtherTerminals={closeOtherTerminals}
               onCloseTerminalsToRight={closeTerminalsToRight}
               onCreateTerminal={createTerminal}
+              onCreateRunTerminal={createRunTerminal}
               onRenameTerminal={renameTerminal}
             />
           )}
         </div>
+
+        {/* Run Terminal Header - only for run type terminals */}
+        {activeTerminal?.type === "run" && (
+          <RunTerminalHeader
+            terminal={activeTerminal}
+            isRunning={activeTerminal.status === "running"}
+            terminalBg={terminalBg}
+            onRestart={handleRunRestart}
+            onStop={handleRunStop}
+            onClear={handleRunClear}
+            onScrollToBottom={handleScrollToBottom}
+          />
+        )}
 
         {/* Terminal Content */}
         <div
@@ -397,18 +531,25 @@ export function TerminalBottomPanel({
           {activeTerminal && canRenderTerminal ? (
             <motion.div
               key={activeTerminal.paneId}
-              className="h-full"
+              className="h-full flex flex-col"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0 }}
             >
               <Terminal
+                ref={terminalRef}
                 paneId={activeTerminal.paneId}
-                cwd={cwd}
+                cwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
                 workspaceId={workspaceId}
                 tabId={tabId}
-                initialCommands={initialCommands}
-                initialCwd={cwd}
+                initialCommands={activeTerminal.type === "run" && activeTerminal.runConfig
+                  ? [activeTerminal.runConfig.command]
+                  : initialCommands}
+                initialCwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
               />
             </motion.div>
           ) : (
