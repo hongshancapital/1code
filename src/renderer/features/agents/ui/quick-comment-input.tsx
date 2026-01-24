@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
-import { type TextSelectionSource } from "../context/text-selection-context"
+import { type TextSelectionSource, useTextSelection } from "../context/text-selection-context"
 import { cn } from "../../../lib/utils"
 
 interface QuickCommentInputProps {
@@ -23,6 +23,14 @@ export function QuickCommentInput({
   const [comment, setComment] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { unlockSelection } = useTextSelection()
+
+  // Unlock selection when component unmounts
+  useEffect(() => {
+    return () => {
+      unlockSelection()
+    }
+  }, [unlockSelection])
 
   // Auto-focus on mount
   useEffect(() => {
@@ -122,7 +130,7 @@ export function QuickCommentInput({
         {/* Preview of selected text */}
         <div className="px-2.5 py-1.5 border-b border-border bg-muted/30">
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-            <span>Replying to</span>
+            <span>Comment on</span>
             <span className="font-medium text-foreground/70">{sourceLabel}</span>
           </div>
           <div className="text-xs text-muted-foreground font-mono line-clamp-2">
@@ -139,7 +147,7 @@ export function QuickCommentInput({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Add your reply..."
+              placeholder="Add your comment..."
               className="flex-1 text-xs bg-transparent outline-none text-foreground placeholder:text-muted-foreground px-1"
             />
             <button
@@ -152,7 +160,7 @@ export function QuickCommentInput({
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               )}
             >
-              Send
+              Add
             </button>
           </div>
         </div>

@@ -777,3 +777,19 @@ export const workspaceDiffCacheAtomFamily = atomFamily((chatId: string) =>
     },
   ),
 )
+
+// Context comments for diff view - shared between chat input and diff gutter
+// These are comments from diffTextContexts that have a comment field
+export interface ContextCommentItem {
+  id: string
+  filePath: string
+  lineNumber?: number
+  lineType?: "old" | "new"
+  text: string // selected code
+  comment: string
+}
+export const contextCommentsAtom = atom<ContextCommentItem[]>([])
+
+// Callback atom for when a context comment is clicked in the diff gutter
+// This allows the diff view to notify the chat component to open edit dialog
+export const contextCommentClickedAtom = atom<string | null>(null)

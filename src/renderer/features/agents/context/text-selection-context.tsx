@@ -7,6 +7,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react"
 
@@ -25,6 +26,12 @@ export interface TextSelectionState {
 
 interface TextSelectionContextValue extends TextSelectionState {
   clearSelection: () => void
+  /** Lock the selection state to prevent it from being cleared when input is focused */
+  lockSelection: () => void
+  /** Unlock the selection state */
+  unlockSelection: () => void
+  /** Whether selection is currently locked */
+  isLocked: boolean
   // Legacy getters for backwards compatibility
   selectedMessageId: string | null
 }
@@ -53,46 +60,88 @@ function extractDiffLineInfo(element: Element): { lineNumber?: number; lineType?
   const row = element.closest("tr")
   if (!row) return {}
 
-  // @git-diff-view/react uses data attributes on line number cells
-  // Try to find line numbers from the row
-  const oldLineNumCell = row.querySelector("[data-line-num-old]")
-  const newLineNumCell = row.querySelector("[data-line-num-new]")
-
-  // Also check for class-based selectors as fallback
-  const lineNumCells = row.querySelectorAll(".diff-line-num")
-
   let lineNumber: number | undefined
   let lineType: "old" | "new" | undefined
 
-  // Prefer new line number if available
-  if (newLineNumCell) {
-    const numAttr = newLineNumCell.getAttribute("data-line-num-new")
-    if (numAttr) {
-      lineNumber = parseInt(numAttr, 10)
-      lineType = "new"
-    }
-  }
+  // Get data-side from row for type determination
+  const dataSide = row.getAttribute("data-side")
 
-  // Fall back to old line number
-  if (!lineNumber && oldLineNumCell) {
-    const numAttr = oldLineNumCell.getAttribute("data-line-num-old")
+  // First try: data-line-num attribute on spans (most accurate for actual line number)
+  // This is used in split view mode
+  const lineNumSpan = row.querySelector("[data-line-num]")
+  if (lineNumSpan) {
+    const numAttr = lineNumSpan.getAttribute("data-line-num")
     if (numAttr) {
-      lineNumber = parseInt(numAttr, 10)
-      lineType = "old"
-    }
-  }
-
-  // Try text content of line number cells as last resort
-  if (!lineNumber && lineNumCells.length > 0) {
-    for (let i = 0; i < lineNumCells.length; i++) {
-      const cell = lineNumCells[i]
-      const text = cell?.textContent?.trim()
-      if (text && /^\d+$/.test(text)) {
-        lineNumber = parseInt(text, 10)
-        // Determine type based on cell class or position
-        lineType = cell?.classList.contains("diff-line-old-num") ? "old" : "new"
-        break
+      const parsed = parseInt(numAttr, 10)
+      if (!isNaN(parsed) && parsed > 0) {
+        lineNumber = parsed
+        // Determine type from data-side
+        if (dataSide === "old") {
+          lineType = "old"
+        } else {
+          lineType = "new"
+        }
       }
+    }
+  }
+
+  // Second try: data-line-new-num and data-line-old-num attributes (unified view)
+  if (!lineNumber) {
+    const newLineNumSpan = row.querySelector("[data-line-new-num]")
+    const oldLineNumSpan = row.querySelector("[data-line-old-num]")
+
+    // Prefer new line number if available (for added/modified lines)
+    if (newLineNumSpan) {
+      const numAttr = newLineNumSpan.getAttribute("data-line-new-num")
+      if (numAttr) {
+        const parsed = parseInt(numAttr, 10)
+        if (!isNaN(parsed) && parsed > 0) {
+          lineNumber = parsed
+          lineType = "new"
+        }
+      }
+    }
+
+    // Fall back to old line number (for deleted lines)
+    if (!lineNumber && oldLineNumSpan) {
+      const numAttr = oldLineNumSpan.getAttribute("data-line-old-num")
+      if (numAttr) {
+        const parsed = parseInt(numAttr, 10)
+        if (!isNaN(parsed) && parsed > 0) {
+          lineNumber = parsed
+          lineType = "old"
+        }
+      }
+    }
+  }
+
+  // Third try: text content of cells containing numbers (for any view mode)
+  if (!lineNumber) {
+    // Look for td cells that contain line numbers
+    const tds = Array.from(row.querySelectorAll("td"))
+    for (const td of tds) {
+      // Skip cells with content class (these have the actual code)
+      if (td.className.includes("content")) continue
+
+      // Look for spans with numbers inside
+      const spans = Array.from(td.querySelectorAll("span"))
+      for (const span of spans) {
+        const text = span.textContent?.trim()
+        if (text && /^\d+$/.test(text)) {
+          const parsed = parseInt(text, 10)
+          if (!isNaN(parsed) && parsed > 0) {
+            lineNumber = parsed
+            // Determine type based on data-side or class
+            if (dataSide === "old" || td.className.includes("old")) {
+              lineType = "old"
+            } else {
+              lineType = "new"
+            }
+            break
+          }
+        }
+      }
+      if (lineNumber) break
     }
   }
 
@@ -107,6 +156,13 @@ export function TextSelectionProvider({
     source: null,
     selectionRect: null,
   })
+  const [isLocked, setIsLocked] = useState(false)
+  const isLockedRef = useRef(false)
+
+  // Keep ref in sync with state for use in event handlers
+  useEffect(() => {
+    isLockedRef.current = isLocked
+  }, [isLocked])
 
   const clearSelection = useCallback(() => {
     window.getSelection()?.removeAllRanges()
@@ -115,6 +171,15 @@ export function TextSelectionProvider({
       source: null,
       selectionRect: null,
     })
+    setIsLocked(false)
+  }, [])
+
+  const lockSelection = useCallback(() => {
+    setIsLocked(true)
+  }, [])
+
+  const unlockSelection = useCallback(() => {
+    setIsLocked(false)
   }, [])
 
   useEffect(() => {
@@ -128,6 +193,11 @@ export function TextSelectionProvider({
 
       rafId = requestAnimationFrame(() => {
         rafId = null
+
+        // Skip updates when selection is locked (e.g., when QuickCommentInput is open)
+        if (isLockedRef.current) {
+          return
+        }
 
         const selection = window.getSelection()
 
@@ -272,8 +342,11 @@ export function TextSelectionProvider({
   const contextValue = useMemo<TextSelectionContextValue>(() => ({
     ...state,
     clearSelection,
+    lockSelection,
+    unlockSelection,
+    isLocked,
     selectedMessageId,
-  }), [state, clearSelection, selectedMessageId])
+  }), [state, clearSelection, lockSelection, unlockSelection, isLocked, selectedMessageId])
 
   return (
     <TextSelectionContext.Provider value={contextValue}>

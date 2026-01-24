@@ -17,7 +17,7 @@ import {
 } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { agentsFocusedDiffFileAtom, filteredDiffFilesAtom, viewedFilesAtomFamily, type ViewedFileState } from "../atoms"
+import { agentsFocusedDiffFileAtom, filteredDiffFilesAtom, viewedFilesAtomFamily, contextCommentsAtom, contextCommentClickedAtom, type ViewedFileState } from "../atoms"
 import { DiffModeEnum, DiffView, DiffFile } from "@git-diff-view/react"
 import "@git-diff-view/react/styles/diff-view-pure.css"
 import { useTheme } from "next-themes"
@@ -382,6 +382,8 @@ interface FileDiffCardProps {
   chatId: string
   /** Comments for this file */
   fileComments: ReviewComment[]
+  /** Callback when clicking a context comment bubble */
+  onContextCommentClick?: (commentId: string) => void
 }
 
 // Custom comparator to prevent unnecessary re-renders
@@ -410,10 +412,13 @@ const fileDiffCardAreEqual = (
   // Comment state
   if (prev.chatId !== next.chatId) return false
   if (prev.fileComments.length !== next.fileComments.length) return false
-  // Deep compare comments (by id) for efficient checks
+  // Deep compare comments (by id and body) for efficient checks
   for (let i = 0; i < prev.fileComments.length; i++) {
     if (prev.fileComments[i]?.id !== next.fileComments[i]?.id) return false
+    if (prev.fileComments[i]?.body !== next.fileComments[i]?.body) return false
   }
+  // Context comment click handler reference comparison
+  if (prev.onContextCommentClick !== next.onContextCommentClick) return false
   return true
 }
 
@@ -435,6 +440,7 @@ const FileDiffCard = memo(function FileDiffCard({
   onToggleViewed,
   chatId,
   fileComments,
+  onContextCommentClick,
 }: FileDiffCardProps) {
   const diffViewRef = useRef<{ getDiffFileInstance: () => DiffFile } | null>(
     null,
@@ -784,6 +790,7 @@ const FileDiffCard = memo(function FileDiffCard({
                 diffViewContainerRef={diffContentRef}
                 comments={fileComments}
                 diffMode={diffMode === DiffModeEnum.Split ? "split" : "unified"}
+                onContextCommentClick={onContextCommentClick}
               />
             </div>
           )}
@@ -799,6 +806,16 @@ export interface DiffStats {
   deletions: number
   isLoading: boolean
   hasChanges: boolean
+}
+
+/** Context comment from chat input area (for displaying in diff gutter) */
+export interface ContextComment {
+  id: string
+  filePath: string
+  lineNumber?: number
+  lineType?: "old" | "new"
+  text: string // selected code
+  comment: string
 }
 
 interface AgentDiffViewProps {
@@ -835,6 +852,10 @@ interface AgentDiffViewProps {
   onViewedCountChange?: (count: number) => void
   /** Initial selected file path - used to filter on first render before atom updates */
   initialSelectedFile?: string | null
+  /** Context comments from chat input area (displayed as bubbles in gutter) */
+  contextComments?: ContextComment[]
+  /** Callback when clicking a context comment bubble */
+  onContextCommentClick?: (commentId: string) => void
 }
 
 /** Ref handle for controlling AgentDiffView from parent */
@@ -869,6 +890,8 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       onSelectNextFile,
       onViewedCountChange,
       initialSelectedFile,
+      contextComments,
+      onContextCommentClick,
     },
     ref,
   ) {
@@ -946,10 +969,59 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     // Get pending comments for this chat
     const pendingComments = useAtomValue(pendingCommentsAtomFamily(chatId))
 
-    // Get comments for a specific file
+    // Get context comments from atom (shared with chat input)
+    const contextCommentsFromAtom = useAtomValue(contextCommentsAtom)
+    const setContextCommentClicked = useSetAtom(contextCommentClickedAtom)
+
+    // Handle context comment click - set atom to notify chat component
+    const handleContextCommentClick = useCallback((commentId: string) => {
+      setContextCommentClicked(commentId)
+    }, [setContextCommentClicked])
+
+    // Convert context comments to ReviewComment format
+    // Use atom value if props not provided
+    const effectiveContextComments = contextComments ?? contextCommentsFromAtom
+    const contextCommentsAsReview = useMemo((): (ReviewComment & { isContextComment?: boolean })[] => {
+      if (!effectiveContextComments || effectiveContextComments.length === 0) return []
+      return effectiveContextComments.map((ctx) => ({
+        id: ctx.id,
+        filePath: ctx.filePath,
+        lineRange: {
+          startLine: ctx.lineNumber ?? 1,
+          endLine: ctx.lineNumber ?? 1,
+          side: ctx.lineType,
+        },
+        body: ctx.comment,
+        selectedCode: ctx.text,
+        source: "diff-view" as const,
+        status: "pending" as const,
+        createdAt: 0, // Use stable value to prevent re-renders
+        // Custom field to identify context comments
+        isContextComment: true,
+      }))
+    }, [effectiveContextComments])
+
+    // Get comments for a specific file (merging pending + context comments)
+    // Match by exact path or by filename (handles relative vs absolute path differences)
     const getFileComments = useCallback((filePath: string): ReviewComment[] => {
-      return pendingComments.filter((c) => c.filePath === filePath)
-    }, [pendingComments])
+      const normalizedPath = filePath.toLowerCase()
+      const fileName = filePath.split('/').pop()?.toLowerCase() || ''
+
+      const matchPath = (commentPath: string) => {
+        const normalizedCommentPath = commentPath.toLowerCase()
+        // Exact match
+        if (normalizedCommentPath === normalizedPath) return true
+        // One ends with the other (handles relative vs absolute)
+        if (normalizedCommentPath.endsWith('/' + normalizedPath) || normalizedPath.endsWith('/' + normalizedCommentPath)) return true
+        // Filename match as fallback
+        const commentFileName = commentPath.split('/').pop()?.toLowerCase() || ''
+        return commentFileName === fileName
+      }
+
+      const pending = pendingComments.filter((c) => matchPath(c.filePath))
+      const context = contextCommentsAsReview.filter((c) => matchPath(c.filePath))
+      return [...pending, ...context]
+    }, [pendingComments, contextCommentsAsReview])
 
     // Viewed files state for tracking reviewed files (GitHub-style)
     const [viewedFiles, setViewedFiles] = useAtom(viewedFilesAtomFamily(chatId))
@@ -2101,6 +2173,7 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
                         onToggleViewed={handleToggleViewed}
                         chatId={chatId}
                         fileComments={getFileComments(file.newPath !== "/dev/null" ? file.newPath : file.oldPath)}
+                        onContextCommentClick={onContextCommentClick ?? handleContextCommentClick}
                       />
                     </div>
                   </div>

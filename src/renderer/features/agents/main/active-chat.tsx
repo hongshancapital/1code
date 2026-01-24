@@ -3399,7 +3399,9 @@ const ChatViewInner = memo(function ChatViewInner({
         const preview = dtc.preview.replace(/[:\[\]]/g, "") // Sanitize preview
         const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
         const lineNum = dtc.lineNumber || 0
-        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}]`
+        // Include comment if present: encode it as base64 and append
+        const encodedComment = dtc.comment ? utf8ToBase64(dtc.comment) : ""
+        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}:${encodedComment}]`
       })
 
       // Add pasted text as pasted mentions (format: pasted:size:preview|filepath)
@@ -3558,7 +3560,9 @@ const ChatViewInner = memo(function ChatViewInner({
         const preview = dtc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
         const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
         const lineNum = dtc.lineNumber || 0
-        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}]`
+        // Include comment if present: encode it as base64 and append
+        const encodedComment = dtc.comment ? utf8ToBase64(dtc.comment) : ""
+        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}:${encodedComment}]`
       })
       mentionPrefix += diffMentions.join(" ") + " "
     }

@@ -24,6 +24,90 @@ import { setConnectionMethod } from "../../analytics"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 
+// UTF-8 safe base64 decoding (atob doesn't support Unicode)
+function base64ToUtf8(base64: string): string {
+  try {
+    const binString = atob(base64)
+    const bytes = Uint8Array.from(binString, (char) => char.codePointAt(0)!)
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return base64 // Return original if decode fails
+  }
+}
+
+/**
+ * Parse a diff mention and convert to readable format
+ * Format: diff-code:filepath:lineNumber:preview:base64_full_text:base64_comment
+ */
+function parseDiffMention(content: string): { text: string; hasComment: boolean } {
+  const parts = content.split(":")
+  if (parts.length < 4) {
+    return { text: content, hasComment: false }
+  }
+
+  const filePath = parts[0] || ""
+  const lineNumber = parts[1] || ""
+  // parts[2] is preview (not needed, we use full text)
+  const encodedText = parts[3] || ""
+  const encodedComment = parts[4] || ""
+
+  let fullText = ""
+  try {
+    if (encodedText) {
+      fullText = base64ToUtf8(encodedText)
+    }
+  } catch {
+    fullText = parts[2] || "" // Fallback to preview
+  }
+
+  let comment = ""
+  try {
+    if (encodedComment) {
+      comment = base64ToUtf8(encodedComment)
+    }
+  } catch {
+    // Ignore decode errors for comment
+  }
+
+  const fileName = filePath.split("/").pop() || filePath
+  const lineInfo = lineNumber && lineNumber !== "0" ? ` (line ${lineNumber})` : ""
+
+  if (comment) {
+    return {
+      text: `[Code Review Comment on ${fileName}${lineInfo}]\nUser's comment: "${comment}"\nReferenced code:\n\`\`\`\n${fullText}\n\`\`\``,
+      hasComment: true,
+    }
+  } else {
+    return {
+      text: `[Code Reference from ${fileName}${lineInfo}]\n\`\`\`\n${fullText}\n\`\`\``,
+      hasComment: false,
+    }
+  }
+}
+
+/**
+ * Parse a quote mention and convert to readable format
+ * Format: quote:preview:base64_full_text
+ */
+function parseQuoteMention(content: string): string {
+  const separatorIdx = content.indexOf(":")
+  if (separatorIdx === -1) {
+    return `[Quoted text]\n"${content}"`
+  }
+
+  const encodedText = content.slice(separatorIdx + 1)
+  let fullText = content.slice(0, separatorIdx) // Default to preview
+  try {
+    if (encodedText) {
+      fullText = base64ToUtf8(encodedText)
+    }
+  } catch {
+    // Keep preview as fallback
+  }
+
+  return `[Quoted text]\n"${fullText}"`
+}
+
 /**
  * Parse @[agent:name], @[skill:name], and @[tool:name] mentions from prompt text
  * Returns the cleaned prompt and lists of mentioned agents/skills/tools
@@ -83,7 +167,39 @@ function parseMentions(prompt: string): {
     .replace(/@\[agent:[^\]]+\]/g, "")
     .replace(/@\[skill:[^\]]+\]/g, "")
     .replace(/@\[tool:[^\]]+\]/g, "")
-    .trim()
+
+  // Convert diff-code mentions to readable format with code review comments
+  const diffMentionRegex = /@\[diff-code:([^\]]+)\]/g
+  const diffContexts: string[] = []
+  cleanedPrompt = cleanedPrompt.replace(diffMentionRegex, (_, content) => {
+    const { text } = parseDiffMention(content)
+    diffContexts.push(text)
+    return "" // Remove from main text, will be prepended as context
+  })
+
+  // Convert quote mentions to readable format
+  const quoteMentionRegex = /@\[quote:([^\]]+)\]/g
+  const quoteContexts: string[] = []
+  cleanedPrompt = cleanedPrompt.replace(quoteMentionRegex, (_, content) => {
+    const text = parseQuoteMention(content)
+    quoteContexts.push(text)
+    return "" // Remove from main text, will be prepended as context
+  })
+
+  cleanedPrompt = cleanedPrompt.trim()
+
+  // Prepend code review comments and quotes as context
+  const contextParts: string[] = []
+  if (diffContexts.length > 0) {
+    contextParts.push(diffContexts.join("\n\n"))
+  }
+  if (quoteContexts.length > 0) {
+    contextParts.push(quoteContexts.join("\n\n"))
+  }
+
+  if (contextParts.length > 0) {
+    cleanedPrompt = `${contextParts.join("\n\n")}\n\n${cleanedPrompt}`
+  }
 
   // Transform file mentions to readable paths for the agent
   // @[file:local:path] -> path (relative to project)

@@ -3,7 +3,7 @@ import type {
   UploadedImage,
   UploadedFile,
 } from "../hooks/use-agents-file-upload"
-import type { SelectedTextContext } from "./queue-utils"
+import type { SelectedTextContext, DiffTextContext } from "./queue-utils"
 
 // Constants
 export const DRAFTS_STORAGE_KEY = "agent-drafts-global"
@@ -38,6 +38,17 @@ export interface DraftTextContext {
   createdAt: string // ISO string instead of Date
 }
 
+export interface DraftDiffTextContext {
+  id: string
+  text: string
+  filePath: string
+  lineNumber?: number
+  lineType?: "old" | "new"
+  preview: string
+  createdAt: string // ISO string instead of Date
+  comment?: string
+}
+
 // Types
 export interface DraftContent {
   text: string
@@ -45,6 +56,7 @@ export interface DraftContent {
   images?: DraftImage[]
   files?: DraftFile[]
   textContexts?: DraftTextContext[]
+  diffTextContexts?: DraftDiffTextContext[]
 }
 
 export interface DraftProject {
@@ -65,6 +77,7 @@ export interface NewChatDraft {
   images?: DraftImage[]
   files?: DraftFile[]
   textContexts?: DraftTextContext[]
+  diffTextContexts?: DraftDiffTextContext[]
 }
 
 // SubChatDraft uses key format: "chatId:subChatId"
@@ -414,6 +427,27 @@ export function toDraftTextContext(
 }
 
 /**
+ * Convert DiffTextContext to DraftDiffTextContext
+ */
+export function toDraftDiffTextContext(
+  ctx: DiffTextContext
+): DraftDiffTextContext {
+  return {
+    id: ctx.id,
+    text: ctx.text,
+    filePath: ctx.filePath,
+    lineNumber: ctx.lineNumber,
+    lineType: ctx.lineType,
+    preview: ctx.preview,
+    createdAt:
+      ctx.createdAt instanceof Date
+        ? ctx.createdAt.toISOString()
+        : String(ctx.createdAt),
+    comment: ctx.comment,
+  }
+}
+
+/**
  * Revoke blob URLs associated with a draft item
  */
 export function revokeDraftBlobUrls(draftId: string): void {
@@ -520,6 +554,24 @@ export function fromDraftTextContext(
 }
 
 /**
+ * Restore DiffTextContext from DraftDiffTextContext
+ */
+export function fromDraftDiffTextContext(
+  draft: DraftDiffTextContext
+): DiffTextContext {
+  return {
+    id: draft.id,
+    text: draft.text,
+    filePath: draft.filePath,
+    lineNumber: draft.lineNumber,
+    lineType: draft.lineType,
+    preview: draft.preview,
+    createdAt: new Date(draft.createdAt),
+    comment: draft.comment,
+  }
+}
+
+/**
  * Full draft data including attachments
  */
 export interface FullDraftData {
@@ -527,6 +579,7 @@ export interface FullDraftData {
   images: UploadedImage[]
   files: UploadedFile[]
   textContexts: SelectedTextContext[]
+  diffTextContexts: DiffTextContext[]
 }
 
 /**
@@ -553,6 +606,7 @@ export function getSubChatDraftFull(
         ?.map(fromDraftFile)
         .filter((f): f is UploadedFile => f !== null) ?? [],
     textContexts: draft.textContexts?.map(fromDraftTextContext) ?? [],
+    diffTextContexts: draft.diffTextContexts?.map(fromDraftDiffTextContext) ?? [],
   }
 }
 
@@ -567,6 +621,7 @@ export async function saveSubChatDraftWithAttachments(
     images?: UploadedImage[]
     files?: UploadedFile[]
     textContexts?: SelectedTextContext[]
+    diffTextContexts?: DiffTextContext[]
   }
 ): Promise<{ success: boolean; error?: string }> {
   const globalDrafts = loadGlobalDrafts()
@@ -576,7 +631,8 @@ export async function saveSubChatDraftWithAttachments(
     text.trim() ||
     (options?.images?.length ?? 0) > 0 ||
     (options?.files?.length ?? 0) > 0 ||
-    (options?.textContexts?.length ?? 0) > 0
+    (options?.textContexts?.length ?? 0) > 0 ||
+    (options?.diffTextContexts?.length ?? 0) > 0
 
   if (!hasContent) {
     delete globalDrafts[key]
@@ -597,6 +653,7 @@ export async function saveSubChatDraftWithAttachments(
     : []
 
   const draftTextContexts = options?.textContexts?.map(toDraftTextContext) ?? []
+  const draftDiffTextContexts = options?.diffTextContexts?.map(toDraftDiffTextContext) ?? []
 
   const draft: DraftContent = {
     text,
@@ -604,6 +661,7 @@ export async function saveSubChatDraftWithAttachments(
     ...(draftImages.length > 0 && { images: draftImages }),
     ...(draftFiles.length > 0 && { files: draftFiles }),
     ...(draftTextContexts.length > 0 && { textContexts: draftTextContexts }),
+    ...(draftDiffTextContexts.length > 0 && { diffTextContexts: draftDiffTextContexts }),
   }
 
   // Check storage limits before saving

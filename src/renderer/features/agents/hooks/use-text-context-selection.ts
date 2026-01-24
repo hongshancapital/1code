@@ -9,9 +9,10 @@ export interface UseTextContextSelectionReturn {
   textContexts: SelectedTextContext[]
   diffTextContexts: DiffTextContext[]
   addTextContext: (text: string, sourceMessageId: string) => void
-  addDiffTextContext: (text: string, filePath: string, lineNumber?: number, lineType?: "old" | "new") => void
+  addDiffTextContext: (text: string, filePath: string, lineNumber?: number, lineType?: "old" | "new", comment?: string) => void
   removeTextContext: (id: string) => void
   removeDiffTextContext: (id: string) => void
+  updateDiffTextContextComment: (id: string, comment: string) => void
   clearTextContexts: () => void
   clearDiffTextContexts: () => void
   // Ref for accessing current value in callbacks without re-renders
@@ -58,14 +59,14 @@ export function useTextContextSelection(): UseTextContextSelectionReturn {
   )
 
   const addDiffTextContext = useCallback(
-    (text: string, filePath: string, lineNumber?: number, lineType?: "old" | "new") => {
+    (text: string, filePath: string, lineNumber?: number, lineType?: "old" | "new", comment?: string) => {
       const trimmedText = text.trim()
       if (!trimmedText) return
 
-      // Prevent duplicates
+      // Prevent duplicates (same text + file + comment)
       const isDuplicate = diffTextContextsRef.current.some(
         (ctx) =>
-          ctx.text === trimmedText && ctx.filePath === filePath
+          ctx.text === trimmedText && ctx.filePath === filePath && ctx.comment === comment
       )
       if (isDuplicate) return
 
@@ -77,9 +78,21 @@ export function useTextContextSelection(): UseTextContextSelectionReturn {
         lineType,
         preview: createTextPreview(trimmedText),
         createdAt: new Date(),
+        comment,
       }
 
       setDiffTextContexts((prev) => [...prev, newContext])
+    },
+    []
+  )
+
+  const updateDiffTextContextComment = useCallback(
+    (id: string, comment: string) => {
+      setDiffTextContexts((prev) =>
+        prev.map((ctx) =>
+          ctx.id === id ? { ...ctx, comment } : ctx
+        )
+      )
     },
     []
   )
@@ -124,6 +137,7 @@ export function useTextContextSelection(): UseTextContextSelectionReturn {
     addDiffTextContext,
     removeTextContext,
     removeDiffTextContext,
+    updateDiffTextContextComment,
     clearTextContexts,
     clearDiffTextContexts,
     textContextsRef,

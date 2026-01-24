@@ -45,6 +45,8 @@ export interface DiffTextContext {
   lineType?: "old" | "new"
   preview: string // Truncated for display
   createdAt: Date
+  /** User's comment/feedback on this code selection */
+  comment?: string
 }
 
 export interface QueuedDiffTextContext {
@@ -53,6 +55,8 @@ export interface QueuedDiffTextContext {
   filePath: string
   lineNumber?: number
   lineType?: "old" | "new"
+  /** User's comment/feedback on this code selection */
+  comment?: string
 }
 
 export type AgentQueueItem = {
@@ -152,6 +156,7 @@ export function toQueuedDiffTextContext(ctx: DiffTextContext): QueuedDiffTextCon
     filePath: ctx.filePath,
     lineNumber: ctx.lineNumber,
     lineType: ctx.lineType,
+    comment: ctx.comment,
   }
 }
 

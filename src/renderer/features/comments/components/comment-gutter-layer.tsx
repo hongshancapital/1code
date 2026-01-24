@@ -6,8 +6,7 @@ import {
   useState,
   type RefObject,
 } from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { createPortal } from "react-dom"
+import { useAtom } from "jotai"
 import { activeCommentInputAtom, lineSelectionAtom } from "../atoms"
 import { CommentIndicator, CommentAddButton } from "./comment-indicator"
 import { CommentInputPopup } from "./comment-input-popup"
@@ -28,6 +27,8 @@ interface CommentGutterLayerProps {
   diffMode: "unified" | "split"
   /** Callback when a comment is added */
   onCommentAdded?: (comment: ReviewComment) => void
+  /** Callback when clicking a context comment bubble */
+  onContextCommentClick?: (commentId: string) => void
 }
 
 interface LineInfo {
@@ -53,6 +54,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
   comments,
   diffMode,
   onCommentAdded,
+  onContextCommentClick,
 }: CommentGutterLayerProps) {
   const [activeInput, setActiveInput] = useAtom(activeCommentInputAtom)
   const [lineSelection, setLineSelection] = useAtom(lineSelectionAtom)
@@ -70,6 +72,8 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
 
     const scanLines = () => {
       const lines: LineInfo[] = []
+      // Track seen line+side combinations to avoid duplicates (which cause React key warnings)
+      const seenKeys = new Set<string>()
 
       // Find all line number cells in the diff view
       // @git-diff-view uses .diff-line-num class for line numbers
@@ -105,6 +109,11 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
           }
         }
 
+        // Deduplicate: only keep the first occurrence of each lineNumber-side combination
+        const key = `${lineNumber}-${side}`
+        if (seenKeys.has(key)) return
+        seenKeys.add(key)
+
         const rect = cell.getBoundingClientRect()
         lines.push({
           element: cell as HTMLElement,
@@ -137,46 +146,6 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
       window.removeEventListener("resize", handleScroll)
     }
   }, [diffViewContainerRef, diffMode])
-
-  // Handle mouse move to detect hovered line
-  const handleMouseMove = useCallback(
-    (event: React.MouseEvent) => {
-      if (isDragging.current) return
-
-      const mouseY = event.clientY
-      const mouseX = event.clientX
-
-      // Find the line closest to the mouse position
-      let closestLine: LineInfo | null = null
-      let closestDistance = Infinity
-
-      for (const line of lineElements) {
-        // Check if mouse is near the line number cell
-        if (
-          mouseY >= line.rect.top &&
-          mouseY <= line.rect.bottom &&
-          mouseX >= line.rect.left - 30 && // Allow some padding for the + button
-          mouseX <= line.rect.right + 10
-        ) {
-          const distance = Math.abs(mouseY - (line.rect.top + line.rect.height / 2))
-          if (distance < closestDistance) {
-            closestDistance = distance
-            closestLine = line
-          }
-        }
-      }
-
-      setHoveredLine(closestLine)
-    },
-    [lineElements]
-  )
-
-  // Handle mouse leave
-  const handleMouseLeave = useCallback(() => {
-    if (!isDragging.current) {
-      setHoveredLine(null)
-    }
-  }, [])
 
   // Handle click on add button (single line)
   const handleAddClick = useCallback(
@@ -323,16 +292,37 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     [activeInput, addComment, closeCommentInput, onCommentAdded]
   )
 
-  // Check if a line has comments
-  const getCommentCountForLine = useCallback(
+  // Check if a line has comments and return the comments info
+  const getCommentsForLine = useCallback(
     (lineNumber: number, side: "old" | "new") => {
       return comments.filter((c) => {
         const { startLine, endLine, side: cSide } = c.lineRange
         const inRange = lineNumber >= startLine && lineNumber <= endLine
         return inRange && (!cSide || cSide === side)
-      }).length
+      })
     },
     [comments]
+  )
+
+  // Get comment count for display
+  const getCommentCountForLine = useCallback(
+    (lineNumber: number, side: "old" | "new") => {
+      return getCommentsForLine(lineNumber, side).length
+    },
+    [getCommentsForLine]
+  )
+
+  // Handle click on comment indicator
+  const handleCommentIndicatorClick = useCallback(
+    (lineNumber: number, side: "old" | "new") => {
+      const lineComments = getCommentsForLine(lineNumber, side)
+      // Find context comment (has isContextComment flag)
+      const contextComment = lineComments.find((c) => (c as any).isContextComment)
+      if (contextComment && onContextCommentClick) {
+        onContextCommentClick(contextComment.id)
+      }
+    },
+    [getCommentsForLine, onContextCommentClick]
   )
 
   // Determine if a line is in the current selection
@@ -351,13 +341,8 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
 
   return (
     <>
-      {/* Invisible overlay for mouse tracking */}
-      <div
-        className="absolute inset-0 z-10 pointer-events-none"
-        style={{ pointerEvents: "auto" }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      >
+      {/* Overlay layer - pointer-events: none so it doesn't block diff view interaction */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
         {/* Render indicators and buttons for each line */}
         {lineElements.map((line) => {
           const commentCount = getCommentCountForLine(line.lineNumber, line.side)
@@ -373,7 +358,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
             <div
               key={`${line.lineNumber}-${line.side}`}
               className={cn(
-                "absolute flex items-center gap-0.5 group/line",
+                "absolute flex items-center gap-0.5",
                 isInSelection && "bg-blue-500/20"
               )}
               style={{
@@ -381,7 +366,11 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
                 left: `${left}px`,
                 height: `${line.rect.height}px`,
                 width: "24px",
+                // Enable pointer events only for this line's gutter area
+                pointerEvents: "auto",
               }}
+              onMouseEnter={() => setHoveredLine(line)}
+              onMouseLeave={() => setHoveredLine(null)}
             >
               {/* Comment indicator for existing comments */}
               {commentCount > 0 && (
@@ -389,6 +378,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
                   count={commentCount}
                   size="sm"
                   className="absolute left-0"
+                  onClick={() => handleCommentIndicatorClick(line.lineNumber, line.side)}
                 />
               )}
 
@@ -397,7 +387,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
                 <CommentAddButton
                   onClick={(e) => handleAddClick(line, e)}
                   onMouseDown={(e) => handleMouseDown(line, e)}
-                  className="absolute left-0 opacity-100"
+                  className="absolute left-0"
                 />
               )}
             </div>

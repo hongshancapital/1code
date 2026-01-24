@@ -15,7 +15,7 @@ export function TextSelectionPopover({
   onQuickComment,
   onFocusInput,
 }: TextSelectionPopoverProps) {
-  const { selectedText, source, selectionRect, clearSelection } =
+  const { selectedText, source, selectionRect, clearSelection, lockSelection } =
     useTextSelection()
   const [isVisible, setIsVisible] = useState(false)
   const [isMouseDown, setIsMouseDown] = useState(false)
@@ -35,11 +35,12 @@ export function TextSelectionPopover({
 
   const handleQuickComment = useCallback(() => {
     if (selectedText && source && selectionRect && onQuickComment) {
+      // Lock selection to prevent it from being cleared when input is focused
+      lockSelection()
       onQuickComment(selectedText, source, selectionRect)
       setIsVisible(false)
-      // Don't clear selection - QuickCommentInput will handle it after submit
     }
-  }, [selectedText, source, selectionRect, onQuickComment])
+  }, [selectedText, source, selectionRect, onQuickComment, lockSelection])
 
   // Track mouse down/up to know when selection is complete
   useEffect(() => {
@@ -85,15 +86,18 @@ export function TextSelectionPopover({
 
   // Calculate position - above the selection by default, below if not enough space
   const viewportWidth = window.innerWidth
-  const popoverWidth = 120
   const popoverHeight = 28
+
+  // Calculate actual width based on content
+  const hasCommentButton = onQuickComment && (source.type === "diff" || source.type === "tool-edit")
+  const popoverWidthEstimate = hasCommentButton ? 220 : 120
+
   let left = selectionRect.left + selectionRect.width / 2
 
   // Clamp left position to prevent overflow
-  left = Math.max(popoverWidth / 2 + 8, Math.min(left, viewportWidth - popoverWidth / 2 - 8))
+  left = Math.max(popoverWidthEstimate / 2 + 8, Math.min(left, viewportWidth - popoverWidthEstimate / 2 - 8))
 
   // Calculate actual left position accounting for centering
-  const popoverWidthEstimate = onQuickComment && (source.type === "diff" || source.type === "tool-edit") ? 160 : 100
   const centeredLeft = left - popoverWidthEstimate / 2
 
   // Position above by default, below if not enough space above
@@ -122,22 +126,22 @@ export function TextSelectionPopover({
       style={style}
       className={animationClass}
     >
-      <div className="flex items-center gap-0.5 rounded-md border border-border bg-popover px-0.5 py-0.5 shadow-lg">
+      <div className="flex items-center gap-0.5 rounded-md border border-border bg-popover px-1 py-0.5 shadow-lg whitespace-nowrap">
         <button
           onClick={handleAddToContext}
-          className="rounded px-1.5 py-0.5 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97]"
+          className="rounded px-2 py-1 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97] whitespace-nowrap"
         >
           Add to context
         </button>
-        {/* Quick comment button shows for diff and tool-edit selections */}
+        {/* Comment button shows for diff and tool-edit selections */}
         {onQuickComment && (source.type === "diff" || source.type === "tool-edit") && (
           <>
-            <div className="w-px h-3 bg-border" />
+            <div className="w-px h-4 bg-border flex-shrink-0" />
             <button
               onClick={handleQuickComment}
-              className="rounded px-1.5 py-0.5 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97]"
+              className="rounded px-2 py-1 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97] whitespace-nowrap"
             >
-              Reply
+              Comment
             </button>
           </>
         )}
