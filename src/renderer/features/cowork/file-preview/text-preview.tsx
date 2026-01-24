@@ -1,24 +1,39 @@
-import { useEffect, useState, memo } from "react"
+import { useEffect, useState, useRef, memo, lazy, Suspense, useCallback } from "react"
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { Loader2 } from "lucide-react"
 import { CodeWithLineNumbers } from "../../comments/components/code-with-line-numbers"
 import type { ReviewComment } from "../../comments/types"
 
+// Lazy load Monaco Editor to reduce initial bundle size
+const CodeEditor = lazy(() =>
+  import("./code-editor").then((m) => ({ default: m.CodeEditor }))
+)
+
 interface TextPreviewProps {
   content: string
   fileName: string
   className?: string
+  /** Enable edit mode with Monaco Editor */
+  editable?: boolean
+  /** File path for saving (required when editable is true) */
+  filePath?: string
+  /** Callback when file is saved */
+  onSave?: () => void
+  /** Callback when dirty state changes */
+  onDirtyChange?: (dirty: boolean) => void
   /** Enable comment mode with line numbers and comment controls */
   enableComments?: boolean
   /** Chat ID for comment storage (required when enableComments is true) */
   chatId?: string
-  /** File path for comment association (required when enableComments is true) */
-  filePath?: string
   /** Existing comments for this file */
   comments?: ReviewComment[]
   /** Callback when a comment is added */
   onCommentAdded?: (comment: ReviewComment) => void
+  /** Line number to scroll to */
+  scrollToLine?: number | null
+  /** Text to highlight in the content */
+  highlightText?: string | null
 }
 
 // Map file extensions to Shiki language identifiers
@@ -154,22 +169,50 @@ function getLanguageFromFileName(fileName: string): string {
 }
 
 /**
- * TextPreview - Code file preview with optional comment support
+ * TextPreview - Code file preview with optional edit mode and comment support
  *
- * When `enableComments` is true, displays with line numbers and comment controls.
- * Otherwise, renders basic syntax highlighted code.
+ * Modes:
+ * - `editable=true`: Monaco Editor with full editing capabilities
+ * - `enableComments=true`: Shiki preview with line numbers and comment controls
+ * - Default: Basic Shiki syntax highlighted code (read-only)
  */
 export const TextPreview = memo(function TextPreview({
   content,
   fileName,
   className,
+  editable = false,
+  filePath,
+  onSave,
+  onDirtyChange,
   enableComments = false,
   chatId,
-  filePath,
   comments = [],
   onCommentAdded,
+  scrollToLine,
+  highlightText,
 }: TextPreviewProps) {
-  // If comments are enabled and required props are provided, use CodeWithLineNumbers
+  // Edit mode: Use Monaco Editor
+  if (editable && filePath) {
+    return (
+      <Suspense
+        fallback={
+          <div className={cn("flex items-center justify-center h-full", className)}>
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        }
+      >
+        <CodeEditor
+          filePath={filePath}
+          content={content}
+          className={className}
+          onSave={onSave}
+          onDirtyChange={onDirtyChange}
+        />
+      </Suspense>
+    )
+  }
+
+  // Comment mode: Use CodeWithLineNumbers
   if (enableComments && chatId && filePath) {
     return (
       <CodeWithLineNumbers
@@ -184,34 +227,47 @@ export const TextPreview = memo(function TextPreview({
     )
   }
 
-  // Basic syntax highlighted preview (no comments)
+  // Default: Basic syntax highlighted preview (no comments)
   return (
     <BasicTextPreview
       content={content}
       fileName={fileName}
       className={className}
+      scrollToLine={scrollToLine}
+      highlightText={highlightText}
     />
   )
 })
 
 /**
- * BasicTextPreview - Simple syntax highlighted code without line numbers
+ * BasicTextPreview - Simple syntax highlighted code with line numbers, scroll-to-line and highlight support
  */
 const BasicTextPreview = memo(function BasicTextPreview({
   content,
   fileName,
   className,
+  scrollToLine,
+  highlightText,
 }: {
   content: string
   fileName: string
   className?: string
+  scrollToLine?: number | null
+  highlightText?: string | null
 }) {
-  const [html, setHtml] = useState<string>("")
+  const [highlightedLines, setHighlightedLines] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const hasScrolledRef = useRef(false)
 
+  // Split content into lines
+  const lines = content.split("\n")
+
+  // Highlight code using Shiki
   useEffect(() => {
     let cancelled = false
+    hasScrolledRef.current = false // Reset scroll flag when content changes
 
     async function highlight() {
       setIsLoading(true)
@@ -219,23 +275,45 @@ const BasicTextPreview = memo(function BasicTextPreview({
 
       try {
         const lang = getLanguageFromFileName(fileName)
+
+        // Highlight full content then split
         const result = await codeToHtml(content, {
           lang,
           theme: "github-dark-default",
         })
 
         if (!cancelled) {
-          setHtml(result)
+          // Parse the HTML and extract line contents
+          // Shiki outputs a single <code> block, we need to split by lines
+          const codeMatch = result.match(/<code[^>]*>([\s\S]*?)<\/code>/i)
+          if (codeMatch) {
+            // Split the inner HTML by newline, preserving HTML tags
+            const innerHtml = codeMatch[1]
+            const lineHtmls = innerHtml.split("\n")
+            setHighlightedLines(lineHtmls)
+          } else {
+            // Fallback: split plain content
+            setHighlightedLines(
+              lines.map((line) =>
+                line
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;") || "&nbsp;"
+              )
+            )
+          }
         }
       } catch (err) {
         console.error("Syntax highlighting error:", err)
         if (!cancelled) {
           // Fallback to plain text
-          setHtml(
-            `<pre class="shiki"><code>${content
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")}</code></pre>`
+          setHighlightedLines(
+            lines.map((line) =>
+              line
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;") || "&nbsp;"
+            )
           )
         }
       } finally {
@@ -251,6 +329,41 @@ const BasicTextPreview = memo(function BasicTextPreview({
       cancelled = true
     }
   }, [content, fileName])
+
+  // Scroll to line when specified
+  useEffect(() => {
+    if (scrollToLine && !isLoading && containerRef.current && !hasScrolledRef.current) {
+      const lineElement = containerRef.current.querySelector(`[data-line="${scrollToLine}"]`)
+      if (lineElement) {
+        // Wait a tick for DOM to settle
+        requestAnimationFrame(() => {
+          lineElement.scrollIntoView({ behavior: "smooth", block: "center" })
+          hasScrolledRef.current = true
+        })
+      }
+    }
+  }, [scrollToLine, isLoading, highlightedLines])
+
+  // Function to highlight text within a line
+  const highlightLineText = useCallback((lineHtml: string, searchText: string | null | undefined): string => {
+    if (!searchText) return lineHtml
+
+    // Escape special regex characters
+    const escaped = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    // Case insensitive search
+    const regex = new RegExp(`(${escaped})`, "gi")
+
+    // We need to be careful not to replace text inside HTML tags
+    // Split by HTML tags, process text parts only
+    const parts = lineHtml.split(/(<[^>]+>)/g)
+    const result = parts.map((part) => {
+      // If it's an HTML tag, leave it unchanged
+      if (part.startsWith("<")) return part
+      // Replace matches in text content
+      return part.replace(regex, '<mark class="bg-yellow-400/60 text-inherit rounded px-0.5">$1</mark>')
+    })
+    return result.join("")
+  }, [])
 
   if (isLoading) {
     return (
@@ -270,11 +383,43 @@ const BasicTextPreview = memo(function BasicTextPreview({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        "h-full overflow-auto text-sm [&_pre]:p-4 [&_pre]:m-0 [&_pre]:min-h-full [&_pre]:bg-transparent [&_code]:font-mono [&_code]:text-[13px] [&_code]:leading-relaxed",
+        "h-full overflow-auto font-mono text-[13px] leading-relaxed",
         className
       )}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    >
+      <table className="w-full border-collapse">
+        <tbody>
+          {highlightedLines.map((lineHtml, index) => {
+            const lineNumber = index + 1
+            const isTargetLine = scrollToLine === lineNumber
+            const processedHtml = highlightLineText(lineHtml, highlightText)
+
+            return (
+              <tr
+                key={lineNumber}
+                data-line={lineNumber}
+                className={cn(
+                  "group/line",
+                  isTargetLine && "bg-yellow-500/20"
+                )}
+              >
+                {/* Line number */}
+                <td className="w-12 text-right pr-3 select-none align-top text-muted-foreground/60 border-r border-border/40">
+                  <span className="text-xs tabular-nums">{lineNumber}</span>
+                </td>
+
+                {/* Code content */}
+                <td
+                  className="pl-4 whitespace-pre"
+                  dangerouslySetInnerHTML={{ __html: processedHtml || "&nbsp;" }}
+                />
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 })

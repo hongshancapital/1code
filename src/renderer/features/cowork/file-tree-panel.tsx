@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback, useEffect } from "react"
-import { useAtom, useSetAtom } from "jotai"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
+import { useAtom, useSetAtom, useAtomValue } from "jotai"
 import { trpc } from "../../lib/trpc"
 import { getFileIconByExtension } from "../agents/mentions/agents-file-mention"
 import {
@@ -14,14 +14,39 @@ import {
   RefreshCw,
   Loader2,
   AtSign,
+  FileSearch,
+  ArrowLeft,
+  FileText,
+  Filter,
+  MoreHorizontal,
+  ChevronsUpDown,
+  ChevronsDownUp,
 } from "lucide-react"
 import { Input } from "../../components/ui/input"
 import { Button } from "../../components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu"
 import { cn } from "../../lib/utils"
 import {
   fileTreeExpandedPathsAtom,
   fileTreeSearchQueryAtom,
+  fileTreeSavedExpandedPathsAtom,
   pendingFileReferenceAtom,
+  contentSearchActiveAtom,
+  contentSearchQueryAtom,
+  contentSearchPatternAtom,
+  contentSearchCaseSensitiveAtom,
+  contentSearchLoadingAtom,
+  contentSearchResultsAtom,
+  contentSearchToolAtom,
+  filePreviewPathAtom,
+  filePreviewLineAtom,
+  filePreviewHighlightAtom,
+  type ContentSearchResult,
 } from "./atoms"
 
 // ============================================================================
@@ -37,7 +62,7 @@ interface DirectoryEntry {
 interface FileTreePanelProps {
   projectPath?: string
   onClose?: () => void
-  onFileSelect?: (path: string) => void
+  onFileSelect?: (path: string, line?: number) => void
   showHeader?: boolean
 }
 
@@ -50,6 +75,7 @@ interface LazyDirectoryNodeProps {
   projectPath: string
   depth: number
   expandedPaths: Set<string>
+  matchingPaths: Set<string> // Paths that match the search query
   onToggle: (path: string) => void
   onSelect: (path: string, type: "file" | "folder") => void
   onReference: (path: string, name: string, type: "file" | "folder") => void
@@ -61,6 +87,7 @@ function LazyDirectoryNode({
   projectPath,
   depth,
   expandedPaths,
+  matchingPaths,
   onToggle,
   onSelect,
   onReference,
@@ -70,8 +97,19 @@ function LazyDirectoryNode({
   const isFolder = entry.type === "folder"
   const [isHovered, setIsHovered] = useState(false)
 
+  // Check if this item or its descendants match the search
+  const isMatching = matchingPaths.has(entry.path)
+  const hasMatchingDescendant = useMemo(() => {
+    if (!searchQuery) return false
+    for (const path of matchingPaths) {
+      if (path.startsWith(entry.path + "/")) return true
+    }
+    return false
+  }, [matchingPaths, entry.path, searchQuery])
+
   // Lazy load children when folder is expanded
-  const { data: children, isLoading, refetch } = trpc.files.listDirectory.useQuery(
+  // IMPORTANT: This hook must be called before any conditional returns
+  const { data: children, isLoading } = trpc.files.listDirectory.useQuery(
     { projectPath, relativePath: entry.path },
     {
       enabled: isFolder && isExpanded,
@@ -79,23 +117,11 @@ function LazyDirectoryNode({
     }
   )
 
-  // Filter children by search query
+  // Filter children - hide non-matching items when searching
   const filteredChildren = useMemo(() => {
     if (!children) return []
-    if (!searchQuery) return children
-
-    const queryLower = searchQuery.toLowerCase()
-    return children.filter((child) => {
-      // Keep folders that might have matching descendants (show all folders when searching)
-      if (child.type === "folder") return true
-      // Filter files by name
-      return child.name.toLowerCase().includes(queryLower)
-    })
-  }, [children, searchQuery])
-
-  const FileIcon = isFolder
-    ? (isExpanded ? FolderOpen : Folder)
-    : (getFileIconByExtension(entry.name) ?? FolderOpen)
+    return children
+  }, [children])
 
   const handleClick = useCallback(() => {
     if (isFolder) {
@@ -105,6 +131,24 @@ function LazyDirectoryNode({
     }
   }, [isFolder, entry.path, entry.type, onToggle, onSelect])
 
+  const handleReference = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onReference(entry.path, entry.name, entry.type)
+  }, [entry.path, entry.name, entry.type, onReference])
+
+  // Hide non-matching files when searching (but keep folders that have matching descendants)
+  // IMPORTANT: Conditional returns must come AFTER all hooks
+  if (searchQuery && !isMatching && !hasMatchingDescendant && !isFolder) {
+    return null
+  }
+  if (searchQuery && isFolder && !isMatching && !hasMatchingDescendant) {
+    return null
+  }
+
+  const FileIcon = isFolder
+    ? (isExpanded ? FolderOpen : Folder)
+    : (getFileIconByExtension(entry.name) ?? FileText)
+
   // Highlight matching text
   const highlightMatch = (text: string) => {
     if (!searchQuery) return text
@@ -113,23 +157,19 @@ function LazyDirectoryNode({
     return (
       <>
         {text.slice(0, idx)}
-        <span className="bg-yellow-500/30 text-foreground">{text.slice(idx, idx + searchQuery.length)}</span>
+        <span className="bg-yellow-500/30 text-foreground font-medium">{text.slice(idx, idx + searchQuery.length)}</span>
         {text.slice(idx + searchQuery.length)}
       </>
     )
   }
-
-  const handleReference = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onReference(entry.path, entry.name, entry.type)
-  }, [entry.path, entry.name, entry.type, onReference])
 
   return (
     <>
       <div
         className={cn(
           "flex items-center gap-1 py-1 px-1.5 rounded text-xs cursor-pointer group",
-          "hover:bg-accent hover:text-accent-foreground"
+          "hover:bg-accent hover:text-accent-foreground",
+          isMatching && searchQuery && "bg-yellow-500/10"
         )}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         onClick={handleClick}
@@ -179,6 +219,7 @@ function LazyDirectoryNode({
               projectPath={projectPath}
               depth={depth + 1}
               expandedPaths={expandedPaths}
+              matchingPaths={matchingPaths}
               onToggle={onToggle}
               onSelect={onSelect}
               onReference={onReference}
@@ -194,10 +235,56 @@ function LazyDirectoryNode({
           className="text-xs text-muted-foreground/60 italic py-1"
           style={{ paddingLeft: `${(depth + 1) * 12 + 8 + 16}px` }}
         >
-          {searchQuery ? "No matches" : "Empty folder"}
+          Empty folder
         </div>
       )}
     </>
+  )
+}
+
+// ============================================================================
+// Content Search Result Item
+// ============================================================================
+
+interface ContentSearchResultItemProps {
+  result: ContentSearchResult
+  projectPath: string
+  query: string
+  onSelect: (path: string, line: number) => void
+}
+
+function ContentSearchResultItem({ result, projectPath, query, onSelect }: ContentSearchResultItemProps) {
+  const FileIcon = getFileIconByExtension(result.file) ?? FileText
+
+  // Highlight matching text in the line
+  const highlightText = (text: string) => {
+    if (!query) return text
+    const idx = text.toLowerCase().indexOf(query.toLowerCase())
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="bg-yellow-500/50 text-foreground font-medium">{text.slice(idx, idx + query.length)}</span>
+        {text.slice(idx + query.length)}
+      </>
+    )
+  }
+
+  return (
+    <div
+      className="px-2 py-1.5 hover:bg-accent cursor-pointer rounded-sm"
+      onClick={() => onSelect(result.file, result.line)}
+    >
+      <div className="flex items-center gap-1.5 text-xs">
+        <FileIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        <span className="text-muted-foreground truncate">{result.file}</span>
+        <span className="text-muted-foreground/60">:</span>
+        <span className="text-primary font-mono">{result.line}</span>
+      </div>
+      <div className="mt-1 text-xs font-mono text-muted-foreground truncate pl-5">
+        {highlightText(result.text)}
+      </div>
+    </div>
   )
 }
 
@@ -213,7 +300,28 @@ export function FileTreePanel({
 }: FileTreePanelProps) {
   const [expandedPaths, setExpandedPaths] = useAtom(fileTreeExpandedPathsAtom)
   const [searchQuery, setSearchQuery] = useAtom(fileTreeSearchQueryAtom)
+  const [savedExpandedPaths, setSavedExpandedPaths] = useAtom(fileTreeSavedExpandedPathsAtom)
   const setPendingFileReference = useSetAtom(pendingFileReferenceAtom)
+
+  // Preview atoms for search result navigation
+  const setPreviewPath = useSetAtom(filePreviewPathAtom)
+  const setPreviewLine = useSetAtom(filePreviewLineAtom)
+  const setPreviewHighlight = useSetAtom(filePreviewHighlightAtom)
+
+  // Content search state
+  const [contentSearchActive, setContentSearchActive] = useAtom(contentSearchActiveAtom)
+  const [contentQuery, setContentQuery] = useAtom(contentSearchQueryAtom)
+  const [contentPattern, setContentPattern] = useAtom(contentSearchPatternAtom)
+  const [caseSensitive, setCaseSensitive] = useAtom(contentSearchCaseSensitiveAtom)
+  const [contentLoading, setContentLoading] = useAtom(contentSearchLoadingAtom)
+  const [contentResults, setContentResults] = useAtom(contentSearchResultsAtom)
+  const [contentTool, setContentTool] = useAtom(contentSearchToolAtom)
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const contentSearchInputRef = useRef<HTMLInputElement>(null)
+
+  // Track if we're currently in search mode (to know when to save/restore state)
+  const prevSearchQueryRef = useRef<string>("")
 
   // Fetch root directory contents
   const { data: rootEntries, isLoading, refetch, isFetching } = trpc.files.listDirectory.useQuery(
@@ -224,23 +332,91 @@ export function FileTreePanel({
     }
   )
 
-  // Filter root entries by search query
-  const filteredRootEntries = useMemo(() => {
-    if (!rootEntries) return []
-    if (!searchQuery) return rootEntries
+  // Search files to get matching paths and parent paths to expand
+  const { data: searchData } = trpc.files.searchFiles.useQuery(
+    { projectPath: projectPath ?? "", query: searchQuery, limit: 100 },
+    {
+      enabled: !!projectPath && !!searchQuery && searchQuery.length >= 1,
+      staleTime: 10000,
+    }
+  )
 
-    const queryLower = searchQuery.toLowerCase()
-    return rootEntries.filter((entry) => {
-      // Keep folders that might have matching descendants
-      if (entry.type === "folder") return true
-      // Filter files by name
-      return entry.name.toLowerCase().includes(queryLower)
+  // Save expanded state when starting to search, restore when clearing
+  useEffect(() => {
+    const wasSearching = prevSearchQueryRef.current.length > 0
+    const isSearching = searchQuery.length > 0
+
+    if (!wasSearching && isSearching) {
+      // Starting to search - save current expanded state
+      setSavedExpandedPaths(new Set(expandedPaths))
+    } else if (wasSearching && !isSearching && savedExpandedPaths) {
+      // Cleared search - restore saved state
+      setExpandedPaths(savedExpandedPaths)
+      setSavedExpandedPaths(null)
+    }
+
+    prevSearchQueryRef.current = searchQuery
+  }, [searchQuery, expandedPaths, savedExpandedPaths, setSavedExpandedPaths, setExpandedPaths])
+
+  // Auto-expand parent directories when search results come in
+  useEffect(() => {
+    if (searchData?.parentPaths && searchData.parentPaths.length > 0 && searchQuery) {
+      setExpandedPaths((prev) => {
+        const next = new Set(prev)
+        for (const path of searchData.parentPaths) {
+          next.add(path)
+        }
+        return next
+      })
+    }
+  }, [searchData?.parentPaths, searchQuery, setExpandedPaths])
+
+  // Create a set of matching paths for quick lookup
+  const matchingPaths = useMemo(() => {
+    if (!searchData?.results) return new Set<string>()
+    return new Set(searchData.results.map((r) => r.path))
+  }, [searchData?.results])
+
+  // Content search mutation
+  const contentSearchMutation = trpc.files.searchContent.useMutation({
+    onMutate: () => {
+      console.log("[FileTree] Starting content search...")
+      setContentLoading(true)
+    },
+    onSuccess: (data) => {
+      console.log("[FileTree] Content search success:", data.tool, data.results.length, "results")
+      setContentResults(data.results)
+      setContentTool(data.tool)
+      setContentLoading(false)
+    },
+    onError: (error) => {
+      console.error("[FileTree] Content search error:", error)
+      setContentResults([])
+      setContentLoading(false)
+    },
+  })
+
+  // Execute content search
+  const handleContentSearch = useCallback(() => {
+    if (!projectPath || !contentQuery) return
+    contentSearchMutation.mutate({
+      projectPath,
+      query: contentQuery,
+      filePattern: contentPattern || undefined,
+      caseSensitive,
+      limit: 50,
     })
-  }, [rootEntries, searchQuery])
+  }, [projectPath, contentQuery, contentPattern, caseSensitive, contentSearchMutation])
+
+  // Handle enter key for content search
+  const handleContentSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleContentSearch()
+    }
+  }, [handleContentSearch])
 
   // Refresh file list
   const handleRefresh = useCallback(() => {
-    // Clear cache and refetch
     refetch()
   }, [refetch])
 
@@ -260,12 +436,11 @@ export function FileTreePanel({
     [setExpandedPaths]
   )
 
-  // Select file/folder (no persistent selection state)
+  // Select file/folder
   const handleSelect = useCallback(
-    (path: string, type: "file" | "folder") => {
-      // Don't persist selection state - just trigger the callback
+    (path: string, type: "file" | "folder", line?: number) => {
       if (type === "file" && onFileSelect) {
-        onFileSelect(path)
+        onFileSelect(path, line)
       }
     },
     [onFileSelect]
@@ -284,6 +459,192 @@ export function FileTreePanel({
     [setPendingFileReference]
   )
 
+  // Switch to content search mode
+  const handleOpenContentSearch = useCallback(() => {
+    setContentSearchActive(true)
+    setContentResults([])
+    setTimeout(() => contentSearchInputRef.current?.focus(), 100)
+  }, [setContentSearchActive, setContentResults])
+
+  // Switch back to file tree mode
+  const handleCloseContentSearch = useCallback(() => {
+    setContentSearchActive(false)
+    setContentQuery("")
+    setContentResults([])
+  }, [setContentSearchActive, setContentQuery, setContentResults])
+
+  // Handle content search result click - open preview with line and highlight
+  const handleContentResultSelect = useCallback(
+    (filePath: string, line: number) => {
+      // Set preview atoms for line jump and highlight
+      if (projectPath) {
+        const fullPath = `${projectPath}/${filePath}`
+        setPreviewPath(fullPath)
+        setPreviewLine(line)
+        setPreviewHighlight(contentQuery)
+      }
+      // Also call onFileSelect if provided
+      if (onFileSelect) {
+        onFileSelect(filePath, line)
+      }
+    },
+    [projectPath, contentQuery, setPreviewPath, setPreviewLine, setPreviewHighlight, onFileSelect]
+  )
+
+  // Expand all folders - uses searchFiles API to get all folder paths
+  const { data: allFilesData } = trpc.files.searchFiles.useQuery(
+    { projectPath: projectPath ?? "", query: "", limit: 500 },
+    {
+      enabled: !!projectPath,
+      staleTime: 30000,
+    }
+  )
+
+  const handleExpandAll = useCallback(() => {
+    const allFolders = new Set<string>()
+    // Get all folder paths from root entries
+    rootEntries?.forEach((entry) => {
+      if (entry.type === "folder") {
+        allFolders.add(entry.path)
+      }
+    })
+    // Add all parent paths (which includes all nested folders)
+    if (allFilesData?.parentPaths) {
+      allFilesData.parentPaths.forEach((path) => allFolders.add(path))
+    }
+    // Also add folders from search results if searching
+    if (searchData?.parentPaths) {
+      searchData.parentPaths.forEach((path) => allFolders.add(path))
+    }
+    setExpandedPaths(allFolders)
+  }, [allFilesData?.parentPaths, searchData?.parentPaths, rootEntries, setExpandedPaths])
+
+  // Collapse all folders
+  const handleCollapseAll = useCallback(() => {
+    setExpandedPaths(new Set<string>())
+  }, [setExpandedPaths])
+
+  // Render content search view
+  if (contentSearchActive) {
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        {showHeader && (
+          <div className="flex items-center justify-between px-3 py-2 border-b">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handleCloseContentSearch}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </Button>
+              <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium">Content Search</span>
+            </div>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={onClose}
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Search Input */}
+        <div className="p-2 border-b space-y-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              ref={contentSearchInputRef}
+              placeholder="Search in files..."
+              value={contentQuery}
+              onChange={(e) => setContentQuery(e.target.value)}
+              onKeyDown={handleContentSearchKeyDown}
+              className="pl-8 pr-20 h-8 text-xs"
+            />
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("h-6 w-6", caseSensitive && "bg-primary/20")}
+                onClick={() => setCaseSensitive(!caseSensitive)}
+                title="Case sensitive"
+              >
+                <span className="text-[10px] font-bold">Aa</span>
+              </Button>
+              <Button
+                variant="default"
+                size="icon"
+                className="h-6 w-6"
+                onClick={handleContentSearch}
+                disabled={!contentQuery || contentLoading}
+              >
+                {contentLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Search className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* File pattern filter */}
+          <div className="relative">
+            <Filter className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="File pattern (e.g., *.ts, *.{js,tsx})"
+              value={contentPattern}
+              onChange={(e) => setContentPattern(e.target.value)}
+              onKeyDown={handleContentSearchKeyDown}
+              className="pl-8 h-7 text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Results */}
+        <div className="flex-1 overflow-auto">
+          {contentLoading ? (
+            <div className="flex items-center justify-center gap-2 p-4 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Searching...
+            </div>
+          ) : contentResults.length === 0 ? (
+            <div className="p-4 text-xs text-muted-foreground text-center">
+              {contentQuery ? "No matches found" : "Enter a search term"}
+            </div>
+          ) : (
+            <div className="p-1">
+              <div className="px-2 py-1 text-xs text-muted-foreground flex items-center justify-between">
+                <span>{contentResults.length} results</span>
+                {contentTool && (
+                  <span className="text-[10px] text-muted-foreground/60">
+                    via {contentTool}
+                  </span>
+                )}
+              </div>
+              {contentResults.map((result, idx) => (
+                <ContentSearchResultItem
+                  key={`${result.file}:${result.line}:${idx}`}
+                  result={result}
+                  projectPath={projectPath ?? ""}
+                  query={contentQuery}
+                  onSelect={handleContentResultSelect}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Render file tree view
   return (
     <div className="flex flex-col h-full">
       {/* Header (optional) */}
@@ -291,9 +652,19 @@ export function FileTreePanel({
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <div className="flex items-center gap-2">
             <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium">File Tree</span>
+            <span className="text-xs font-medium">Explorer</span>
           </div>
           <div className="flex items-center gap-1">
+            {/* Content search button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleOpenContentSearch}
+              title="Search file contents"
+            >
+              <FileSearch className="h-3.5 w-3.5" />
+            </Button>
             {/* Refresh button */}
             <Button
               variant="ghost"
@@ -304,6 +675,28 @@ export function FileTreePanel({
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
             </Button>
+            {/* More options dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={handleExpandAll}>
+                  <ChevronsUpDown className="h-3.5 w-3.5 mr-2" />
+                  <span className="text-xs">Expand All</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCollapseAll}>
+                  <ChevronsDownUp className="h-3.5 w-3.5 mr-2" />
+                  <span className="text-xs">Collapse All</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {onClose && (
               <Button
                 variant="ghost"
@@ -323,7 +716,8 @@ export function FileTreePanel({
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search files..."
+            ref={searchInputRef}
+            placeholder="Filter files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 pr-8 h-8 text-xs"
@@ -339,6 +733,12 @@ export function FileTreePanel({
             </Button>
           )}
         </div>
+        {/* Show match count when searching */}
+        {searchQuery && searchData?.results && (
+          <div className="mt-1.5 px-1 text-[10px] text-muted-foreground">
+            {searchData.results.length} matches
+          </div>
+        )}
       </div>
 
       {/* File Tree */}
@@ -352,18 +752,19 @@ export function FileTreePanel({
             <Loader2 className="h-4 w-4 animate-spin" />
             Loading...
           </div>
-        ) : filteredRootEntries.length === 0 ? (
+        ) : !rootEntries || rootEntries.length === 0 ? (
           <div className="text-xs text-muted-foreground p-2 text-center">
             {searchQuery ? "No matching files" : "No files"}
           </div>
         ) : (
-          filteredRootEntries.map((entry) => (
+          rootEntries.map((entry) => (
             <LazyDirectoryNode
               key={entry.path}
               entry={entry}
               projectPath={projectPath}
               depth={0}
               expandedPaths={expandedPaths}
+              matchingPaths={matchingPaths}
               onToggle={handleToggle}
               onSelect={handleSelect}
               onReference={handleReference}

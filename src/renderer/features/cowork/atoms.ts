@@ -68,6 +68,44 @@ export const fileTreeSelectedPathAtom = atom<string | null>(null)
 // Search query in file tree
 export const fileTreeSearchQueryAtom = atom<string>("")
 
+// Saved expanded paths before search (to restore after clearing search)
+export const fileTreeSavedExpandedPathsAtom = atom<Set<string> | null>(null)
+
+// ============================================================================
+// Content Search State (Advanced Search)
+// ============================================================================
+
+// Whether advanced search (content search) mode is active
+export const contentSearchActiveAtom = atom<boolean>(false)
+
+// Content search query
+export const contentSearchQueryAtom = atom<string>("")
+
+// Content search file pattern filter (e.g., "*.ts", "*.{js,tsx}")
+export const contentSearchPatternAtom = atom<string>("")
+
+// Content search case sensitivity
+export const contentSearchCaseSensitiveAtom = atom<boolean>(false)
+
+// Content search loading state
+export const contentSearchLoadingAtom = atom<boolean>(false)
+
+// Content search result type
+export interface ContentSearchResult {
+  file: string
+  line: number
+  column: number
+  text: string
+  beforeContext?: string[]
+  afterContext?: string[]
+}
+
+// Content search results
+export const contentSearchResultsAtom = atom<ContentSearchResult[]>([])
+
+// Content search tool used (ripgrep or grep)
+export const contentSearchToolAtom = atom<string>("")
+
 // ============================================================================
 // Artifacts State (per chat - all sub-chats share the same artifacts)
 // ============================================================================
@@ -136,6 +174,12 @@ export const filePreviewDisplayModeAtom = atomWithStorage<FilePreviewDisplayMode
 // Current preview file path (null = closed)
 export const filePreviewPathAtom = atom<string | null>(null)
 
+// Line number to scroll to in preview (null = no scroll)
+export const filePreviewLineAtom = atom<number | null>(null)
+
+// Search highlight keyword for preview (null = no highlight)
+export const filePreviewHighlightAtom = atom<string | null>(null)
+
 // ============================================================================
 // File Reference Insertion (File Tree -> Chat Input)
 // ============================================================================
@@ -159,3 +203,28 @@ export const filePreviewOpenAtom = atom(
     }
   }
 )
+
+// ============================================================================
+// Code Editor State
+// ============================================================================
+
+// Editor mode: "view" for read-only preview, "edit" for Monaco editor
+export type EditorMode = "view" | "edit"
+export const editorModeAtom = atom<EditorMode>("view")
+
+// Whether current file has unsaved changes
+export const editorDirtyAtom = atom<boolean>(false)
+
+// Original content for dirty comparison (set when entering edit mode)
+export const editorOriginalContentAtom = atom<string>("")
+
+// Current editor content (synced with Monaco)
+export const editorContentAtom = atom<string>("")
+
+// Computed: reset editor state when preview closes
+export const resetEditorStateAtom = atom(null, (_get, set) => {
+  set(editorModeAtom, "view")
+  set(editorDirtyAtom, false)
+  set(editorOriginalContentAtom, "")
+  set(editorContentAtom, "")
+})

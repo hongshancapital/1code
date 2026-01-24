@@ -16,6 +16,16 @@ import { HtmlPreview } from "./html-preview"
 interface FilePreviewProps {
   filePath: string
   className?: string
+  /** Enable editing mode for text files */
+  editable?: boolean
+  /** Callback when file is saved */
+  onSave?: () => void
+  /** Callback when dirty state changes */
+  onDirtyChange?: (dirty: boolean) => void
+  /** Line number to scroll to (for text files) */
+  scrollToLine?: number | null
+  /** Text to highlight in the content (for text files) */
+  highlightText?: string | null
 }
 
 type FileType = "text" | "markdown" | "html" | "image" | "pdf" | "video" | "audio" | "word" | "excel" | "ppt" | "unsupported"
@@ -115,7 +125,7 @@ function getFileType(fileName: string): FileType {
   return "unsupported"
 }
 
-export function FilePreview({ filePath, className }: FilePreviewProps) {
+export function FilePreview({ filePath, className, editable = false, onSave, onDirtyChange, scrollToLine, highlightText }: FilePreviewProps) {
   const fileName = filePath.split("/").pop() || filePath
   const fileType = useMemo(() => getFileType(fileName), [fileName])
 
@@ -151,13 +161,32 @@ export function FilePreview({ filePath, className }: FilePreviewProps) {
   // Render appropriate preview based on file type
   switch (fileType) {
     case "markdown":
-      return <MarkdownPreview content={content || ""} className={className} />
+      return (
+        <MarkdownPreview
+          content={content || ""}
+          className={className}
+          scrollToLine={scrollToLine}
+          highlightText={highlightText}
+        />
+      )
 
     case "html":
       return <HtmlPreview content={content || ""} fileName={fileName} className={className} />
 
     case "text":
-      return <TextPreview content={content || ""} fileName={fileName} className={className} />
+      return (
+        <TextPreview
+          content={content || ""}
+          fileName={fileName}
+          className={className}
+          editable={editable}
+          filePath={filePath}
+          onSave={onSave}
+          onDirtyChange={onDirtyChange}
+          scrollToLine={scrollToLine}
+          highlightText={highlightText}
+        />
+      )
 
     case "image":
       return <ImagePreview filePath={filePath} className={className} />
