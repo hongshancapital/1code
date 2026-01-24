@@ -169,6 +169,7 @@ export type SettingsTab =
   | "preferences"
   | "notifications"
   | "models"
+  | "runtime"
   | "skills"
   | "agents"
   | "mcp"
