@@ -1,17 +1,37 @@
-import { useAtom, useSetAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { ChevronRight, TrendingUp } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import {
   agentsSettingsDialogOpenAtom,
   anthropicOnboardingCompletedAtom,
+  autoOfflineModeAtom,
   customClaudeConfigAtom,
   openaiApiKeyAtom,
+  showOfflineModeFeaturesAtom,
   type CustomClaudeConfig,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { Button } from "../../ui/button"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
+import { Switch } from "../../ui/switch"
+import { UsageDetailsDialog } from "./usage-details-dialog"
+
+// Helper to format token count
+function formatTokenCount(tokens: number): string {
+  if (!tokens) return "0"
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(2)}M`
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`
+  return String(tokens)
+}
+
+// Helper to format cost
+function formatCost(cost: number): string {
+  if (!cost) return "0.00"
+  if (cost < 0.01) return cost.toFixed(4)
+  return cost.toFixed(2)
+}
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -41,6 +61,8 @@ export function AgentsModelsTab() {
   const [model, setModel] = useState(storedConfig.model)
   const [baseUrl, setBaseUrl] = useState(storedConfig.baseUrl)
   const [token, setToken] = useState(storedConfig.token)
+  const [autoOffline, setAutoOffline] = useAtom(autoOfflineModeAtom)
+  const [usageDialogOpen, setUsageDialogOpen] = useState(false)
   const setAnthropicOnboardingCompleted = useSetAtom(
     anthropicOnboardingCompletedAtom,
   )
@@ -50,6 +72,18 @@ export function AgentsModelsTab() {
   const { data: claudeCodeIntegration, isLoading: isClaudeCodeLoading } =
     trpc.claudeCode.getIntegration.useQuery()
   const isClaudeCodeConnected = claudeCodeIntegration?.isConnected
+
+  // Get usage summary
+  const { data: usageSummary, isLoading: usageLoading } =
+    trpc.usage.getSummary.useQuery()
+
+  // Get Ollama status
+  const { data: ollamaStatus } = trpc.ollama.getStatus.useQuery(undefined, {
+    refetchInterval: 30000, // Refresh every 30s
+  })
+
+  // Check if offline features should be visible (debug flag)
+  const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
 
   // OpenAI API key state
   const [storedOpenAIKey, setStoredOpenAIKey] = useAtom(openaiApiKeyAtom)
@@ -145,6 +179,73 @@ export function AgentsModelsTab() {
           <p className="text-xs text-muted-foreground">
             Configure model overrides and Claude Code authentication
           </p>
+        </div>
+      )}
+
+      {/* Offline Mode Section - only show if debug flag enabled */}
+      {showOfflineFeatures && (
+        <div className="space-y-2">
+          <div className="pb-2">
+            <h4 className="text-sm font-medium text-foreground">Offline Mode</h4>
+          </div>
+
+          <div className="bg-background rounded-lg border border-border overflow-hidden">
+            <div className="p-4 space-y-4">
+              {/* Status */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-foreground">
+                    Ollama Status
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    {ollamaStatus?.ollama.available
+                      ? `Running - ${ollamaStatus.ollama.models.length} model${ollamaStatus.ollama.models.length !== 1 ? 's' : ''} installed`
+                      : 'Not running or not installed'}
+                  </p>
+                  {ollamaStatus?.ollama.recommendedModel && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Recommended: {ollamaStatus.ollama.recommendedModel}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {ollamaStatus?.ollama.available ? (
+                    <span className="text-green-600 text-sm font-medium">● Available</span>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">○ Unavailable</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Auto-fallback toggle */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-foreground">
+                    Auto Offline Mode
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically use Ollama when internet is unavailable
+                  </p>
+                </div>
+                <Switch
+                  checked={autoOffline}
+                  onCheckedChange={setAutoOffline}
+                />
+              </div>
+
+              {/* Info message */}
+              {!ollamaStatus?.ollama.available && (
+                <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
+                  <p className="font-medium mb-1">To enable offline mode:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Install Ollama from <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline">ollama.com</a></li>
+                    <li>Run: <code className="bg-background px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></li>
+                    <li>Ollama will run automatically in the background</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -318,6 +419,90 @@ export function AgentsModelsTab() {
           </div>
         </div>
       </div>
+
+      {/* Usage Statistics Section */}
+      <div className="space-y-2">
+        <div className="pb-2">
+          <h4 className="text-sm font-medium text-foreground">Usage Statistics</h4>
+        </div>
+
+        <div className="bg-background rounded-lg border border-border overflow-hidden">
+          <div className="p-4 space-y-3">
+            {usageLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : (
+              <>
+                {/* Today */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-foreground">Today</span>
+                    <p className="text-xs text-muted-foreground">
+                      {formatTokenCount(usageSummary?.today?.totalTokens || 0)} tokens
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-foreground">
+                      ${formatCost(usageSummary?.today?.totalCostUsd || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* This Week */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-foreground">This Week</span>
+                    <p className="text-xs text-muted-foreground">
+                      {formatTokenCount(usageSummary?.week?.totalTokens || 0)} tokens
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-foreground">
+                      ${formatCost(usageSummary?.week?.totalCostUsd || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* This Month */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-foreground">This Month</span>
+                    <p className="text-xs text-muted-foreground">
+                      {formatTokenCount(usageSummary?.month?.totalTokens || 0)} tokens
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-foreground">
+                      ${formatCost(usageSummary?.month?.totalCostUsd || 0)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* View Details Button */}
+          <div className="bg-muted/50 p-3 border-t">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-between"
+              onClick={() => setUsageDialogOpen(true)}
+            >
+              <span className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                View Details
+              </span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Usage Details Dialog */}
+      <UsageDetailsDialog
+        open={usageDialogOpen}
+        onOpenChange={setUsageDialogOpen}
+      />
     </div>
   )
 }

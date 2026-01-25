@@ -54,6 +54,7 @@ import { Button } from "../../../components/ui/button"
 import { AlignJustify } from "lucide-react"
 import { AgentsQuickSwitchDialog } from "../components/agents-quick-switch-dialog"
 import { SubChatsQuickSwitchDialog } from "../components/subchats-quick-switch-dialog"
+import { SubChatCollapsedIndicator } from "./sub-chat-collapsed-indicator"
 import { isDesktopApp } from "../../../lib/utils/platform"
 // Desktop mock
 const useIsAdmin = () => false
@@ -932,14 +933,26 @@ export function AgentsContent() {
                 onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
                 selectedTeamName={selectedTeam?.name}
                 selectedTeamImageUrl={selectedTeam?.image_url}
+                collapsedIndicator={
+                  activeSubChatId && subChatsSidebarMode === "tabs" ? (
+                    <SubChatCollapsedIndicator
+                      subChatId={activeSubChatId}
+                      onInputClick={(messageId) => {
+                        setTimeout(() => {
+                          document
+                            .querySelector(`[data-message-id="${messageId}"]`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                        }, 100)
+                      }}
+                    />
+                  ) : null
+                }
               />
             </div>
-          ) : selectedDraftId || showNewChatForm ? (
+          ) : (
             <div className="h-full flex flex-col relative overflow-hidden">
               <NewChatForm key={`new-chat-${newChatFormKeyRef.current}`} />
             </div>
-          ) : (
-            <KanbanView />
           )}
         </div>
       </div>
@@ -982,3 +995,4 @@ export function AgentsContent() {
     </>
   )
 }
+

@@ -89,7 +89,7 @@ export function SubChatCollapsedIndicator({
   const { data, isLoading, error } = trpc.chats.getSubChatPreview.useQuery(
     { subChatId },
     {
-      staleTime: 30000,
+      staleTime: 0, // 每次获取最新数据
       refetchOnWindowFocus: false,
     }
   )
@@ -100,14 +100,16 @@ export function SubChatCollapsedIndicator({
   }
 
   return (
-    <div className="flex flex-col gap-1 py-2">
-      {data.inputs.map((input) => (
-        <IndicatorLine
-          key={input.messageId}
-          input={input}
-          onInputClick={onInputClick}
-        />
-      ))}
+    <div className="flex py-2 w-5">
+      <div className="flex flex-col gap-1 absolute top-12 left-2">
+        {data.inputs.map((input) => (
+            <IndicatorLine
+                key={input.messageId}
+                input={input}
+                onInputClick={onInputClick}
+            />
+        ))}
+      </div>
     </div>
   )
 }

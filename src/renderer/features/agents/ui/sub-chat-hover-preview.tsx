@@ -102,7 +102,7 @@ export function SubChatHoverPreview({
     { subChatId },
     {
       enabled: open,
-      staleTime: 30000, // 缓存 30 秒
+      staleTime: 0, // 每次打开都获取最新数据
       refetchOnWindowFocus: false,
     }
   )

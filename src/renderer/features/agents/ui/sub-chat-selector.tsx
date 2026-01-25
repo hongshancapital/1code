@@ -50,6 +50,7 @@ import { toast } from "sonner"
 import { SearchCombobox } from "../../../components/ui/search-combobox"
 import { SubChatContextMenu } from "./sub-chat-context-menu"
 import { formatTimeAgo } from "../utils/format-time-ago"
+import { SubChatHoverPreview } from "./sub-chat-hover-preview"
 
 interface DiffStats {
   fileCount: number
@@ -667,7 +668,23 @@ export function SubChatSelector({
                 const hasPendingPlan = pendingPlanApprovals.has(subChat.id)
 
                 return (
-                  <ContextMenu key={subChat.id}>
+                  <SubChatHoverPreview
+                    key={subChat.id}
+                    subChatId={subChat.id}
+                    side="bottom"
+                    align="start"
+                    onInputClick={(messageId) => {
+                      // Switch to this sub-chat first
+                      onSwitch(subChat.id)
+                      // Then scroll to the message after a short delay
+                      setTimeout(() => {
+                        document
+                          .querySelector(`[data-message-id="${messageId}"]`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                      }, 100)
+                    }}
+                  >
+                  <ContextMenu>
                     <ContextMenuTrigger asChild>
                       <button
                         ref={(el) => {
@@ -845,6 +862,7 @@ export function SubChatSelector({
                       chatId={parentChatId}
                     />
                   </ContextMenu>
+                  </SubChatHoverPreview>
                 )
               })}
         </div>
