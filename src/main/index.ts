@@ -41,7 +41,7 @@ import { IS_DEV, AUTH_SERVER_PORT } from "./constants"
 
 // Deep link protocol (must match package.json build.protocols.schemes)
 // Use different protocol in dev to avoid conflicts with production app
-const PROTOCOL = IS_DEV ? "twentyfirst-agents-dev" : "twentyfirst-agents"
+const PROTOCOL = IS_DEV ? "hong-dev" : "hong"
 
 // Set dev mode userData path BEFORE requestSingleInstanceLock()
 // This ensures dev and prod have separate instance locks
@@ -76,13 +76,13 @@ if (app.isPackaged && !IS_DEV) {
 // In dev mode, allow override via MAIN_VITE_API_URL env variable
 export function getBaseUrl(): string {
   if (app.isPackaged) {
-    return "https://21st.dev"
+    return "https://hongshan.com"
   }
-  return import.meta.env.MAIN_VITE_API_URL || "https://21st.dev"
+  return import.meta.env.MAIN_VITE_API_URL || "https://hongshan.com"
 }
 
 export function getAppUrl(): string {
-  return process.env.ELECTRON_RENDERER_URL || "https://21st.dev/agents"
+  return process.env.ELECTRON_RENDERER_URL || "https://cowork.hongshan.com"
 }
 
 // Auth manager singleton (use the one from auth-manager module)
@@ -186,7 +186,7 @@ function handleDeepLink(url: string): void {
   try {
     const parsed = new URL(url)
 
-    // Handle auth callback: twentyfirst-agents://auth?code=xxx
+    // Handle auth callback: hong://auth?code=xxx
     if (parsed.pathname === "/auth" || parsed.host === "auth") {
       const code = parsed.searchParams.get("code")
       if (code) {
@@ -195,7 +195,7 @@ function handleDeepLink(url: string): void {
       }
     }
 
-    // Handle MCP OAuth callback: twentyfirst-agents://mcp-oauth?code=xxx&state=yyy
+    // Handle MCP OAuth callback: hong://mcp-oauth?code=xxx&state=yyy
     if (parsed.pathname === "/mcp-oauth" || parsed.host === "mcp-oauth") {
       const code = parsed.searchParams.get("code")
       const state = parsed.searchParams.get("state")
@@ -742,7 +742,7 @@ if (gotTheLock) {
 
     // Set app user model ID for Windows (different in dev to avoid taskbar conflicts)
     if (process.platform === "win32") {
-      app.setAppUserModelId(IS_DEV ? "dev.21st.1code.dev" : "dev.21st.1code")
+      app.setAppUserModelId(IS_DEV ? "com.hongshan.hong.dev" : "com.hongshan.hong")
     }
 
     console.log(`[App] Starting 1Code${IS_DEV ? " (DEV)" : ""}...`)
@@ -772,7 +772,7 @@ if (gotTheLock) {
       applicationName: "1Code",
       applicationVersion: app.getVersion(),
       version: `Claude Code ${claudeCodeVersion}`,
-      copyright: "Copyright © 2026 21st.dev",
+      copyright: "Copyright © 2026 Hóng",
     })
 
     // Track update availability for menu
@@ -935,7 +935,7 @@ if (gotTheLock) {
               label: "Learn More",
               click: async () => {
                 const { shell } = await import("electron")
-                await shell.openExternal("https://21st.dev")
+                await shell.openExternal("https://hongshan.com")
               },
             },
           ],

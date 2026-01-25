@@ -87,7 +87,7 @@ export type DiffHighlighter = {
 }
 
 // Current theme state - updated by the component
-let currentThemeId: string = "21st-dark"
+let currentThemeId: string = "hs-dark"
 
 /**
  * Set the current theme ID for highlighting

@@ -269,7 +269,7 @@ function registerIpcHandlers(): void {
       const parsed = new URL(senderUrl)
       if (parsed.protocol === "file:") return true
       const hostname = parsed.hostname.toLowerCase()
-      const trusted = ["21st.dev", "localhost", "127.0.0.1"]
+      const trusted = ["hongshan.com", "localhost", "127.0.0.1"]
       return trusted.some((h) => hostname === h || hostname.endsWith(`.${h}`))
     } catch {
       return false

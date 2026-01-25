@@ -3,7 +3,7 @@
  * Allows users to open 1code from terminal with: 1code . or 1code /path/to/project
  *
  * Based on PR #16 by @caffeinum (Aleksey Bykhun)
- * https://github.com/21st-dev/1code/pull/16
+ * https://github.com/anthropics/claude-code/pull/16
  */
 
 import { app } from "electron"

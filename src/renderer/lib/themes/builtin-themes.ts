@@ -9,12 +9,12 @@ import type { VSCodeFullTheme } from "../atoms"
 import { CURSOR_DARK, CURSOR_LIGHT, CURSOR_MIDNIGHT } from "./cursor-themes"
 
 /**
- * 21st Dark - Default dark theme matching the app's original design
+ * 21st Dark - Legacy dark theme (kept for compatibility)
  * Uses the brand blue (#0034FF) as primary/accent color
  */
 const TWENTYFIRST_DARK: VSCodeFullTheme = {
   id: "21st-dark",
-  name: "21st Dark",
+  name: "21st Dark (Legacy)",
   type: "dark",
   source: "builtin",
   colors: {
@@ -73,12 +73,12 @@ const TWENTYFIRST_DARK: VSCodeFullTheme = {
 }
 
 /**
- * 21st Light - Default light theme matching the app's original design
+ * 21st Light - Legacy light theme (kept for compatibility)
  * Uses the brand blue (#0034FF) as primary/accent color
  */
 const TWENTYFIRST_LIGHT: VSCodeFullTheme = {
   id: "21st-light",
-  name: "21st Light",
+  name: "21st Light (Legacy)",
   type: "light",
   source: "builtin",
   colors: {
@@ -742,7 +742,7 @@ export const BUILTIN_THEMES: VSCodeFullTheme[] = [
   // HS Default themes (first - default themes)
   HS_DARK,
   HS_LIGHT,
-  // 21st themes
+  // Legacy 21st themes (kept for compatibility)
   TWENTYFIRST_DARK,
   TWENTYFIRST_LIGHT,
   // Cursor themes

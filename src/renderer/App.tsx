@@ -118,7 +118,7 @@ function AppContent() {
   }
 
   // ============================================================================
-  // Original 21st Agents Mode: Full onboarding flow
+  // Original Agents Mode: Full onboarding flow
   // ============================================================================
 
   // Determine which page to show:
