@@ -27,13 +27,14 @@ import { WindowsTitleBar } from "../../components/windows-title-bar"
 import { useUpdateChecker } from "../../lib/hooks/use-update-checker"
 import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
 import { QueueProcessor } from "../agents/components/queue-processor"
-
+import { DetailsSidebar } from "../details-sidebar/details-sidebar"
 import {
-  coworkRightPanelWidthAtom,
-  coworkRightPanelOpenAtom,
-  coworkRightPanelUserClosedAtom,
-} from "./atoms"
-import { CoworkRightPanel } from "./cowork-right-panel"
+  detailsSidebarOpenAtom,
+  widgetVisibilityAtomFamily,
+  getDefaultVisibleWidgets,
+} from "../details-sidebar/atoms"
+import { api } from "../../lib/mock-api"
+
 import { CoworkContent } from "./cowork-content"
 import { useArtifactsListener } from "./use-artifacts-listener"
 import { FilePreviewDialog } from "./file-preview"
@@ -46,9 +47,6 @@ const SIDEBAR_MIN_WIDTH = 160
 const SIDEBAR_MAX_WIDTH = 300
 const SIDEBAR_ANIMATION_DURATION = 0
 const SIDEBAR_CLOSE_HOTKEY = "⌘\\"
-
-const RIGHT_PANEL_MIN_WIDTH = 240
-const RIGHT_PANEL_MAX_WIDTH = 500
 
 // ============================================================================
 // Component
@@ -100,12 +98,35 @@ export function CoworkLayout() {
   const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
   const setAnthropicOnboardingCompleted = useSetAtom(anthropicOnboardingCompletedAtom)
 
-  // Right panel state
-  const [rightPanelOpen, setRightPanelOpen] = useAtom(coworkRightPanelOpenAtom)
-  const [rightPanelUserClosed, setRightPanelUserClosed] = useAtom(coworkRightPanelUserClosedAtom)
+  // Details sidebar state (using unified sidebar)
+  const [detailsSidebarOpen, setDetailsSidebarOpen] = useAtom(detailsSidebarOpenAtom)
 
-  // Right panel should only show when a chat is selected (not on start page)
-  const shouldShowRightPanel = selectedChatId && rightPanelOpen
+  // Fetch chat data for worktree path
+  const { data: chatData } = api.agents.getAgentChat.useQuery(
+    { chatId: selectedChatId! },
+    { enabled: !!selectedChatId }
+  )
+
+  // Get worktree path from chat or project
+  const worktreePath = chatData?.worktreePath || selectedProject?.path || null
+
+  // Initialize cowork default widgets on first load
+  const widgetVisibilityAtom = useMemo(
+    () => widgetVisibilityAtomFamily(selectedChatId || "default"),
+    [selectedChatId]
+  )
+  const [, setVisibleWidgets] = useAtom(widgetVisibilityAtom)
+
+  // Set cowork default widgets when chat changes (only if not already set)
+  const initializedChatsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (selectedChatId && !initializedChatsRef.current.has(selectedChatId)) {
+      // Mark as initialized to prevent re-setting
+      initializedChatsRef.current.add(selectedChatId)
+      // Set cowork mode default widgets
+      setVisibleWidgets(getDefaultVisibleWidgets("cowork"))
+    }
+  }, [selectedChatId, setVisibleWidgets])
 
   // Fetch projects
   const { data: projects, isLoading: isLoadingProjects } =
@@ -201,15 +222,15 @@ export function CoworkLayout() {
     }
   }, [selectedChatId, setChatId])
 
-  // Auto-open right panel when entering a chat (unless user manually closed it before)
+  // Auto-open details sidebar when entering a chat
   const prevSelectedChatIdRef = useRef<string | null>(null)
   useEffect(() => {
     // Only trigger when transitioning from no chat to a chat
-    if (selectedChatId && !prevSelectedChatIdRef.current && !rightPanelUserClosed) {
-      setRightPanelOpen(true)
+    if (selectedChatId && !prevSelectedChatIdRef.current) {
+      setDetailsSidebarOpen(true)
     }
     prevSelectedChatIdRef.current = selectedChatId
-  }, [selectedChatId, rightPanelUserClosed, setRightPanelOpen])
+  }, [selectedChatId, setDetailsSidebarOpen])
 
   // Chat search toggle
   const toggleChatSearch = useSetAtom(toggleSearchAtom)
@@ -232,23 +253,9 @@ export function CoworkLayout() {
     setSidebarOpen(false)
   }, [setSidebarOpen])
 
-  const handleCloseRightPanel = useCallback(() => {
-    setRightPanelOpen(false)
-    setRightPanelUserClosed(true) // Mark as user manually closed
-  }, [setRightPanelOpen, setRightPanelUserClosed])
-
-  const handleToggleRightPanel = useCallback(() => {
-    setRightPanelOpen((prev) => {
-      if (prev) {
-        // Closing - mark as user manually closed
-        setRightPanelUserClosed(true)
-      } else {
-        // Opening - clear the user closed flag
-        setRightPanelUserClosed(false)
-      }
-      return !prev
-    })
-  }, [setRightPanelOpen, setRightPanelUserClosed])
+  const handleToggleDetailsSidebar = useCallback(() => {
+    setDetailsSidebarOpen((prev) => !prev)
+  }, [setDetailsSidebarOpen])
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -296,29 +303,23 @@ export function CoworkLayout() {
           {/* Main Content - Chat (simplified, no Git/Diff) */}
           <div className="flex-1 overflow-hidden flex flex-col min-w-0">
             <CoworkContent
-              onToggleRightPanel={handleToggleRightPanel}
-              rightPanelOpen={rightPanelOpen}
+              onToggleRightPanel={handleToggleDetailsSidebar}
+              rightPanelOpen={detailsSidebarOpen}
             />
           </div>
 
-          {/* Right Panel - Tasks & Files (only show when in a chat) */}
-          <ResizableSidebar
-            isOpen={!isMobile && !!shouldShowRightPanel}
-            onClose={handleCloseRightPanel}
-            widthAtom={coworkRightPanelWidthAtom}
-            minWidth={RIGHT_PANEL_MIN_WIDTH}
-            maxWidth={RIGHT_PANEL_MAX_WIDTH}
-            side="right"
-            closeHotkey="⌘]"
-            animationDuration={SIDEBAR_ANIMATION_DURATION}
-            initialWidth={0}
-            exitWidth={0}
-            showResizeTooltip={true}
-            className="overflow-hidden bg-background border-l"
-            style={{ borderLeftWidth: "0.5px" }}
-          >
-            <CoworkRightPanel />
-          </ResizableSidebar>
+          {/* Right Panel - Unified Details Sidebar with widgets */}
+          {selectedChatId && (
+            <DetailsSidebar
+              chatId={selectedChatId}
+              worktreePath={worktreePath}
+              planPath={null}
+              isPlanMode={false}
+              canOpenDiff={false}
+              setIsDiffSidebarOpen={() => {}}
+              activeSubChatId={activeSubChatId}
+            />
+          )}
         </div>
 
         {/* Update Banner */}

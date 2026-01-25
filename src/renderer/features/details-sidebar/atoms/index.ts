@@ -2,34 +2,50 @@ import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
-import { Box, FileText, Terminal, FileDiff, ListTodo } from "lucide-react"
+import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree } from "lucide-react"
+
+// ============================================================================
+// Project Mode Types
+// ============================================================================
+
+export type ProjectMode = "cowork" | "coding"
 
 // ============================================================================
 // Widget System Types & Registry
 // ============================================================================
 
-export type WidgetId = "info" | "todo" | "plan" | "terminal" | "diff"
+export type WidgetId = "info" | "todo" | "plan" | "terminal" | "diff" | "artifacts" | "explorer"
 
 export interface WidgetConfig {
   id: WidgetId
   label: string
   icon: LucideIcon
   canExpand: boolean // true = can open as separate sidebar
-  defaultVisible: boolean
+  defaultVisibleInCoding: boolean  // default for coding mode
+  defaultVisibleInCowork: boolean  // default for cowork mode
 }
 
 export const WIDGET_REGISTRY: WidgetConfig[] = [
-  { id: "info", label: "Workspace", icon: Box, canExpand: false, defaultVisible: true },
-  { id: "todo", label: "To-dos", icon: ListTodo, canExpand: false, defaultVisible: true },
-  { id: "plan", label: "Plan", icon: FileText, canExpand: true, defaultVisible: true },
-  { id: "terminal", label: "Terminal", icon: Terminal, canExpand: true, defaultVisible: false },
-  { id: "diff", label: "Changes", icon: FileDiff, canExpand: true, defaultVisible: true },
+  // Coding mode widgets (Git workflow focused)
+  { id: "info", label: "Workspace", icon: Box, canExpand: false, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
+  { id: "todo", label: "Tasks", icon: ListTodo, canExpand: false, defaultVisibleInCoding: true, defaultVisibleInCowork: true },
+  { id: "plan", label: "Plan", icon: FileText, canExpand: true, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
+  { id: "terminal", label: "Terminal", icon: Terminal, canExpand: true, defaultVisibleInCoding: false, defaultVisibleInCowork: false },
+  { id: "diff", label: "Changes", icon: FileDiff, canExpand: true, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
+  // Cowork mode widgets (file focused)
+  { id: "artifacts", label: "Artifacts", icon: Package, canExpand: false, defaultVisibleInCoding: false, defaultVisibleInCowork: true },
+  { id: "explorer", label: "Explorer", icon: FolderTree, canExpand: true, defaultVisibleInCoding: false, defaultVisibleInCowork: true },
 ]
 
-// Helper to get default visible widgets
-const DEFAULT_VISIBLE_WIDGETS: WidgetId[] = WIDGET_REGISTRY
-  .filter((w) => w.defaultVisible)
-  .map((w) => w.id)
+// Helper to get default visible widgets by mode
+export function getDefaultVisibleWidgets(mode: ProjectMode): WidgetId[] {
+  return WIDGET_REGISTRY
+    .filter((w) => mode === "coding" ? w.defaultVisibleInCoding : w.defaultVisibleInCowork)
+    .map((w) => w.id)
+}
+
+// Legacy default (for backward compatibility)
+const DEFAULT_VISIBLE_WIDGETS: WidgetId[] = getDefaultVisibleWidgets("coding")
 
 // Default widget order (all widgets)
 const DEFAULT_WIDGET_ORDER: WidgetId[] = WIDGET_REGISTRY.map((w) => w.id)
@@ -133,10 +149,13 @@ export const detailsSidebarOpenAtom = atomWithWindowStorage<boolean>(
 )
 
 // Section types for the overview sidebar
-export type OverviewSection = "info" | "plan" | "terminal" | "diff"
+export type OverviewSection = "info" | "plan" | "terminal" | "diff" | "artifacts" | "explorer"
 
 // Default expanded sections
 const DEFAULT_EXPANDED_SECTIONS: OverviewSection[] = ["info", "plan", "terminal"]
+
+// Default expanded sections for cowork mode
+const DEFAULT_COWORK_EXPANDED_SECTIONS: OverviewSection[] = ["artifacts", "explorer"]
 
 // Section expand states (per workspace) - stores array of expanded section IDs
 const sectionExpandStorageAtom = atomWithStorage<
