@@ -793,3 +793,25 @@ export const contextCommentsAtom = atom<ContextCommentItem[]>([])
 // Callback atom for when a context comment is clicked in the diff gutter
 // This allows the diff view to notify the chat component to open edit dialog
 export const contextCommentClickedAtom = atom<string | null>(null)
+
+// ============================================
+// PROJECT MODE (Cowork feature)
+// ============================================
+
+// Current project mode - derived from selected project's mode
+// "cowork" = simplified mode (no git features, focus on chat)
+// "coding" = full mode (git, diff, terminal, etc.)
+export type ProjectMode = "cowork" | "coding"
+export const currentProjectModeAtom = atom<ProjectMode>("coding")
+
+// ============================================
+// TERMINAL PANEL HEIGHT (Coding mode)
+// ============================================
+
+// Terminal bottom panel height for coding mode
+export const codingTerminalPanelHeightAtom = atomWithStorage<number>(
+  "agents:coding-terminal-panel-height",
+  300,
+  undefined,
+  { getOnInit: true },
+)
