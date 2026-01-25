@@ -118,6 +118,7 @@ import {
   selectedAgentChatIdAtom,
   selectedCommitAtom,
   selectedDiffFilePathAtom,
+  selectedProjectAtom,
   setLoading,
   subChatFilesAtom,
   undoStackAtom,
@@ -196,6 +197,7 @@ import {
   detailsSidebarOpenAtom,
   unifiedSidebarEnabledAtom,
 } from "../../details-sidebar/atoms"
+import type { ProjectMode } from "../../../../shared/feature-config"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -1881,6 +1883,9 @@ const ChatViewInner = memo(function ChatViewInner({
   const prevChatKeyRef = useRef<string | null>(null)
   const prevSubChatIdRef = useRef<string | null>(null)
 
+  // Project mode for hiding git features in SubChatStatusCard
+  const projectMode = useAtomValue(currentProjectModeAtom)
+
   // TTS playback rate state (persists across messages and sessions via localStorage)
   const [ttsPlaybackRate, setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
     if (typeof window !== "undefined") {
@@ -1900,9 +1905,6 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // PR creation loading state - from atom to allow resetting after message sent
   const setIsCreatingPr = useSetAtom(isCreatingPrAtom)
-
-  // Project mode - "cowork" (simplified, no git) or "coding" (full features)
-  const projectMode = useAtomValue(currentProjectModeAtom)
 
   // Rollback state
   const [isRollingBack, setIsRollingBack] = useState(false)
@@ -4138,8 +4140,9 @@ export function ChatView({
   onOpenPreview,
   onOpenDiff,
   onOpenTerminal,
-  hideGitFeatures = false,
+  hideGitFeatures: hideGitFeaturesFromProps,
   rightHeaderSlot,
+  collapsedIndicator,
 }: {
   chatId: string
   isSidebarOpen: boolean
@@ -4155,7 +4158,13 @@ export function ChatView({
   hideGitFeatures?: boolean
   /** Custom slot for additional buttons in the header right area */
   rightHeaderSlot?: React.ReactNode
+  /** Collapsed indicator for sub-chat inputs - displayed in left column below header */
+  collapsedIndicator?: React.ReactNode
 }) {
+  // Setter for project mode atom
+  // Updated when chat's project mode is loaded
+  const setCurrentProjectMode = useSetAtom(currentProjectModeAtom)
+
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [selectedModelId] = useAtom(lastSelectedModelIdAtom)
   const [isPlanMode] = useAtom(isPlanModeAtom)
@@ -4589,6 +4598,26 @@ export function ChatView({
     stream_id?: string | null
   }>
 
+  // Get project mode from chat's associated project
+  // Each chat has its own project with its own mode
+  const chatProject = (agentChat as any)?.project as {
+    mode?: "cowork" | "coding"
+    featureConfig?: string | null
+  } | undefined
+  const chatProjectMode: ProjectMode = chatProject?.mode ?? "cowork"
+
+  // Sync currentProjectModeAtom when chat data changes
+  // This triggers agents-layout.tsx to recompute enabledWidgets
+  useEffect(() => {
+    if (agentChat) {
+      setCurrentProjectMode(chatProjectMode)
+    }
+  }, [agentChat, chatProjectMode, setCurrentProjectMode])
+
+  // Hide git features based on chat's project mode or explicit prop
+  // In cowork mode, git features are hidden by default
+  const hideGitFeatures = hideGitFeaturesFromProps ?? (chatProjectMode === "cowork")
+
   // Workspace isolation: limit mounted tabs to prevent memory growth
   // CRITICAL: Filter by workspace to prevent rendering sub-chats from other workspaces
   // Always render: active + pinned, then fill with recent up to limit
@@ -4729,8 +4758,11 @@ export function ChatView({
   // Get user usage data for credit checks
   const { data: usageData } = api.usage.getUserUsage.useQuery()
 
-  // Desktop: use worktreePath instead of sandbox
-  const worktreePath = agentChat?.worktreePath as string | null
+  // Selected project for fallback path
+  const selectedProject = useAtomValue(selectedProjectAtom)
+
+  // Desktop: use worktreePath instead of sandbox, fallback to selectedProject.path during loading
+  const worktreePath = (agentChat?.worktreePath as string | null) ?? selectedProject?.path ?? null
   // Desktop: original project path for MCP config lookup
   const originalProjectPath = (agentChat as any)?.project?.path as string | undefined
   // Fallback for web: use sandbox_id
@@ -6098,53 +6130,51 @@ Make sure to preserve all functionality from both branches when resolving confli
                       </span>
                     </PreviewSetupHoverCard>
                   ))}
-                {/* Overview/Terminal Button - shows when sidebar is closed and worktree exists (desktop only) */}
+                {/* Terminal Button - shown in coding mode (not in cowork mode which hides git features) */}
                 {!hideGitFeatures &&
                   !isMobileFullscreen &&
-                  worktreePath && (
-                    isUnifiedSidebarEnabled ? (
-                      // Details button for unified sidebar
-                      !isDetailsSidebarOpen && (
-                        <Tooltip delayDuration={500}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setIsDetailsSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
-                              aria-label="View details"
-                            >
-                              <IconOpenSidebarRight className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            View details
-                            {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    ) : (
-                      // Terminal button for legacy sidebars
-                      !isTerminalSidebarOpen && (
-                        <Tooltip delayDuration={500}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setIsTerminalSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
-                              aria-label="Open terminal"
-                            >
-                              <TerminalSquare className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Open terminal
-                            {toggleTerminalHotkey && <Kbd>{toggleTerminalHotkey}</Kbd>}
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    )
+                  worktreePath &&
+                  !isTerminalSidebarOpen && (
+                    <Tooltip delayDuration={500}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setIsTerminalSidebarOpen(true)}
+                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                          aria-label="Open terminal"
+                        >
+                          <TerminalSquare className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Open terminal
+                        {toggleTerminalHotkey && <Kbd>{toggleTerminalHotkey}</Kbd>}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* Details Button - always shown when unified sidebar is enabled (contains plan, todo, artifacts, etc.) */}
+                {isUnifiedSidebarEnabled &&
+                  !isMobileFullscreen &&
+                  worktreePath &&
+                  !isDetailsSidebarOpen && (
+                    <Tooltip delayDuration={500}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setIsDetailsSidebarOpen(true)}
+                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                          aria-label="View details"
+                        >
+                          <IconOpenSidebarRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        View details
+                        {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 {/* Restore Button - shows when viewing archived workspace (desktop only) */}
                 {!isMobileFullscreen && isArchived && (
@@ -6175,59 +6205,68 @@ Make sure to preserve all functionality from both branches when resolving confli
 
           {/* Chat Content - Keep-alive: render all open tabs, hide inactive with CSS */}
           {tabsToRender.length > 0 && agentChat ? (
-            <div className="relative flex-1 min-h-0">
-              {tabsToRender.map(subChatId => {
-                const chat = getOrCreateChat(subChatId)
-                const isActive = subChatId === activeSubChatId
-                const isFirstSubChat = getFirstSubChatId(agentSubChats) === subChatId
+            <div className="relative flex-1 min-h-0 flex">
+              {/* Collapsed indicator column - occupies its own space in left */}
+              {collapsedIndicator && (
+                <div className="flex-shrink-0 pl-2">
+                  {collapsedIndicator}
+                </div>
+              )}
+              {/* Chat tabs container */}
+              <div className="relative flex-1 min-h-0">
+                {tabsToRender.map(subChatId => {
+                  const chat = getOrCreateChat(subChatId)
+                  const isActive = subChatId === activeSubChatId
+                  const isFirstSubChat = getFirstSubChatId(agentSubChats) === subChatId
 
-                // Defense in depth: double-check workspace ownership
-                // Use allSubChats (Zustand) instead of agentSubChats (tRPC) because
-                // new sub-chats are added to Zustand immediately but tRPC query may be stale
-                const belongsToWorkspace = allSubChats.some(sc => sc.id === subChatId)
+                  // Defense in depth: double-check workspace ownership
+                  // Use allSubChats (Zustand) instead of agentSubChats (tRPC) because
+                  // new sub-chats are added to Zustand immediately but tRPC query may be stale
+                  const belongsToWorkspace = allSubChats.some(sc => sc.id === subChatId)
 
-                if (!chat || !belongsToWorkspace) return null
+                  if (!chat || !belongsToWorkspace) return null
 
-                return (
-                  <div
-                    key={subChatId}
-                    className="absolute inset-0 flex flex-col"
-                    style={{
-                      // GPU-accelerated visibility switching (нативное ощущение)
-                      // transform + opacity быстрее чем visibility для GPU
-                      transform: isActive ? "translateZ(0)" : "translateZ(0) scale(0.98)",
-                      opacity: isActive ? 1 : 0,
-                      // Prevent pointer events on hidden tabs
-                      pointerEvents: isActive ? "auto" : "none",
-                      // GPU layer hints
-                      willChange: "transform, opacity",
-                      // Изолируем layout - изменения внутри не влияют на другие табы
-                      contain: "layout style paint",
-                    }}
-                    aria-hidden={!isActive}
-                  >
-                    <ChatViewInner
-                      chat={chat}
-                      subChatId={subChatId}
-                      parentChatId={chatId}
-                      isFirstSubChat={isFirstSubChat}
-                      onAutoRename={handleAutoRename}
-                      onCreateNewSubChat={handleCreateNewSubChat}
-                      teamId={selectedTeamId || undefined}
-                      repository={repository}
-                      streamId={agentChatStore.getStreamId(subChatId)}
-                      isMobile={isMobileFullscreen}
-                      isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
-                      sandboxId={sandboxId || undefined}
-                      projectPath={worktreePath || undefined}
-                      isArchived={isArchived}
-                      onRestoreWorkspace={handleRestoreWorkspace}
-                      existingPrUrl={agentChat?.prUrl}
-                      isActive={isActive}
-                    />
-                  </div>
-                )
-              })}
+                  return (
+                    <div
+                      key={subChatId}
+                      className="absolute inset-0 flex flex-col"
+                      style={{
+                        // GPU-accelerated visibility switching (нативное ощущение)
+                        // transform + opacity быстрее чем visibility для GPU
+                        transform: isActive ? "translateZ(0)" : "translateZ(0) scale(0.98)",
+                        opacity: isActive ? 1 : 0,
+                        // Prevent pointer events on hidden tabs
+                        pointerEvents: isActive ? "auto" : "none",
+                        // GPU layer hints
+                        willChange: "transform, opacity",
+                        // Изолируем layout - изменения внутри не влияют на другие табы
+                        contain: "layout style paint",
+                      }}
+                      aria-hidden={!isActive}
+                    >
+                      <ChatViewInner
+                        chat={chat}
+                        subChatId={subChatId}
+                        parentChatId={chatId}
+                        isFirstSubChat={isFirstSubChat}
+                        onAutoRename={handleAutoRename}
+                        onCreateNewSubChat={handleCreateNewSubChat}
+                        teamId={selectedTeamId || undefined}
+                        repository={repository}
+                        streamId={agentChatStore.getStreamId(subChatId)}
+                        isMobile={isMobileFullscreen}
+                        isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
+                        sandboxId={sandboxId || undefined}
+                        projectPath={worktreePath || undefined}
+                        isArchived={isArchived}
+                        onRestoreWorkspace={handleRestoreWorkspace}
+                        existingPrUrl={agentChat?.prUrl}
+                        isActive={isActive}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ) : (
             <>

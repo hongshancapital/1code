@@ -166,6 +166,9 @@ export type SelectedProject = {
   gitProvider?: "github" | "gitlab" | "bitbucket" | null
   gitOwner?: string | null
   gitRepo?: string | null
+  // Project mode and feature configuration
+  mode?: "cowork" | "coding"
+  featureConfig?: string | null  // JSON string of ProjectFeatureConfig
 } | null
 
 // Selected local project - uses window-scoped storage so each window can work with different projects
@@ -798,11 +801,12 @@ export const contextCommentClickedAtom = atom<string | null>(null)
 // PROJECT MODE (Cowork feature)
 // ============================================
 
-// Current project mode - derived from selected project's mode
+// Current project mode - set by ChatView based on active workspace's project
 // "cowork" = simplified mode (no git features, focus on chat)
 // "coding" = full mode (git, diff, terminal, etc.)
+// This is a writable atom that ChatView updates when workspace changes
 export type ProjectMode = "cowork" | "coding"
-export const currentProjectModeAtom = atom<ProjectMode>("coding")
+export const currentProjectModeAtom = atom<ProjectMode>("cowork")
 
 // ============================================
 // TERMINAL PANEL HEIGHT (Coding mode)
@@ -815,3 +819,14 @@ export const codingTerminalPanelHeightAtom = atomWithStorage<number>(
   undefined,
   { getOnInit: true },
 )
+
+// ============================================
+// ENABLED WIDGETS (Feature Configuration)
+// ============================================
+
+// Enabled widgets based on project mode and feature config
+// Computed in AgentsLayout, consumed by DetailsSidebar and WidgetSettingsPopup
+// This is a runtime atom (not persisted) - recomputed when project changes
+import type { WidgetId } from "../../../../shared/feature-config"
+
+export const enabledWidgetsAtom = atom<Set<WidgetId>>(new Set())
