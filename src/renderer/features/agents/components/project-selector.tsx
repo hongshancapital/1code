@@ -25,7 +25,7 @@ import { Input } from "../../../components/ui/input"
 import { Button } from "../../../components/ui/button"
 import { IconChevronDown, CheckIcon, FolderPlusIcon, GitHubIcon } from "../../../components/ui/icons"
 import { trpc } from "../../../lib/trpc"
-import { selectedProjectAtom } from "../atoms"
+import { selectedProjectAtom, currentProjectModeAtom } from "../atoms"
 
 // Helper component to render project icon (avatar or folder)
 function ProjectIcon({
@@ -77,6 +77,10 @@ export function ProjectSelector() {
   const [searchQuery, setSearchQuery] = useState("")
   const [githubDialogOpen, setGithubDialogOpen] = useState(false)
   const [githubUrl, setGithubUrl] = useState("")
+
+  // Get current project mode (cowork/coding)
+  const currentProjectMode = useAtomValue(currentProjectModeAtom)
+  const isCoworkMode = currentProjectMode === "cowork"
 
   // Check if offline mode is enabled and if we're actually offline
   const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
@@ -131,6 +135,7 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding" | undefined,
         })
       }
     },
@@ -163,6 +168,7 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding" | undefined,
         })
         setGithubDialogOpen(false)
         setGithubUrl("")
@@ -195,6 +201,7 @@ export function ProjectSelector() {
           | null,
         gitOwner: project.gitOwner,
         gitRepo: project.gitRepo,
+        mode: project.mode as "cowork" | "coding" | undefined,
       })
       setOpen(false)
     }
@@ -212,7 +219,7 @@ export function ProjectSelector() {
     return exists ? selectedProject : null
   }, [selectedProject, projects, isLoadingProjects])
 
-  // If no projects exist and none selected - show direct "Add repository" button
+  // If no projects exist and none selected - show direct "Add folder/repository" button
   if (!validSelection && (!projects || projects.length === 0) && !isLoadingProjects) {
     return (
       <button
@@ -221,7 +228,7 @@ export function ProjectSelector() {
         className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
       >
         <FolderPlusIcon className="h-3.5 w-3.5" />
-        <span>{openFolder.isPending ? "Adding..." : "Add repository"}</span>
+        <span>{openFolder.isPending ? "Adding..." : isCoworkMode ? "Add folder" : "Add repository"}</span>
       </button>
     )
   }
@@ -246,7 +253,7 @@ export function ProjectSelector() {
             isOffline={isOffline}
           />
           <span className="truncate max-w-[120px]">
-            {validSelection?.name || "Select repo"}
+            {validSelection?.name || (isCoworkMode ? "Select folder" : "Select repo")}
           </span>
           <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
         </button>
@@ -254,7 +261,7 @@ export function ProjectSelector() {
       <PopoverContent className="w-64 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search repos..."
+            placeholder={isCoworkMode ? "Search folders..." : "Search repos..."}
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -298,18 +305,21 @@ export function ProjectSelector() {
               className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
             >
               <FolderPlusIcon className="h-4 w-4 text-muted-foreground" />
-              <span>{openFolder.isPending ? "Adding..." : "Add repository"}</span>
+              <span>{openFolder.isPending ? "Adding..." : isCoworkMode ? "Add folder" : "Add repository"}</span>
             </button>
-            <button
-              onClick={() => {
-                setOpen(false)
-                setGithubDialogOpen(true)
-              }}
-              className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
-            >
-              <GitHubIcon className="h-4 w-4 text-muted-foreground" />
-              <span>Add from GitHub</span>
-            </button>
+            {/* GitHub option only in Coding mode */}
+            {!isCoworkMode && (
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  setGithubDialogOpen(true)
+                }}
+                className="flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] rounded-md text-sm cursor-default select-none outline-none dark:hover:bg-neutral-800 hover:text-foreground transition-colors"
+              >
+                <GitHubIcon className="h-4 w-4 text-muted-foreground" />
+                <span>Add from GitHub</span>
+              </button>
+            )}
           </div>
         </Command>
       </PopoverContent>

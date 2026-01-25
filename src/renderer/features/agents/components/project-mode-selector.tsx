@@ -382,15 +382,15 @@ export function ProjectModeToggleWithSlogan({
   })
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
-      <div className="inline-flex items-center gap-1 p-0.5 bg-muted rounded-lg">
+    <div className={cn("flex items-center gap-2", className)}>
+      <div className="inline-flex items-center gap-0.5 p-0.5 bg-muted rounded-md">
         {MODE_OPTIONS.map((option) => (
           <button
             key={option.id}
             onClick={() => !disabled && onChange(option.id)}
             disabled={disabled}
             className={cn(
-              "relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "relative px-2 py-1 text-xs font-medium rounded transition-colors",
               "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
               value === option.id
                 ? "text-primary-foreground"
@@ -402,7 +402,7 @@ export function ProjectModeToggleWithSlogan({
             {value === option.id && (
               <motion.div
                 layoutId="mode-indicator-with-slogan"
-                className="absolute inset-0 bg-primary rounded-md"
+                className="absolute inset-0 bg-primary rounded"
                 transition={{
                   type: "spring",
                   stiffness: 400,

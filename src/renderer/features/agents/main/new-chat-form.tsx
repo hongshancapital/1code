@@ -31,6 +31,7 @@ import {
 import { cn } from "../../../lib/utils"
 import {
   agentsDebugModeAtom,
+  currentProjectModeAtom,
   isPlanModeAtom,
   justCreatedIdsAtom,
   lastSelectedAgentIdAtom,
@@ -43,6 +44,7 @@ import {
   selectedProjectAtom,
 } from "../atoms"
 import { ProjectSelector } from "../components/project-selector"
+import { ProjectModeToggle, ProjectModeToggleWithSlogan } from "../components/project-mode-selector"
 import { WorkModeSelector } from "../components/work-mode-selector"
 // import { selectedTeamIdAtom } from "@/lib/atoms/team"
 import { atom } from "jotai"
@@ -218,6 +220,7 @@ export function NewChatForm({
   )
   const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
   const [workMode, setWorkMode] = useAtom(lastSelectedWorkModeAtom)
+  const currentProjectMode = useAtomValue(currentProjectModeAtom)
 
   // File reference from file tree panel
   const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
@@ -248,6 +251,7 @@ export function NewChatForm({
   )
 
   const showWorktreeBanner =
+    currentProjectMode === "coding" &&
     workMode === "worktree" &&
     validatedProject &&
     !worktreeBannerDismissed &&
@@ -941,6 +945,7 @@ export function NewChatForm({
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          mode: project.mode as "cowork" | "coding" | undefined,
         })
       }
     },
@@ -952,6 +957,31 @@ export function NewChatForm({
   const handleOpenFolder = async () => {
     await openFolder.mutateAsync()
   }
+
+  // Handle project mode change (Cowork/Coding)
+  const updateModeMutation = trpc.projects.updateMode.useMutation()
+
+  const handleModeChange = useCallback(async (newMode: "cowork" | "coding") => {
+    if (!validatedProject?.id) return
+
+    try {
+      const updatedProject = await updateModeMutation.mutateAsync({
+        id: validatedProject.id,
+        mode: newMode,
+      })
+
+      // Update local state
+      if (updatedProject) {
+        setSelectedProject({
+          ...validatedProject,
+          mode: newMode,
+        })
+      }
+    } catch (error) {
+      console.error("Failed to update project mode:", error)
+      toast.error("Failed to update project mode")
+    }
+  }, [validatedProject, updateModeMutation, setSelectedProject])
 
   const getAgentIcon = (agentId: string, className?: string) => {
     switch (agentId) {
@@ -1492,15 +1522,17 @@ export function NewChatForm({
           {/* Title */}
           <div className="text-center mb-2">
             <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
-              {validatedProject
-                ? "What do you want to get done?"
-                : "Select a folder to get started"}
+              What do you want to get done?
             </h1>
-            {!validatedProject && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Choose a project folder to enable the chat
-              </p>
-            )}
+          </div>
+
+          {/* Mode Toggle - Cowork/Coding with slogan (left-aligned, above input) */}
+          <div className="flex justify-start !-mb-4">
+            <ProjectModeToggleWithSlogan
+              value={currentProjectMode}
+              onChange={handleModeChange}
+              showSlogan={true}
+            />
           </div>
 
           {/* Input Area - shown for both states */}
@@ -1906,8 +1938,8 @@ export function NewChatForm({
                 <div className="mt-1.5 md:mt-2 ml-[5px] flex items-center gap-2">
                   <ProjectSelector />
 
-                  {/* Work mode selector - between project and branch */}
-                  {validatedProject && (
+                  {/* Work mode selector - between project and branch (only in coding mode) */}
+                  {validatedProject && currentProjectMode === "coding" && (
                     <WorkModeSelector
                       value={workMode}
                       onChange={setWorkMode}
@@ -1915,8 +1947,8 @@ export function NewChatForm({
                     />
                   )}
 
-                  {/* Branch selector - only visible when worktree mode is selected */}
-                  {validatedProject && workMode === "worktree" && (
+                  {/* Branch selector - only visible in coding mode with worktree */}
+                  {validatedProject && currentProjectMode === "coding" && workMode === "worktree" && (
                     <Popover
                       open={branchPopoverOpen}
                       onOpenChange={(open) => {

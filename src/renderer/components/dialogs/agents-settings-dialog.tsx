@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   EyeOpenFilledIcon,
-  ProfileIconFilled,
   SlidersFilledIcon
 } from "../../icons"
 import { agentsSettingsDialogActiveTabAtom, devToolsUnlockedAtom, type SettingsTab } from "../../lib/atoms"
@@ -21,7 +20,6 @@ import { AgentsMcpTab } from "./settings-tabs/agents-mcp-tab"
 import { AgentsModelsTab } from "./settings-tabs/agents-models-tab"
 import { AgentsNotificationsTab } from "./settings-tabs/agents-notifications-tab"
 import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
-import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
 import { AgentsProjectWorktreeTab } from "./settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
 
@@ -84,12 +82,6 @@ interface AgentsSettingsDialogProps {
 
 // Main settings tabs
 const MAIN_TABS = [
-  {
-    id: "profile" as SettingsTab,
-    label: "Account",
-    icon: ProfileIconFilled,
-    description: "Manage your account settings",
-  },
   {
     id: "appearance" as SettingsTab,
     label: "Appearance",
@@ -353,8 +345,6 @@ export function AgentsSettingsDialog({
 
     // Handle static tabs
     switch (activeTab) {
-      case "profile":
-        return <AgentsProfileTab />
       case "appearance":
         return <AgentsAppearanceTab />
       case "keyboard":
