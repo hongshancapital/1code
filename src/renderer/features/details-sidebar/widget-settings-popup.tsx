@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { useAtom } from "jotai"
-import { GripVertical, Box, TerminalSquare, ListTodo } from "lucide-react"
+import { useAtom, useAtomValue } from "jotai"
+import { GripVertical, Box, TerminalSquare, ListTodo, Package, FolderTree } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -18,6 +18,8 @@ import {
   widgetOrderAtomFamily,
   type WidgetId,
 } from "./atoms"
+import { enabledWidgetsAtom, currentProjectModeAtom } from "../agents/atoms"
+import { isWidgetConfigurable } from "../../../shared/feature-config"
 
 interface WidgetSettingsPopupProps {
   workspaceId: string
@@ -36,12 +38,20 @@ function getWidgetIcon(widgetId: WidgetId) {
       return TerminalSquare
     case "diff":
       return DiffIcon
+    case "artifacts":
+      return Package
+    case "explorer":
+      return FolderTree
     default:
       return Box
   }
 }
 
 export function WidgetSettingsPopup({ workspaceId }: WidgetSettingsPopupProps) {
+  // Get enabled widgets from project feature config
+  const enabledWidgets = useAtomValue(enabledWidgetsAtom)
+  const projectMode = useAtomValue(currentProjectModeAtom)
+
   const visibilityAtom = useMemo(
     () => widgetVisibilityAtomFamily(workspaceId),
     [workspaceId],
@@ -138,12 +148,13 @@ export function WidgetSettingsPopup({ workspaceId }: WidgetSettingsPopupProps) {
     setDragOverWidget(null)
   }, [])
 
-  // Get widgets in current order
+  // Get widgets in current order, filtered to only show configurable widgets
+  // (excludes always-enabled widgets like plan, and mode-locked widgets)
   const orderedWidgets = useMemo(() => {
-    return [...WIDGET_REGISTRY].sort(
-      (a, b) => widgetOrder.indexOf(a.id) - widgetOrder.indexOf(b.id),
-    )
-  }, [widgetOrder])
+    return [...WIDGET_REGISTRY]
+      .filter((w) => enabledWidgets.has(w.id) && isWidgetConfigurable(w.id, projectMode))
+      .sort((a, b) => widgetOrder.indexOf(a.id) - widgetOrder.indexOf(b.id))
+  }, [widgetOrder, enabledWidgets, projectMode])
 
   return (
     <Popover>

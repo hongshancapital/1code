@@ -26,6 +26,7 @@ import {
   WIDGET_REGISTRY,
   type WidgetId,
 } from "./atoms"
+import { enabledWidgetsAtom } from "../agents/atoms"
 import { WidgetSettingsPopup } from "./widget-settings-popup"
 import { InfoSection } from "./sections/info-section"
 import { TodoWidget } from "./sections/todo-widget"
@@ -101,6 +102,9 @@ export function DetailsSidebar({
   // Global sidebar open state
   const [isOpen, setIsOpen] = useAtom(detailsSidebarOpenAtom)
 
+  // Enabled widgets from project feature config
+  const enabledWidgets = useAtomValue(enabledWidgetsAtom)
+
   // Per-workspace widget visibility
   const widgetVisibilityAtom = useMemo(
     () => widgetVisibilityAtomFamily(chatId),
@@ -141,10 +145,10 @@ export function DetailsSidebar({
     [onExpandTerminal, onExpandPlan, onExpandDiff],
   )
 
-  // Check if a widget should be shown
+  // Check if a widget should be shown (must be both enabled by project config AND visible by user preference)
   const isWidgetVisible = useCallback(
-    (widgetId: WidgetId) => visibleWidgets.includes(widgetId),
-    [visibleWidgets],
+    (widgetId: WidgetId) => enabledWidgets.has(widgetId) && visibleWidgets.includes(widgetId),
+    [enabledWidgets, visibleWidgets],
   )
 
   // Check if a widget can be expanded
@@ -322,7 +326,8 @@ export function DetailsSidebar({
 
         {/* Widget Cards - rendered in user-defined order */}
         <div className="flex-1 overflow-y-auto py-2">
-          {widgetOrder.map((widgetId) => {
+          {/* Deduplicate widgetOrder to prevent double rendering */}
+          {[...new Set(widgetOrder)].map((widgetId) => {
             // Skip if widget is not visible
             if (!isWidgetVisible(widgetId)) return null
 

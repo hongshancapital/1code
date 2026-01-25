@@ -391,6 +391,25 @@ export const projectsRouter = router({
     }),
 
   /**
+   * Update project feature configuration
+   * Controls which widgets and tools are enabled for this project
+   */
+  updateFeatureConfig: publicProcedure
+    .input(z.object({
+      id: z.string(),
+      featureConfig: z.string().nullable(),
+    }))
+    .mutation(({ input }) => {
+      const db = getDatabase()
+      return db
+        .update(projects)
+        .set({ featureConfig: input.featureConfig, updatedAt: new Date() })
+        .where(eq(projects.id, input.id))
+        .returning()
+        .get()
+    }),
+
+  /**
    * Refresh project mode based on current git status
    * Auto-detects: "coding" if folder has .git, "cowork" otherwise
    */

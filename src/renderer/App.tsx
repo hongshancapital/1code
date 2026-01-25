@@ -8,18 +8,18 @@ import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext
 import { selectedProjectAtom, selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { AgentsLayout } from "./features/layout/agents-layout"
-import { CoworkLayout } from "./features/cowork/cowork-layout"
-import { isCoworkModeAtom } from "./features/cowork/atoms"
 import {
   AnthropicOnboardingPage,
   ApiKeyOnboardingPage,
   BillingMethodPage,
-  SelectRepoPage,
+  LiteLLMOnboardingPage,
 } from "./features/onboarding"
 import { identify, initAnalytics, shutdown } from "./lib/analytics"
 import {
-  anthropicOnboardingCompletedAtom, apiKeyOnboardingCompletedAtom,
-  billingMethodAtom
+  anthropicOnboardingCompletedAtom,
+  apiKeyOnboardingCompletedAtom,
+  billingMethodAtom,
+  litellmOnboardingCompletedAtom,
 } from "./lib/atoms"
 import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
@@ -44,7 +44,6 @@ function ThemedToaster() {
  * Main content router - decides which page to show based on onboarding state
  */
 function AppContent() {
-  const isCoworkMode = useAtomValue(isCoworkModeAtom)
   const billingMethod = useAtomValue(billingMethodAtom)
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const anthropicOnboardingCompleted = useAtomValue(
@@ -53,6 +52,7 @@ function AppContent() {
   const setAnthropicOnboardingCompleted = useSetAtom(anthropicOnboardingCompletedAtom)
   const apiKeyOnboardingCompleted = useAtomValue(apiKeyOnboardingCompletedAtom)
   const setApiKeyOnboardingCompleted = useSetAtom(apiKeyOnboardingCompletedAtom)
+  const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
@@ -110,23 +110,15 @@ function AppContent() {
   }, [selectedProject, projects, isLoadingProjects])
 
   // ============================================================================
-  // Cowork Mode: Skip all auth/onboarding, go directly to CoworkLayout
-  // The layout handles project selection internally
-  // ============================================================================
-  if (isCoworkMode) {
-    return <CoworkLayout />
-  }
-
-  // ============================================================================
-  // Original Agents Mode: Full onboarding flow
+  // Auth/Onboarding Flow
   // ============================================================================
 
   // Determine which page to show:
   // 1. No billing method selected -> BillingMethodPage
   // 2. Claude subscription selected but not completed -> AnthropicOnboardingPage
   // 3. API key or custom model selected but not completed -> ApiKeyOnboardingPage
-  // 4. No valid project selected -> SelectRepoPage
-  // 5. Otherwise -> AgentsLayout
+  // 4. LiteLLM selected but not completed -> LiteLLMOnboardingPage
+  // 5. Otherwise -> AgentsLayout (handles "no project" state with folder selection UI)
   if (!billingMethod) {
     return <BillingMethodPage />
   }
@@ -142,10 +134,12 @@ function AppContent() {
     return <ApiKeyOnboardingPage />
   }
 
-  if (!validatedProject && !isLoadingProjects) {
-    return <SelectRepoPage />
+  if (billingMethod === "litellm" && !litellmOnboardingCompleted) {
+    return <LiteLLMOnboardingPage />
   }
 
+  // No more SelectRepoPage - AgentsLayout handles the "no project" state
+  // with the new-chat-form showing "Select a folder to get started"
   return <AgentsLayout />
 }
 

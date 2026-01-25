@@ -3,48 +3,41 @@ import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
 import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree } from "lucide-react"
+import {
+  type WidgetId,
+  type ProjectMode,
+  WIDGET_DEFAULTS,
+  getDefaultVisibleWidgets,
+} from "../../../../shared/feature-config"
 
-// ============================================================================
-// Project Mode Types
-// ============================================================================
-
-export type ProjectMode = "cowork" | "coding"
+// Re-export types from shared
+export type { WidgetId, ProjectMode }
+export { getDefaultVisibleWidgets }
 
 // ============================================================================
 // Widget System Types & Registry
 // ============================================================================
-
-export type WidgetId = "info" | "todo" | "plan" | "terminal" | "diff" | "artifacts" | "explorer"
 
 export interface WidgetConfig {
   id: WidgetId
   label: string
   icon: LucideIcon
   canExpand: boolean // true = can open as separate sidebar
-  defaultVisibleInCoding: boolean  // default for coding mode
-  defaultVisibleInCowork: boolean  // default for cowork mode
 }
 
 export const WIDGET_REGISTRY: WidgetConfig[] = [
   // Coding mode widgets (Git workflow focused)
-  { id: "info", label: "Workspace", icon: Box, canExpand: false, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
-  { id: "todo", label: "Tasks", icon: ListTodo, canExpand: false, defaultVisibleInCoding: true, defaultVisibleInCowork: true },
-  { id: "plan", label: "Plan", icon: FileText, canExpand: true, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
-  { id: "terminal", label: "Terminal", icon: Terminal, canExpand: true, defaultVisibleInCoding: false, defaultVisibleInCowork: false },
-  { id: "diff", label: "Changes", icon: FileDiff, canExpand: true, defaultVisibleInCoding: true, defaultVisibleInCowork: false },
+  { id: "info", label: WIDGET_DEFAULTS.info.label, icon: Box, canExpand: false },
+  { id: "todo", label: WIDGET_DEFAULTS.todo.label, icon: ListTodo, canExpand: false },
+  { id: "plan", label: WIDGET_DEFAULTS.plan.label, icon: FileText, canExpand: true },
+  { id: "terminal", label: WIDGET_DEFAULTS.terminal.label, icon: Terminal, canExpand: true },
+  { id: "diff", label: WIDGET_DEFAULTS.diff.label, icon: FileDiff, canExpand: true },
   // Cowork mode widgets (file focused)
-  { id: "artifacts", label: "Artifacts", icon: Package, canExpand: false, defaultVisibleInCoding: false, defaultVisibleInCowork: true },
-  { id: "explorer", label: "Explorer", icon: FolderTree, canExpand: true, defaultVisibleInCoding: false, defaultVisibleInCowork: true },
+  { id: "artifacts", label: WIDGET_DEFAULTS.artifacts.label, icon: Package, canExpand: false },
+  { id: "explorer", label: WIDGET_DEFAULTS.explorer.label, icon: FolderTree, canExpand: true },
 ]
 
-// Helper to get default visible widgets by mode
-export function getDefaultVisibleWidgets(mode: ProjectMode): WidgetId[] {
-  return WIDGET_REGISTRY
-    .filter((w) => mode === "coding" ? w.defaultVisibleInCoding : w.defaultVisibleInCowork)
-    .map((w) => w.id)
-}
-
-// Legacy default (for backward compatibility)
+// Default visible widgets (use coding mode as default)
 const DEFAULT_VISIBLE_WIDGETS: WidgetId[] = getDefaultVisibleWidgets("coding")
 
 // Default widget order (all widgets)
@@ -63,13 +56,20 @@ const widgetVisibilityStorageAtom = atomWithStorage<Record<string, WidgetId[]>>(
 
 export const widgetVisibilityAtomFamily = atomFamily((workspaceId: string) =>
   atom(
-    (get) =>
-      get(widgetVisibilityStorageAtom)[workspaceId] ?? DEFAULT_VISIBLE_WIDGETS,
+    (get) => {
+      const stored = get(widgetVisibilityStorageAtom)[workspaceId]
+      // Deduplicate and validate against registry
+      const visibility = stored ?? DEFAULT_VISIBLE_WIDGETS
+      return [...new Set(visibility)].filter((id) =>
+        WIDGET_REGISTRY.some((w) => w.id === id)
+      )
+    },
     (get, set, visibleWidgets: WidgetId[]) => {
       const current = get(widgetVisibilityStorageAtom)
+      // Deduplicate on write
       set(widgetVisibilityStorageAtom, {
         ...current,
-        [workspaceId]: visibleWidgets,
+        [workspaceId]: [...new Set(visibleWidgets)],
       })
     },
   ),
@@ -88,13 +88,20 @@ const widgetOrderStorageAtom = atomWithStorage<Record<string, WidgetId[]>>(
 
 export const widgetOrderAtomFamily = atomFamily((workspaceId: string) =>
   atom(
-    (get) =>
-      get(widgetOrderStorageAtom)[workspaceId] ?? DEFAULT_WIDGET_ORDER,
+    (get) => {
+      const stored = get(widgetOrderStorageAtom)[workspaceId]
+      // Deduplicate and validate against registry
+      const order = stored ?? DEFAULT_WIDGET_ORDER
+      return [...new Set(order)].filter((id) =>
+        WIDGET_REGISTRY.some((w) => w.id === id)
+      )
+    },
     (get, set, widgetOrder: WidgetId[]) => {
       const current = get(widgetOrderStorageAtom)
+      // Deduplicate on write
       set(widgetOrderStorageAtom, {
         ...current,
-        [workspaceId]: widgetOrder,
+        [workspaceId]: [...new Set(widgetOrder)],
       })
     },
   ),

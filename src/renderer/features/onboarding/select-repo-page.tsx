@@ -46,6 +46,8 @@ export function SelectRepoPage() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          // Use auto-detected mode from database (coding if git repo, cowork otherwise)
+          mode: project.mode as "cowork" | "coding" | undefined,
         })
       }
     },
@@ -78,6 +80,8 @@ export function SelectRepoPage() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
+          // Use auto-detected mode from database (coding if git repo, cowork otherwise)
+          mode: project.mode as "cowork" | "coding" | undefined,
         })
         setShowClonePage(false)
         setGithubUrl("")

@@ -14,7 +14,7 @@ import {
   customHotkeysAtom,
   betaKanbanEnabledAtom,
 } from "../../lib/atoms"
-import { selectedAgentChatIdAtom, selectedProjectAtom, selectedDraftIdAtom, showNewChatFormAtom } from "../agents/atoms"
+import { selectedAgentChatIdAtom, selectedProjectAtom, selectedDraftIdAtom, showNewChatFormAtom, currentProjectModeAtom, enabledWidgetsAtom } from "../agents/atoms"
 import { trpc } from "../../lib/trpc"
 import { useAgentsHotkeys } from "../agents/lib/agents-hotkeys-manager"
 import { toggleSearchAtom } from "../agents/search"
@@ -29,6 +29,9 @@ import { WindowsTitleBar } from "../../components/windows-title-bar"
 import { useUpdateChecker } from "../../lib/hooks/use-update-checker"
 import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
 import { QueueProcessor } from "../agents/components/queue-processor"
+import { useArtifactsListener } from "../cowork/use-artifacts-listener"
+import { FilePreviewDialog } from "../cowork/file-preview"
+import { computeEnabledWidgets, parseFeatureConfig } from "../../../shared/feature-config"
 
 // ============================================================================
 // Constants
@@ -235,6 +238,27 @@ export function AgentsLayout() {
     setSidebarOpen(false)
   }, [setSidebarOpen])
 
+  // Get project mode and enabled features
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const featureConfig = useMemo(
+    () => parseFeatureConfig(selectedProject?.featureConfig),
+    [selectedProject?.featureConfig]
+  )
+  const enabledWidgets = useMemo(
+    () => computeEnabledWidgets(projectMode, featureConfig),
+    [projectMode, featureConfig]
+  )
+
+  // Sync enabledWidgets to atom for DetailsSidebar and WidgetSettingsPopup
+  const setEnabledWidgets = useSetAtom(enabledWidgetsAtom)
+  useEffect(() => {
+    setEnabledWidgets(enabledWidgets)
+  }, [enabledWidgets, setEnabledWidgets])
+
+  // Listen for file changes when artifacts feature is enabled
+  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  useArtifactsListener(enabledWidgets.has("artifacts") ? activeSubChatId : null)
+
   return (
     <TooltipProvider delayDuration={300}>
       {/* Global queue processor - handles message queues for all sub-chats */}
@@ -244,6 +268,8 @@ export function AgentsLayout() {
         onClose={() => setSettingsOpen(false)}
       />
       <ClaudeLoginModal />
+      {/* File Preview Dialog - shown when artifacts feature is enabled */}
+      {enabledWidgets.has("artifacts") && <FilePreviewDialog />}
       <div className="flex flex-col w-full h-full relative overflow-hidden bg-background select-none">
         {/* Windows Title Bar (only shown on Windows with frameless window) */}
         <WindowsTitleBar />

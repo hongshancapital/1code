@@ -64,6 +64,8 @@ interface FileTreePanelProps {
   onClose?: () => void
   onFileSelect?: (path: string, line?: number) => void
   showHeader?: boolean
+  /** Hide the border below the search box (useful when embedded in a widget) */
+  hideSearchBorder?: boolean
 }
 
 // ============================================================================
@@ -297,6 +299,7 @@ export function FileTreePanel({
   onClose,
   onFileSelect,
   showHeader = true,
+  hideSearchBorder = false,
 }: FileTreePanelProps) {
   const [expandedPaths, setExpandedPaths] = useAtom(fileTreeExpandedPathsAtom)
   const [searchQuery, setSearchQuery] = useAtom(fileTreeSearchQueryAtom)
@@ -712,7 +715,7 @@ export function FileTreePanel({
       )}
 
       {/* Search */}
-      <div className="p-2 border-b">
+      <div className={cn("p-2", !hideSearchBorder && "border-b")}>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input

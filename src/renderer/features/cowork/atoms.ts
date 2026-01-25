@@ -2,19 +2,6 @@ import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 
 // ============================================================================
-// Cowork Mode Toggle
-// ============================================================================
-
-// Master switch for Cowork mode (persisted)
-// When true, CoworkLayout is used instead of AgentsLayout
-export const isCoworkModeAtom = atomWithStorage<boolean>(
-  "cowork:enabled",
-  true, // Default to Cowork mode
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================================================
 // Right Panel State (Tasks + Files)
 // ============================================================================
 

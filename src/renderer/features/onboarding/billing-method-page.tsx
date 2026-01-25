@@ -4,7 +4,7 @@ import { useSetAtom } from "jotai"
 import { useState } from "react"
 import { Check } from "lucide-react"
 
-import { ClaudeCodeIcon, KeyFilledIcon, SettingsFilledIcon } from "../../components/ui/icons"
+import { ClaudeCodeIcon, KeyFilledIcon, SettingsFilledIcon, LiteLLMIcon } from "../../components/ui/icons"
 import { billingMethodAtom, type BillingMethod } from "../../lib/atoms"
 import { cn } from "../../lib/utils"
 
@@ -29,6 +29,12 @@ const billingOptions: BillingOption[] = [
     title: "Anthropic API Key",
     subtitle: "Pay-as-you-go with your own API key.",
     icon: <KeyFilledIcon className="w-5 h-5" />,
+  },
+  {
+    id: "litellm",
+    title: "LiteLLM Proxy",
+    subtitle: "Connect to LiteLLM with model selection.",
+    icon: <LiteLLMIcon className="w-5 h-5" />,
   },
   {
     id: "custom-model",

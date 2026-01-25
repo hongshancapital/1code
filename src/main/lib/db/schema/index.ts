@@ -22,6 +22,9 @@ export const projects = sqliteTable("projects", {
   gitRepo: text("git_repo"),
   // Project mode: "cowork" (simplified, no git) or "coding" (full features with git)
   mode: text("mode").notNull().default("cowork"),
+  // Feature configuration: JSON object for widget/tool overrides
+  // { widgets?: { [widgetId]: boolean }, tools?: { [toolId]: boolean } }
+  featureConfig: text("feature_config"),
 })
 
 export const projectsRelations = relations(projects, ({ many }) => ({

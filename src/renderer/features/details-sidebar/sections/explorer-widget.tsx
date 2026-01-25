@@ -85,6 +85,7 @@ export const ExplorerWidget = memo(function ExplorerWidget({
           projectPath={effectivePath}
           onFileSelect={handleFileTreeSelect}
           showHeader={false}
+          hideSearchBorder={true}
         />
       </div>
     </div>
