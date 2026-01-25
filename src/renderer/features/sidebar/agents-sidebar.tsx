@@ -26,7 +26,7 @@ import {
   betaKanbanEnabledAtom,
 } from "../../lib/atoms"
 import { ArchivePopover } from "../agents/ui/archive-popover"
-import { ChevronDown, MoreHorizontal, Columns3 } from "lucide-react"
+import { ChevronDown, MoreHorizontal, Columns3, Mail } from "lucide-react"
 // import { useRouter } from "next/navigation" // Desktop doesn't use next/navigation
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null })
@@ -103,8 +103,6 @@ import { AgentsHelpPopover } from "../agents/components/agents-help-popover"
 import { getShortcutKey, isDesktopApp } from "../../lib/utils/platform"
 import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
 import { pluralize } from "../agents/utils/pluralize"
-import { ProjectModeIcon } from "../agents/components/project-mode-selector"
-import type { ProjectMode } from "../agents/atoms"
 import { useNewChatDrafts, deleteNewChatDraft, type NewChatDraft } from "../agents/lib/drafts"
 import {
   TrafficLightSpacer,
@@ -440,7 +438,6 @@ const AgentChatItem = React.memo(function AgentChatItem({
   nameRefCallback,
   formatTime,
   isJustCreated,
-  projectMode,
 }: {
   chatId: string
   chatName: string | null
@@ -487,7 +484,6 @@ const AgentChatItem = React.memo(function AgentChatItem({
   nameRefCallback: (chatId: string, el: HTMLSpanElement | null) => void
   formatTime: (dateStr: string) => string
   isJustCreated: boolean
-  projectMode?: ProjectMode
 }) {
   // Resolved hotkey for context menu
   const archiveWorkspaceHotkey = useResolvedHotkeyDisplay("archive-workspace")
@@ -642,9 +638,6 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 )}
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
-                {projectMode && (
-                  <ProjectModeIcon mode={projectMode} className="w-3 h-3 flex-shrink-0" />
-                )}
                 <span className="truncate flex-1 min-w-0">{displayText}</span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {stats && (stats.additions > 0 || stats.deletions > 0) && (
@@ -817,7 +810,7 @@ interface ChatListSectionProps {
   isMobileFullscreen: boolean
   isDesktop: boolean
   pinnedChatIds: Set<string>
-  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null; mode?: string | null }>
+  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null }>
   workspaceFileStats: Map<string, { fileCount: number; additions: number; deletions: number }>
   filteredChats: Array<{ id: string }>
   canShowPinOption: boolean
@@ -973,7 +966,6 @@ const ChatListSection = React.memo(function ChatListSection({
               nameRefCallback={nameRefCallback}
               formatTime={formatTime}
               isJustCreated={isJustCreated}
-              projectMode={project?.mode as ProjectMode | undefined}
             />
           )
         })}
@@ -1191,24 +1183,223 @@ const SidebarHeader = memo(function SidebarHeader({
       {/* Spacer for macOS traffic lights */}
       <TrafficLightSpacer isFullscreen={isFullscreen} isDesktop={isDesktop} />
 
-      {/* Brand display - non-interactive */}
+      {/* Team dropdown - below traffic lights */}
       <div className="px-2 pt-2 pb-2">
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            <div className="h-6 px-1.5 flex items-center max-w-full">
-              <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-                <div className="min-w-0 flex-1 overflow-hidden">
-                  <div className="text-sm font-medium text-foreground truncate">
-                    Hóng
+            <DropdownMenu
+              open={isDropdownOpen}
+              onOpenChange={setIsDropdownOpen}
+            >
+              <DropdownMenuTrigger asChild>
+                <ButtonCustom
+                  variant="ghost"
+                  className="h-6 px-1.5 justify-start hover:bg-foreground/10 rounded-md group/team-button max-w-full"
+                  suppressHydrationWarning
+                >
+                  <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                    <div className="flex items-center justify-center flex-shrink-0">
+                      <Logo className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div className="text-sm font-medium text-foreground truncate">
+                        Hóng
+                      </div>
+                    </div>
+                    {showOfflineFeatures && (
+                      <div className="flex-shrink-0">
+                        <NetworkStatus />
+                      </div>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-3 text-muted-foreground flex-shrink-0 overflow-hidden",
+                        isDropdownOpen
+                          ? "opacity-100 w-3"
+                          : "opacity-0 w-0 group-hover/team-button:opacity-100 group-hover/team-button:w-3",
+                      )}
+                    />
                   </div>
-                </div>
-                {showOfflineFeatures && (
-                  <div className="flex-shrink-0">
-                    <NetworkStatus />
-                  </div>
+                </ButtonCustom>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="w-52 pt-0"
+                sideOffset={8}
+              >
+                {userId ? (
+                  <>
+                    {/* Project section at the top */}
+                    <div className="relative rounded-t-xl border-b overflow-hidden">
+                      <div className="absolute inset-0 bg-popover brightness-110" />
+                      <div className="relative pl-2 pt-1.5 pb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded flex items-center justify-center bg-background flex-shrink-0 overflow-hidden">
+                            <Logo className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <div className="font-medium text-sm text-foreground truncate">
+                              {desktopUser?.name || "User"}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {desktopUser?.email}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Settings */}
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={() => {
+                        setIsDropdownOpen(false)
+                        setSettingsActiveTab("profile")
+                        setSettingsDialogOpen(true)
+                      }}
+                    >
+                      <SettingsIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      Settings
+                    </DropdownMenuItem>
+
+                    {/* Help Submenu */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="gap-2">
+                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1">Help</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        className="w-36"
+                        sideOffset={6}
+                        alignOffset={-4}
+                      >
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            window.open(FEEDBACK_URL, "_blank")
+                            setIsDropdownOpen(false)
+                          }}
+                          className="gap-2"
+                        >
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="flex-1">Feedback</span>
+                        </DropdownMenuItem>
+                        {!isMobileFullscreen && (
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setIsDropdownOpen(false)
+                              setSettingsActiveTab("keyboard")
+                              setSettingsDialogOpen(true)
+                            }}
+                            className="gap-2"
+                          >
+                            <KeyboardIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="flex-1">Shortcuts</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Log out */}
+                    <div className="">
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onSelect={() => onSignOut()}
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <polyline
+                            points="16,17 21,12 16,7"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <line
+                            x1="21"
+                            y1="12"
+                            x2="9"
+                            y2="12"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        Log out
+                      </DropdownMenuItem>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Login for unauthenticated users */}
+                    <div className="">
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onSelect={() => {
+                          setIsDropdownOpen(false)
+                          setShowAuthDialog(true)
+                        }}
+                      >
+                        <ProfileIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        Login
+                      </DropdownMenuItem>
+                    </div>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Help Submenu */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="gap-2">
+                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1">Help</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        className="w-36"
+                        sideOffset={6}
+                        alignOffset={-4}
+                      >
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            window.open(FEEDBACK_URL, "_blank")
+                            setIsDropdownOpen(false)
+                          }}
+                          className="gap-2"
+                        >
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="flex-1">Feedback</span>
+                        </DropdownMenuItem>
+                        {!isMobileFullscreen && (
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setIsDropdownOpen(false)
+                              setSettingsActiveTab("keyboard")
+                              setSettingsDialogOpen(true)
+                            }}
+                            className="gap-2"
+                          >
+                            <KeyboardIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="flex-1">Shortcuts</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </>
                 )}
-              </div>
-            </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -1884,7 +2075,7 @@ export function AgentsSidebar({
   const workspaceFileStats = useMemo(() => {
     const statsMap = new Map<string, { fileCount: number; additions: number; deletions: number }>()
     if (fileStatsData) {
-
+      
       for (const stat of fileStatsData) {
         statsMap.set(stat.chatId, {
           fileCount: stat.fileCount,
