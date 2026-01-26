@@ -27,6 +27,7 @@ import {
 } from "../../lib/atoms"
 import { ArchivePopover } from "../agents/ui/archive-popover"
 import { ChevronDown, MoreHorizontal, Columns3, Mail } from "lucide-react"
+import { ProjectModeIcon } from "../agents/components/project-mode-selector"
 // import { useRouter } from "next/navigation" // Desktop doesn't use next/navigation
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null })
@@ -413,6 +414,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   displayText,
   gitOwner,
   gitProvider,
+  projectMode,
   stats,
   selectedChatIdsSize,
   canShowPinOption,
@@ -459,6 +461,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   displayText: string
   gitOwner: string | null | undefined
   gitProvider: string | null | undefined
+  projectMode: string | null | undefined
   stats: { fileCount: number; additions: number; deletions: number } | undefined
   selectedChatIdsSize: number
   canShowPinOption: boolean
@@ -638,6 +641,11 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 )}
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
+                {/* Project mode icon */}
+                <ProjectModeIcon
+                  mode={(projectMode as "cowork" | "coding") || "cowork"}
+                  className="h-3 w-3 flex-shrink-0"
+                />
                 <span className="truncate flex-1 min-w-0">{displayText}</span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {stats && (stats.additions > 0 || stats.deletions > 0) && (
@@ -810,7 +818,7 @@ interface ChatListSectionProps {
   isMobileFullscreen: boolean
   isDesktop: boolean
   pinnedChatIds: Set<string>
-  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null }>
+  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null; mode?: string | null }>
   workspaceFileStats: Map<string, { fileCount: number; additions: number; deletions: number }>
   filteredChats: Array<{ id: string }>
   canShowPinOption: boolean
@@ -941,6 +949,7 @@ const ChatListSection = React.memo(function ChatListSection({
               displayText={displayText}
               gitOwner={project?.gitOwner}
               gitProvider={project?.gitProvider}
+              projectMode={project?.mode}
               stats={stats}
               selectedChatIdsSize={selectedChatIds.size}
               canShowPinOption={canShowPinOption}
