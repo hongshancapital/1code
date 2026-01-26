@@ -1,5 +1,5 @@
 {
-  "name": "21st-desktop",
+  "name": "hong-desktop",
   "version": "0.0.44",
   "private": true,
   "description": "Hóng - UI for parallel work with AI agents",
@@ -132,12 +132,12 @@
     "vite": "^6.3.4"
   },
   "build": {
-    "appId": "dev.21st.agents",
-    "productName": "Hóng",
+    "appId": "dev.hongshan.agents",
+    "productName": "Hong",
     "npmRebuild": true,
     "protocols": [
       {
-        "name": "Hóng",
+        "name": "Hong",
         "schemes": [
           "twentyfirst-agents"
         ]
@@ -179,15 +179,13 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],

@@ -220,7 +220,15 @@ export function NewChatForm({
   )
   const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
   const [workMode, setWorkMode] = useAtom(lastSelectedWorkModeAtom)
-  const currentProjectMode = useAtomValue(currentProjectModeAtom)
+  const [currentProjectMode, setCurrentProjectMode] = useAtom(currentProjectModeAtom)
+
+  // Sync currentProjectModeAtom with validatedProject.mode
+  // This ensures the mode toggle reflects the project's actual mode
+  useEffect(() => {
+    if (validatedProject?.mode) {
+      setCurrentProjectMode(validatedProject.mode as "cowork" | "coding")
+    }
+  }, [validatedProject?.mode, setCurrentProjectMode])
 
   // File reference from file tree panel
   const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)

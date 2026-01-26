@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/electron/main"
-import { app, BrowserWindow, Menu, session } from "electron"
+import { app, BrowserWindow, Menu, protocol, session } from "electron"
 import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { createServer } from "http"
 import { join } from "path"
