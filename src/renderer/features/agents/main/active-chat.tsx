@@ -4730,18 +4730,20 @@ export function ChatView({
   const tabsToRender = useMemo(() => {
     if (!activeSubChatId) return []
 
-    // Use agentSubChats from server (tRPC/remote API) as the authoritative source for validation.
+    // Merge BOTH data sources for validation:
+    // - agentSubChats: server truth (from tRPC/remote API)
+    // - allSubChats: Zustand store (includes optimistic updates for newly created sub-chats)
+    //
     // This fixes the race condition where:
-    // 1. setChatId resets allSubChats to [] but loads activeSubChatId from localStorage
-    // 2. tabsToRender was checking activeSubChatId against empty allSubChats → always failing
+    // 1. User creates new sub-chat → added to allSubChats immediately
+    // 2. invalidate() triggers refetch, but agentSubChats hasn't updated yet
+    // 3. If we only check agentSubChats, the new sub-chat ID won't be valid
     //
-    // agentSubChats comes from the server and is the "truth" about which sub-chats exist.
-    // allSubChats in Zustand is only populated AFTER the init useEffect runs.
-    //
-    // For optimistic updates when creating new sub-chats, we fall back to allSubChats
-    // since the new sub-chat won't be in agentSubChats yet (tRPC query is stale).
-    const sourceForValidation = agentSubChats.length > 0 ? agentSubChats : allSubChats
-    const validSubChatIds = new Set(sourceForValidation.map(sc => sc.id))
+    // By merging both sources, newly created sub-chats are valid immediately.
+    const validSubChatIds = new Set([
+      ...agentSubChats.map(sc => sc.id),
+      ...allSubChats.map(sc => sc.id),
+    ])
 
     // If active sub-chat doesn't belong to this workspace → return []
     // This prevents rendering sub-chats from another workspace during race condition
