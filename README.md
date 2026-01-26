@@ -1,6 +1,6 @@
-# 1Code
+# Hong
 
-[1Code.dev](https://1code.dev)
+[cowork.hongshan.com](https://cowork.hongshan.com)
 
 Best UI for Claude Code with local and remote agent execution.
 
@@ -8,10 +8,10 @@ By [21st.dev](https://21st.dev) team
 
 > **Platforms:** macOS, Linux, and Windows. Windows support improved thanks to community contributions from [@jesus-mgtc](https://github.com/jesus-mgtc) and [@evgyur](https://github.com/evgyur).
 
-## 1Code vs Claude Code
+## Hong vs Claude Code
 
-| Feature | 1Code | Claude Code |
-|---------|-------|-------------|
+| Feature | Hong | Claude Code |
+|---------|------|-------------|
 | **Visual UI** | ✅ Cursor-like desktop app | ✅ |
 | **Git Worktree Isolation** | ✅ Each chat runs in isolated worktree | ✅ |
 | **Background Execution** | ✅ Run multiple agents in parallel | ✅ |
@@ -90,11 +90,11 @@ bun run package:mac  # or package:win, package:linux
 
 > **Important:** The `claude:download` step downloads the Claude CLI binary which is required for the agent chat to work. If you skip this step, the app will build but agent functionality won't work.
 
-### Option 2: Subscribe to 1code.dev (recommended)
+### Option 2: Subscribe to cowork.hongshan.com (recommended)
 
-Get pre-built releases + background agents support by subscribing at [1code.dev](https://1code.dev).
+Get pre-built releases + background agents support by subscribing at [cowork.hongshan.com](https://cowork.hongshan.com).
 
-Your subscription helps us maintain and improve 1Code.
+Your subscription helps us maintain and improve Hong.
 
 ## Development
 

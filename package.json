@@ -196,7 +196,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "1Code needs microphone access for voice dictation"
+        "NSMicrophoneUsageDescription": "Hong needs microphone access for voice dictation"
       }
     },
     "dmg": {

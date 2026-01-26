@@ -11,7 +11,7 @@ export interface WorktreeConfig {
   "setup-worktree"?: string[] | string
 }
 
-export type WorktreeConfigSource = "custom" | "cursor" | "1code" | null
+export type WorktreeConfigSource = "custom" | "cursor" | "hong" | null
 
 export interface DetectedWorktreeConfig {
   config: WorktreeConfig | null
@@ -20,7 +20,7 @@ export interface DetectedWorktreeConfig {
 }
 
 const CURSOR_CONFIG_PATH = ".cursor/worktrees.json"
-const ONECODE_CONFIG_PATH = ".1code/worktree.json"
+const HONG_CONFIG_PATH = ".hong/worktree.json"
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
@@ -42,7 +42,7 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 /**
  * Detect worktree config for a project
- * Priority: custom path > .cursor/worktrees.json > .1code/worktree.json
+ * Priority: custom path > .cursor/worktrees.json > .hong/worktree.json
  */
 export async function detectWorktreeConfig(
   projectPath: string,
@@ -68,12 +68,12 @@ export async function detectWorktreeConfig(
     }
   }
 
-  // 3. Check .1code/worktree.json
-  const onecodePath = join(projectPath, ONECODE_CONFIG_PATH)
-  if (await fileExists(onecodePath)) {
-    const config = await readJsonFile<WorktreeConfig>(onecodePath)
+  // 3. Check .hong/worktree.json
+  const hongPath = join(projectPath, HONG_CONFIG_PATH)
+  if (await fileExists(hongPath)) {
+    const config = await readJsonFile<WorktreeConfig>(hongPath)
     if (config) {
-      return { config, path: onecodePath, source: "1code" }
+      return { config, path: hongPath, source: "hong" }
     }
   }
 
@@ -88,19 +88,19 @@ export async function getAvailableConfigPaths(
   projectPath: string,
 ): Promise<{
   cursor: { exists: boolean; path: string }
-  onecode: { exists: boolean; path: string }
+  hong: { exists: boolean; path: string }
 }> {
   const cursorPath = join(projectPath, CURSOR_CONFIG_PATH)
-  const onecodePath = join(projectPath, ONECODE_CONFIG_PATH)
+  const hongPath = join(projectPath, HONG_CONFIG_PATH)
 
   return {
     cursor: {
       exists: await fileExists(cursorPath),
       path: cursorPath,
     },
-    onecode: {
-      exists: await fileExists(onecodePath),
-      path: onecodePath,
+    hong: {
+      exists: await fileExists(hongPath),
+      path: hongPath,
     },
   }
 }
@@ -112,14 +112,14 @@ export async function getAvailableConfigPaths(
 export async function saveWorktreeConfig(
   projectPath: string,
   config: WorktreeConfig,
-  target: "cursor" | "1code" | string = "1code",
+  target: "cursor" | "hong" | string = "hong",
 ): Promise<{ success: boolean; path: string; error?: string }> {
   let targetPath: string
 
   if (target === "cursor") {
     targetPath = join(projectPath, CURSOR_CONFIG_PATH)
-  } else if (target === "1code") {
-    targetPath = join(projectPath, ONECODE_CONFIG_PATH)
+  } else if (target === "hong") {
+    targetPath = join(projectPath, HONG_CONFIG_PATH)
   } else {
     // Custom path
     targetPath = isAbsolute(target) ? target : join(projectPath, target)

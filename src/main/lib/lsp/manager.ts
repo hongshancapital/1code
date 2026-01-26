@@ -92,7 +92,7 @@ export class LSPManager extends EventEmitter {
 
     // Configure tsserver
     await this.sendRequest(sessionId, "configure", {
-      hostInfo: "1code",
+      hostInfo: "hong",
       preferences: {
         includeInlayParameterNameHints: "all",
         includeInlayVariableTypeHints: true,

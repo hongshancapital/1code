@@ -334,7 +334,7 @@ const server = createServer((req, res) => {
 <head>
   <meta charset="UTF-8">
   <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
-  <title>1Code - Authentication</title>
+  <title>Hong - Authentication</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -418,7 +418,7 @@ const server = createServer((req, res) => {
 <head>
   <meta charset="UTF-8">
   <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
-  <title>1Code - MCP Authentication</title>
+  <title>Hong - MCP Authentication</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -745,7 +745,7 @@ if (gotTheLock) {
       app.setAppUserModelId(IS_DEV ? "com.hongshan.hong.dev" : "com.hongshan.hong")
     }
 
-    console.log(`[App] Starting 1Code${IS_DEV ? " (DEV)" : ""}...`)
+    console.log(`[App] Starting Hong${IS_DEV ? " (DEV)" : ""}...`)
 
     // Verify protocol registration after app is ready
     // This helps diagnose first-install issues where the protocol isn't recognized yet
@@ -769,7 +769,7 @@ if (gotTheLock) {
 
     // Set About panel options with Claude Code version
     app.setAboutPanelOptions({
-      applicationName: "1Code",
+      applicationName: "Hong",
       applicationVersion: app.getVersion(),
       version: `Claude Code ${claudeCodeVersion}`,
       copyright: "Copyright © 2026 Hóng",
@@ -789,7 +789,7 @@ if (gotTheLock) {
         {
           label: app.name,
           submenu: [
-            { role: "about", label: "About 1Code" },
+            { role: "about", label: "About Hong" },
             {
               label: updateAvailable
                 ? `Update to v${availableVersion}...`
@@ -811,8 +811,8 @@ if (gotTheLock) {
             { type: "separator" },
             {
               label: isCliInstalled()
-                ? "Uninstall '1code' Command..."
-                : "Install '1code' Command in PATH...",
+                ? "Uninstall 'hong' Command..."
+                : "Install 'hong' Command in PATH...",
               click: async () => {
                 const { dialog } = await import("electron")
                 if (isCliInstalled()) {
@@ -821,7 +821,7 @@ if (gotTheLock) {
                     dialog.showMessageBox({
                       type: "info",
                       message: "CLI command uninstalled",
-                      detail: "The '1code' command has been removed from your PATH.",
+                      detail: "The 'hong' command has been removed from your PATH.",
                     })
                     buildMenu()
                   } else {
@@ -834,7 +834,7 @@ if (gotTheLock) {
                       type: "info",
                       message: "CLI command installed",
                       detail:
-                        "You can now use '1code .' in any terminal to open 1Code in that directory.",
+                        "You can now use 'hong .' in any terminal to open Hong in that directory.",
                     })
                     buildMenu()
                   } else {
@@ -1056,7 +1056,7 @@ if (gotTheLock) {
       }
     }, 3000)
 
-    // Handle directory argument from CLI (e.g., `1code /path/to/project`)
+    // Handle directory argument from CLI (e.g., `hong /path/to/project`)
     parseLaunchDirectory()
 
     // Handle deep link from app launch (Windows/Linux)

@@ -88,7 +88,7 @@ export function AgentsNotificationsTab() {
     // Show notification
     window.desktopApi?.showNotification({
       title: "Test Notification",
-      body: "This is a test notification from 1Code",
+      body: "This is a test notification from Hóng",
     })
   }, [customSound])
 

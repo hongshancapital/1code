@@ -221,7 +221,7 @@ function registerIpcHandlers(): void {
     const win = getWindowFromEvent(event)
     if (win) {
       // Show just the title, or default app name if empty
-      win.setTitle(title || "1Code")
+      win.setTitle(title || "Hong")
     }
   })
 

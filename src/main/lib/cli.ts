@@ -1,6 +1,6 @@
 /**
- * CLI command support for 1code
- * Allows users to open 1code from terminal with: 1code . or 1code /path/to/project
+ * CLI command support for hong
+ * Allows users to open hong from terminal with: hong . or hong /path/to/project
  *
  * Based on PR #16 by @caffeinum (Aleksey Bykhun)
  * https://github.com/anthropics/claude-code/pull/16
@@ -11,7 +11,7 @@ import { join } from "path"
 import { existsSync, lstatSync } from "fs"
 import { platform } from "./platform"
 
-// Launch directory from CLI (e.g., `1code /path/to/project`)
+// Launch directory from CLI (e.g., `hong /path/to/project`)
 let launchDirectory: string | null = null
 
 /**
@@ -25,7 +25,7 @@ export function getLaunchDirectory(): string | null {
 
 /**
  * Parse CLI arguments to find a directory argument
- * Called on app startup to handle `1code .` or `1code /path/to/project`
+ * Called on app startup to handle `hong .` or `hong /path/to/project`
  */
 export function parseLaunchDirectory(): void {
   // Look for a directory argument in argv

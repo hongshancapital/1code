@@ -1,4 +1,4 @@
-# Contributing to 1Code
+# Contributing to Hong
 
 ## Building from Source
 
@@ -13,9 +13,9 @@ bun run package:mac  # Create distributable
 
 ## Open Source vs Hosted Version
 
-This is the open-source version of 1Code. Some features require the hosted backend at 1code.dev:
+This is the open-source version of Hong. Some features require the hosted backend at cowork.hongshan.com:
 
-| Feature | Open Source | Hosted (1code.dev) |
+| Feature | Open Source | Hosted (cowork.hongshan.com) |
 |---------|-------------|-------------------|
 | Local AI chat | Yes | Yes |
 | Claude Code integration | Yes | Yes |

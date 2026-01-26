@@ -263,7 +263,7 @@ function ToolRow({
 }
 
 const TOOL_DESCRIPTIONS: Record<string, string> = {
-  ripgrep: "Fast search tool for file contents (used by Hong Explorer)",
+  ripgrep: "Fast search tool for file contents (used by Hóng Explorer)",
   fd: "Fast alternative to find command",
   fzf: "Fuzzy finder for files and command history",
   jq: "JSON processor for command line",
@@ -323,7 +323,7 @@ function CommonToolsSection() {
       id="common-tools"
       icon={<Wrench className="h-5 w-5" />}
       title="Common Tools"
-      description="CLI tools that enhance Hong functionality"
+      description="CLI tools that enhance Hóng functionality"
       defaultOpen={true}
     >
       <div className="space-y-4">
