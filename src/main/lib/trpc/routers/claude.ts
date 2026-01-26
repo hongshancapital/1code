@@ -602,6 +602,7 @@ export const claudeRouter = router({
         images: z.array(imageAttachmentSchema).optional(), // Image attachments
         historyEnabled: z.boolean().optional(),
         offlineModeEnabled: z.boolean().optional(), // Whether offline mode (Ollama) is enabled in settings
+        askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in seconds (0 = no timeout)
       }),
     )
     .subscription(({ input }) => {
@@ -1305,27 +1306,36 @@ ${prompt}
                       questions: (toolInput as any).questions,
                     } as UIMessageChunk)
 
-                    // Wait for response (60s timeout)
+                    // Get timeout from input (0 = no timeout, default = 60s)
+                    const timeoutSeconds = input.askUserQuestionTimeout ?? 60
+                    const timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000 : 0
+
+                    // Wait for response (configurable timeout, 0 = no timeout)
                     const response = await new Promise<{
                       approved: boolean
                       message?: string
                       updatedInput?: unknown
                     }>((resolve) => {
-                      const timeoutId = setTimeout(() => {
-                        pendingToolApprovals.delete(toolUseID)
-                        // Emit chunk to notify UI that the question has timed out
-                        // This ensures the pending question dialog is cleared
-                        safeEmit({
-                          type: "ask-user-question-timeout",
-                          toolUseId: toolUseID,
-                        } as UIMessageChunk)
-                        resolve({ approved: false, message: "Timed out" })
-                      }, 60000)
+                      let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+                      // Only set timeout if timeoutMs > 0
+                      if (timeoutMs > 0) {
+                        timeoutId = setTimeout(() => {
+                          pendingToolApprovals.delete(toolUseID)
+                          // Emit chunk to notify UI that the question has timed out
+                          // This ensures the pending question dialog is cleared
+                          safeEmit({
+                            type: "ask-user-question-timeout",
+                            toolUseId: toolUseID,
+                          } as UIMessageChunk)
+                          resolve({ approved: false, message: "Timed out" })
+                        }, timeoutMs)
+                      }
 
                       pendingToolApprovals.set(toolUseID, {
                         subChatId: input.subChatId,
                         resolve: (d) => {
-                          clearTimeout(timeoutId)
+                          if (timeoutId) clearTimeout(timeoutId)
                           resolve(d)
                         },
                       })

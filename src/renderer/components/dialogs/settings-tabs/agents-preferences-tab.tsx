@@ -2,6 +2,7 @@ import { useAtom } from "jotai"
 import { useEffect, useState } from "react"
 import {
   analyticsOptOutAtom,
+  askUserQuestionTimeoutAtom,
   autoAdvanceTargetAtom,
   ctrlTabTargetAtom,
   defaultAgentModeAtom,
@@ -9,6 +10,7 @@ import {
   extendedThinkingEnabledAtom,
   soundNotificationsEnabledAtom,
   type AgentMode,
+  type AskUserQuestionTimeout,
   type AutoAdvanceTarget,
   type CtrlTabTarget,
 } from "../../../lib/atoms"
@@ -49,6 +51,7 @@ export function AgentsPreferencesTab() {
   const [ctrlTabTarget, setCtrlTabTarget] = useAtom(ctrlTabTargetAtom)
   const [autoAdvanceTarget, setAutoAdvanceTarget] = useAtom(autoAdvanceTargetAtom)
   const [defaultAgentMode, setDefaultAgentMode] = useAtom(defaultAgentModeAtom)
+  const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuestionTimeoutAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
   // Co-authored-by setting from Claude settings.json
@@ -107,6 +110,43 @@ export function AgentsPreferencesTab() {
               checked={thinkingEnabled}
               onCheckedChange={setThinkingEnabled}
             />
+          </div>
+
+          {/* AI Question Timeout */}
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col space-y-1">
+              <span className="text-sm font-medium text-foreground">
+                AI Question Timeout
+              </span>
+              <span className="text-xs text-muted-foreground">
+                How long to wait for your response when AI asks a question
+              </span>
+            </div>
+            <Select
+              value={String(askUserQuestionTimeout)}
+              onValueChange={(value) => setAskUserQuestionTimeout(Number(value) as AskUserQuestionTimeout)}
+            >
+              <SelectTrigger className="w-auto px-2">
+                <span className="text-xs">
+                  {askUserQuestionTimeout === 0
+                    ? "No timeout"
+                    : askUserQuestionTimeout === 30
+                      ? "30 seconds"
+                      : askUserQuestionTimeout === 60
+                        ? "1 minute"
+                        : askUserQuestionTimeout === 120
+                          ? "2 minutes"
+                          : "5 minutes"}
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">No timeout</SelectItem>
+                <SelectItem value="30">30 seconds</SelectItem>
+                <SelectItem value="60">1 minute</SelectItem>
+                <SelectItem value="120">2 minutes</SelectItem>
+                <SelectItem value="300">5 minutes</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Desktop Notifications Toggle */}

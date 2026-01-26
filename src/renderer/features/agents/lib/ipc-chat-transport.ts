@@ -3,6 +3,7 @@ import type { ChatTransport, UIMessage } from "ai"
 import { toast } from "sonner"
 import {
   agentsLoginModalOpenAtom,
+  askUserQuestionTimeoutAtom,
   customClaudeConfigAtom,
   disabledMcpServersAtom,
   extendedThinkingEnabledAtom,
@@ -181,6 +182,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const autoOfflineMode = appStore.get(autoOfflineModeAtom)
     const offlineModeEnabled = showOfflineFeatures && autoOfflineMode
 
+    // Get AskUserQuestion timeout setting (0 = no timeout)
+    const askUserQuestionTimeout = appStore.get(askUserQuestionTimeoutAtom)
+
     const currentMode =
       useAgentSubChatStore
         .getState()
@@ -216,6 +220,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
             ...(selectedOllamaModel && { selectedOllamaModel }),
             historyEnabled,
             offlineModeEnabled,
+            askUserQuestionTimeout,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
           },

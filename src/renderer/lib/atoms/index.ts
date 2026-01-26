@@ -351,6 +351,17 @@ export const extendedThinkingEnabledAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Preferences - AskUserQuestion Timeout
+// Timeout in seconds for AI questions (0 = no timeout, default = 60)
+// When AI asks a question and user doesn't respond within this time, it will timeout
+export type AskUserQuestionTimeout = 0 | 30 | 60 | 120 | 300
+export const askUserQuestionTimeoutAtom = atomWithStorage<AskUserQuestionTimeout>(
+  "preferences:ask-user-question-timeout",
+  60,
+  undefined,
+  { getOnInit: true },
+)
+
 // Preferences - History (Rollback)
 // When enabled, allow rollback to previous assistant messages
 export const historyEnabledAtom = atomWithStorage<boolean>(
@@ -813,6 +824,6 @@ export const devToolsUnlockedAtom = atom<boolean>(false)
 // Disabled MCP servers per project path (persisted to localStorage)
 // Key: project path, Value: array of disabled server names
 export const disabledMcpServersAtom = atomWithStorage<Record<string, string[]>>(
-  "1code:disabled-mcp-servers",
+  "hong:disabled-mcp-servers",
   {},
 )
