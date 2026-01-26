@@ -6067,13 +6067,13 @@ Make sure to preserve all functionality from both branches when resolving confli
                     <MobileChatHeader
                       onCreateNew={handleCreateNewSubChat}
                       onBackToChats={onBackToChats}
-                      onOpenPreview={onOpenPreview}
-                      canOpenPreview={canOpenPreview}
-                      onOpenDiff={onOpenDiff}
-                      canOpenDiff={canOpenDiff}
-                      diffStats={diffStats}
-                      onOpenTerminal={onOpenTerminal}
-                      canOpenTerminal={!!worktreePath}
+                      onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
+                      canOpenPreview={hideGitFeatures ? false : canOpenPreview}
+                      onOpenDiff={hideGitFeatures ? undefined : onOpenDiff}
+                      canOpenDiff={hideGitFeatures ? false : canOpenDiff}
+                      diffStats={hideGitFeatures ? undefined : diffStats}
+                      onOpenTerminal={hideGitFeatures ? undefined : onOpenTerminal}
+                      canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
                       isArchived={isArchived}
                       onRestore={handleRestoreWorkspace}
                     />

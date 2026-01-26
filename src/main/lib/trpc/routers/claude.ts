@@ -16,7 +16,7 @@ import {
   type UIMessageChunk,
 } from "../../claude"
 import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, type McpServerConfig } from "../../claude-config"
-import { chats, claudeCodeCredentials, getDatabase, subChats } from "../../db"
+import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth } from "../../mcp-auth"
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
@@ -1899,6 +1899,35 @@ ${prompt}
                 if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
                   await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
                 }
+
+                // Record usage statistics (even on error)
+                if (metadata.inputTokens || metadata.outputTokens) {
+                  try {
+                    const existingUsage = metadata.sdkMessageUuid
+                      ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                      : null
+
+                    if (!existingUsage) {
+                      db.insert(modelUsage).values({
+                        subChatId: input.subChatId,
+                        chatId: input.chatId,
+                        projectId: input.projectId,
+                        model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
+                        inputTokens: metadata.inputTokens || 0,
+                        outputTokens: metadata.outputTokens || 0,
+                        totalTokens: metadata.totalTokens || 0,
+                        costUsd: metadata.totalCostUsd?.toFixed(6),
+                        sessionId: metadata.sessionId,
+                        messageUuid: metadata.sdkMessageUuid,
+                        mode: input.mode,
+                        durationMs: metadata.durationMs,
+                      }).run()
+                      console.log(`[Usage] Recorded (on error): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`)
+                    }
+                  } catch (usageErr) {
+                    console.error(`[Usage] Failed to record usage:`, usageErr)
+                  }
+                }
               }
 
               console.log(`[SD] M:END sub=${subId} reason=stream_error cat=${errorCategory} n=${chunkCount} last=${lastChunkType}`)
@@ -1964,6 +1993,38 @@ ${prompt}
               .set({ updatedAt: new Date() })
               .where(eq(chats.id, input.chatId))
               .run()
+
+            // Record usage statistics (if we have token data)
+            if (metadata.inputTokens || metadata.outputTokens) {
+              try {
+                // Check for duplicate by sdkMessageUuid
+                const existingUsage = metadata.sdkMessageUuid
+                  ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                  : null
+
+                if (!existingUsage) {
+                  db.insert(modelUsage).values({
+                    subChatId: input.subChatId,
+                    chatId: input.chatId,
+                    projectId: input.projectId,
+                    model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
+                    inputTokens: metadata.inputTokens || 0,
+                    outputTokens: metadata.outputTokens || 0,
+                    totalTokens: metadata.totalTokens || 0,
+                    costUsd: metadata.totalCostUsd?.toFixed(6),
+                    sessionId: metadata.sessionId,
+                    messageUuid: metadata.sdkMessageUuid,
+                    mode: input.mode,
+                    durationMs: metadata.durationMs,
+                  }).run()
+                  console.log(`[Usage] Recorded: ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || '?'}`)
+                } else {
+                  console.log(`[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`)
+                }
+              } catch (usageErr) {
+                console.error(`[Usage] Failed to record usage:`, usageErr)
+              }
+            }
 
             // Create snapshot stash for rollback support
             if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {

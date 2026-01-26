@@ -1,5 +1,6 @@
-import { Calendar, Database, FolderOpen, MessageSquare, X } from "lucide-react"
+import { Calendar, Database, Download, FolderOpen, MessageSquare, X } from "lucide-react"
 import { useState } from "react"
+import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
 import { Button } from "../../ui/button"
 import { Dialog, DialogContent } from "../../ui/dialog"
@@ -117,6 +118,49 @@ function UsageTable({ data, columns }: UsageTableProps) {
   )
 }
 
+// CSV export helper
+function exportToCsv(data: any[], columns: Array<{ key: string; label: string }>, filename: string) {
+  if (!data || data.length === 0) {
+    toast.error("No data to export")
+    return
+  }
+
+  // Build CSV header
+  const header = columns.map((col) => col.label).join(",")
+
+  // Build CSV rows
+  const rows = data.map((row) =>
+    columns
+      .map((col) => {
+        const value = row[col.key]
+        // Handle null/undefined
+        if (value === null || value === undefined) return ""
+        // Escape quotes and wrap in quotes if contains comma
+        const strValue = String(value)
+        if (strValue.includes(",") || strValue.includes('"') || strValue.includes("\n")) {
+          return `"${strValue.replace(/"/g, '""')}"`
+        }
+        return strValue
+      })
+      .join(",")
+  )
+
+  const csvContent = [header, ...rows].join("\n")
+
+  // Create and trigger download
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+
+  toast.success(`Exported ${data.length} rows to ${filename}`)
+}
+
 export function UsageDetailsDialog({
   open,
   onOpenChange,
@@ -150,6 +194,72 @@ export function UsageDetailsDialog({
     (viewMode === "model" && byModelLoading) ||
     (viewMode === "project" && byProjectLoading) ||
     (viewMode === "subchat" && bySubChatLoading)
+
+  // Handle CSV export
+  const handleExport = () => {
+    const timestamp = new Date().toISOString().split("T")[0]
+
+    switch (viewMode) {
+      case "date":
+        exportToCsv(
+          byDate || [],
+          [
+            { key: "date", label: "Date" },
+            { key: "totalInputTokens", label: "Input Tokens" },
+            { key: "totalOutputTokens", label: "Output Tokens" },
+            { key: "totalTokens", label: "Total Tokens" },
+            { key: "totalCostUsd", label: "Cost (USD)" },
+            { key: "count", label: "Requests" },
+          ],
+          `usage-by-date-${timestamp}.csv`
+        )
+        break
+      case "model":
+        exportToCsv(
+          byModel || [],
+          [
+            { key: "model", label: "Model" },
+            { key: "totalInputTokens", label: "Input Tokens" },
+            { key: "totalOutputTokens", label: "Output Tokens" },
+            { key: "totalTokens", label: "Total Tokens" },
+            { key: "totalCostUsd", label: "Cost (USD)" },
+            { key: "count", label: "Requests" },
+          ],
+          `usage-by-model-${timestamp}.csv`
+        )
+        break
+      case "project":
+        exportToCsv(
+          byProject || [],
+          [
+            { key: "projectName", label: "Project" },
+            { key: "totalInputTokens", label: "Input Tokens" },
+            { key: "totalOutputTokens", label: "Output Tokens" },
+            { key: "totalTokens", label: "Total Tokens" },
+            { key: "totalCostUsd", label: "Cost (USD)" },
+            { key: "count", label: "Requests" },
+          ],
+          `usage-by-project-${timestamp}.csv`
+        )
+        break
+      case "subchat":
+        exportToCsv(
+          bySubChat || [],
+          [
+            { key: "subChatName", label: "Agent" },
+            { key: "chatName", label: "Workspace" },
+            { key: "projectName", label: "Project" },
+            { key: "totalInputTokens", label: "Input Tokens" },
+            { key: "totalOutputTokens", label: "Output Tokens" },
+            { key: "totalTokens", label: "Total Tokens" },
+            { key: "totalCostUsd", label: "Cost (USD)" },
+            { key: "count", label: "Requests" },
+          ],
+          `usage-by-agent-${timestamp}.csv`
+        )
+        break
+    }
+  }
 
   const renderContent = () => {
     if (isLoading) {
@@ -310,36 +420,48 @@ export function UsageDetailsDialog({
             />
           </div>
 
-          {/* Date Range Picker */}
-          <div className="flex flex-wrap items-center gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-muted-foreground">From:</label>
-              <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) =>
-                  setDateRange((prev) => ({
-                    ...prev,
-                    startDate: e.target.value,
-                  }))
-                }
-                className="px-2 py-1 text-sm border rounded bg-background"
-              />
+          {/* Date Range Picker and Export */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">From:</label>
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      startDate: e.target.value,
+                    }))
+                  }
+                  className="px-2 py-1 text-sm border rounded bg-background"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">To:</label>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      endDate: e.target.value,
+                    }))
+                  }
+                  className="px-2 py-1 text-sm border rounded bg-background"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-muted-foreground">To:</label>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) =>
-                  setDateRange((prev) => ({
-                    ...prev,
-                    endDate: e.target.value,
-                  }))
-                }
-                className="px-2 py-1 text-sm border rounded bg-background"
-              />
-            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExport}
+              disabled={isLoading}
+            >
+              <Download className="h-3 w-3 mr-1" />
+              Export CSV
+            </Button>
           </div>
 
           {/* Table */}

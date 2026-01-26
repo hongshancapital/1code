@@ -142,6 +142,29 @@ export const usageRouter = router({
   }),
 
   /**
+   * Get daily activity for heatmap (last 365 days)
+   * Returns array of { date, count, totalTokens } for contribution graph
+   */
+  getDailyActivity: publicProcedure.query(() => {
+    const db = getDatabase()
+    const now = new Date()
+    const yearAgo = new Date(now)
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1)
+
+    return db
+      .select({
+        date: sql<string>`date(${modelUsage.createdAt} / 1000, 'unixepoch')`.as("date"),
+        count: sql<number>`count(*)`,
+        totalTokens: sql<number>`sum(${modelUsage.totalTokens})`,
+      })
+      .from(modelUsage)
+      .where(gte(modelUsage.createdAt, yearAgo))
+      .groupBy(sql`date(${modelUsage.createdAt} / 1000, 'unixepoch')`)
+      .orderBy(sql`date`)
+      .all()
+  }),
+
+  /**
    * Get usage grouped by date
    */
   getByDate: publicProcedure.input(dateRangeSchema).query(({ input }) => {
