@@ -4656,7 +4656,9 @@ export function ChatView({
   const isLoading = chatSourceMode === "sandbox" ? isRemoteLoading : isLocalLoading
 
   // Compute if we're waiting for local chat data (used as loading gate)
-  const isLocalChatLoading = chatSourceMode === "local" && isLocalLoading
+  // Only show loading if there's no data AND we're loading - this prevents
+  // blocking the UI during cache invalidation/refetch when data already exists
+  const isLocalChatLoading = chatSourceMode === "local" && isLocalLoading && !localAgentChat
 
   // Projects query for "Open Locally" functionality
   const { data: projects } = trpc.projects.list.useQuery()
