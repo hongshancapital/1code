@@ -40,7 +40,6 @@ import {
   ArrowDown,
   ChevronDown,
   ListTree,
-  TerminalSquare
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -4223,7 +4222,6 @@ export function ChatView({
 
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
-  const toggleTerminalHotkey = useResolvedHotkeyDisplay("toggle-terminal")
 
   // Close plan sidebar when switching to a sub-chat that has no plan
   const prevSubChatIdRef = useRef(activeSubChatIdForPlan)
@@ -6140,30 +6138,6 @@ Make sure to preserve all functionality from both branches when resolving confli
                       </span>
                     </PreviewSetupHoverCard>
                   ))}
-                {/* Terminal Button - shown in coding mode when details sidebar is closed (not in cowork mode which hides git features) */}
-                {!hideGitFeatures &&
-                  !isMobileFullscreen &&
-                  worktreePath &&
-                  !isTerminalSidebarOpen &&
-                  !isDetailsSidebarOpen && (
-                    <Tooltip delayDuration={500}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setIsTerminalSidebarOpen(true)}
-                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
-                          aria-label="Open terminal"
-                        >
-                          <TerminalSquare className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        Open terminal
-                        {toggleTerminalHotkey && <Kbd>{toggleTerminalHotkey}</Kbd>}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
                 {/* Details Button - always shown when unified sidebar is enabled (contains plan, todo, artifacts, etc.) */}
                 {isUnifiedSidebarEnabled &&
                   !isMobileFullscreen &&
