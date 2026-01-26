@@ -1,6 +1,5 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
 import type { WritableAtom } from "jotai"
 import { ResizableSidebar } from "../resizable-sidebar"
 import { CenterPeekDialog } from "./center-peek-dialog"
@@ -42,28 +41,6 @@ export function PanelContainer({
   className = "",
   style,
 }: PanelContainerProps) {
-  // ESC key handler for dialog and full-page modes
-  // (ResizableSidebar doesn't handle ESC by default)
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation()
-        onClose()
-      }
-    },
-    [onClose]
-  )
-
-  useEffect(() => {
-    // Only add ESC handler for non-sidebar modes
-    // CenterPeekDialog and FullPageView have their own ESC handlers,
-    // but we add one at container level for consistency
-    if (isOpen && displayMode !== "side-peek") {
-      document.addEventListener("keydown", handleKeyDown)
-      return () => document.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [isOpen, displayMode, handleKeyDown])
-
   if (displayMode === "side-peek") {
     if (!widthAtom) {
       console.warn("PanelContainer: widthAtom is required for side-peek mode")

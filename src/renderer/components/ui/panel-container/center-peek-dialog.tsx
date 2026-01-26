@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useCallback } from "react"
 import { AnimatePresence, motion } from "motion/react"
 
 interface CenterPeekDialogProps {
@@ -13,6 +14,24 @@ export function CenterPeekDialog({
   onClose,
   children,
 }: CenterPeekDialogProps) {
+  // Close on Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation()
+        onClose()
+      }
+    },
+    [onClose]
+  )
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown)
+      return () => document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isOpen, handleKeyDown])
+
   return (
     <AnimatePresence>
       {isOpen && (

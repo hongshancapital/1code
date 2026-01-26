@@ -4482,15 +4482,7 @@ export function ChatView({
     prevDiffStateRef.current = { isOpen: isDiffSidebarOpen, mode: diffDisplayMode, detailsOpen: isDetailsSidebarOpen }
   }, [isDiffSidebarOpen, diffDisplayMode, isDetailsSidebarOpen, setDiffDisplayMode, setIsDetailsSidebarOpen, setIsDiffSidebarOpen])
 
-  // Hide traffic lights when full-page diff is open (they would overlap with content)
-  useEffect(() => {
-    if (!isDesktop || isFullscreen) return
-    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
-
-    if (isDiffSidebarOpen && diffDisplayMode === "full-page") {
-      window.desktopApi.setTrafficLightVisibility(false)
-    }
-  }, [isDiffSidebarOpen, diffDisplayMode, isDesktop, isFullscreen])
+  // Note: Traffic light hiding for full-page mode is now handled by FullPageView component
 
   // Track diff sidebar width for responsive header
   const storedDiffSidebarWidth = useAtomValue(agentsDiffSidebarWidthAtom)
