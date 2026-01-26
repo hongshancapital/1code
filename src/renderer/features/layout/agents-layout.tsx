@@ -240,6 +240,7 @@ export function AgentsLayout() {
 
   // Get project mode and enabled features
   const projectMode = useAtomValue(currentProjectModeAtom)
+  const setCurrentProjectMode = useSetAtom(currentProjectModeAtom)
   const featureConfig = useMemo(
     () => parseFeatureConfig(selectedProject?.featureConfig),
     [selectedProject?.featureConfig]
@@ -248,6 +249,14 @@ export function AgentsLayout() {
     () => computeEnabledWidgets(projectMode, featureConfig),
     [projectMode, featureConfig]
   )
+
+  // Sync currentProjectModeAtom when validatedProject changes
+  // This handles app startup (localStorage restore) and other project setters
+  useEffect(() => {
+    if (validatedProject?.mode) {
+      setCurrentProjectMode(validatedProject.mode as "cowork" | "coding")
+    }
+  }, [validatedProject?.mode, setCurrentProjectMode])
 
   // Sync enabledWidgets to atom for DetailsSidebar and WidgetSettingsPopup
   const setEnabledWidgets = useSetAtom(enabledWidgetsAtom)

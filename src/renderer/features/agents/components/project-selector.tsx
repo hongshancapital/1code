@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { FolderOpen } from "lucide-react"
 import { showOfflineModeFeaturesAtom } from "../../../lib/atoms"
 import {
@@ -73,6 +73,7 @@ function ProjectIcon({
 
 export function ProjectSelector() {
   const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
+  const setCurrentProjectMode = useSetAtom(currentProjectModeAtom)
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [githubDialogOpen, setGithubDialogOpen] = useState(false)
@@ -123,6 +124,7 @@ export function ProjectSelector() {
           return [project, ...oldData]
         })
 
+        const projectMode = (project.mode as "cowork" | "coding") ?? "cowork"
         setSelectedProject({
           id: project.id,
           name: project.name,
@@ -135,8 +137,10 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
-          mode: project.mode as "cowork" | "coding" | undefined,
+          mode: projectMode,
         })
+        // Sync project mode immediately
+        setCurrentProjectMode(projectMode)
       }
     },
   })
@@ -156,6 +160,7 @@ export function ProjectSelector() {
           return [project, ...oldData]
         })
 
+        const projectMode = (project.mode as "cowork" | "coding") ?? "cowork"
         setSelectedProject({
           id: project.id,
           name: project.name,
@@ -168,8 +173,10 @@ export function ProjectSelector() {
             | null,
           gitOwner: project.gitOwner,
           gitRepo: project.gitRepo,
-          mode: project.mode as "cowork" | "coding" | undefined,
+          mode: projectMode,
         })
+        // Sync project mode immediately
+        setCurrentProjectMode(projectMode)
         setGithubDialogOpen(false)
         setGithubUrl("")
       }
@@ -189,6 +196,7 @@ export function ProjectSelector() {
   const handleSelectProject = (projectId: string) => {
     const project = projects?.find((p) => p.id === projectId)
     if (project) {
+      const projectMode = (project.mode as "cowork" | "coding") ?? "cowork"
       setSelectedProject({
         id: project.id,
         name: project.name,
@@ -201,8 +209,10 @@ export function ProjectSelector() {
           | null,
         gitOwner: project.gitOwner,
         gitRepo: project.gitRepo,
-        mode: project.mode as "cowork" | "coding" | undefined,
+        mode: projectMode,
       })
+      // Sync project mode immediately
+      setCurrentProjectMode(projectMode)
       setOpen(false)
     }
   }
