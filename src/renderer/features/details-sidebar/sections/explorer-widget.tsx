@@ -1,149 +1,117 @@
 "use client"
 
 import { memo, useCallback } from "react"
-import { useAtomValue, useSetAtom } from "jotai"
-import { cn } from "@/lib/utils"
-import { FolderTree } from "lucide-react"
-import { ExpandIcon } from "@/components/ui/icons"
+import { useSetAtom } from "jotai"
+import { Button } from "@/components/ui/button"
+import { FolderTree, ArrowUpRight } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { FileTreePanel } from "@/features/cowork/file-tree-panel"
+import { FilePreviewDialog } from "@/features/cowork/file-preview/file-preview-dialog"
 import { filePreviewPathAtom } from "@/features/cowork/atoms"
-import { selectedProjectAtom } from "@/features/agents/atoms"
-import { api } from "@/lib/mock-api"
 
 // ============================================================================
-// Explorer Widget Props
+// Types
 // ============================================================================
 
 interface ExplorerWidgetProps {
-  chatId: string
-  worktreePath?: string
+  worktreePath?: string | null
   onExpand?: () => void
+  /** Called when a file is selected for preview */
+  onFileSelect?: (filePath: string, line?: number) => void
 }
 
 // ============================================================================
-// Main Widget Component
+// Explorer Widget Component
 // ============================================================================
 
+/**
+ * Explorer Widget for Details Sidebar
+ * Wraps the full FileTreePanel component in a compact widget container
+ */
 export const ExplorerWidget = memo(function ExplorerWidget({
-  chatId,
   worktreePath,
   onExpand,
+  onFileSelect,
 }: ExplorerWidgetProps) {
-  const selectedProject = useAtomValue(selectedProjectAtom)
-  const setPreviewPath = useSetAtom(filePreviewPathAtom)
+  const setFilePreviewPath = useSetAtom(filePreviewPathAtom)
 
-  // Fetch current chat data to get worktree path
-  const { data: chatData } = api.agents.getAgentChat.useQuery(
-    { chatId },
-    { enabled: !!chatId }
-  )
-
-  // Use chat's worktreePath if available, otherwise fall back to project path
-  const effectivePath = worktreePath || chatData?.worktreePath || selectedProject?.path
-
-  // Handle file selection from file tree (relative path)
-  const handleFileTreeSelect = useCallback(
-    (relativePath: string) => {
-      // Convert relative path to absolute path
-      const absolutePath = effectivePath
-        ? `${effectivePath}/${relativePath}`
-        : relativePath
-      setPreviewPath(absolutePath)
+  // Handle file selection - open preview dialog
+  const handleFileSelect = useCallback(
+    (path: string, line?: number) => {
+      if (worktreePath) {
+        const normalizedPath = worktreePath.replace(/[\\/]+$/, "")
+        const fullPath = `${normalizedPath}/${path}`
+        setFilePreviewPath(fullPath)
+      }
+      // Also call external callback if provided
+      onFileSelect?.(path, line)
     },
-    [effectivePath, setPreviewPath]
+    [worktreePath, setFilePreviewPath, onFileSelect]
   )
 
-  if (!effectivePath) {
-    return null
-  }
-
-  return (
-    <div className="mx-2 mb-2">
-      {/* Header */}
-      <div className="rounded-t-lg border border-b-0 border-border/50 bg-muted/30 px-2 h-8 flex items-center">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FolderTree className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-          <span className="text-xs font-medium text-foreground">Explorer</span>
-          <span className="text-xs text-muted-foreground truncate flex-1 ml-2">
-            {selectedProject?.name || effectivePath.split("/").pop()}
-          </span>
-        </div>
-        {onExpand && (
-          <button
-            onClick={onExpand}
-            className="p-1 hover:bg-accent/50 rounded transition-colors"
-            aria-label="Expand explorer"
-          >
-            <ExpandIcon className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="rounded-b-lg border border-border/50 border-t-0 h-[250px] overflow-hidden">
-        <FileTreePanel
-          projectPath={effectivePath}
-          onFileSelect={handleFileTreeSelect}
-          showHeader={false}
-          hideSearchBorder={true}
-        />
-      </div>
-    </div>
-  )
-})
-
-// ============================================================================
-// Explorer Section (for expanded view)
-// ============================================================================
-
-interface ExplorerSectionProps {
-  chatId: string
-  worktreePath?: string
-  onClose?: () => void
-}
-
-export const ExplorerSection = memo(function ExplorerSection({
-  chatId,
-  worktreePath,
-  onClose,
-}: ExplorerSectionProps) {
-  const selectedProject = useAtomValue(selectedProjectAtom)
-  const setPreviewPath = useSetAtom(filePreviewPathAtom)
-
-  // Fetch current chat data to get worktree path
-  const { data: chatData } = api.agents.getAgentChat.useQuery(
-    { chatId },
-    { enabled: !!chatId }
-  )
-
-  const effectivePath = worktreePath || chatData?.worktreePath || selectedProject?.path
-
-  const handleFileTreeSelect = useCallback(
-    (relativePath: string) => {
-      const absolutePath = effectivePath
-        ? `${effectivePath}/${relativePath}`
-        : relativePath
-      setPreviewPath(absolutePath)
-    },
-    [effectivePath, setPreviewPath]
-  )
-
-  if (!effectivePath) {
+  if (!worktreePath) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No project selected
+      <div className="mx-2 mb-2">
+        <div className="rounded-lg border border-border/50 overflow-hidden">
+          <div className="flex items-center gap-2 px-2 h-8 select-none bg-muted/30">
+            <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-foreground">Explorer</span>
+          </div>
+          <div className="text-xs text-muted-foreground px-2 py-2">
+            No workspace selected
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <FileTreePanel
-        projectPath={effectivePath}
-        onFileSelect={handleFileTreeSelect}
-        onClose={onClose}
-        showHeader={true}
-      />
-    </div>
+    <>
+      <div className="mx-2 mb-2">
+        {/* Fixed height container for proper flex layout and scrolling */}
+        <div className="rounded-lg border border-border/50 overflow-hidden flex flex-col" style={{ height: "350px" }}>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-2 h-8 select-none group bg-muted/30 flex-shrink-0">
+            <FolderTree className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="text-xs font-medium text-foreground">Explorer</span>
+            <div className="flex-1" />
+
+            {/* Expand button */}
+            {onExpand && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onExpand}
+                    className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity] duration-150 flex-shrink-0"
+                    aria-label="Expand explorer"
+                  >
+                    <ArrowUpRight className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Open in sidebar</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+
+          {/* FileTreePanel - compact mode, flex-1 for remaining space, min-h-0 allows shrinking */}
+          <div className="flex-1 min-h-0">
+            <FileTreePanel
+              projectPath={worktreePath}
+              onFileSelect={handleFileSelect}
+              showHeader={false}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* File preview dialog - triggered by file selection */}
+      <FilePreviewDialog />
+    </>
   )
 })

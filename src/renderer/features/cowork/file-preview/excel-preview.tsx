@@ -64,7 +64,7 @@ export function ExcelPreview({ filePath, className }: ExcelPreviewProps) {
       } catch (err) {
         console.error("[ExcelPreview] Failed to parse:", err)
         setHasError(true)
-        setErrorMessage(err instanceof Error ? err.message : "解析失败")
+        setErrorMessage(err instanceof Error ? err.message : "Parse failed")
         setIsLoading(false)
       }
     }
@@ -76,7 +76,7 @@ export function ExcelPreview({ filePath, className }: ExcelPreviewProps) {
     return (
       <div className={cn("h-full w-full flex flex-col items-center justify-center gap-3 text-muted-foreground", className)}>
         <Table2 className="h-12 w-12 opacity-40" />
-        <p className="text-sm">无法预览 Excel 文件</p>
+        <p className="text-sm">Unable to preview Excel file</p>
         {errorMessage && (
           <p className="text-xs text-muted-foreground/60 max-w-[300px] text-center">
             {errorMessage}
@@ -144,7 +144,7 @@ export function ExcelPreview({ filePath, className }: ExcelPreviewProps) {
           </table>
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p className="text-sm">空表格</p>
+            <p className="text-sm">Empty sheet</p>
           </div>
         )}
       </div>

@@ -13,7 +13,9 @@ export function PdfPreview({ filePath, className }: PdfPreviewProps) {
 
   // Use local-file:// protocol for streaming PDF access
   // Format: local-file://localhost/<absolute-path>
-  const fileUrl = `local-file://localhost${filePath}`
+  // Ensure path starts with / for proper URL format (Windows paths like D:\... need leading /)
+  const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
+  const fileUrl = `local-file://localhost${normalizedPath}`
 
   const handleLoad = () => {
     setIsLoading(false)
@@ -57,7 +59,7 @@ export function PdfPreviewFallback({ className, filePath }: { className?: string
       )}
     >
       <FileWarning className="h-12 w-12 opacity-40" />
-      <p className="text-sm">PDF 预览暂不可用</p>
+      <p className="text-sm">PDF preview unavailable</p>
       {filePath && (
         <p className="text-xs text-muted-foreground/60 max-w-[300px] truncate">
           {filePath}

@@ -17,7 +17,9 @@ export function ImagePreview({ filePath, className }: ImagePreviewProps) {
   // Use local-file:// protocol for streaming file access
   // Format: local-file://localhost/<absolute-path>
   // Using "localhost" as hostname to prevent URL path normalization issues
-  const fileUrl = `local-file://localhost${filePath}`
+  // Ensure path starts with / for proper URL format (Windows paths like D:\... need leading /)
+  const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
+  const fileUrl = `local-file://localhost${normalizedPath}`
 
   const handleZoomIn = () => setScale((s) => Math.min(s + 0.25, 3))
   const handleZoomOut = () => setScale((s) => Math.max(s - 0.25, 0.25))
@@ -38,7 +40,7 @@ export function ImagePreview({ filePath, className }: ImagePreviewProps) {
     return (
       <div className={cn("h-full w-full flex flex-col items-center justify-center gap-3 text-muted-foreground", className)}>
         <ImageOff className="h-12 w-12 opacity-40" />
-        <p className="text-sm">无法加载图片</p>
+        <p className="text-sm">Unable to load image</p>
         <p className="text-xs text-muted-foreground/60 max-w-[300px] truncate">{filePath}</p>
       </div>
     )

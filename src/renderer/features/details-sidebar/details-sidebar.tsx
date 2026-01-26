@@ -72,6 +72,7 @@ interface DetailsSidebarProps {
   onExpandTerminal?: () => void
   onExpandPlan?: () => void
   onExpandDiff?: () => void
+  onExpandExplorer?: () => void
   /** Callback when a file is selected in Changes widget - opens diff with file selected */
   onFileSelect?: (filePath: string) => void
 }
@@ -97,6 +98,7 @@ export function DetailsSidebar({
   onExpandTerminal,
   onExpandPlan,
   onExpandDiff,
+  onExpandExplorer,
   onFileSelect,
 }: DetailsSidebarProps) {
   // Global sidebar open state
@@ -406,8 +408,8 @@ export function DetailsSidebar({
                 return (
                   <ExplorerWidget
                     key="explorer"
-                    chatId={chatId}
                     worktreePath={worktreePath ?? undefined}
+                    onExpand={onExpandExplorer}
                   />
                 )
 

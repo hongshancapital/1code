@@ -40,6 +40,7 @@ import {
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { isPlanModeAtom, lastSelectedModelIdAtom, type SubChatFileChange } from "../atoms"
+import { pendingFileReferenceAtom } from "../../cowork/atoms"
 import { AgentsSlashCommand, type SlashCommandOption } from "../commands"
 import { AgentSendButton } from "../components/agent-send-button"
 import type { UploadedFile, UploadedImage } from "../hooks/use-agents-file-upload"
@@ -422,6 +423,9 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Plan mode - global atom
   const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
 
+  // Pending file reference from file tree panel (@ button click)
+  const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
+
   // Voice input state
   const {
     isRecording: isVoiceRecording,
@@ -642,6 +646,29 @@ export const ChatInputArea = memo(function ChatInputArea({
       window.removeEventListener("keyup", handleKeyUp, true)
     }
   }, [voiceInputHotkey, isVoiceRecording, isTranscribing, isStreaming, handleVoiceMouseDown, handleVoiceMouseUp])
+
+  // Handle pending file reference from file tree panel (@ button click)
+  useEffect(() => {
+    if (pendingFileReference && editorRef.current) {
+      // Construct mention option from pending reference
+      const mentionOption: FileMentionOption = {
+        id: `file:local:${pendingFileReference.path}`,
+        label: pendingFileReference.name,
+        path: pendingFileReference.path,
+        repository: "local",
+        type: pendingFileReference.type,
+      }
+
+      // Insert the mention into the editor
+      editorRef.current.insertMention(mentionOption)
+
+      // Clear the pending reference
+      setPendingFileReference(null)
+
+      // Focus the editor
+      editorRef.current.focus()
+    }
+  }, [pendingFileReference, setPendingFileReference, editorRef])
 
   // Save draft on blur (with attachments and text contexts)
   const handleEditorBlur = useCallback(async () => {

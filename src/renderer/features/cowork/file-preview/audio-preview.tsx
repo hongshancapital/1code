@@ -13,8 +13,11 @@ export function AudioPreview({ filePath, className }: AudioPreviewProps) {
 
   // Use local-file:// protocol for streaming audio access
   // Format: local-file://localhost/<absolute-path>
-  const fileUrl = `local-file://localhost${filePath}`
-  const fileName = filePath.split("/").pop() || filePath
+  // Ensure path starts with / for proper URL format (Windows paths like D:\... need leading /)
+  const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`
+  const fileUrl = `local-file://localhost${normalizedPath}`
+  // Use cross-platform path split
+  const fileName = filePath.split(/[\\/]/).pop() || filePath
 
   const handleLoadedData = () => {
     setIsLoading(false)
@@ -31,7 +34,7 @@ export function AudioPreview({ filePath, className }: AudioPreviewProps) {
     return (
       <div className={cn("h-full w-full flex flex-col items-center justify-center gap-3 text-muted-foreground", className)}>
         <VolumeX className="h-12 w-12 opacity-40" />
-        <p className="text-sm">无法播放音频</p>
+        <p className="text-sm">Unable to play audio</p>
         <p className="text-xs text-muted-foreground/60 max-w-[300px] truncate">{filePath}</p>
       </div>
     )

@@ -61,7 +61,7 @@ export function WordPreview({ filePath, className }: WordPreviewProps) {
       } catch (err) {
         console.error("[WordPreview] Failed to render:", err)
         setHasError(true)
-        setErrorMessage(err instanceof Error ? err.message : "渲染失败")
+        setErrorMessage(err instanceof Error ? err.message : "Render failed")
         setIsLoading(false)
       }
     }
@@ -73,7 +73,7 @@ export function WordPreview({ filePath, className }: WordPreviewProps) {
     return (
       <div className={cn("h-full w-full flex flex-col items-center justify-center gap-3 text-muted-foreground", className)}>
         <FileText className="h-12 w-12 opacity-40" />
-        <p className="text-sm">无法预览 Word 文档</p>
+        <p className="text-sm">Unable to preview Word document</p>
         {errorMessage && (
           <p className="text-xs text-muted-foreground/60 max-w-[300px] text-center">
             {errorMessage}

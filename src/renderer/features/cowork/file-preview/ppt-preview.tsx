@@ -206,7 +206,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
       } catch (err) {
         console.error("[PptPreview] Failed to preview PPTX:", err)
         setHasError(true)
-        setErrorMessage(err instanceof Error ? err.message : "预览失败")
+        setErrorMessage(err instanceof Error ? err.message : "Preview failed")
         setIsLoading(false)
       }
     }
@@ -239,7 +239,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
       <div className={cn("h-full w-full flex flex-col items-center justify-center gap-4 text-muted-foreground", className)}>
         <Presentation className="h-12 w-12 opacity-40" />
         <div className="text-center">
-          <p className="text-sm">无法预览 PPT 文件</p>
+          <p className="text-sm">Unable to preview PPT file</p>
           {errorMessage && (
             <p className="text-xs text-muted-foreground/60 max-w-[300px] mt-1">
               {errorMessage}
@@ -248,7 +248,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
         </div>
         <Button variant="outline" size="sm" onClick={handleOpenExternal}>
           <ExternalLink className="h-4 w-4 mr-2" />
-          用外部程序打开
+          Open with external app
         </Button>
       </div>
     )
@@ -260,7 +260,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
       {isLoading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80 z-10">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">正在加载演示文稿...</p>
+          <p className="text-sm text-muted-foreground">Loading presentation...</p>
         </div>
       )}
 

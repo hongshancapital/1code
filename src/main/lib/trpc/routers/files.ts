@@ -1,7 +1,9 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
 import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises"
-import { join, relative, basename } from "node:path"
+import { join, relative, basename, posix } from "node:path"
+import { spawn } from "node:child_process"
+import { platform } from "node:os"
 import { app } from "electron"
 
 // Directories to ignore when scanning
@@ -61,6 +63,16 @@ const ALLOWED_LOCK_FILES = new Set([
 interface FileEntry {
   path: string
   type: "file" | "folder"
+}
+
+// Content search result type
+interface ContentSearchResult {
+  file: string
+  line: number
+  column: number
+  text: string
+  beforeContext?: string[]
+  afterContext?: string[]
 }
 
 // Cache for file and folder listings
@@ -466,6 +478,368 @@ export const filesRouter = router({
         filePath,
         filename: finalFilename,
         size: text.length,
+      }
+    }),
+
+  /**
+   * Search for files matching a filename pattern (returns all matching paths for auto-expand)
+   */
+  searchFiles: publicProcedure
+    .input(
+      z.object({
+        projectPath: z.string(),
+        query: z.string(),
+        limit: z.number().min(1).max(500).default(100),
+      })
+    )
+    .query(async ({ input }) => {
+      const { projectPath, query, limit } = input
+
+      if (!projectPath) {
+        return { results: [], parentPaths: [] }
+      }
+
+      try {
+        const entries = await getEntryList(projectPath)
+
+        // If no query, return all folder paths for expand all functionality
+        if (!query) {
+          const allFolders = entries.filter((entry) => entry.type === "folder")
+          return {
+            results: [],
+            parentPaths: allFolders.map((f) => f.path),
+          }
+        }
+
+        const queryLower = query.toLowerCase()
+
+        // Find matching files
+        const matchingFiles = entries.filter((entry) => {
+          const name = basename(entry.path).toLowerCase()
+          return name.includes(queryLower)
+        })
+
+        // Sort by relevance
+        matchingFiles.sort((a, b) => {
+          const aName = basename(a.path).toLowerCase()
+          const bName = basename(b.path).toLowerCase()
+
+          // Exact match first
+          if (aName === queryLower && bName !== queryLower) return -1
+          if (bName === queryLower && aName !== queryLower) return 1
+
+          // Starts with query
+          if (aName.startsWith(queryLower) && !bName.startsWith(queryLower)) return -1
+          if (bName.startsWith(queryLower) && !aName.startsWith(queryLower)) return 1
+
+          // Shorter name = better match
+          return aName.length - bName.length
+        })
+
+        const limited = matchingFiles.slice(0, limit)
+
+        // Collect all parent directories that need to be expanded
+        // Use posix.dirname since paths are normalized to forward slashes
+        const parentPaths = new Set<string>()
+        for (const entry of limited) {
+          let currentPath = posix.dirname(entry.path)
+          while (currentPath && currentPath !== ".") {
+            parentPaths.add(currentPath)
+            currentPath = posix.dirname(currentPath)
+          }
+        }
+
+        return {
+          results: limited.map((entry) => ({
+            path: entry.path,
+            type: entry.type,
+            name: basename(entry.path),
+          })),
+          parentPaths: Array.from(parentPaths),
+        }
+      } catch (error) {
+        console.error(`[files] Error searching files:`, error)
+        return { results: [], parentPaths: [] }
+      }
+    }),
+
+  /**
+   * Search file contents using ripgrep (with grep/findstr fallback)
+   */
+  searchContent: publicProcedure
+    .input(
+      z.object({
+        projectPath: z.string(),
+        query: z.string(),
+        filePattern: z.string().optional(),
+        caseSensitive: z.boolean().default(false),
+        limit: z.number().min(1).max(500).default(100),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { projectPath, query, filePattern, caseSensitive, limit } = input
+
+      if (!projectPath || !query) {
+        return { results: [], tool: "none" }
+      }
+
+      const isWindows = platform() === "win32"
+
+      return new Promise<{ results: ContentSearchResult[]; tool: string }>((resolve) => {
+        // Try ripgrep first, then fall back to grep/findstr
+        const rgPaths = isWindows
+          ? ["rg", "C:\\Program Files\\ripgrep\\rg.exe", "C:\\ProgramData\\scoop\\shims\\rg.exe"]
+          : ["rg", "/opt/homebrew/bin/rg", "/usr/local/bin/rg", "/usr/bin/rg"]
+
+        let rgPathIndex = 0
+
+        const tryRipgrep = () => {
+          if (rgPathIndex >= rgPaths.length) {
+            // No ripgrep found, try fallback
+            tryFallback()
+            return
+          }
+
+          const rgPath = rgPaths[rgPathIndex]
+          rgPathIndex++
+
+          console.log(`[files] Trying ripgrep at: ${rgPath} for content search: "${query}" in ${projectPath}`)
+
+          const args = [
+            "--json",
+            "--line-number",
+            "--column",
+            "-C", "2", // 2 lines of context
+          ]
+
+          // Add case sensitivity flag
+          if (!caseSensitive) {
+            args.push("-i")
+          }
+
+          // Add file pattern if provided
+          if (filePattern) {
+            args.push("-g", filePattern)
+          }
+
+          // Add ignored directories
+          for (const dir of IGNORED_DIRS) {
+            args.push("-g", `!${dir}/**`)
+          }
+
+          args.push("--", query, projectPath)
+
+          const rg = spawn(rgPath, args)
+          let output = ""
+
+          rg.stdout.on("data", (data) => {
+            output += data.toString()
+          })
+
+          rg.on("close", (code) => {
+            if (code === null || (code !== 0 && code !== 1)) {
+              // ripgrep error, try next path
+              tryRipgrep()
+              return
+            }
+
+            // Parse JSON output
+            const lines = output.split("\n").filter(Boolean)
+            const matchMap = new Map<string, ContentSearchResult>()
+
+            for (const line of lines) {
+              try {
+                const json = JSON.parse(line)
+                if (json.type === "match") {
+                  const data = json.data
+                  const file = relative(projectPath, data.path.text).replace(/\\/g, "/")
+                  const lineNum = data.line_number
+
+                  // Skip ignored directories
+                  if (IGNORED_DIRS.has(file.split("/")[0])) continue
+
+                  const key = `${file}:${lineNum}`
+                  if (!matchMap.has(key)) {
+                    matchMap.set(key, {
+                      file,
+                      line: lineNum,
+                      column: data.submatches?.[0]?.start || 0,
+                      text: data.lines.text.trim(),
+                      beforeContext: [],
+                      afterContext: [],
+                    })
+                  }
+                }
+              } catch {
+                // Skip non-JSON lines
+              }
+            }
+
+            const results = Array.from(matchMap.values()).slice(0, limit)
+            resolve({
+              results,
+              tool: "ripgrep",
+            })
+          })
+
+          rg.on("error", () => {
+            // This ripgrep path not found, try next path
+            tryRipgrep()
+          })
+        }
+
+        const tryFallback = () => {
+          if (isWindows) {
+            tryFindstr()
+          } else {
+            tryGrep()
+          }
+        }
+
+        const tryFindstr = () => {
+          console.log(`[files] Trying findstr for content search: "${query}" in ${projectPath}`)
+
+          // Windows findstr command
+          const args = ["/S", "/N", "/P"]
+
+          if (!caseSensitive) {
+            args.push("/I")
+          }
+
+          args.push(query)
+
+          if (filePattern) {
+            args.push(filePattern)
+          } else {
+            args.push("*.*")
+          }
+
+          const findstr = spawn("findstr", args, { cwd: projectPath })
+          const results: ContentSearchResult[] = []
+          let output = ""
+
+          findstr.stdout.on("data", (data) => {
+            output += data.toString()
+          })
+
+          findstr.on("close", (code) => {
+            if (code === 2) {
+              console.error(`[files] findstr failed`)
+              resolve({ results: [], tool: "findstr-failed" })
+              return
+            }
+
+            const lines = output.split("\r\n").filter(Boolean)
+
+            for (const line of lines) {
+              if (results.length >= limit) break
+
+              const match = line.match(/^(.+?):(\d+):(.*)$/)
+              if (match) {
+                let filePath = match[1]
+                filePath = filePath.replace(/\\/g, "/")
+                if (IGNORED_DIRS.has(filePath.split("/")[0])) continue
+                if (filePath.includes("/node_modules/") || filePath.includes("/.git/")) continue
+
+                results.push({
+                  file: filePath,
+                  line: parseInt(match[2], 10),
+                  column: 0,
+                  text: match[3].trim(),
+                })
+              }
+            }
+
+            resolve({ results, tool: "findstr" })
+          })
+
+          findstr.on("error", (err) => {
+            console.error(`[files] findstr spawn error:`, err)
+            resolve({ results: [], tool: "findstr-error" })
+          })
+        }
+
+        const tryGrep = () => {
+          console.log(`[files] Trying grep for content search: "${query}" in ${projectPath}`)
+
+          const grepPath = "/usr/bin/grep"
+          const args = ["-r", "-n", "-H"]
+
+          if (filePattern) {
+            args.push("--include=" + filePattern)
+          }
+
+          if (!caseSensitive) {
+            args.push("-i")
+          }
+
+          for (const dir of IGNORED_DIRS) {
+            args.push(`--exclude-dir=${dir}`)
+          }
+
+          args.push("--", query, projectPath)
+
+          const grep = spawn(grepPath, args)
+          const results: ContentSearchResult[] = []
+          let output = ""
+
+          grep.stdout.on("data", (data) => {
+            output += data.toString()
+          })
+
+          grep.on("close", (code) => {
+            if (code === null || code > 1) {
+              resolve({ results: [], tool: "grep-failed" })
+              return
+            }
+
+            const lines = output.split("\n").filter(Boolean)
+            for (const line of lines) {
+              if (results.length >= limit) break
+
+              const match = line.match(/^(.+?):(\d+):(.*)$/)
+              if (match) {
+                results.push({
+                  file: relative(projectPath, match[1]).replace(/\\/g, "/"),
+                  line: parseInt(match[2], 10),
+                  column: 0,
+                  text: match[3].trim(),
+                })
+              }
+            }
+
+            resolve({ results, tool: "grep" })
+          })
+
+          grep.on("error", () => {
+            resolve({ results: [], tool: "grep-error" })
+          })
+        }
+
+        tryRipgrep()
+      })
+    }),
+
+  /**
+   * Write file content (for editing files)
+   */
+  writeFileContent: publicProcedure
+    .input(
+      z.object({
+        path: z.string(),
+        content: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { path: filePath, content } = input
+
+      try {
+        await writeFile(filePath, content, "utf-8")
+        console.log(`[files] Wrote file: ${filePath} (${content.length} bytes)`)
+        return { success: true }
+      } catch (error) {
+        console.error(`[files] Error writing file:`, error)
+        throw error
       }
     }),
 })

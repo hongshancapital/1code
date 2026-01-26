@@ -2,13 +2,18 @@ import { useEffect, useState, useRef, memo, lazy, Suspense, useCallback } from "
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { Loader2 } from "lucide-react"
-import { CodeWithLineNumbers } from "../../comments/components/code-with-line-numbers"
-import type { ReviewComment } from "../../comments/types"
 
 // Lazy load Monaco Editor to reduce initial bundle size
 const CodeEditor = lazy(() =>
   import("./code-editor").then((m) => ({ default: m.CodeEditor }))
 )
+
+// ReviewComment type for optional comment support
+interface ReviewComment {
+  id: string
+  content: string
+  lineRange: { startLine: number; endLine: number }
+}
 
 interface TextPreviewProps {
   content: string
@@ -147,7 +152,7 @@ function getLanguageFromFileName(fileName: string): string {
     txt: "text",
   }
 
-  // Handle special filenames
+  // Handle special filenames - use cross-platform path split
   const specialFiles: Record<string, string> = {
     Dockerfile: "dockerfile",
     Makefile: "makefile",
@@ -160,7 +165,7 @@ function getLanguageFromFileName(fileName: string): string {
     Brewfile: "ruby",
   }
 
-  const baseName = fileName.split("/").pop() || fileName
+  const baseName = fileName.split(/[\\/]/).pop() || fileName
   if (specialFiles[baseName]) {
     return specialFiles[baseName]
   }
@@ -212,20 +217,11 @@ export const TextPreview = memo(function TextPreview({
     )
   }
 
-  // Comment mode: Use CodeWithLineNumbers
-  if (enableComments && chatId && filePath) {
-    return (
-      <CodeWithLineNumbers
-        content={content}
-        fileName={fileName}
-        chatId={chatId}
-        filePath={filePath}
-        comments={comments}
-        className={className}
-        onCommentAdded={onCommentAdded}
-      />
-    )
-  }
+  // Comment mode: Currently disabled (requires comments module)
+  // TODO: Enable when comments module is ported
+  // if (enableComments && chatId && filePath) {
+  //   return <CodeWithLineNumbers ... />
+  // }
 
   // Default: Basic syntax highlighted preview (no comments)
   return (

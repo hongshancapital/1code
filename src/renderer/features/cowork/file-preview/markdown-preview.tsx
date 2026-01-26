@@ -124,8 +124,8 @@ export function MarkdownPreview({ content, className, scrollToLine, highlightTex
   }, [])
 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-    { id: "preview", label: "预览", icon: <Eye className="h-3.5 w-3.5" /> },
-    { id: "source", label: "源代码", icon: <Code className="h-3.5 w-3.5" /> },
+    { id: "preview", label: "Preview", icon: <Eye className="h-3.5 w-3.5" /> },
+    { id: "source", label: "Source", icon: <Code className="h-3.5 w-3.5" /> },
   ]
 
   return (

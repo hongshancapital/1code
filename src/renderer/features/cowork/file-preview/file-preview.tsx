@@ -111,7 +111,8 @@ function getFileType(fileName: string): FileType {
   }
 
   // Check for common text file names without extensions
-  const baseName = fileName.split("/").pop()?.toLowerCase() || ""
+  // Use cross-platform path split
+  const baseName = fileName.split(/[\\/]/).pop()?.toLowerCase() || ""
   const textFileNames = [
     "dockerfile", "makefile", "cmakelists", "gemfile", "rakefile",
     "podfile", "fastfile", "vagrantfile", "brewfile", "readme",
@@ -126,7 +127,8 @@ function getFileType(fileName: string): FileType {
 }
 
 export function FilePreview({ filePath, className, editable = false, onSave, onDirtyChange, scrollToLine, highlightText }: FilePreviewProps) {
-  const fileName = filePath.split("/").pop() || filePath
+  // Use cross-platform path split for fileName
+  const fileName = filePath.split(/[\\/]/).pop() || filePath
   const fileType = useMemo(() => getFileType(fileName), [fileName])
 
   // Read file content for text-based previews only
@@ -152,7 +154,7 @@ export function FilePreview({ filePath, className, editable = false, onSave, onD
     return (
       <div className={cn("h-full flex flex-col items-center justify-center gap-2 text-destructive", className)}>
         <FileQuestion className="h-8 w-8 opacity-60" />
-        <p className="text-sm">无法读取文件</p>
+        <p className="text-sm">Unable to read file</p>
         <p className="text-xs text-muted-foreground">{error.message}</p>
       </div>
     )
@@ -214,7 +216,7 @@ export function FilePreview({ filePath, className, editable = false, onSave, onD
       return (
         <div className={cn("h-full flex flex-col items-center justify-center gap-3 text-muted-foreground", className)}>
           <FileQuestion className="h-12 w-12 opacity-40" />
-          <p className="text-sm">不支持预览此文件类型</p>
+          <p className="text-sm">Preview not supported for this file type</p>
           <p className="text-xs text-muted-foreground/60">{fileName}</p>
         </div>
       )

@@ -4,13 +4,28 @@ import * as monaco from "monaco-editor"
 import { useAtom, useSetAtom } from "jotai"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
-import { useLSPClient } from "../../../lib/lsp/use-lsp-client"
 import {
   editorDirtyAtom,
   editorOriginalContentAtom,
   editorContentAtom,
 } from "../atoms"
 import { Loader2 } from "lucide-react"
+
+// LSP is optional - stub it out if not available
+// TODO: Import real useLSPClient when LSP module is ported
+const useLSPClient = (_opts: { filePath: string; language: string; enabled: boolean }): {
+  isConnected: boolean
+  sendDidOpen: (content: string) => Promise<void>
+  sendDidChange: (content: string) => Promise<void>
+  sendDidClose: () => Promise<void>
+  registerProviders: (monaco: any, editor: any) => () => void
+} => ({
+  isConnected: false,
+  sendDidOpen: async () => {},
+  sendDidChange: async () => {},
+  sendDidClose: async () => {},
+  registerProviders: () => () => {},
+})
 
 // Configure Monaco workers for Electron environment
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker"
@@ -145,8 +160,8 @@ function getLanguageFromFileName(fileName: string): string {
     txt: "plaintext",
   }
 
-  // Handle special filenames
-  const baseName = fileName.split("/").pop() || fileName
+  // Handle special filenames - use cross-platform path split
+  const baseName = fileName.split(/[\\/]/).pop() || fileName
   const specialFiles: Record<string, string> = {
     Dockerfile: "dockerfile",
     Makefile: "makefile",
@@ -192,7 +207,8 @@ export function CodeEditor({
   const saveFileMutation = trpc.files.writeFile.useMutation()
 
   // Determine language from file extension or explicit prop
-  const fileName = filePath.split("/").pop() || filePath
+  // Use cross-platform path split
+  const fileName = filePath.split(/[\\/]/).pop() || filePath
   const language = explicitLanguage || getLanguageFromFileName(fileName)
 
   // LSP client for TypeScript/JavaScript

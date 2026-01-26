@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
-import { useAtom, useSetAtom, useAtomValue } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
+import { useQueryClient } from "@tanstack/react-query"
 import { trpc } from "../../lib/trpc"
+import { useGitWatcher } from "../../lib/hooks/use-file-change-listener"
 import { getFileIconByExtension } from "../agents/mentions/agents-file-mention"
 import {
   ChevronRight,
@@ -31,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 import { cn } from "../../lib/utils"
+import { toast } from "sonner"
 import {
   fileTreeExpandedPathsAtom,
   fileTreeSearchQueryAtom,
@@ -64,8 +67,6 @@ interface FileTreePanelProps {
   onClose?: () => void
   onFileSelect?: (path: string, line?: number) => void
   showHeader?: boolean
-  /** Hide the border below the search box (useful when embedded in a widget) */
-  hideSearchBorder?: boolean
 }
 
 // ============================================================================
@@ -299,7 +300,6 @@ export function FileTreePanel({
   onClose,
   onFileSelect,
   showHeader = true,
-  hideSearchBorder = false,
 }: FileTreePanelProps) {
   const [expandedPaths, setExpandedPaths] = useAtom(fileTreeExpandedPathsAtom)
   const [searchQuery, setSearchQuery] = useAtom(fileTreeSearchQueryAtom)
@@ -319,6 +319,12 @@ export function FileTreePanel({
   const [contentLoading, setContentLoading] = useAtom(contentSearchLoadingAtom)
   const [contentResults, setContentResults] = useAtom(contentSearchResultsAtom)
   const [contentTool, setContentTool] = useAtom(contentSearchToolAtom)
+
+  // Query client for cache invalidation
+  const queryClient = useQueryClient()
+
+  // Subscribe to file system changes to auto-refresh
+  useGitWatcher(projectPath)
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const contentSearchInputRef = useRef<HTMLInputElement>(null)
@@ -391,11 +397,37 @@ export function FileTreePanel({
       setContentResults(data.results)
       setContentTool(data.tool)
       setContentLoading(false)
+
+      // Show toast notification for fallback tools or errors
+      if (data.tool === "findstr") {
+        toast.info("Using Windows findstr for content search", {
+          description: "For better results, install ripgrep: scoop install ripgrep",
+          duration: 5000,
+        })
+      } else if (data.tool === "grep") {
+        toast.info("Using grep for content search", {
+          description: "For better results, install ripgrep: brew install ripgrep",
+          duration: 5000,
+        })
+      } else if (data.tool === "findstr-failed" || data.tool === "findstr-error") {
+        toast.warning("Content search failed", {
+          description: "Install ripgrep for better search: scoop install ripgrep",
+          duration: 5000,
+        })
+      } else if (data.tool === "grep-failed" || data.tool === "grep-error") {
+        toast.warning("Content search failed", {
+          description: "Install ripgrep for better search: brew install ripgrep",
+          duration: 5000,
+        })
+      }
     },
     onError: (error) => {
       console.error("[FileTree] Content search error:", error)
       setContentResults([])
       setContentLoading(false)
+      toast.error("Content search failed", {
+        description: error.message,
+      })
     },
   })
 
@@ -418,10 +450,11 @@ export function FileTreePanel({
     }
   }, [handleContentSearch])
 
-  // Refresh file list
+  // Refresh file list - invalidate cache first to ensure fresh data
   const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [["files", "listDirectory"]] })
     refetch()
-  }, [refetch])
+  }, [queryClient, refetch])
 
   // Toggle folder expansion
   const handleToggle = useCallback(
@@ -481,7 +514,10 @@ export function FileTreePanel({
     (filePath: string, line: number) => {
       // Set preview atoms for line jump and highlight
       if (projectPath) {
-        const fullPath = `${projectPath}/${filePath}`
+        // Normalize project path (remove trailing slashes)
+        const normalizedProjectPath = projectPath.replace(/[\\/]+$/, "")
+        // Construct full path with forward slash (filePath already normalized by backend)
+        const fullPath = `${normalizedProjectPath}/${filePath}`
         setPreviewPath(fullPath)
         setPreviewLine(line)
         setPreviewHighlight(contentQuery)
@@ -531,33 +567,32 @@ export function FileTreePanel({
   if (contentSearchActive) {
     return (
       <div className="flex flex-col h-full">
-        {/* Header */}
-        {showHeader && (
-          <div className="flex items-center justify-between px-3 py-2 border-b">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={handleCloseContentSearch}
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </Button>
-              <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium">Content Search</span>
-            </div>
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={onClose}
-              >
-                <PanelLeftClose className="h-4 w-4" />
-              </Button>
-            )}
+        {/* Content Search Header - always show back button (even when showHeader=false) */}
+        <div className="flex items-center justify-between px-3 py-2 border-b">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleCloseContentSearch}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Button>
+            <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium">Content Search</span>
           </div>
-        )}
+          {/* Close button only shown when showHeader is true and onClose is provided */}
+          {showHeader && onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onClose}
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
 
         {/* Search Input */}
         <div className="p-2 border-b space-y-2">
@@ -650,91 +685,92 @@ export function FileTreePanel({
   // Render file tree view
   return (
     <div className="flex flex-col h-full">
-      {/* Header (optional) */}
+      {/* Header (optional) - just title and close button, toolbar is in search row */}
       {showHeader && (
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <div className="flex items-center gap-2">
             <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium">Explorer</span>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Content search button */}
+          {onClose && (
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={handleOpenContentSearch}
-              title="Search file contents"
+              onClick={onClose}
             >
-              <FileSearch className="h-3.5 w-3.5" />
+              <PanelLeftClose className="h-4 w-4" />
             </Button>
-            {/* Refresh button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={handleRefresh}
-              disabled={isFetching}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-            </Button>
-            {/* More options dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={handleExpandAll}>
-                  <ChevronsUpDown className="h-3.5 w-3.5 mr-2" />
-                  <span className="text-xs">Expand All</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCollapseAll}>
-                  <ChevronsDownUp className="h-3.5 w-3.5 mr-2" />
-                  <span className="text-xs">Collapse All</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {onClose && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={onClose}
-              >
-                <PanelLeftClose className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       )}
 
-      {/* Search */}
-      <div className={cn("p-2", !hideSearchBorder && "border-b")}>
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            placeholder="Filter files..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 pr-8 h-8 text-xs"
-          />
-          {searchQuery && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-              onClick={handleClearSearch}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
+      {/* Search + Toolbar */}
+      <div className="p-2 border-b">
+        <div className="flex items-center gap-1">
+          {/* Search input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Filter files..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-8 h-7 text-xs"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5"
+                onClick={handleClearSearch}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          {/* Toolbar buttons - always visible */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 flex-shrink-0"
+            onClick={handleOpenContentSearch}
+            title="Search file contents"
+          >
+            <FileSearch className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 flex-shrink-0"
+            onClick={handleRefresh}
+            disabled={isFetching}
+            title="Refresh"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 flex-shrink-0"
+                title="More options"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={handleExpandAll}>
+                <ChevronsUpDown className="h-3.5 w-3.5 mr-2" />
+                <span className="text-xs">Expand All</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCollapseAll}>
+                <ChevronsDownUp className="h-3.5 w-3.5 mr-2" />
+                <span className="text-xs">Collapse All</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         {/* Show match count when searching */}
         {searchQuery && searchData?.results && (

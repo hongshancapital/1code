@@ -122,6 +122,9 @@ export function ExpandedWidgetSidebar({
             isExpanded
           />
         )
+      // Explorer is handled by ExplorerPanel component (supports three display modes)
+      case "explorer":
+        return null
       default:
         return null
     }

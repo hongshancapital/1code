@@ -6,7 +6,6 @@ import { isMacOS } from "../../../lib/utils/platform"
 import { Button } from "../../../components/ui/button"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../../../components/ui/dialog"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../components/ui/tooltip"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,8 +74,10 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null)
 
-  const fileName = filePath?.split("/").pop() || ""
-  const dirPath = filePath?.split("/").slice(0, -1).join("/") || ""
+  // Use cross-platform path split
+  const pathParts = filePath?.split(/[\\/]/) || []
+  const fileName = pathParts.pop() || ""
+  const dirPath = pathParts.join("/") || ""
   const FileIcon = fileName ? (getFileIconByExtension(fileName) ?? null) : null
   const canEdit = fileName ? isFileEditable(fileName) : false
   const isEditing = editorMode === "edit"
@@ -183,42 +184,40 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
     if (isEditing) {
       return (
         <>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn("h-7 w-7", isDirty && "text-yellow-500")}
-                onClick={handleSave}
-                disabled={!isDirty}
-              >
-                <Save className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{isDirty ? "Save (Cmd+S)" : "No changes to save"}</TooltipContent>
-          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-7 w-7", isDirty && "text-yellow-500")}
+            onClick={handleSave}
+            disabled={!isDirty}
+            title={isDirty ? "Save (Cmd+S)" : "No changes to save"}
+          >
+            <Save className="h-4 w-4" />
+          </Button>
 
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleEdit}>
-                <Eye className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Switch to View Mode</TooltipContent>
-          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleToggleEdit}
+            title="Switch to View Mode"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
         </>
       )
     }
 
     return (
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleEdit}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Edit File</TooltipContent>
-      </Tooltip>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={handleToggleEdit}
+        title="Edit File"
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
     )
   }
 
@@ -255,23 +254,13 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
           {/* macOS: Left side has close + fullscreen buttons */}
           {isMac && (
             <div className="flex items-center gap-1">
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Close</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose} title="Close">
+                <X className="h-4 w-4" />
+              </Button>
 
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen}>
-                    <Minimize2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Exit Fullscreen</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen} title="Exit Fullscreen">
+                <Minimize2 className="h-4 w-4" />
+              </Button>
             </div>
           )}
 
@@ -293,45 +282,25 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
           {isMac ? (
             <div className="flex items-center gap-1">
               <EditSaveButton />
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Show in Finder</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal} title="Show in Finder">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
             </div>
           ) : (
             /* Windows: Right side has all buttons - edit/save, external, fullscreen, close */
             <div className="flex items-center gap-1">
               <EditSaveButton />
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Show in Explorer</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal} title="Show in Explorer">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
 
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen}>
-                    <Minimize2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Exit Fullscreen</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen} title="Exit Fullscreen">
+                <Minimize2 className="h-4 w-4" />
+              </Button>
 
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Close</TooltipContent>
-              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose} title="Close">
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>
@@ -374,23 +343,13 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
             {/* macOS: Left side has close + fullscreen buttons */}
             {isMac && (
               <div className="flex items-center gap-1">
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Close</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose} title="Close">
+                  <X className="h-4 w-4" />
+                </Button>
 
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen}>
-                      <Maximize2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Fullscreen</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen} title="Fullscreen">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
               </div>
             )}
 
@@ -412,45 +371,25 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
             {isMac ? (
               <div className="flex items-center gap-1">
                 <EditSaveButton />
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal}>
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Show in Finder</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal} title="Show in Finder">
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
               </div>
             ) : (
               /* Windows: Right side has all buttons - edit/save, external, fullscreen, close */
               <div className="flex items-center gap-1">
                 <EditSaveButton />
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal}>
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Show in Explorer</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal} title="Show in Explorer">
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
 
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen}>
-                      <Maximize2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Fullscreen</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFullscreen} title="Fullscreen">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
 
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Close</TooltipContent>
-                </Tooltip>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose} title="Close">
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             )}
           </div>
