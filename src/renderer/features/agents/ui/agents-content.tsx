@@ -19,6 +19,7 @@ import {
   agentsSidebarOpenAtom,
   agentsSubChatsSidebarModeAtom,
   agentsSubChatsSidebarWidthAtom,
+  currentProjectModeAtom,
 } from "../atoms"
 import {
   selectedTeamIdAtom,
@@ -79,6 +80,10 @@ export function AgentsContent() {
     [selectedChatId],
   )
   const setTerminalSidebarOpen = useSetAtom(terminalSidebarAtom)
+
+  // Project mode - cowork mode hides terminal
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const hideGitFeatures = projectMode === "cowork"
 
   const hasOpenedSubChatsSidebar = useRef(false)
   const wasSubChatsSidebarOpen = useRef(false)
@@ -781,9 +786,9 @@ export function AgentsContent() {
   // Check if diff can be shown (sandbox exists)
   const canShowDiff = !!chatData?.sandbox_id
 
-  // Check if terminal can be shown (worktree exists - desktop only)
+  // Check if terminal can be shown (worktree exists - desktop only, not in cowork mode)
   const worktreePath = (chatData as any)?.worktreePath as string | undefined
-  const canShowTerminal = !!worktreePath
+  const canShowTerminal = !!worktreePath && !hideGitFeatures
 
   // Mobile layout - completely different structure
   if (isMobile) {
