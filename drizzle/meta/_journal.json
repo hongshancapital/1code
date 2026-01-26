@@ -8,6 +8,13 @@
       "when": 1769345873498,
       "tag": "0000_flawless_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1769480000000,
+      "tag": "0006_anthropic_multi_account",
+      "breakpoints": true
     }
   ]
 }

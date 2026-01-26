@@ -23,6 +23,8 @@ import { isWidgetConfigurable } from "../../../shared/feature-config"
 
 interface WidgetSettingsPopupProps {
   workspaceId: string
+  /** Whether this is a remote sandbox chat (hides terminal widget) */
+  isRemoteChat?: boolean
 }
 
 // Get the correct icon for each widget (matching details-sidebar.tsx)
@@ -47,7 +49,7 @@ function getWidgetIcon(widgetId: WidgetId) {
   }
 }
 
-export function WidgetSettingsPopup({ workspaceId }: WidgetSettingsPopupProps) {
+export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: WidgetSettingsPopupProps) {
   // Get enabled widgets from project feature config
   const enabledWidgets = useAtomValue(enabledWidgetsAtom)
   const projectMode = useAtomValue(currentProjectModeAtom)
@@ -149,12 +151,17 @@ export function WidgetSettingsPopup({ workspaceId }: WidgetSettingsPopupProps) {
   }, [])
 
   // Get widgets in current order, filtered to only show configurable widgets
-  // (excludes always-enabled widgets like plan, and mode-locked widgets)
+  // (excludes always-enabled widgets like plan, mode-locked widgets, and terminal for remote chats)
   const orderedWidgets = useMemo(() => {
     return [...WIDGET_REGISTRY]
-      .filter((w) => enabledWidgets.has(w.id) && isWidgetConfigurable(w.id, projectMode))
+      .filter((w) => {
+        // Hide terminal for remote chats
+        if (isRemoteChat && w.id === "terminal") return false
+        // Only show enabled and configurable widgets
+        return enabledWidgets.has(w.id) && isWidgetConfigurable(w.id, projectMode)
+      })
       .sort((a, b) => widgetOrder.indexOf(a.id) - widgetOrder.indexOf(b.id))
-  }, [widgetOrder, enabledWidgets, projectMode])
+  }, [widgetOrder, enabledWidgets, projectMode, isRemoteChat])
 
   return (
     <Popover>

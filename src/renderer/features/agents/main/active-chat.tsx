@@ -39,6 +39,7 @@ import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   ArrowDown,
   ChevronDown,
+  GitFork,
   ListTree,
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
@@ -60,12 +61,16 @@ import { getQueryClient } from "../../../contexts/TRPCProvider"
 import { trackMessageSent } from "../../../lib/analytics"
 import { apiFetch } from "../../../lib/api-fetch"
 import {
+  chatSourceModeAtom,
   customClaudeConfigAtom,
+  defaultAgentModeAtom,
   isDesktopAtom, isFullscreenAtom,
   normalizeCustomClaudeConfig,
   selectedOllamaModelAtom,
   soundNotificationsEnabledAtom
 } from "../../../lib/atoms"
+import { useRemoteChat } from "../../../lib/hooks/use-remote-chats"
+import { remoteApi } from "../../../lib/remote-api"
 import { useFileChangeListener, useGitWatcher } from "../../../lib/hooks/use-file-change-listener"
 import { appStore } from "../../../lib/jotai-store"
 import { api } from "../../../lib/mock-api"
@@ -99,10 +104,10 @@ import {
   filteredDiffFilesAtom,
   filteredSubChatIdAtom,
   isCreatingPrAtom,
-  isPlanModeAtom,
   justCreatedIdsAtom,
   lastSelectedModelIdAtom,
   loadingSubChatsAtom,
+  MODEL_ID_MAP,
   pendingAuthRetryMessageAtom,
   pendingConflictResolutionMessageAtom,
   pendingBuildPlanSubChatIdAtom,
@@ -120,15 +125,20 @@ import {
   selectedProjectAtom,
   setLoading,
   subChatFilesAtom,
+  subChatModeAtomFamily,
   undoStackAtom,
   currentProjectModeAtom,
+  openLocallyChatIdAtom,
+  type AgentMode,
   type SelectedCommit
 } from "../atoms"
 import { AgentSendButton } from "../components/agent-send-button"
+import { OpenLocallyDialog } from "../components/open-locally-dialog"
 import { PreviewSetupHoverCard } from "../components/preview-setup-hover-card"
 import type { TextSelectionSource } from "../context/text-selection-context"
 import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
+import { useAutoImport } from "../hooks/use-auto-import"
 import { useChangedFilesTracking } from "../hooks/use-changed-files-tracking"
 import { useDesktopNotifications } from "../hooks/use-desktop-notifications"
 import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
@@ -141,6 +151,7 @@ import {
   getSubChatDraftFull
 } from "../lib/drafts"
 import { IPCChatTransport } from "../lib/ipc-chat-transport"
+import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   createQueueItem,
   generateQueueId,
@@ -292,6 +303,13 @@ const CodexIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
   </svg>
 )
+
+// Model options for Claude Code
+const claudeModels = [
+  { id: "opus", name: "Opus" },
+  { id: "sonnet", name: "Sonnet" },
+  { id: "haiku", name: "Haiku" },
+]
 
 // Agent providers
 const agents = [
@@ -1697,7 +1715,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
       className="flex flex-col h-full min-w-0 overflow-hidden"
     >
       {/* Unified Header - branch selector, fetch, review, PR actions, close */}
-      {worktreePath && (
+      {worktreePath ? (
         <DiffSidebarHeader
           worktreePath={worktreePath}
           currentBranch={branchData?.current ?? ""}
@@ -1735,7 +1753,19 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           displayMode={diffDisplayMode}
           onDisplayModeChange={setDiffDisplayMode}
         />
-      )}
+      ) : sandboxId ? (
+        <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+            onClick={handleCloseDiff}
+          >
+            <IconCloseSidebarRight className="size-4 text-muted-foreground" />
+          </Button>
+          <span className="text-sm text-muted-foreground ml-2">Changes</span>
+        </div>
+      ) : null}
 
       {/* Content: file list + diff view - vertical when narrow */}
       <DiffSidebarContent
@@ -2042,8 +2072,8 @@ const ChatViewInner = memo(function ChatViewInner({
     [subChatId],
   )
 
-  // Plan mode state (read from global atom)
-  const [isPlanMode, setIsPlanMode] = useAtom(isPlanModeAtom)
+  // Plan mode state (per-subChat using atomFamily)
+  const [subChatMode, setSubChatMode] = useAtom(subChatModeAtomFamily(subChatId))
 
   // Mutation for updating sub-chat mode in database
   const updateSubChatModeMutation = api.agents.updateSubChatMode.useMutation({
@@ -2060,40 +2090,25 @@ const ChatViewInner = memo(function ChatViewInner({
       }
 
       // Revert local state on error to maintain sync with database
-      const subChat = useAgentSubChatStore
+      const revertedMode: AgentMode = variables.mode === "plan" ? "agent" : "plan"
+      setSubChatMode(revertedMode)
+      // Also update store for consistency
+      useAgentSubChatStore
         .getState()
-        .allSubChats.find((sc) => sc.id === variables.subChatId)
-      if (subChat) {
-        // Revert to previous mode
-        const revertedMode = variables.mode === "plan" ? "agent" : "plan"
-        useAgentSubChatStore
-          .getState()
-          .updateSubChatMode(variables.subChatId, revertedMode)
-        // Update ref BEFORE setIsPlanMode to prevent useEffect from triggering
-        lastIsPlanModeRef.current = revertedMode === "plan"
-        setIsPlanMode(revertedMode === "plan")
-      }
+        .updateSubChatMode(variables.subChatId, revertedMode)
       console.error("Failed to update sub-chat mode:", error.message)
     },
   })
 
-  // Track last initialized sub-chat to prevent re-initialization
-  const lastInitializedRef = useRef<string | null>(null)
-
-  // Initialize mode from sub-chat metadata ONLY when switching sub-chats
+  // Sync atomFamily mode to Zustand store on mount/subChatId change
+  // This ensures the sidebar shows the correct mode icon
   useEffect(() => {
-    if (subChatId && subChatId !== lastInitializedRef.current) {
-      const subChat = useAgentSubChatStore
-        .getState()
-        .allSubChats.find((sc) => sc.id === subChatId)
-
-      if (subChat?.mode) {
-        setIsPlanMode(subChat.mode === "plan")
-      }
-      lastInitializedRef.current = subChatId
+    if (subChatId) {
+      // Read mode directly from atomFamily to ensure we get the correct value
+      const mode = appStore.get(subChatModeAtomFamily(subChatId))
+      useAgentSubChatStore.getState().updateSubChatMode(subChatId, mode)
     }
-    // Dependencies: Only subChatId - setIsPlanMode is stable, useAgentSubChatStore is external
-  }, [subChatId, setIsPlanMode])
+  }, [subChatId])
 
   // NOTE: We no longer clear caches on deactivation.
   // With proper subChatId isolation, each chat's caches are separate.
@@ -2128,31 +2143,20 @@ const ChatViewInner = memo(function ChatViewInner({
     }
   }, [subChatId])
 
-  // Track last mode to detect actual user changes (not store updates)
-  const lastIsPlanModeRef = useRef<boolean>(isPlanMode)
+  // Handle mode changes - updates atomFamily, store, and database together
+  // No effect needed - this is called directly when user toggles mode
+  const handleModeChange = useCallback((newMode: AgentMode) => {
+    // Update atomFamily (source of truth for UI)
+    setSubChatMode(newMode)
 
-  // Update mode for current sub-chat when USER changes isPlanMode
-  useEffect(() => {
-    // Skip if isPlanMode didn't actually change
-    if (lastIsPlanModeRef.current === isPlanMode) {
-      return
+    // Update Zustand store (for other components that read from store)
+    useAgentSubChatStore.getState().updateSubChatMode(subChatId, newMode)
+
+    // Save to database (skip temp IDs that haven't been persisted yet)
+    if (!subChatId.startsWith("temp-")) {
+      updateSubChatModeMutation.mutate({ subChatId, mode: newMode })
     }
-
-    const newMode = isPlanMode ? "plan" : "agent"
-
-    lastIsPlanModeRef.current = isPlanMode
-
-    if (subChatId) {
-      // Update local store immediately (optimistic update)
-      useAgentSubChatStore.getState().updateSubChatMode(subChatId, newMode)
-
-      // Save to database with error handling to maintain consistency
-      if (!subChatId.startsWith("temp-")) {
-        updateSubChatModeMutation.mutate({ subChatId, mode: newMode })
-      }
-    }
-    // Dependencies: updateSubChatModeMutation.mutate is stable, useAgentSubChatStore is external
-  }, [isPlanMode, subChatId, updateSubChatModeMutation.mutate])
+  }, [subChatId, setSubChatMode, updateSubChatModeMutation])
 
   // File/image upload hook
   const {
@@ -2838,11 +2842,8 @@ const ChatViewInner = memo(function ChatViewInner({
       updateSubChatModeMutation.mutate({ subChatId, mode: "agent" })
     }
 
-    // Update ref BEFORE setIsPlanMode to prevent useEffect from triggering duplicate mutation
-    lastIsPlanModeRef.current = false
-
-    // Update React state (for UI)
-    setIsPlanMode(false)
+    // Update atomFamily state (for UI) - this also syncs to store via effect
+    setSubChatMode("agent")
 
     // Enable auto-scroll and immediately scroll to bottom
     shouldAutoScrollRef.current = true
@@ -2853,7 +2854,7 @@ const ChatViewInner = memo(function ChatViewInner({
       role: "user",
       parts: [{ type: "text", text: "Build plan" }],
     })
-  }, [subChatId, setIsPlanMode, scrollToBottom, updateSubChatModeMutation])
+  }, [subChatId, setSubChatMode, scrollToBottom, updateSubChatModeMutation])
 
   // Handle pending "Build plan" from sidebar
   useEffect(() => {
@@ -3251,8 +3252,8 @@ const ChatViewInner = memo(function ChatViewInner({
   // Refs for handleSend to avoid recreating callback on every messages change
   const messagesLengthRef = useRef(messages.length)
   messagesLengthRef.current = messages.length
-  const isPlanModeRef = useRef(isPlanMode)
-  isPlanModeRef.current = isPlanMode
+  const subChatModeRef = useRef(subChatMode)
+  subChatModeRef.current = subChatMode
   const imagesRef = useRef(images)
   imagesRef.current = images
   const filesRef = useRef(files)
@@ -3353,7 +3354,7 @@ const ChatViewInner = memo(function ChatViewInner({
     trackMessageSent({
       workspaceId: subChatId,
       messageLength: finalText.length,
-      mode: isPlanModeRef.current ? "plan" : "agent",
+      mode: subChatModeRef.current,
     })
 
     // Trigger auto-rename on first message in a new sub-chat
@@ -3580,7 +3581,7 @@ const ChatViewInner = memo(function ChatViewInner({
     trackMessageSent({
       workspaceId: subChatId,
       messageLength: item.message.length,
-      mode: isPlanModeRef.current ? "plan" : "agent",
+      mode: subChatModeRef.current,
     })
 
     // Update timestamps
@@ -3672,7 +3673,7 @@ const ChatViewInner = memo(function ChatViewInner({
     trackMessageSent({
       workspaceId: subChatId,
       messageLength: finalText.length,
-      mode: isPlanModeRef.current ? "plan" : "agent",
+      mode: subChatModeRef.current,
     })
 
     // Build message parts
@@ -3751,7 +3752,7 @@ const ChatViewInner = memo(function ChatViewInner({
   // Check if there's an unapproved plan (in plan mode with completed ExitPlanMode)
   const hasUnapprovedPlan = useMemo(() => {
     // If already in agent mode, plan is approved (mode is the source of truth)
-    if (!isPlanMode) return false
+    if (subChatMode !== "plan") return false
 
     // Look for completed ExitPlanMode in messages
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -3769,7 +3770,7 @@ const ChatViewInner = memo(function ChatViewInner({
       }
     }
     return false
-  }, [messages, isPlanMode])
+  }, [messages, subChatMode])
 
   // Keep ref in sync for use in initializeScroll (which runs in useLayoutEffect)
   hasUnapprovedPlanRef.current = hasUnapprovedPlan
@@ -4170,7 +4171,20 @@ export function ChatView({
 
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [selectedModelId] = useAtom(lastSelectedModelIdAtom)
-  const [isPlanMode] = useAtom(isPlanModeAtom)
+
+  // Get active sub-chat ID from store for mode tracking (reactive)
+  const activeSubChatIdForMode = useAgentSubChatStore((state) => state.activeSubChatId)
+  // Use per-subChat mode atom - falls back to "agent" if no active sub-chat
+  const subChatModeAtom = useMemo(
+    () => subChatModeAtomFamily(activeSubChatIdForMode || ""),
+    [activeSubChatIdForMode],
+  )
+  const [subChatMode] = useAtom(subChatModeAtom)
+  // Current mode - use subChatMode when there's an active sub-chat, otherwise default to "agent"
+  const currentMode: AgentMode = activeSubChatIdForMode ? subChatMode : "agent"
+  // Default mode for new sub-chats
+  const defaultAgentMode = useAtomValue(defaultAgentModeAtom)
+
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
   const customClaudeConfig = useAtomValue(customClaudeConfigAtom)
@@ -4592,10 +4606,91 @@ export function ChatView({
   // Subchat filter setter - used by handleReview to filter by active subchat
   const setFilteredSubChatId = useSetAtom(filteredSubChatIdAtom)
 
-  const { data: agentChat, isLoading } = api.agents.getAgentChat.useQuery(
+  // Determine if we're in sandbox mode
+  const chatSourceMode = useAtomValue(chatSourceModeAtom)
+
+  // Fetch chat data from local or remote based on mode
+  const { data: localAgentChat, isLoading: isLocalLoading } = api.agents.getAgentChat.useQuery(
     { chatId },
-    { enabled: !!chatId },
+    { enabled: !!chatId && chatSourceMode === "local" },
   )
+
+  const { data: remoteAgentChat, isLoading: isRemoteLoading } = useRemoteChat(
+    chatSourceMode === "sandbox" ? chatId : null,
+  )
+
+  // Use the appropriate data source
+  // IMPORTANT: Must memoize to prevent infinite re-render loop
+  // The inline object spread creates a new reference on every render,
+  // which triggers the useEffect that calls setAllSubChats(), causing re-renders
+  const agentChat = useMemo(() => {
+    if (chatSourceMode === "sandbox") {
+      if (!remoteAgentChat) return null
+      return {
+        ...remoteAgentChat,
+        // Transform remote chat to match local structure
+        createdAt: new Date(remoteAgentChat.created_at),
+        updatedAt: new Date(remoteAgentChat.updated_at),
+        archivedAt: null,
+        projectId: null,
+        worktreePath: null,
+        branch: null,
+        baseBranch: null,
+        prUrl: null,
+        prNumber: null,
+        sandbox_id: remoteAgentChat.sandbox_id,
+        sandboxId: remoteAgentChat.sandbox_id,
+        isRemote: true,
+        // Preserve stats from remote chat for diff display
+        remoteStats: remoteAgentChat.stats,
+        subChats: remoteAgentChat.subChats?.map(sc => ({
+          ...sc,
+          created_at: new Date(sc.created_at),
+          updated_at: new Date(sc.updated_at),
+        })) ?? [],
+      }
+    }
+    return localAgentChat
+  }, [chatSourceMode, remoteAgentChat, localAgentChat])
+
+  const isLoading = chatSourceMode === "sandbox" ? isRemoteLoading : isLocalLoading
+
+  // Compute if we're waiting for local chat data (used as loading gate)
+  const isLocalChatLoading = chatSourceMode === "local" && isLocalLoading
+
+  // Projects query for "Open Locally" functionality
+  const { data: projects } = trpc.projects.list.useQuery()
+
+  // Open Locally dialog state
+  const [openLocallyDialogOpen, setOpenLocallyDialogOpen] = useState(false)
+
+  // Auto-import hook for "Open Locally"
+  const { getMatchingProjects, autoImport, isImporting } = useAutoImport()
+
+  // Handler for "Open Locally" button in header
+  const handleOpenLocally = useCallback(() => {
+    if (!remoteAgentChat) return
+
+    const matchingProjects = getMatchingProjects(projects ?? [], remoteAgentChat)
+
+    if (matchingProjects.length === 1) {
+      // Auto-import: single match found
+      autoImport(remoteAgentChat, matchingProjects[0]!)
+    } else {
+      // Show dialog: 0 or 2+ matches
+      setOpenLocallyDialogOpen(true)
+    }
+  }, [remoteAgentChat, projects, getMatchingProjects, autoImport])
+
+  // Determine if "Open Locally" button should show
+  const showOpenLocally = chatSourceMode === "sandbox" && !!remoteAgentChat
+
+  // Get matching projects for dialog (only computed when needed)
+  const openLocallyMatchingProjects = useMemo(() => {
+    if (!remoteAgentChat) return []
+    return getMatchingProjects(projects ?? [], remoteAgentChat)
+  }, [remoteAgentChat, projects, getMatchingProjects])
+
   const agentSubChats = (agentChat?.subChats ?? []) as Array<{
     id: string
     name?: string | null
@@ -4633,10 +4728,18 @@ export function ChatView({
   const tabsToRender = useMemo(() => {
     if (!activeSubChatId) return []
 
-    // Use allSubChats from Zustand store for validation (not agentSubChats from tRPC)
-    // allSubChats is updated optimistically when creating new sub-chats,
-    // while agentSubChats from tRPC query may be stale during race conditions
-    const validSubChatIds = new Set(allSubChats.map(sc => sc.id))
+    // Use agentSubChats from server (tRPC/remote API) as the authoritative source for validation.
+    // This fixes the race condition where:
+    // 1. setChatId resets allSubChats to [] but loads activeSubChatId from localStorage
+    // 2. tabsToRender was checking activeSubChatId against empty allSubChats → always failing
+    //
+    // agentSubChats comes from the server and is the "truth" about which sub-chats exist.
+    // allSubChats in Zustand is only populated AFTER the init useEffect runs.
+    //
+    // For optimistic updates when creating new sub-chats, we fall back to allSubChats
+    // since the new sub-chat won't be in agentSubChats yet (tRPC query is stale).
+    const sourceForValidation = agentSubChats.length > 0 ? agentSubChats : allSubChats
+    const validSubChatIds = new Set(sourceForValidation.map(sc => sc.id))
 
     // If active sub-chat doesn't belong to this workspace → return []
     // This prevents rendering sub-chats from another workspace during race condition
@@ -4668,9 +4771,15 @@ export function ChatView({
       }
     }
 
-    // Return in validOpenIds order for consistent rendering
-    return validOpenIds.filter(id => mustRender.has(id))
-  }, [activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats])
+    // Return tabs to render
+    // Always include activeSubChatId even if not in validOpenIds (handles race condition
+    // where openSubChatIds from localStorage doesn't include the active tab yet)
+    const result = validOpenIds.filter(id => mustRender.has(id))
+    if (!result.includes(activeSubChatId)) {
+      result.unshift(activeSubChatId)
+    }
+    return result
+  }, [activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats, agentSubChats])
 
   // Get PR status when PR exists (for checking if it's open/merged/closed)
   const hasPrNumber = !!agentChat?.prNumber
@@ -4789,9 +4898,20 @@ export function ChatView({
   const meta = agentChat?.meta as {
     sandboxConfig?: { port?: number }
     repository?: string
+    branch?: string | null
     isQuickSetup?: boolean
   } | null
   const repository = meta?.repository
+
+  // Remote info for Details sidebar (when worktreePath is null but sandboxId exists)
+  const remoteInfo = useMemo(() => {
+    if (worktreePath || !sandboxId) return null
+    return {
+      repository: meta?.repository,
+      branch: meta?.branch,
+      sandboxId,
+    }
+  }, [worktreePath, sandboxId, meta?.repository, meta?.branch])
 
   // Track if we've already triggered sandbox setup for this chat
   // Check if this is a quick setup (no preview available)
@@ -4805,8 +4925,13 @@ export function ChatView({
     meta?.sandboxConfig?.port
   )
 
-  // Check if diff can be opened (worktree for desktop, sandbox for web)
-  const canOpenDiff = !!worktreePath || !!sandboxId
+  // Check if diff button can be shown (stats available)
+  // This shows the Changes button with stats in header
+  const canShowDiffButton = !!worktreePath || !!sandboxId
+
+  // Check if diff sidebar can be opened (actual diff content available)
+  // Desktop remote chats (sandboxId without worktree) cannot open diff sidebar - only stats in header
+  const canOpenDiff = !!worktreePath || (!!sandboxId && !isDesktopApp())
 
   // Create list of subchats with changed files for filtering
   // Only include subchats that have uncommitted changes, sorted by most recent first
@@ -4860,18 +4985,23 @@ export function ChatView({
   const isFetchingDiffRef = useRef(false)
 
   const fetchDiffStats = useCallback(async () => {
+    console.log("[fetchDiffStats] Called with:", { worktreePath, sandboxId, chatId, isDesktop: isDesktopApp() })
+
     // Desktop uses worktreePath, web uses sandboxId
     // Don't reset stats if worktreePath is temporarily undefined - just skip the fetch
     // This prevents the button from becoming disabled when component re-renders
     if (!worktreePath && !sandboxId) {
+      console.log("[fetchDiffStats] Skipping - no worktreePath or sandboxId")
       return
     }
 
     // Prevent duplicate parallel fetches
     if (isFetchingDiffRef.current) {
+      console.log("[fetchDiffStats] Skipping - already fetching")
       return
     }
     isFetchingDiffRef.current = true
+    console.log("[fetchDiffStats] Starting fetch...")
 
     try {
       // Desktop: use new getParsedDiff endpoint (all-in-one: parsing + file contents)
@@ -4918,22 +5048,59 @@ export function ChatView({
         return
       }
 
-      // Web fallback: use sandbox API (still uses old flow)
+      // Remote sandbox: use stats from chat data (desktop) or fetch diff (web)
       if (sandboxId) {
+        console.log("[fetchDiffStats] Sandbox mode - sandboxId:", sandboxId)
+
+        // Desktop app: use stats already provided in chat data
+        // The diff sidebar won't work for remote chats (no worktree), but stats will show
+        if (isDesktopApp()) {
+          const remoteStats = (agentChat as any)?.remoteStats
+          console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", remoteStats)
+
+          if (remoteStats) {
+            setDiffStats({
+              fileCount: remoteStats.fileCount,
+              additions: remoteStats.additions,
+              deletions: remoteStats.deletions,
+              isLoading: false,
+              hasChanges: remoteStats.fileCount > 0,
+            })
+          } else {
+            setDiffStats({
+              fileCount: 0,
+              additions: 0,
+              deletions: 0,
+              isLoading: false,
+              hasChanges: false,
+            })
+          }
+          // No parsed files for remote chats - diff view not available
+          setParsedFileDiffs([])
+          setPrefetchedFileContents({})
+          setDiffContent(null)
+          return
+        }
+
+        // Web: use relative fetch to get actual diff
+        let rawDiff: string | null = null
         const response = await fetch(`/api/agents/sandbox/${sandboxId}/diff`)
         if (!response.ok) {
           setDiffStats((prev) => ({ ...prev, isLoading: false }))
           return
         }
         const data = await response.json()
-        const rawDiff = data.diff || null
+        rawDiff = data.diff || null
 
         // Store raw diff for AgentDiffView
+        console.log("[fetchDiffStats] Setting diff content, length:", rawDiff?.length ?? 0)
         setDiffContent(rawDiff)
 
         if (rawDiff && rawDiff.trim()) {
           // Parse diff to get file list and stats (client-side for web)
+          console.log("[fetchDiffStats] Parsing diff...")
           const parsedFiles = splitUnifiedDiffByFile(rawDiff)
+          console.log("[fetchDiffStats] Parsed files:", parsedFiles.length, "files")
           setParsedFileDiffs(parsedFiles)
 
           let additions = 0
@@ -4943,6 +5110,7 @@ export function ChatView({
             deletions += file.deletions
           }
 
+          console.log("[fetchDiffStats] Setting stats:", { fileCount: parsedFiles.length, additions, deletions })
           setDiffStats({
             fileCount: parsedFiles.length,
             additions,
@@ -4951,6 +5119,7 @@ export function ChatView({
             hasChanges: parsedFiles.length > 0,
           })
         } else {
+          console.log("[fetchDiffStats] No diff content, setting empty stats")
           setDiffStats({
             fileCount: 0,
             additions: 0,
@@ -4967,9 +5136,10 @@ export function ChatView({
       console.error("[fetchDiffStats] Error:", error)
       setDiffStats((prev) => ({ ...prev, isLoading: false }))
     } finally {
+      console.log("[fetchDiffStats] Done")
       isFetchingDiffRef.current = false
     }
-  }, [worktreePath, sandboxId, chatId]) // Note: activeSubChatId removed - diff is same for whole chat
+  }, [worktreePath, sandboxId, chatId, agentChat]) // Note: activeSubChatId removed - diff is same for whole chat
 
   // Debounced version for calling after stream ends
   const fetchDiffStatsDebounced = useCallback(() => {
@@ -5285,6 +5455,14 @@ Make sure to preserve all functionality from both branches when resolving confli
 
     freshState.setAllSubChats(allSubChats)
 
+    // Initialize atomFamily mode for each sub-chat from database
+    // This ensures new chats with mode="plan" use the correct mode
+    for (const sc of dbSubChats) {
+      if (sc.mode) {
+        appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
+      }
+    }
+
     // All open tabs are now valid (we created placeholders for non-DB ones)
     const validOpenIds = currentOpenIds
 
@@ -5353,25 +5531,53 @@ Make sure to preserve all functionality from both branches when resolving confli
       const subChat = agentSubChats.find((sc) => sc.id === subChatId)
       const messages = (subChat?.messages as any[]) || []
 
-      // Get mode from store metadata (falls back to current isPlanMode)
+      // Get mode from store metadata (falls back to currentMode)
       const subChatMeta = useAgentSubChatStore
         .getState()
         .allSubChats.find((sc) => sc.id === subChatId)
-      const subChatMode = subChatMeta?.mode || (isPlanMode ? "plan" : "agent")
+      const subChatMode = subChatMeta?.mode || currentMode
 
-      // Desktop: use IPCChatTransport for local Claude Code execution
+      // Create transport based on chat type (local worktree vs remote sandbox)
       // Note: Extended thinking setting is read dynamically inside the transport
       // projectPath: original project path for MCP config lookup (worktreePath is the cwd)
       const projectPath = (agentChat as any)?.project?.path as string | undefined
-      const transport = worktreePath
-        ? new IPCChatTransport({
-            chatId,
-            subChatId,
-            cwd: worktreePath,
-            projectPath,
-            mode: subChatMode,
-          })
-        : null // Web transport not supported in desktop app
+      const chatSandboxId = (agentChat as any)?.sandboxId || (agentChat as any)?.sandbox_id
+      const chatSandboxUrl = chatSandboxId ? `https://3003-${chatSandboxId}.e2b.app` : null
+      const isRemoteChat = !!(agentChat as any)?.isRemote || !!chatSandboxId
+
+      console.log("[getOrCreateChat] Transport selection", {
+        subChatId: subChatId.slice(-8),
+        isRemoteChat,
+        chatSandboxId,
+        chatSandboxUrl,
+        worktreePath: worktreePath ? "exists" : "none",
+      })
+
+      let transport: IPCChatTransport | RemoteChatTransport | null = null
+
+      if (isRemoteChat && chatSandboxUrl) {
+        // Remote sandbox chat: use HTTP SSE transport
+        const subChatName = subChat?.name || "Chat"
+        const modelString = MODEL_ID_MAP[selectedModelId]
+        console.log("[getOrCreateChat] Using RemoteChatTransport", { sandboxUrl: chatSandboxUrl, model: modelString })
+        transport = new RemoteChatTransport({
+          chatId,
+          subChatId,
+          subChatName,
+          sandboxUrl: chatSandboxUrl,
+          mode: subChatMode,
+          model: modelString,
+        })
+      } else if (worktreePath) {
+        // Local worktree chat: use IPC transport
+        transport = new IPCChatTransport({
+          chatId,
+          subChatId,
+          cwd: worktreePath,
+          projectPath,
+          mode: subChatMode,
+        })
+      }
 
       if (!transport) {
         console.error("[getOrCreateChat] No transport available")
@@ -5463,7 +5669,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       chatWorkingDir,
       worktreePath,
       chatId,
-      isPlanMode,
+      currentMode,
       setSubChatUnseenChanges,
       selectedChatId,
       setUnseenChanges,
@@ -5475,38 +5681,50 @@ Make sure to preserve all functionality from both branches when resolving confli
   // Handle creating a new sub-chat
   const handleCreateNewSubChat = useCallback(async () => {
     const store = useAgentSubChatStore.getState()
-    const subChatMode = isPlanMode ? "plan" : "agent"
+    // New sub-chats use the user's default mode preference
+    const newSubChatMode = defaultAgentMode
 
-    // Create sub-chat in DB first to get the real ID
-    const newSubChat = await trpcClient.chats.createSubChat.mutate({
-      chatId,
-      name: "New Chat",
-      mode: subChatMode,
-    })
-    const newId = newSubChat.id
-    utils.agents.getAgentChat.invalidate({ chatId })
+    // Check if this is a remote sandbox chat
+    const isRemoteChat = !!(agentChat as any)?.isRemote
 
-    // Optimistic update: add new sub-chat to React Query cache immediately
-    // This is CRITICAL for workspace isolation - without this, the new sub-chat
-    // won't be in validSubChatIds and will be filtered out by tabsToRender
-    utils.agents.getAgentChat.setData({ chatId }, (old) => {
-      if (!old) return old
-      return {
-        ...old,
-        subChats: [
-          ...(old.subChats || []),
-          {
-            id: newId,
-            name: "New Chat",
-            mode: subChatMode,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            messages: null,
-            stream_id: null,
-          },
-        ],
-      }
-    })
+    let newId: string
+
+    if (isRemoteChat) {
+      // Sandbox mode: lazy creation (web app pattern)
+      // Sub-chat will be persisted on first message via RemoteChatTransport UPSERT
+      newId = crypto.randomUUID()
+    } else {
+      // Local mode: create sub-chat in DB first to get the real ID
+      const newSubChat = await trpcClient.chats.createSubChat.mutate({
+        chatId,
+        name: "New Chat",
+        mode: newSubChatMode,
+      })
+      newId = newSubChat.id
+      utils.agents.getAgentChat.invalidate({ chatId })
+
+      // Optimistic update: add new sub-chat to React Query cache immediately
+      // This is CRITICAL for workspace isolation - without this, the new sub-chat
+      // won't be in validSubChatIds and will be filtered out by tabsToRender
+      utils.agents.getAgentChat.setData({ chatId }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          subChats: [
+            ...(old.subChats || []),
+            {
+              id: newId,
+              name: "New Chat",
+              mode: newSubChatMode,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              messages: null,
+              stream_id: null,
+            },
+          ],
+        }
+      })
+    }
 
     // Track this subchat as just created for typewriter effect
     setJustCreatedIds((prev) => new Set([...prev, newId]))
@@ -5516,7 +5734,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       id: newId,
       name: "New Chat",
       created_at: new Date().toISOString(),
-      mode: subChatMode,
+      mode: newSubChatMode,
     })
 
     // Add to open tabs and set as active
@@ -5524,18 +5742,45 @@ Make sure to preserve all functionality from both branches when resolving confli
     store.setActiveSubChat(newId)
 
     // Create empty Chat instance for the new sub-chat
-    if (worktreePath) {
-      // Desktop: use IPCChatTransport for local Claude Code execution
-      // Note: Extended thinking setting is read dynamically inside the transport
-      // projectPath: original project path for MCP config lookup (worktreePath is the cwd)
-      const projectPath = (agentChat as any)?.project?.path as string | undefined
-      const transport = new IPCChatTransport({
+    const projectPath = (agentChat as any)?.project?.path as string | undefined
+    const newSubChatSandboxId = (agentChat as any)?.sandboxId || (agentChat as any)?.sandbox_id
+    const newSubChatSandboxUrl = newSubChatSandboxId ? `https://3003-${newSubChatSandboxId}.e2b.app` : null
+    const isNewSubChatRemote = !!(agentChat as any)?.isRemote || !!newSubChatSandboxId
+
+    console.log("[createNewSubChat] Transport selection", {
+      newId: newId.slice(-8),
+      isNewSubChatRemote,
+      newSubChatSandboxId,
+      newSubChatSandboxUrl,
+    })
+
+    let newSubChatTransport: IPCChatTransport | RemoteChatTransport | null = null
+
+    if (isNewSubChatRemote && newSubChatSandboxUrl) {
+      // Remote sandbox chat: use HTTP SSE transport
+      const modelString = MODEL_ID_MAP[selectedModelId]
+      console.log("[createNewSubChat] Using RemoteChatTransport", { model: modelString })
+      newSubChatTransport = new RemoteChatTransport({
+        chatId,
+        subChatId: newId,
+        subChatName: "New Chat",
+        sandboxUrl: newSubChatSandboxUrl,
+        mode: subChatMode,
+        model: modelString,
+      })
+    } else if (worktreePath) {
+      // Local worktree chat: use IPC transport
+      newSubChatTransport = new IPCChatTransport({
         chatId,
         subChatId: newId,
         cwd: worktreePath,
         projectPath,
-        mode: subChatMode,
+        mode: newSubChatMode,
       })
+    }
+
+    if (newSubChatTransport) {
+      const transport = newSubChatTransport
 
       const newChat = new Chat<any>({
         id: newId,
@@ -5615,13 +5860,14 @@ Make sure to preserve all functionality from both branches when resolving confli
   }, [
     worktreePath,
     chatId,
-    isPlanMode,
+    defaultAgentMode,
     utils,
     setSubChatUnseenChanges,
     selectedChatId,
     setUnseenChanges,
     notifyAgentComplete,
     notifyAgentError,
+    agentChat?.isRemote,
     agentChat?.name,
   ])
 
@@ -6068,12 +6314,14 @@ Make sure to preserve all functionality from both branches when resolving confli
                       onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
                       canOpenPreview={hideGitFeatures ? false : canOpenPreview}
                       onOpenDiff={hideGitFeatures ? undefined : onOpenDiff}
-                      canOpenDiff={hideGitFeatures ? false : canOpenDiff}
+                      canOpenDiff={hideGitFeatures ? false : canShowDiffButton}
                       diffStats={hideGitFeatures ? undefined : diffStats}
                       onOpenTerminal={hideGitFeatures ? undefined : onOpenTerminal}
                       canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
                       isArchived={isArchived}
                       onRestore={handleRestoreWorkspace}
+                      onOpenLocally={handleOpenLocally}
+                      showOpenLocally={showOpenLocally}
                     />
                   ) : (
                     <>
@@ -6092,22 +6340,47 @@ Make sure to preserve all functionality from both branches when resolving confli
                         onBackToChats={onBackToChats}
                         onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
                         canOpenPreview={hideGitFeatures ? false : canOpenPreview}
-                        onOpenDiff={hideGitFeatures ? undefined : () => setIsDiffSidebarOpen(true)}
-                        canOpenDiff={hideGitFeatures ? false : canOpenDiff}
+                        onOpenDiff={hideGitFeatures ? undefined : (canOpenDiff ? () => setIsDiffSidebarOpen(true) : undefined)}
+                        canOpenDiff={hideGitFeatures ? false : canShowDiffButton}
                         isDiffSidebarOpen={hideGitFeatures ? false : isDiffSidebarOpen}
                         diffStats={hideGitFeatures ? undefined : diffStats}
                         onOpenTerminal={hideGitFeatures ? undefined : () => setIsTerminalSidebarOpen(true)}
                         canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
                         chatId={chatId}
                       />
+                      {/* Open Locally button - desktop only, sandbox mode */}
+                      {showOpenLocally && (
+                        <Tooltip delayDuration={500}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={handleOpenLocally}
+                              disabled={isImporting}
+                              className="h-6 px-2 gap-1.5 text-xs font-medium ml-2"
+                            >
+                              {isImporting ? (
+                                <IconSpinner className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <GitFork className="h-3 w-3" />
+                              )}
+                              Fork Locally
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            Continue this session on your local machine
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </>
                   )}
                 </div>
-                {/* Open Preview Button - shows when preview is closed (desktop only) */}
+                {/* Open Preview Button - shows when preview is closed (desktop only, local mode only) */}
                 {!hideGitFeatures &&
                   !isMobileFullscreen &&
                   !isPreviewSidebarOpen &&
                   sandboxId &&
+                  chatSourceMode === "local" &&
                   (canOpenPreview ? (
                     <Tooltip delayDuration={500}>
                       <TooltipTrigger asChild>
@@ -6138,28 +6411,52 @@ Make sure to preserve all functionality from both branches when resolving confli
                       </span>
                     </PreviewSetupHoverCard>
                   ))}
-                {/* Details Button - always shown when unified sidebar is enabled (contains plan, todo, artifacts, etc.) */}
-                {isUnifiedSidebarEnabled &&
-                  !isMobileFullscreen &&
-                  worktreePath &&
-                  !isDetailsSidebarOpen && (
-                    <Tooltip delayDuration={500}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setIsDetailsSidebarOpen(true)}
-                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
-                          aria-label="View details"
-                        >
-                          <IconOpenSidebarRight className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        View details
-                        {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
-                      </TooltipContent>
-                    </Tooltip>
+                {/* Overview/Terminal Button - shows when sidebar is closed and worktree/sandbox exists (desktop only) */}
+                {!isMobileFullscreen &&
+                  (worktreePath || sandboxId) && (
+                    isUnifiedSidebarEnabled ? (
+                      // Details button for unified sidebar
+                      !isDetailsSidebarOpen && (
+                        <Tooltip delayDuration={500}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setIsDetailsSidebarOpen(true)}
+                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                              aria-label="View details"
+                            >
+                              <IconOpenSidebarRight className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            View details
+                            {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    ) : (
+                      // Terminal button for legacy sidebars (hidden in cowork mode)
+                      !hideGitFeatures && !isTerminalSidebarOpen && (
+                        <Tooltip delayDuration={500}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setIsTerminalSidebarOpen(true)}
+                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                              aria-label="Open terminal"
+                            >
+                              <TerminalSquare className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            Open terminal
+                            {toggleTerminalHotkey && <Kbd>{toggleTerminalHotkey}</Kbd>}
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    )
                   )}
                 {/* Restore Button - shows when viewing archived workspace (desktop only) */}
                 {!isMobileFullscreen && isArchived && (
@@ -6199,58 +6496,66 @@ Make sure to preserve all functionality from both branches when resolving confli
               )}
               {/* Chat tabs container */}
               <div className="relative flex-1 min-h-0">
-                {tabsToRender.map(subChatId => {
-                  const chat = getOrCreateChat(subChatId)
-                  const isActive = subChatId === activeSubChatId
-                  const isFirstSubChat = getFirstSubChatId(agentSubChats) === subChatId
+                {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
+                {isLocalChatLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <IconSpinner className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  tabsToRender.map(subChatId => {
+                    const chat = getOrCreateChat(subChatId)
+                    const isActive = subChatId === activeSubChatId
+                    const isFirstSubChat = getFirstSubChatId(agentSubChats) === subChatId
 
-                  // Defense in depth: double-check workspace ownership
-                  // Use allSubChats (Zustand) instead of agentSubChats (tRPC) because
-                  // new sub-chats are added to Zustand immediately but tRPC query may be stale
-                  const belongsToWorkspace = allSubChats.some(sc => sc.id === subChatId)
+                    // Defense in depth: double-check workspace ownership
+                    // Use agentSubChats (server data) as primary source, fall back to allSubChats for optimistic updates
+                    // This fixes the race condition where allSubChats is empty after setChatId but before setAllSubChats
+                    const belongsToWorkspace = agentSubChats.some(sc => sc.id === subChatId) ||
+                                              allSubChats.some(sc => sc.id === subChatId)
 
-                  if (!chat || !belongsToWorkspace) return null
+                    if (!chat || !belongsToWorkspace) return null
 
-                  return (
-                    <div
-                      key={subChatId}
-                      className="absolute inset-0 flex flex-col"
-                      style={{
-                        // GPU-accelerated visibility switching (нативное ощущение)
-                        // transform + opacity быстрее чем visibility для GPU
-                        transform: isActive ? "translateZ(0)" : "translateZ(0) scale(0.98)",
-                        opacity: isActive ? 1 : 0,
-                        // Prevent pointer events on hidden tabs
-                        pointerEvents: isActive ? "auto" : "none",
-                        // GPU layer hints
-                        willChange: "transform, opacity",
-                        // Изолируем layout - изменения внутри не влияют на другие табы
-                        contain: "layout style paint",
-                      }}
-                      aria-hidden={!isActive}
-                    >
-                      <ChatViewInner
-                        chat={chat}
-                        subChatId={subChatId}
-                        parentChatId={chatId}
-                        isFirstSubChat={isFirstSubChat}
-                        onAutoRename={handleAutoRename}
-                        onCreateNewSubChat={handleCreateNewSubChat}
-                        teamId={selectedTeamId || undefined}
-                        repository={repository}
-                        streamId={agentChatStore.getStreamId(subChatId)}
-                        isMobile={isMobileFullscreen}
-                        isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
-                        sandboxId={sandboxId || undefined}
-                        projectPath={worktreePath || undefined}
-                        isArchived={isArchived}
-                        onRestoreWorkspace={handleRestoreWorkspace}
-                        existingPrUrl={agentChat?.prUrl}
-                        isActive={isActive}
-                      />
-                    </div>
-                  )
-                })}
+                    return (
+                      <div
+                        key={subChatId}
+                        className="absolute inset-0 flex flex-col"
+                        style={{
+                          // GPU-accelerated visibility switching (нативное ощущение)
+                          // transform + opacity быстрее чем visibility для GPU
+                          transform: isActive ? "translateZ(0)" : "translateZ(0) scale(0.98)",
+                          opacity: isActive ? 1 : 0,
+                          // Prevent pointer events on hidden tabs
+                          pointerEvents: isActive ? "auto" : "none",
+                          // GPU layer hints
+                          willChange: "transform, opacity",
+                          // Изолируем layout - изменения внутри не влияют на другие табы
+                          contain: "layout style paint",
+                        }}
+                        aria-hidden={!isActive}
+                      >
+                        <ChatViewInner
+                          chat={chat}
+                          subChatId={subChatId}
+                          parentChatId={chatId}
+                          isFirstSubChat={isFirstSubChat}
+                          onAutoRename={handleAutoRename}
+                          onCreateNewSubChat={handleCreateNewSubChat}
+                          teamId={selectedTeamId || undefined}
+                          repository={repository}
+                          streamId={agentChatStore.getStreamId(subChatId)}
+                          isMobile={isMobileFullscreen}
+                          isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
+                          sandboxId={sandboxId || undefined}
+                          projectPath={worktreePath || undefined}
+                          isArchived={isArchived}
+                          onRestoreWorkspace={handleRestoreWorkspace}
+                          existingPrUrl={agentChat?.prUrl}
+                          isActive={isActive}
+                        />
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </div>
           ) : (
@@ -6353,6 +6658,7 @@ Make sure to preserve all functionality from both branches when resolving confli
               onClose={() => setIsPlanSidebarOpen(false)}
               onBuildPlan={handleApprovePlanFromSidebar}
               refetchTrigger={planEditRefetchTrigger}
+              mode={currentMode}
             />
           </ResizableSidebar>
         )}
@@ -6496,13 +6802,24 @@ Make sure to preserve all functionality from both branches when resolving confli
           />
         )}
 
+        {/* Open Locally Dialog - for importing sandbox chats to local */}
+        <OpenLocallyDialog
+          isOpen={openLocallyDialogOpen}
+          onClose={() => setOpenLocallyDialogOpen(false)}
+          remoteChat={remoteAgentChat ?? null}
+          matchingProjects={openLocallyMatchingProjects}
+          allProjects={projects ?? []}
+          remoteSubChatId={activeSubChatId}
+        />
+
         {/* Unified Details Sidebar - combines all right sidebars into one (rightmost) */}
-        {isUnifiedSidebarEnabled && !isMobileFullscreen && worktreePath && (
+        {/* Show for both local (worktreePath) and remote (sandboxId) chats */}
+        {isUnifiedSidebarEnabled && !isMobileFullscreen && (worktreePath || sandboxId) && (
           <DetailsSidebar
             chatId={chatId}
             worktreePath={worktreePath}
             planPath={currentPlanPath}
-            isPlanMode={isPlanMode}
+            mode={currentMode}
             onBuildPlan={handleApprovePlanFromSidebar}
             planRefetchTrigger={planEditRefetchTrigger}
             activeSubChatId={activeSubChatIdForPlan}
@@ -6529,6 +6846,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               // Open the diff sidebar
               setIsDiffSidebarOpen(true)
             }}
+            remoteInfo={remoteInfo}
+            isRemoteChat={!!remoteInfo}
           />
         )}
 

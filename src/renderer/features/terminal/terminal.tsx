@@ -5,6 +5,7 @@ import type { SearchAddon } from "@xterm/addon-search"
 import type { SerializeAddon } from "@xterm/addon-serialize"
 import { useTheme } from "next-themes"
 import { useSetAtom, useAtomValue } from "jotai"
+import { toast } from "sonner"
 import { trpc } from "@/lib/trpc"
 import { terminalCwdAtom } from "./atoms"
 import { fullThemeDataAtom } from "@/lib/atoms"
@@ -12,6 +13,7 @@ import {
   createTerminalInstance,
   getDefaultTerminalBg,
   setupClickToMoveCursor,
+  setupContextMenuHandler,
   setupFocusListener,
   setupKeyboardHandler,
   setupPasteHandler,
@@ -368,6 +370,21 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       },
     })
 
+    const cleanupContextMenu = setupContextMenuHandler(xterm, {
+      onCopy: () => {
+        toast.success("Copied to clipboard")
+      },
+      onPaste: (text) => {
+        commandBufferRef.current += text
+      },
+      onCopyError: () => {
+        toast.error("Failed to copy to clipboard")
+      },
+      onPasteError: () => {
+        toast.error("Failed to paste from clipboard")
+      },
+    })
+
     // Cleanup on unmount
     return () => {
       console.log("[Terminal:useEffect] UNMOUNT - paneId:", paneId)
@@ -379,6 +396,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       cleanupFocus?.()
       cleanupResize()
       cleanupPaste()
+      cleanupContextMenu()
       cleanup()
 
       // Serialize terminal state before detaching
