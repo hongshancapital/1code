@@ -464,6 +464,23 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
       const inputTokens = msg.usage?.input_tokens
       const outputTokens = msg.usage?.output_tokens
+
+      // Extract per-model usage from SDK (if available)
+      const modelUsage = msg.modelUsage
+        ? Object.fromEntries(
+            Object.entries(msg.modelUsage).map(([model, usage]: [string, any]) => [
+              model,
+              {
+                inputTokens: usage.inputTokens || 0,
+                outputTokens: usage.outputTokens || 0,
+                cacheReadInputTokens: usage.cacheReadInputTokens || 0,
+                cacheCreationInputTokens: usage.cacheCreationInputTokens || 0,
+                costUSD: usage.costUSD || 0,
+              },
+            ])
+          )
+        : undefined
+
       const metadata: MessageMetadata = {
         sessionId: msg.session_id,
         inputTokens,
@@ -474,6 +491,8 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         resultSubtype: msg.subtype || "success",
         // Include finalTextId for collapsing tools when there's a final response
         finalTextId: lastTextId || undefined,
+        // Per-model usage breakdown
+        modelUsage,
       }
       yield { type: "message-metadata", messageMetadata: metadata }
       yield { type: "finish-step" }

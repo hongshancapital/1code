@@ -1922,7 +1922,37 @@ ${prompt}
                 }
 
                 // Record usage statistics (even on error)
-                if (metadata.inputTokens || metadata.outputTokens) {
+                // Prefer per-model breakdown from SDK for accurate model attribution
+                if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
+                  try {
+                    const existingUsage = metadata.sdkMessageUuid
+                      ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                      : null
+
+                    if (!existingUsage) {
+                      for (const [model, usage] of Object.entries(metadata.modelUsage)) {
+                        const totalTokens = usage.inputTokens + usage.outputTokens
+                        db.insert(modelUsage).values({
+                          subChatId: input.subChatId,
+                          chatId: input.chatId,
+                          projectId: input.projectId,
+                          model,
+                          inputTokens: usage.inputTokens,
+                          outputTokens: usage.outputTokens,
+                          totalTokens,
+                          costUsd: usage.costUSD?.toFixed(6),
+                          sessionId: metadata.sessionId,
+                          messageUuid: metadata.sdkMessageUuid ? `${metadata.sdkMessageUuid}-${model}` : undefined,
+                          mode: input.mode,
+                          durationMs: metadata.durationMs,
+                        }).run()
+                        console.log(`[Usage] Recorded ${model} (on error): ${usage.inputTokens} in, ${usage.outputTokens} out`)
+                      }
+                    }
+                  } catch (usageErr) {
+                    console.error(`[Usage] Failed to record per-model usage:`, usageErr)
+                  }
+                } else if (metadata.inputTokens || metadata.outputTokens) {
                   try {
                     const existingUsage = metadata.sdkMessageUuid
                       ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
@@ -1943,7 +1973,7 @@ ${prompt}
                         mode: input.mode,
                         durationMs: metadata.durationMs,
                       }).run()
-                      console.log(`[Usage] Recorded (on error): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`)
+                      console.log(`[Usage] Recorded (on error, fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`)
                     }
                   } catch (usageErr) {
                     console.error(`[Usage] Failed to record usage:`, usageErr)
@@ -2016,9 +2046,43 @@ ${prompt}
               .run()
 
             // Record usage statistics (if we have token data)
-            if (metadata.inputTokens || metadata.outputTokens) {
+            // Prefer per-model breakdown from SDK for accurate model attribution
+            if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
               try {
                 // Check for duplicate by sdkMessageUuid
+                const existingUsage = metadata.sdkMessageUuid
+                  ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                  : null
+
+                if (!existingUsage) {
+                  // Record separate entries for each model used
+                  for (const [model, usage] of Object.entries(metadata.modelUsage)) {
+                    const totalTokens = usage.inputTokens + usage.outputTokens
+                    db.insert(modelUsage).values({
+                      subChatId: input.subChatId,
+                      chatId: input.chatId,
+                      projectId: input.projectId,
+                      model,
+                      inputTokens: usage.inputTokens,
+                      outputTokens: usage.outputTokens,
+                      totalTokens,
+                      costUsd: usage.costUSD?.toFixed(6),
+                      sessionId: metadata.sessionId,
+                      messageUuid: metadata.sdkMessageUuid ? `${metadata.sdkMessageUuid}-${model}` : undefined,
+                      mode: input.mode,
+                      durationMs: metadata.durationMs,
+                    }).run()
+                    console.log(`[Usage] Recorded ${model}: ${usage.inputTokens} in, ${usage.outputTokens} out, cost: ${usage.costUSD?.toFixed(4) || '?'}`)
+                  }
+                } else {
+                  console.log(`[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`)
+                }
+              } catch (usageErr) {
+                console.error(`[Usage] Failed to record per-model usage:`, usageErr)
+              }
+            } else if (metadata.inputTokens || metadata.outputTokens) {
+              // Fallback: use aggregate data if per-model breakdown not available
+              try {
                 const existingUsage = metadata.sdkMessageUuid
                   ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
                   : null
@@ -2038,7 +2102,7 @@ ${prompt}
                     mode: input.mode,
                     durationMs: metadata.durationMs,
                   }).run()
-                  console.log(`[Usage] Recorded: ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || '?'}`)
+                  console.log(`[Usage] Recorded (fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || '?'}`)
                 } else {
                   console.log(`[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`)
                 }
