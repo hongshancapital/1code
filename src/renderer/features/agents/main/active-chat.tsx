@@ -6140,11 +6140,12 @@ Make sure to preserve all functionality from both branches when resolving confli
                       </span>
                     </PreviewSetupHoverCard>
                   ))}
-                {/* Terminal Button - shown in coding mode (not in cowork mode which hides git features) */}
+                {/* Terminal Button - shown in coding mode when details sidebar is closed (not in cowork mode which hides git features) */}
                 {!hideGitFeatures &&
                   !isMobileFullscreen &&
                   worktreePath &&
-                  !isTerminalSidebarOpen && (
+                  !isTerminalSidebarOpen &&
+                  !isDetailsSidebarOpen && (
                     <Tooltip delayDuration={500}>
                       <TooltipTrigger asChild>
                         <Button
