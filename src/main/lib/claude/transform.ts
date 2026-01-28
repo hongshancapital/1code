@@ -461,6 +461,10 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
       yield* endTextBlock()
       yield* endToolInput()
 
+      // Debug: log the raw result message to understand token data structure
+      console.log("[transform] RESULT msg.usage:", JSON.stringify(msg.usage))
+      console.log("[transform] RESULT msg.modelUsage:", JSON.stringify(msg.modelUsage))
+
       const inputTokens = msg.usage?.input_tokens
       const outputTokens = msg.usage?.output_tokens
 

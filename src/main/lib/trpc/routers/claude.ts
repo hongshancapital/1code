@@ -2259,6 +2259,14 @@ ${prompt}
 
             // Record usage statistics (if we have token data)
             // Prefer per-model breakdown from SDK for accurate model attribution
+            console.log(`[Usage] metadata at finish:`, JSON.stringify({
+              hasModelUsage: !!metadata.modelUsage,
+              modelUsageKeys: metadata.modelUsage ? Object.keys(metadata.modelUsage) : [],
+              inputTokens: metadata.inputTokens,
+              outputTokens: metadata.outputTokens,
+              totalTokens: metadata.totalTokens,
+              sdkMessageUuid: metadata.sdkMessageUuid,
+            }))
             if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
               try {
                 // Check for duplicate by sdkMessageUuid
