@@ -1,17 +1,23 @@
 "use client"
 
 import { memo, useState, useCallback } from "react"
+import { useAtomValue, useSetAtom } from "jotai"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
+  StrongMagicIcon,
 } from "@/components/ui/icons"
+import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
+import { editorConfigAtom } from "@/lib/atoms/editor"
+import { getEditorIcon, GenericEditorIcon } from "@/icons/editor-icons"
 
 interface InfoSectionProps {
   chatId: string
@@ -120,6 +126,28 @@ export const InfoSection = memo(function InfoSection({
   // Mutation to open folder in Finder
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
 
+  // Mutation to open in editor
+  const openInEditorMutation = trpc.editor.openWithEditor.useMutation()
+
+  // Get editor config
+  const editorConfig = useAtomValue(editorConfigAtom)
+
+  // Detect installed editors
+  const { data: detectedEditors } = trpc.editor.detectEditors.useQuery()
+
+  // Determine active editor (configured or first installed)
+  const configuredEditorId = editorConfig.defaultEditor
+  const configuredEditor = configuredEditorId
+    ? detectedEditors?.find((e) => e.id === configuredEditorId && e.installed)
+    : null
+  const firstInstalledEditor = detectedEditors?.find((e) => e.installed)
+  const activeEditor = configuredEditor || firstInstalledEditor
+
+  // Dynamic editor icon - use specific icon if editor detected, generic otherwise (will use system default)
+  const EditorIcon = activeEditor
+    ? getEditorIcon(activeEditor.id)
+    : GenericEditorIcon
+
   // Check if this is a remote sandbox chat (no local worktree)
   const isRemoteChat = !worktreePath && !!remoteInfo
 
@@ -154,6 +182,16 @@ export const InfoSection = memo(function InfoSection({
     }
   }
 
+  const handleOpenInEditor = () => {
+    if (worktreePath) {
+      openInEditorMutation.mutate({
+        path: worktreePath,
+        editorId: editorConfig.defaultEditor ?? undefined,
+        customArgs: editorConfig.customArgs || undefined,
+      })
+    }
+  }
+
   const handleOpenPr = () => {
     if (pr?.url) {
       window.desktopApi.openExternal(pr.url)
@@ -175,6 +213,29 @@ export const InfoSection = memo(function InfoSection({
       window.desktopApi.openExternal(sandboxUrl)
     }
   }
+
+  // AI branch rename
+  const setPendingBranchRenameMessage = useSetAtom(pendingBranchRenameMessageAtom)
+
+  const handleRenameBranch = useCallback(() => {
+    if (branchName) {
+      const message = `当前 git 分支名为：${branchName}
+
+请帮我重命名这个分支，使用更具描述性的名称。请遵循以下规范：
+1. 使用 kebab-case（如 feat/add-user-auth, fix/login-bug）
+2. 保持简洁但具描述性
+3. 如适用，添加前缀（feat/, fix/, refactor/ 等）
+
+执行步骤：
+1. 根据最近的更改或上下文，建议一个更好的分支名称
+2. 在重命名前询问确认
+3. 确认后，使用 git branch -m <新名称> 进行本地重命名
+4. 如有远程分支，提醒更新远程追踪
+
+请建议一个新的分支名称。`
+      setPendingBranchRenameMessage(message)
+    }
+  }, [branchName, setPendingBranchRenameMessage])
 
   // Show loading state while branch data is loading (only for local chats)
   if (!isRemoteChat && isBranchLoading) {
@@ -229,7 +290,29 @@ export const InfoSection = memo(function InfoSection({
       )}
       {/* Branch - for both local and remote */}
       {branchName && (
-        <PropertyRow icon={GitBranchFilledIcon} label="Branch" value={branchName} copyable />
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <PropertyRow icon={GitBranchFilledIcon} label="Branch" value={branchName} copyable />
+          </div>
+          {/* Only show rename button for local chats */}
+          {!isRemoteChat && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={handleRenameBranch}
+                >
+                  <StrongMagicIcon className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Rename branch with AI
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       )}
       {/* PR - only for local chats */}
       {pr && (
@@ -244,14 +327,36 @@ export const InfoSection = memo(function InfoSection({
       )}
       {/* Path - only for local chats */}
       {worktreePath && (
-        <PropertyRow
-          icon={FolderFilledIcon}
-          label="Path"
-          value={folderName}
-          title={worktreePath}
-          onClick={handleOpenFolder}
-          tooltip="Open in Finder"
-        />
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <PropertyRow
+              icon={FolderFilledIcon}
+              label="Path"
+              value={folderName}
+              title={worktreePath}
+              onClick={handleOpenFolder}
+              tooltip="Open in Finder"
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={handleOpenInEditor}
+                disabled={openInEditorMutation.isPending}
+              >
+                <EditorIcon className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {activeEditor
+                ? `Open in ${activeEditor.name}`
+                : "Open in default editor"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       )}
     </div>
   )
