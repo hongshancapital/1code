@@ -159,6 +159,7 @@ import {
   toQueuedFile,
   toQueuedImage,
   toQueuedTextContext,
+  type AgentQueueItem,
 } from "../lib/queue-utils"
 import {
   MENTION_PREFIXES,
@@ -3604,6 +3605,73 @@ const ChatViewInner = memo(function ChatViewInner({
     removeFromQueue(subChatId, itemId)
   }, [subChatId, removeFromQueue])
 
+  // Restore queue item back to input (undo queue)
+  const handleRestoreFromQueue = useCallback((item: AgentQueueItem) => {
+    // Remove from queue first
+    removeFromQueue(subChatId, item.id)
+
+    // Restore message text to editor
+    if (item.message) {
+      editorRef.current?.setValue(item.message)
+    }
+
+    // Restore images
+    if (item.images && item.images.length > 0) {
+      const restoredImages = item.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        mediaType: img.mediaType,
+        filename: img.filename || "image",
+        base64Data: img.base64Data,
+        isLoading: false,
+      }))
+      setImagesFromDraft(restoredImages)
+    }
+
+    // Restore files
+    if (item.files && item.files.length > 0) {
+      const restoredFiles = item.files.map((f) => ({
+        id: f.id,
+        url: f.url,
+        filename: f.filename,
+        type: f.mediaType || "application/octet-stream",
+        size: f.size || 0,
+        isLoading: false,
+      }))
+      setFilesFromDraft(restoredFiles)
+    }
+
+    // Restore text contexts
+    if (item.textContexts && item.textContexts.length > 0) {
+      const restoredTextContexts = item.textContexts.map((tc) => ({
+        id: tc.id,
+        text: tc.text,
+        sourceMessageId: tc.sourceMessageId,
+        preview: tc.text.slice(0, 50) + (tc.text.length > 50 ? "..." : ""),
+        createdAt: new Date(),
+      }))
+      setTextContextsFromDraft(restoredTextContexts)
+    }
+
+    // Restore diff text contexts
+    if (item.diffTextContexts && item.diffTextContexts.length > 0) {
+      const restoredDiffTextContexts = item.diffTextContexts.map((dtc) => ({
+        id: dtc.id,
+        text: dtc.text,
+        filePath: dtc.filePath,
+        lineNumber: dtc.lineNumber,
+        lineType: dtc.lineType,
+        preview: dtc.text.slice(0, 50) + (dtc.text.length > 50 ? "..." : ""),
+        createdAt: new Date(),
+        comment: dtc.comment,
+      }))
+      setDiffTextContextsFromDraft(restoredDiffTextContexts)
+    }
+
+    // Focus the editor
+    editorRef.current?.focus()
+  }, [subChatId, removeFromQueue, setImagesFromDraft, setFilesFromDraft, setTextContextsFromDraft, setDiffTextContextsFromDraft])
+
   // Force send - stop stream and send immediately, bypassing queue (Opt+Enter)
   const handleForceSend = useCallback(async () => {
     // Block sending while sandbox is still being set up
@@ -4062,6 +4130,7 @@ const ChatViewInner = memo(function ChatViewInner({
                   queue={queue}
                   onRemoveItem={handleRemoveFromQueue}
                   onSendNow={handleSendFromQueue}
+                  onRestoreItem={handleRestoreFromQueue}
                   isStreaming={isStreaming}
                   hasStatusCardBelow={changedFilesForSubChat.length > 0}
                 />
