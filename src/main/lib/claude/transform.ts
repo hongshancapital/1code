@@ -390,7 +390,29 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
               output_type: typeof output,
               output_keys: output && typeof output === 'object' ? Object.keys(output) : null,
               numFiles: output?.numFiles,
+              backgroundTaskId: output?.backgroundTaskId,
             })
+
+            // Check for background task ID in Bash tool result
+            // When Bash runs with run_in_background=true, it returns backgroundTaskId
+            if (output && typeof output === 'object' && output.backgroundTaskId) {
+              console.log("[Transform] Background task started:", output.backgroundTaskId)
+              // Extract summary from the tool result content (if available)
+              const summary = typeof block.content === 'string'
+                ? block.content.match(/Command running in background.*Output is being written to: ([^\s]+)/)?.[0] || `Background task ${output.backgroundTaskId}`
+                : `Background task ${output.backgroundTaskId}`
+
+              yield {
+                type: "task-notification",
+                taskId: output.backgroundTaskId,
+                shellId: output.backgroundTaskId,
+                status: "running" as const,
+                outputFile: typeof block.content === 'string'
+                  ? block.content.match(/Output is being written to: ([^\s]+)/)?.[1]
+                  : undefined,
+                summary,
+              }
+            }
 
             yield {
               type: "tool-output-available",
@@ -404,6 +426,9 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
     // ===== SYSTEM STATUS (compacting, etc.) =====
     if (msg.type === "system") {
+      // Debug: log all system message subtypes
+      console.log("[transform] SYSTEM subtype:", msg.subtype, "full msg:", JSON.stringify(msg))
+
       // Session init - extract MCP servers, plugins, tools
       if (msg.subtype === "init") {
         console.log("[MCP Transform] Received SDK init message:", {
@@ -453,6 +478,18 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
           state: "output-available",
         }
         lastCompactId = null // Clear for next compacting cycle
+      }
+
+      // Task notification - background task status update
+      if (msg.subtype === "task_notification") {
+        yield {
+          type: "task-notification",
+          taskId: msg.task_id,
+          shellId: msg.shell_id,
+          status: msg.status,
+          outputFile: msg.output_file,
+          summary: msg.summary,
+        }
       }
     }
 
