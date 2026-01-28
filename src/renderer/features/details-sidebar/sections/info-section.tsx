@@ -6,8 +6,8 @@ import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
-  StrongMagicIcon,
 } from "@/components/ui/icons"
+import { WandSparkles } from "lucide-react"
 import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
@@ -219,20 +219,20 @@ export const InfoSection = memo(function InfoSection({
 
   const handleRenameBranch = useCallback(() => {
     if (branchName) {
-      const message = `当前 git 分支名为：${branchName}
+      const message = `Current git branch: ${branchName}
 
-请帮我重命名这个分支，使用更具描述性的名称。请遵循以下规范：
-1. 使用 kebab-case（如 feat/add-user-auth, fix/login-bug）
-2. 保持简洁但具描述性
-3. 如适用，添加前缀（feat/, fix/, refactor/ 等）
+Please help me rename this branch to a more descriptive name. Follow these conventions:
+1. Use kebab-case (e.g., feat/add-user-auth, fix/login-bug)
+2. Keep it concise but descriptive
+3. Add a prefix if appropriate (feat/, fix/, refactor/, etc.)
 
-执行步骤：
-1. 根据最近的更改或上下文，建议一个更好的分支名称
-2. 在重命名前询问确认
-3. 确认后，使用 git branch -m <新名称> 进行本地重命名
-4. 如有远程分支，提醒更新远程追踪
+Steps:
+1. Suggest a better branch name based on recent changes or context
+2. Ask for confirmation before renaming
+3. Once confirmed, use \`git branch -m <new-name>\` to rename locally
+4. If there's a remote branch, remind me to update remote tracking
 
-请建议一个新的分支名称。`
+Please suggest a new branch name.`
       setPendingBranchRenameMessage(message)
     }
   }, [branchName, setPendingBranchRenameMessage])
@@ -304,7 +304,7 @@ export const InfoSection = memo(function InfoSection({
                   className="h-6 w-6 flex-shrink-0"
                   onClick={handleRenameBranch}
                 >
-                  <StrongMagicIcon className="h-3.5 w-3.5" />
+                  <WandSparkles className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
