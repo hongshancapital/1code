@@ -631,6 +631,8 @@ export type PendingUserQuestion = {
     options: Array<{ label: string; description: string }>
     multiSelect: boolean
   }>
+  timeoutSeconds: number  // 0 = no timeout
+  receivedAt: number      // timestamp when question was received
 }
 // Map<subChatId, PendingUserQuestion> - supports multiple pending questions across workspaces
 export const pendingUserQuestionsAtom = atom<Map<string, PendingUserQuestion>>(new Map())

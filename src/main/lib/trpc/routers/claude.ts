@@ -1515,37 +1515,34 @@ ${prompt}
                   if (toolName === "AskUserQuestion") {
                     const { toolUseID } = options
                     // Emit to UI (safely in case observer is closed)
+                    // Frontend will read the latest timeout setting from its store
                     safeEmit({
                       type: "ask-user-question",
                       toolUseId: toolUseID,
                       questions: (toolInput as any).questions,
                     } as UIMessageChunk)
 
-                    // Get timeout from input (0 = no timeout, default = 60s)
-                    const timeoutSeconds = input.askUserQuestionTimeout ?? 60
-                    const timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000 : 0
+                    // Backend uses a long safety timeout (10 minutes) as a fallback
+                    // Frontend controls the actual timeout behavior based on user settings
+                    const SAFETY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
-                    // Wait for response (configurable timeout, 0 = no timeout)
+                    // Wait for response (safety timeout protects against hung sessions)
                     const response = await new Promise<{
                       approved: boolean
                       message?: string
                       updatedInput?: unknown
                     }>((resolve) => {
-                      let timeoutId: ReturnType<typeof setTimeout> | undefined
-
-                      // Only set timeout if timeoutMs > 0
-                      if (timeoutMs > 0) {
-                        timeoutId = setTimeout(() => {
-                          pendingToolApprovals.delete(toolUseID)
-                          // Emit chunk to notify UI that the question has timed out
-                          // This ensures the pending question dialog is cleared
-                          safeEmit({
-                            type: "ask-user-question-timeout",
-                            toolUseId: toolUseID,
-                          } as UIMessageChunk)
-                          resolve({ approved: false, message: "Timed out" })
-                        }, timeoutMs)
-                      }
+                      // Safety timeout - frontend handles actual user-configured timeout
+                      const timeoutId = setTimeout(() => {
+                        pendingToolApprovals.delete(toolUseID)
+                        // Emit chunk to notify UI that the question has timed out
+                        // This ensures the pending question dialog is cleared
+                        safeEmit({
+                          type: "ask-user-question-timeout",
+                          toolUseId: toolUseID,
+                        } as UIMessageChunk)
+                        resolve({ approved: false, message: "Timed out" })
+                      }, SAFETY_TIMEOUT_MS)
 
                       pendingToolApprovals.set(toolUseID, {
                         subChatId: input.subChatId,

@@ -231,6 +231,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
 
               // Handle AskUserQuestion - show question UI and notify user
               if (chunk.type === "ask-user-question") {
+                // Read the latest timeout setting (user may have changed it during the conversation)
+                const latestTimeoutSetting = appStore.get(askUserQuestionTimeoutAtom)
+
                 const currentMap = appStore.get(pendingUserQuestionsAtom)
                 const newMap = new Map(currentMap)
                 newMap.set(this.config.subChatId, {
@@ -238,6 +241,8 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
                   parentChatId: this.config.chatId,
                   toolUseId: chunk.toolUseId,
                   questions: chunk.questions,
+                  timeoutSeconds: latestTimeoutSetting,
+                  receivedAt: Date.now(),
                 })
                 appStore.set(pendingUserQuestionsAtom, newMap)
 

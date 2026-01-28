@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react"
-import { ChevronUp, ChevronDown, CornerDownLeft } from "lucide-react"
+import { ChevronUp, ChevronDown, CornerDownLeft, Clock } from "lucide-react"
 import { Button } from "../../../components/ui/button"
 import { cn } from "../../../lib/utils"
 import type { PendingUserQuestions } from "../atoms"
@@ -17,6 +17,15 @@ export interface AgentUserQuestionHandle {
   getAnswers: () => Record<string, string>
 }
 
+// Format remaining seconds to display string
+function formatRemainingTime(seconds: number): string {
+  if (seconds <= 0) return "0s"
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+}
+
 export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentUserQuestionProps>(
   function AgentUserQuestion({
     pendingQuestions,
@@ -24,14 +33,19 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     onSkip,
     hasCustomText = false,
   }: AgentUserQuestionProps, ref) {
-  const { questions, toolUseId } = pendingQuestions
+  const { questions, toolUseId, timeoutSeconds, receivedAt } = pendingQuestions
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [focusedOptionIndex, setFocusedOptionIndex] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(
+    timeoutSeconds > 0 ? Math.max(0, timeoutSeconds - Math.floor((Date.now() - receivedAt) / 1000)) : 0
+  )
   const prevIndexRef = useRef(currentQuestionIndex)
   const prevToolUseIdRef = useRef(toolUseId)
+  const customInputRef = useRef<HTMLInputElement>(null)
 
   // Expose getAnswers method to parent via ref
   useImperativeHandle(ref, () => ({
@@ -39,13 +53,20 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
       const formattedAnswers: Record<string, string> = {}
       for (const question of questions) {
         const selected = answers[question.question] || []
-        if (selected.length > 0) {
+        const custom = customAnswers[question.question]?.trim()
+
+        if (selected.length > 0 && custom) {
+          // Both option selected and custom text
+          formattedAnswers[question.question] = `${selected.join(", ")}, Other: ${custom}`
+        } else if (selected.length > 0) {
           formattedAnswers[question.question] = selected.join(", ")
+        } else if (custom) {
+          formattedAnswers[question.question] = `Other: ${custom}`
         }
       }
       return formattedAnswers
     }
-  }), [answers, questions])
+  }), [answers, customAnswers, questions])
 
   // Reset when toolUseId changes (new question set)
   useEffect(() => {
@@ -53,10 +74,37 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
       setIsSubmitting(false)
       setCurrentQuestionIndex(0)
       setAnswers({})
+      setCustomAnswers({})
       setFocusedOptionIndex(0)
+      setRemainingSeconds(
+        timeoutSeconds > 0 ? Math.max(0, timeoutSeconds - Math.floor((Date.now() - receivedAt) / 1000)) : 0
+      )
       prevToolUseIdRef.current = toolUseId
     }
-  }, [toolUseId])
+  }, [toolUseId, timeoutSeconds, receivedAt])
+
+  // Countdown timer - auto-skip when time runs out
+  useEffect(() => {
+    if (timeoutSeconds <= 0) return // No timeout
+
+    const updateRemaining = () => {
+      const elapsed = Math.floor((Date.now() - receivedAt) / 1000)
+      const remaining = Math.max(0, timeoutSeconds - elapsed)
+      setRemainingSeconds(remaining)
+
+      // Auto-skip when countdown reaches 0
+      if (remaining <= 0 && !isSubmitting) {
+        onSkip()
+      }
+    }
+
+    // Update immediately
+    updateRemaining()
+
+    // Update every second
+    const interval = setInterval(updateRemaining, 1000)
+    return () => clearInterval(interval)
+  }, [timeoutSeconds, receivedAt, isSubmitting, onSkip])
 
   // Animate on question change
   useEffect(() => {
@@ -76,9 +124,25 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
 
   const currentQuestion = questions[currentQuestionIndex]
   const currentOptions = currentQuestion?.options || []
+  const currentCustomAnswer = customAnswers[currentQuestion?.question] || ""
 
   const isOptionSelected = (questionText: string, optionLabel: string) => {
     return answers[questionText]?.includes(optionLabel) || false
+  }
+
+  // Handle custom answer change
+  const handleCustomAnswerChange = (questionText: string, value: string) => {
+    setCustomAnswers((prev) => ({
+      ...prev,
+      [questionText]: value,
+    }))
+  }
+
+  // Check if current question has any answer (option or custom)
+  const questionHasAnswer = (questionText: string) => {
+    const selected = answers[questionText] || []
+    const custom = customAnswers[questionText]?.trim()
+    return selected.length > 0 || !!custom
   }
 
   // Handle option click - auto-advance for single-select questions
@@ -139,24 +203,30 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
   const handleContinue = useCallback(() => {
     if (isSubmitting) return
 
-    const currentAnswer = answers[currentQuestion?.question] || []
-    if (currentAnswer.length === 0) return
+    const hasAnswer = questionHasAnswer(currentQuestion?.question)
+    if (!hasAnswer) return
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1)
       setFocusedOptionIndex(0)
     } else {
       // On the last question, validate ALL questions are answered before submit
-      const allAnswered = questions.every(
-        (q) => (answers[q.question] || []).length > 0,
-      )
+      const allAnswered = questions.every((q) => questionHasAnswer(q.question))
       if (allAnswered) {
         setIsSubmitting(true)
-        // Convert answers to SDK format: { questionText: label } or { questionText: "label1, label2" } for multiSelect
+        // Convert answers to SDK format
         const formattedAnswers: Record<string, string> = {}
         for (const question of questions) {
           const selected = answers[question.question] || []
-          formattedAnswers[question.question] = selected.join(", ")
+          const custom = customAnswers[question.question]?.trim()
+
+          if (selected.length > 0 && custom) {
+            formattedAnswers[question.question] = `${selected.join(", ")}, Other: ${custom}`
+          } else if (selected.length > 0) {
+            formattedAnswers[question.question] = selected.join(", ")
+          } else if (custom) {
+            formattedAnswers[question.question] = `Other: ${custom}`
+          }
         }
         onAnswer(formattedAnswers)
       }
@@ -164,11 +234,11 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
   }, [
     onAnswer,
     answers,
+    customAnswers,
     currentQuestionIndex,
     questions,
     currentQuestion?.question,
     isSubmitting,
-    pendingQuestions.toolUseId,
   ])
 
   const handleSkipWithGuard = useCallback(() => {
@@ -181,11 +251,8 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     return String(index + 1)
   }
 
-  const currentQuestionHasAnswer =
-    (answers[currentQuestion?.question] || []).length > 0
-  const allQuestionsAnswered = questions.every(
-    (q) => (answers[q.question] || []).length > 0,
-  )
+  const currentQuestionHasAnswer = questionHasAnswer(currentQuestion?.question)
+  const allQuestionsAnswered = questions.every((q) => questionHasAnswer(q.question))
   const isLastQuestion = currentQuestionIndex === questions.length - 1
 
   // Keyboard navigation
@@ -194,11 +261,19 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
       if (isSubmitting) return
 
       const activeEl = document.activeElement
+      // Allow typing in input - don't handle keyboard shortcuts when input is focused
       if (
         activeEl instanceof HTMLInputElement ||
         activeEl instanceof HTMLTextAreaElement ||
         activeEl?.getAttribute("contenteditable") === "true"
       ) {
+        // Only handle Enter in input to submit custom answer
+        if (e.key === "Enter" && activeEl === customInputRef.current) {
+          e.preventDefault()
+          if (currentQuestionHasAnswer) {
+            handleContinue()
+          }
+        }
         return
       }
 
@@ -366,38 +441,71 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
             )
           })}
         </div>
+
+        {/* Custom Answer Input */}
+        <div className="px-2 mt-2">
+          <input
+            ref={customInputRef}
+            type="text"
+            placeholder="Or type your custom answer..."
+            value={currentCustomAnswer}
+            onChange={(e) => handleCustomAnswerChange(currentQuestion.question, e.target.value)}
+            disabled={isSubmitting}
+            className={cn(
+              "w-full px-3 py-2 text-[13px] border border-border rounded-md bg-background",
+              "placeholder:text-muted-foreground/60",
+              "focus:outline-none focus:ring-1 focus:ring-ring",
+              "disabled:opacity-50 disabled:cursor-not-allowed"
+            )}
+          />
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-end gap-2 px-2 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSkipWithGuard}
-          disabled={isSubmitting}
-          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-        >
-          Skip All
-        </Button>
-        <Button
-          size="sm"
-          onClick={handleContinue}
-          disabled={
-            isSubmitting ||
-            hasCustomText ||
-            (isLastQuestion ? !allQuestionsAnswered : !currentQuestionHasAnswer)
-          }
-          className="h-6 text-xs px-3 rounded-md"
-        >
-          {isSubmitting ? (
-            "Sending..."
-          ) : (
-            <>
-              {isLastQuestion ? "Submit" : "Continue"}
-              <CornerDownLeft className="w-3 h-3 ml-1 opacity-60" />
-            </>
+      <div className="flex items-center justify-between px-2 py-2">
+        {/* Countdown timer */}
+        <div className="flex items-center gap-1.5">
+          {timeoutSeconds > 0 && (
+            <span className={cn(
+              "text-xs flex items-center gap-1",
+              remainingSeconds <= 10 ? "text-destructive" : "text-muted-foreground"
+            )}>
+              <Clock className="w-3 h-3" />
+              {formatRemainingTime(remainingSeconds)}
+            </span>
           )}
-        </Button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSkipWithGuard}
+            disabled={isSubmitting}
+            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Skip All
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleContinue}
+            disabled={
+              isSubmitting ||
+              hasCustomText ||
+              (isLastQuestion ? !allQuestionsAnswered : !currentQuestionHasAnswer)
+            }
+            className="h-6 text-xs px-3 rounded-md"
+          >
+            {isSubmitting ? (
+              "Sending..."
+            ) : (
+              <>
+                {isLastQuestion ? "Submit" : "Continue"}
+                <CornerDownLeft className="w-3 h-3 ml-1 opacity-60" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   )
