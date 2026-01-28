@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import * as fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
@@ -1234,10 +1234,34 @@ export const chatsRouter = router({
         .all()
     }
 
+    // Get token usage from model_usage table
+    // Group by chatId and sum total tokens
+    const tokenUsageData = db
+      .select({
+        chatId: modelUsage.chatId,
+        totalTokens: sql<number>`SUM(${modelUsage.totalTokens})`.as('totalTokens'),
+      })
+      .from(modelUsage)
+      .where(
+        input.chatIds && input.chatIds.length > 0
+          ? inArray(modelUsage.chatId, input.chatIds)
+          : inArray(modelUsage.subChatId, input.openSubChatIds!)
+      )
+      .groupBy(modelUsage.chatId)
+      .all()
+
+    // Create a map for quick token lookup
+    const tokenUsageMap = new Map<string, number>()
+    for (const row of tokenUsageData) {
+      if (row.chatId) {
+        tokenUsageMap.set(row.chatId, row.totalTokens || 0)
+      }
+    }
+
     // Aggregate stats per workspace (chatId)
     const statsMap = new Map<
       string,
-      { additions: number; deletions: number; fileCount: number }
+      { additions: number; deletions: number; fileCount: number; totalTokens: number }
     >()
 
     for (const row of allChats) {
@@ -1323,6 +1347,7 @@ export const chatsRouter = router({
           additions: 0,
           deletions: 0,
           fileCount: 0,
+          totalTokens: tokenUsageMap.get(chatId) || 0,
         }
         existing.additions += subChatAdditions
         existing.deletions += subChatDeletions

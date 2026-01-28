@@ -135,6 +135,17 @@ import { exportChat, copyChat, type ExportFormat } from "../agents/lib/export-ch
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
 
+// Format token count for display
+function formatTokens(tokens: number): string {
+  if (tokens >= 1000000) {
+    return `${(tokens / 1000000).toFixed(1)}M`
+  }
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}k`
+  }
+  return String(tokens)
+}
+
 // GitHub avatar with loading placeholder
 const GitHubAvatar = React.memo(function GitHubAvatar({
   gitOwner,
@@ -481,7 +492,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   gitOwner: string | null | undefined
   gitProvider: string | null | undefined
   projectMode: string | null | undefined
-  stats: { fileCount: number; additions: number; deletions: number } | undefined
+  stats: { fileCount: number; additions: number; deletions: number; totalTokens: number } | undefined
   selectedChatIdsSize: number
   canShowPinOption: boolean
   areAllSelectedPinned: boolean
@@ -682,6 +693,9 @@ const AgentChatItem = React.memo(function AgentChatItem({
                         -{stats.deletions}
                       </span>
                     </>
+                  )}
+                  {stats && stats.totalTokens > 0 && (
+                    <span>{formatTokens(stats.totalTokens)}</span>
                   )}
                   <span>
                     {formatTime(
@@ -2381,7 +2395,7 @@ export function AgentsSidebar({
   // Convert file stats to a Map for easy lookup (only for local chats)
   // Remote chat stats are provided directly via chat.remoteStats
   const workspaceFileStats = useMemo(() => {
-    const statsMap = new Map<string, { fileCount: number; additions: number; deletions: number }>()
+    const statsMap = new Map<string, { fileCount: number; additions: number; deletions: number; totalTokens: number }>()
 
     // For local mode, use stats from DB query
     if (fileStatsData) {
@@ -2390,6 +2404,7 @@ export function AgentsSidebar({
           fileCount: stat.fileCount,
           additions: stat.additions,
           deletions: stat.deletions,
+          totalTokens: stat.totalTokens || 0,
         })
       }
     }
