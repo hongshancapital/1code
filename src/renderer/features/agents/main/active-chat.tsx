@@ -176,6 +176,7 @@ import {
   useAgentSubChatStore,
   type SubChatMeta,
 } from "../stores/sub-chat-store"
+import { useShallow } from "zustand/react/shallow"
 import {
   AgentDiffView,
   diffViewModeAtom,
@@ -3936,15 +3937,17 @@ const ChatViewInner = memo(function ChatViewInner({
   return (
     <SearchHighlightProvider>
       <div className="flex flex-col flex-1 min-h-0 relative">
-        {/* Text selection popover for adding text to context */}
-        <TextSelectionPopover
-          onAddToContext={addTextContext}
-          onQuickComment={handleQuickComment}
-          onFocusInput={handleFocusInput}
-        />
+        {/* Text selection popover for adding text to context - only render for active tab to prevent portaled popovers from inactive tabs capturing clicks */}
+        {isActive && (
+          <TextSelectionPopover
+            onAddToContext={addTextContext}
+            onQuickComment={handleQuickComment}
+            onFocusInput={handleFocusInput}
+          />
+        )}
 
-        {/* Quick comment input */}
-        {quickCommentState && (
+        {/* Quick comment input - only render for active tab to prevent portal escaping pointerEvents isolation */}
+        {isActive && quickCommentState && (
           <QuickCommentInput
             selectedText={quickCommentState.selectedText}
             source={quickCommentState.source}
@@ -4180,10 +4183,10 @@ export function ChatView({
     [activeSubChatIdForMode],
   )
   const [subChatMode] = useAtom(subChatModeAtom)
-  // Current mode - use subChatMode when there's an active sub-chat, otherwise default to "agent"
-  const currentMode: AgentMode = activeSubChatIdForMode ? subChatMode : "agent"
-  // Default mode for new sub-chats
+  // Default mode for new sub-chats (used as fallback when no active sub-chat)
   const defaultAgentMode = useAtomValue(defaultAgentModeAtom)
+  // Current mode - use subChatMode when there's an active sub-chat, otherwise use user's default preference
+  const currentMode: AgentMode = activeSubChatIdForMode ? subChatMode : defaultAgentMode
 
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
@@ -4571,10 +4574,20 @@ export function ChatView({
     })
   }, [chatId, setUnseenChanges])
 
-  // Get sub-chat state from store (using getState() to avoid re-renders on state changes)
-  const activeSubChatId = useAgentSubChatStore.getState().activeSubChatId
-  const openSubChatIds = useAgentSubChatStore.getState().openSubChatIds
-  const pinnedSubChatIds = useAgentSubChatStore.getState().pinnedSubChatIds
+  // Get sub-chat state from store (reactive subscription for tabsToRender)
+  const {
+    activeSubChatId,
+    openSubChatIds,
+    pinnedSubChatIds,
+    allSubChats,
+  } = useAgentSubChatStore(
+    useShallow((state) => ({
+      activeSubChatId: state.activeSubChatId,
+      openSubChatIds: state.openSubChatIds,
+      pinnedSubChatIds: state.pinnedSubChatIds,
+      allSubChats: state.allSubChats,
+    }))
+  )
 
   // Clear sub-chat "unseen changes" indicator when sub-chat becomes active
   useEffect(() => {
@@ -4588,7 +4601,6 @@ export function ChatView({
       return prev
     })
   }, [activeSubChatId, setSubChatUnseenChanges])
-  const allSubChats = useAgentSubChatStore.getState().allSubChats
 
   // tRPC utils for optimistic cache updates
   const utils = api.useUtils()
@@ -4730,16 +4742,12 @@ export function ChatView({
   const tabsToRender = useMemo(() => {
     if (!activeSubChatId) return []
 
-    // Merge BOTH data sources for validation:
-    // - agentSubChats: server truth (from tRPC/remote API)
-    // - allSubChats: Zustand store (includes optimistic updates for newly created sub-chats)
+    // Combine server data (agentSubChats) with local store (allSubChats) for validation.
+    // This handles:
+    // 1. Race condition where setChatId resets allSubChats but activeSubChatId loads from localStorage
+    // 2. Optimistic updates when creating new sub-chats (new sub-chat is in allSubChats but not in agentSubChats yet)
     //
-    // This fixes the race condition where:
-    // 1. User creates new sub-chat → added to allSubChats immediately
-    // 2. invalidate() triggers refetch, but agentSubChats hasn't updated yet
-    // 3. If we only check agentSubChats, the new sub-chat ID won't be valid
-    //
-    // By merging both sources, newly created sub-chats are valid immediately.
+    // By combining both sources, we validate against all known sub-chats from both server and local state.
     const validSubChatIds = new Set([
       ...agentSubChats.map(sc => sc.id),
       ...allSubChats.map(sc => sc.id),
@@ -5740,6 +5748,9 @@ Make sure to preserve all functionality from both branches when resolving confli
       created_at: new Date().toISOString(),
       mode: newSubChatMode,
     })
+
+    // Set the mode atomFamily for the new sub-chat (so currentMode reads correct value)
+    appStore.set(subChatModeAtomFamily(newId), newSubChatMode)
 
     // Add to open tabs and set as active
     store.addToOpenSubChats(newId)
