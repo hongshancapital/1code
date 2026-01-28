@@ -2,7 +2,7 @@ import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
-import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree } from "lucide-react"
+import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
 import {
   type WidgetId,
   type ProjectMode,
@@ -35,6 +35,8 @@ export const WIDGET_REGISTRY: WidgetConfig[] = [
   // Cowork mode widgets (file focused)
   { id: "artifacts", label: WIDGET_DEFAULTS.artifacts.label, icon: Package, canExpand: false },
   { id: "explorer", label: WIDGET_DEFAULTS.explorer.label, icon: FolderTree, canExpand: true },
+  // Background tasks (available in both modes)
+  { id: "background-tasks", label: WIDGET_DEFAULTS["background-tasks"].label, icon: Cpu, canExpand: false },
 ]
 
 // Default visible widgets (use coding mode as default)

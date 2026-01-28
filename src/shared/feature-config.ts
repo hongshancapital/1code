@@ -16,6 +16,7 @@ export type WidgetId =
   | "diff"
   | "artifacts"
   | "explorer"
+  | "background-tasks"
 
 /**
  * Stored in projects.featureConfig as JSON string
@@ -45,6 +46,7 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
   diff: { label: "Changes", defaultInCoding: true, defaultInCowork: false },
   artifacts: { label: "Artifacts", defaultInCoding: false, defaultInCowork: true },
   explorer: { label: "Explorer", defaultInCoding: true, defaultInCowork: true },
+  "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: true },
 }
 
 /**

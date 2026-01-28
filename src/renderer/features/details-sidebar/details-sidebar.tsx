@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue } from "jotai"
-import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree } from "lucide-react"
+import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,6 +35,7 @@ import { TerminalWidget } from "./sections/terminal-widget"
 import { ChangesWidget } from "./sections/changes-widget"
 import { ArtifactsWidget } from "./sections/artifacts-widget"
 import { ExplorerWidget } from "./sections/explorer-widget"
+import { BackgroundTasksWidget } from "./sections/background-tasks-widget"
 import type { ParsedDiffFile } from "./types"
 import type { AgentMode } from "../agents/atoms"
 
@@ -207,6 +208,8 @@ export function DetailsSidebar({
         return Package
       case "explorer":
         return FolderTree
+      case "background-tasks":
+        return Cpu
       default:
         return Box
     }
@@ -426,6 +429,14 @@ export function DetailsSidebar({
                     key="explorer"
                     worktreePath={worktreePath ?? undefined}
                     onExpand={onExpandExplorer}
+                  />
+                )
+
+              case "background-tasks":
+                return (
+                  <BackgroundTasksWidget
+                    key="background-tasks"
+                    subChatId={activeSubChatId || null}
                   />
                 )
 

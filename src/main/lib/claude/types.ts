@@ -52,6 +52,15 @@ export type UIMessageChunk =
       plugins: { name: string; path: string }[]
       skills: string[]
     }
+  // Background task notifications
+  | {
+      type: "task-notification"
+      taskId: string
+      shellId?: string
+      status: "running" | "completed" | "failed" | "stopped"
+      outputFile?: string
+      summary: string
+    }
 
 export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"
 
