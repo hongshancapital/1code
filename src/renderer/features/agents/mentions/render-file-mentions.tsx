@@ -311,7 +311,7 @@ function MentionChip({ mention }: { mention: ParsedMention }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 px-[6px] rounded-[6px] text-sm align-middle bg-black/[0.04] dark:bg-white/[0.08] text-foreground/80 select-none"
+      className="inline-flex items-center gap-1 px-[6px] rounded-[6px] text-sm align-middle bg-black/[0.04] dark:bg-white/[0.08] text-foreground/80"
       title={title}
     >
       <Icon className={mention.type === "tool" ? "h-3.5 w-3.5 text-muted-foreground flex-shrink-0" : "h-3 w-3 text-muted-foreground flex-shrink-0"} />
