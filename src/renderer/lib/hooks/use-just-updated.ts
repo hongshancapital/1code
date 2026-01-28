@@ -50,12 +50,10 @@ export function useJustUpdated() {
   const openChangelog = useCallback(() => {
     const api = window.desktopApi
     if (api) {
-      // Link to changelog with anchor to current version
-      const version = justUpdatedVersion ? `#v${justUpdatedVersion}` : ""
-      api.openExternal(`https://cowork.hongshan.com/changelog${version}`)
+      api.openExternal(`https://www.notion.so/hongshancom/Changelogs-2f61da9c38f080d391e5e8a3ae045dc4`)
     }
     dismissJustUpdated()
-  }, [justUpdatedVersion, dismissJustUpdated])
+  }, [dismissJustUpdated])
 
   return {
     justUpdated,

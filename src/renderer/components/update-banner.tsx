@@ -136,7 +136,7 @@ export function UpdateBanner() {
 
   const handleOpenChangelog = () => {
     // Open changelog URL
-    window.desktopApi?.openExternal("https://cowork.hongshan.com/changelog")
+    window.desktopApi?.openExternal("https://www.notion.so/hongshancom/Changelogs-2f61da9c38f080d391e5e8a3ae045dc4")
     // Dismiss the banner
     if (isMocking) {
       setMockStatus("dismissed")
