@@ -535,6 +535,10 @@ export const pendingReviewMessageAtom = atom<string | null>(null)
 // Set when user clicks "Fix Conflicts" button, consumed by ChatViewInner
 export const pendingConflictResolutionMessageAtom = atom<string | null>(null)
 
+// Pending branch rename message to send to chat
+// Set by InfoSection when magic wand button is clicked, consumed by ChatViewInner
+export const pendingBranchRenameMessageAtom = atom<string | null>(null)
+
 // Pending auth retry - stores failed message when auth-error occurs
 // After successful OAuth flow, this triggers automatic retry of the message
 export type PendingAuthRetryMessage = {

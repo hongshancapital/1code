@@ -175,6 +175,7 @@ export type SettingsTab =
   | "notifications"
   | "models"
   | "runtime"
+  | "editor"
   | "skills"
   | "agents"
   | "mcp"

@@ -116,6 +116,7 @@ import {
   workspaceDiffCacheAtomFamily,
   pendingPrMessageAtom,
   pendingReviewMessageAtom,
+  pendingBranchRenameMessageAtom,
   pendingUserQuestionsAtom,
   planSidebarOpenAtomFamily,
   QUESTIONS_SKIPPED_MESSAGE,
@@ -2480,6 +2481,24 @@ const ChatViewInner = memo(function ChatViewInner({
       })
     }
   }, [pendingConflictMessage, isStreaming, sendMessage, setPendingConflictMessage])
+
+  // Watch for pending branch rename message and send it
+  const [pendingBranchRename, setPendingBranchRename] = useAtom(
+    pendingBranchRenameMessageAtom,
+  )
+
+  useEffect(() => {
+    if (pendingBranchRename && !isStreaming) {
+      // Clear the pending message immediately to prevent double-sending
+      setPendingBranchRename(null)
+
+      // Send the message to Claude
+      sendMessage({
+        role: "user",
+        parts: [{ type: "text", text: pendingBranchRename }],
+      })
+    }
+  }, [pendingBranchRename, isStreaming, sendMessage, setPendingBranchRename])
 
   // Handle pending "Build plan" from sidebar (atom - effect is defined after handleApprovePlan)
   const [pendingBuildPlanSubChatId, setPendingBuildPlanSubChatId] = useAtom(
