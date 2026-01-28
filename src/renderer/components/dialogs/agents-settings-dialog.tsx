@@ -22,6 +22,8 @@ import { AgentsNotificationsTab } from "./settings-tabs/agents-notifications-tab
 import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
 import { AgentsProjectWorktreeTab } from "./settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
+import { AgentsEditorTab } from "./settings-tabs/agents-editor-tab"
+import { GenericEditorIcon } from "../../icons/editor-icons"
 
 // GitHub avatar icon with loading placeholder
 function GitHubAvatarIcon({ gitOwner, className }: { gitOwner: string; className?: string }) {
@@ -111,6 +113,12 @@ const MAIN_TABS = [
     label: "Models",
     icon: BrainFilledIcon,
     description: "Model overrides and Claude Code auth",
+  },
+  {
+    id: "editor" as SettingsTab,
+    label: "Editor",
+    icon: GenericEditorIcon,
+    description: "External code editor settings",
   },
 ]
 
@@ -355,6 +363,8 @@ export function AgentsSettingsDialog({
         return <AgentsNotificationsTab />
       case "models":
         return <AgentsModelsTab />
+      case "editor":
+        return <AgentsEditorTab />
       case "skills":
         return <AgentsSkillsTab />
       case "agents":

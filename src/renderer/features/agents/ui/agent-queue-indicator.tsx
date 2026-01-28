@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useState, useCallback, useEffect } from "react"
-import { ChevronDown, ArrowUp, X } from "lucide-react"
+import { ChevronDown, ArrowUp, ArrowDown, X } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
 import {
   Tooltip,
@@ -21,10 +21,12 @@ const QueueItemRow = memo(function QueueItemRow({
   item,
   onRemove,
   onSendNow,
+  onRestore,
 }: {
   item: AgentQueueItem
   onRemove?: (itemId: string) => void
   onSendNow?: (itemId: string) => void
+  onRestore?: (item: AgentQueueItem) => void
 }) {
   const handleRemove = useCallback(
     (e: React.MouseEvent) => {
@@ -42,6 +44,14 @@ const QueueItemRow = memo(function QueueItemRow({
     [item.id, onSendNow]
   )
 
+  const handleRestore = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onRestore?.(item)
+    },
+    [item, onRestore]
+  )
+
   // Get display text - truncate message and show attachment count
   const hasAttachments =
     (item.images && item.images.length > 0) ||
@@ -55,8 +65,8 @@ const QueueItemRow = memo(function QueueItemRow({
     (item.diffTextContexts?.length || 0)
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors cursor-default">
-      <span className="truncate flex-1 text-foreground">
+    <div className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors">
+      <span className="truncate flex-1 text-foreground select-text cursor-text">
           <RenderFileMentions text={item.message} />
         </span>
       {hasAttachments && (
@@ -76,6 +86,19 @@ const QueueItemRow = memo(function QueueItemRow({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">Send now</TooltipContent>
+          </Tooltip>
+        )}
+        {onRestore && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleRestore}
+                className="flex-shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Restore to input</TooltipContent>
           </Tooltip>
         )}
         {onRemove && (
@@ -100,6 +123,8 @@ interface AgentQueueIndicatorProps {
   queue: AgentQueueItem[]
   onRemoveItem?: (itemId: string) => void
   onSendNow?: (itemId: string) => void
+  /** Restore item back to input (undo queue) */
+  onRestoreItem?: (item: AgentQueueItem) => void
   isStreaming?: boolean
   /** Whether there's a status card below this one - affects border radius */
   hasStatusCardBelow?: boolean
@@ -109,6 +134,7 @@ export const AgentQueueIndicator = memo(function AgentQueueIndicator({
   queue,
   onRemoveItem,
   onSendNow,
+  onRestoreItem,
   isStreaming = false,
   hasStatusCardBelow = false,
 }: AgentQueueIndicatorProps) {
@@ -183,6 +209,7 @@ export const AgentQueueIndicator = memo(function AgentQueueIndicator({
                   item={item}
                   onRemove={onRemoveItem}
                   onSendNow={onSendNow}
+                  onRestore={onRestoreItem}
                 />
               ))}
             </div>

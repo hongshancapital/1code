@@ -1,17 +1,23 @@
 "use client"
 
 import { memo, useState, useCallback } from "react"
+import { useAtomValue, useSetAtom } from "jotai"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
 } from "@/components/ui/icons"
+import { WandSparkles } from "lucide-react"
+import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
+import { editorConfigAtom } from "@/lib/atoms/editor"
+import { getEditorIcon, GenericEditorIcon } from "@/icons/editor-icons"
 
 interface InfoSectionProps {
   chatId: string
@@ -120,6 +126,28 @@ export const InfoSection = memo(function InfoSection({
   // Mutation to open folder in Finder
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
 
+  // Mutation to open in editor
+  const openInEditorMutation = trpc.editor.openWithEditor.useMutation()
+
+  // Get editor config
+  const editorConfig = useAtomValue(editorConfigAtom)
+
+  // Detect installed editors
+  const { data: detectedEditors } = trpc.editor.detectEditors.useQuery()
+
+  // Determine active editor (configured or first installed)
+  const configuredEditorId = editorConfig.defaultEditor
+  const configuredEditor = configuredEditorId
+    ? detectedEditors?.find((e) => e.id === configuredEditorId && e.installed)
+    : null
+  const firstInstalledEditor = detectedEditors?.find((e) => e.installed)
+  const activeEditor = configuredEditor || firstInstalledEditor
+
+  // Dynamic editor icon - use specific icon if editor detected, generic otherwise (will use system default)
+  const EditorIcon = activeEditor
+    ? getEditorIcon(activeEditor.id)
+    : GenericEditorIcon
+
   // Check if this is a remote sandbox chat (no local worktree)
   const isRemoteChat = !worktreePath && !!remoteInfo
 
@@ -154,6 +182,16 @@ export const InfoSection = memo(function InfoSection({
     }
   }
 
+  const handleOpenInEditor = () => {
+    if (worktreePath) {
+      openInEditorMutation.mutate({
+        path: worktreePath,
+        editorId: editorConfig.defaultEditor ?? undefined,
+        customArgs: editorConfig.customArgs || undefined,
+      })
+    }
+  }
+
   const handleOpenPr = () => {
     if (pr?.url) {
       window.desktopApi.openExternal(pr.url)
@@ -175,6 +213,29 @@ export const InfoSection = memo(function InfoSection({
       window.desktopApi.openExternal(sandboxUrl)
     }
   }
+
+  // AI branch rename
+  const setPendingBranchRenameMessage = useSetAtom(pendingBranchRenameMessageAtom)
+
+  const handleRenameBranch = useCallback(() => {
+    if (branchName) {
+      const message = `Current git branch: ${branchName}
+
+Please help me rename this branch to a more descriptive name. Follow these conventions:
+1. Use kebab-case (e.g., feat/add-user-auth, fix/login-bug)
+2. Keep it concise but descriptive
+3. Add a prefix if appropriate (feat/, fix/, refactor/, etc.)
+
+Steps:
+1. Suggest a better branch name based on recent changes or context
+2. Ask for confirmation before renaming
+3. Once confirmed, use \`git branch -m <new-name>\` to rename locally
+4. If there's a remote branch, remind me to update remote tracking
+
+Please suggest a new branch name.`
+      setPendingBranchRenameMessage(message)
+    }
+  }, [branchName, setPendingBranchRenameMessage])
 
   // Show loading state while branch data is loading (only for local chats)
   if (!isRemoteChat && isBranchLoading) {
@@ -229,7 +290,29 @@ export const InfoSection = memo(function InfoSection({
       )}
       {/* Branch - for both local and remote */}
       {branchName && (
-        <PropertyRow icon={GitBranchFilledIcon} label="Branch" value={branchName} copyable />
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <PropertyRow icon={GitBranchFilledIcon} label="Branch" value={branchName} copyable />
+          </div>
+          {/* Only show rename button for local chats */}
+          {!isRemoteChat && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={handleRenameBranch}
+                >
+                  <WandSparkles className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                Rename branch with AI
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       )}
       {/* PR - only for local chats */}
       {pr && (
@@ -244,14 +327,36 @@ export const InfoSection = memo(function InfoSection({
       )}
       {/* Path - only for local chats */}
       {worktreePath && (
-        <PropertyRow
-          icon={FolderFilledIcon}
-          label="Path"
-          value={folderName}
-          title={worktreePath}
-          onClick={handleOpenFolder}
-          tooltip="Open in Finder"
-        />
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <PropertyRow
+              icon={FolderFilledIcon}
+              label="Path"
+              value={folderName}
+              title={worktreePath}
+              onClick={handleOpenFolder}
+              tooltip="Open in Finder"
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={handleOpenInEditor}
+                disabled={openInEditorMutation.isPending}
+              >
+                <EditorIcon className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {activeEditor
+                ? `Open in ${activeEditor.name}`
+                : "Open in default editor"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       )}
     </div>
   )

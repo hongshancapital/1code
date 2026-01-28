@@ -25,6 +25,11 @@ import {
   pendingAuthRetryMessageAtom,
   pendingUserQuestionsAtom,
 } from "../atoms"
+import {
+  backgroundTasksAtomFamily,
+  createBackgroundTask,
+  updateTaskStatus,
+} from "../atoms/background-tasks"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { showUserInputRequiredNotification } from "../../sidebar/hooks/use-desktop-notifications"
 
@@ -299,6 +304,35 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
                   plugins: chunk.plugins,
                   skills: chunk.skills,
                 })
+              }
+
+              // Handle task notification - background task status updates
+              if (chunk.type === "task-notification") {
+                console.log("[BackgroundTask] Received task-notification:", chunk)
+                const subChatId = this.config.subChatId
+                const tasksAtom = backgroundTasksAtomFamily(subChatId)
+                const currentTasks = appStore.get(tasksAtom)
+
+                if (chunk.status === "running") {
+                  // New running task - add to list
+                  const newTask = createBackgroundTask(
+                    subChatId,
+                    chunk.taskId,
+                    chunk.shellId || chunk.taskId,
+                    chunk.summary
+                  )
+                  appStore.set(tasksAtom, [...currentTasks, newTask])
+                } else {
+                  // Task completed/failed/stopped - update status
+                  appStore.set(
+                    tasksAtom,
+                    currentTasks.map((t) =>
+                      t.taskId === chunk.taskId
+                        ? updateTaskStatus(t, chunk.status)
+                        : t
+                    )
+                  )
+                }
               }
 
               // Clear pending questions ONLY when agent has moved on

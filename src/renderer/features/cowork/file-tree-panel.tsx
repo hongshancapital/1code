@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
-import { useAtom, useSetAtom } from "jotai"
+import { useAtom, useSetAtom, useAtomValue } from "jotai"
 import { useQueryClient } from "@tanstack/react-query"
 import { trpc } from "../../lib/trpc"
 import { useGitWatcher } from "../../lib/hooks/use-file-change-listener"
@@ -24,6 +24,7 @@ import {
   ChevronsUpDown,
   ChevronsDownUp,
 } from "lucide-react"
+import { GenericEditorIcon } from "../../icons/editor-icons"
 import { Input } from "../../components/ui/input"
 import { Button } from "../../components/ui/button"
 import {
@@ -51,6 +52,7 @@ import {
   filePreviewHighlightAtom,
   type ContentSearchResult,
 } from "./atoms"
+import { editorConfigAtom } from "../../lib/atoms/editor"
 
 // ============================================================================
 // Types
@@ -82,6 +84,7 @@ interface LazyDirectoryNodeProps {
   onToggle: (path: string) => void
   onSelect: (path: string, type: "file" | "folder") => void
   onReference: (path: string, name: string, type: "file" | "folder") => void
+  onOpenInEditor: (path: string) => void
   searchQuery: string
 }
 
@@ -94,6 +97,7 @@ function LazyDirectoryNode({
   onToggle,
   onSelect,
   onReference,
+  onOpenInEditor,
   searchQuery,
 }: LazyDirectoryNodeProps) {
   const isExpanded = expandedPaths.has(entry.path)
@@ -138,6 +142,11 @@ function LazyDirectoryNode({
     e.stopPropagation()
     onReference(entry.path, entry.name, entry.type)
   }, [entry.path, entry.name, entry.type, onReference])
+
+  const handleOpenInEditor = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onOpenInEditor(entry.path)
+  }, [entry.path, onOpenInEditor])
 
   // Hide non-matching files when searching (but keep folders that have matching descendants)
   // IMPORTANT: Conditional returns must come AFTER all hooks
@@ -200,15 +209,24 @@ function LazyDirectoryNode({
         {/* Name with highlight */}
         <span className="truncate flex-1">{highlightMatch(entry.name)}</span>
 
-        {/* Reference button - only show on hover for files */}
+        {/* Action buttons - only show on hover for files */}
         {!isFolder && isHovered && (
-          <button
-            onClick={handleReference}
-            className="flex-shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
-            title="Insert reference to chat"
-          >
-            <AtSign className="h-3 w-3 text-muted-foreground hover:text-primary" />
-          </button>
+          <>
+            <button
+              onClick={handleReference}
+              className="flex-shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
+              title="Insert reference to chat"
+            >
+              <AtSign className="h-3 w-3 text-muted-foreground hover:text-primary" />
+            </button>
+            <button
+              onClick={handleOpenInEditor}
+              className="flex-shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
+              title="Open in editor"
+            >
+              <GenericEditorIcon className="h-3 w-3 text-muted-foreground hover:text-primary" />
+            </button>
+          </>
         )}
       </div>
 
@@ -226,6 +244,7 @@ function LazyDirectoryNode({
               onToggle={onToggle}
               onSelect={onSelect}
               onReference={onReference}
+              onOpenInEditor={onOpenInEditor}
               searchQuery={searchQuery}
             />
           ))}
@@ -493,6 +512,28 @@ export function FileTreePanel({
       setPendingFileReference({ path, name, type })
     },
     [setPendingFileReference]
+  )
+
+  // Editor config and mutation
+  const editorConfig = useAtomValue(editorConfigAtom)
+  const openInEditorMutation = trpc.editor.openWithEditor.useMutation({
+    onError: (error) => {
+      toast.error("Failed to open in editor", { description: error.message })
+    },
+  })
+
+  // Open file in editor
+  const handleOpenInEditor = useCallback(
+    (relativePath: string) => {
+      if (!projectPath) return
+      const fullPath = `${projectPath}/${relativePath}`
+      openInEditorMutation.mutate({
+        path: fullPath,
+        editorId: editorConfig.defaultEditor ?? undefined,
+        customArgs: editorConfig.customArgs || undefined,
+      })
+    },
+    [projectPath, editorConfig, openInEditorMutation]
   )
 
   // Switch to content search mode
@@ -807,6 +848,7 @@ export function FileTreePanel({
               onToggle={handleToggle}
               onSelect={handleSelect}
               onReference={handleReference}
+              onOpenInEditor={handleOpenInEditor}
               searchQuery={searchQuery}
             />
           ))
