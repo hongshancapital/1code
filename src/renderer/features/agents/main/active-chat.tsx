@@ -155,6 +155,7 @@ import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   createQueueItem,
   generateQueueId,
+  toQueuedDiffTextContext,
   toQueuedFile,
   toQueuedImage,
   toQueuedTextContext,
@@ -3272,12 +3273,14 @@ const ChatViewInner = memo(function ChatViewInner({
     const currentFiles = filesRef.current
     const currentTextContexts = textContextsRef.current
     const currentPastedTexts = pastedTextsRef.current
+    const currentDiffTextContexts = diffTextContextsRef.current
     const hasImages =
       currentImages.filter((img) => !img.isLoading && img.url).length > 0
     const hasTextContexts = currentTextContexts.length > 0
     const hasPastedTexts = currentPastedTexts.length > 0
+    const hasDiffTextContexts = currentDiffTextContexts.length > 0
 
-    if (!hasText && !hasImages && !hasTextContexts && !hasPastedTexts) return
+    if (!hasText && !hasImages && !hasTextContexts && !hasPastedTexts && !hasDiffTextContexts) return
 
     // If streaming, add to queue instead of sending directly
     if (isStreamingRef.current) {
@@ -3288,13 +3291,15 @@ const ChatViewInner = memo(function ChatViewInner({
         .filter((f) => !f.isLoading && f.url)
         .map(toQueuedFile)
       const queuedTextContexts = currentTextContexts.map(toQueuedTextContext)
+      const queuedDiffTextContexts = currentDiffTextContexts.map(toQueuedDiffTextContext)
 
       const item = createQueueItem(
         generateQueueId(),
         inputValue.trim(),
         queuedImages.length > 0 ? queuedImages : undefined,
         queuedFiles.length > 0 ? queuedFiles : undefined,
-        queuedTextContexts.length > 0 ? queuedTextContexts : undefined
+        queuedTextContexts.length > 0 ? queuedTextContexts : undefined,
+        queuedDiffTextContexts.length > 0 ? queuedDiffTextContexts : undefined
       )
       addToQueue(subChatId, item)
 
@@ -3305,6 +3310,8 @@ const ChatViewInner = memo(function ChatViewInner({
       }
       clearAll()
       clearTextContexts()
+      clearDiffTextContexts()
+      clearPastedTexts()
       return
     }
 
@@ -3391,7 +3398,6 @@ const ChatViewInner = memo(function ChatViewInner({
     ]
 
     // Add text contexts as mention tokens
-    const currentDiffTextContexts = diffTextContextsRef.current
     let mentionPrefix = ""
 
     if (currentTextContexts.length > 0 || currentDiffTextContexts.length > 0 || currentPastedTexts.length > 0) {
