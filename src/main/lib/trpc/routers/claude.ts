@@ -875,6 +875,14 @@ export const claudeRouter = router({
             const existingMessages = JSON.parse(existing?.messages || "[]")
             const existingSessionId = existing?.sessionId || null
 
+            // Get projectId from chat record (needed for usage tracking)
+            const chatRecord = db
+              .select({ projectId: chats.projectId })
+              .from(chats)
+              .where(eq(chats.id, input.chatId))
+              .get()
+            const projectId = chatRecord?.projectId
+
             // Get resumeSessionAt UUID only if shouldResume flag was set (by rollbackToMessage)
             const lastAssistantMsg = [...existingMessages].reverse().find(
               (m: any) => m.role === "assistant"

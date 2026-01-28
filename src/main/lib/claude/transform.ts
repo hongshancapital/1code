@@ -458,7 +458,6 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
     // ===== RESULT (final) =====
     if (msg.type === "result") {
-      console.log("[transform] RESULT message, textStarted:", textStarted, "lastTextId:", lastTextId)
       yield* endTextBlock()
       yield* endToolInput()
 
@@ -483,6 +482,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
       const metadata: MessageMetadata = {
         sessionId: msg.session_id,
+        sdkMessageUuid: emitSdkMessageUuid ? msg.uuid : undefined,
         inputTokens,
         outputTokens,
         totalTokens: inputTokens && outputTokens ? inputTokens + outputTokens : undefined,
@@ -496,7 +496,6 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
       }
       yield { type: "message-metadata", messageMetadata: metadata }
       yield { type: "finish-step" }
-      console.log("[transform] YIELDING FINISH from result message")
       yield { type: "finish", messageMetadata: metadata }
     }
   }
