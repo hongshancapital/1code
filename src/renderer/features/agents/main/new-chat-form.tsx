@@ -333,6 +333,32 @@ export function NewChatForm({
     "local" | "remote" | undefined
   >(undefined)
 
+  // Custom branch name state
+  const [customBranchName, setCustomBranchName] = useState("")
+  const [branchNameError, setBranchNameError] = useState<string | null>(null)
+
+  // Validate branch name (simplified client-side validation)
+  const validateBranchName = useCallback((name: string): string | null => {
+    if (!name || name.trim().length === 0) return null // Empty is ok (will auto-generate)
+    const trimmed = name.trim()
+    if (trimmed.startsWith(".")) return "Cannot start with ."
+    if (trimmed.endsWith(".lock")) return "Cannot end with .lock"
+    if (trimmed.includes("..")) return "Cannot contain .."
+    if (/[\x00-\x1f\x7f ~^:?*\[\]\\]/.test(trimmed)) return "Contains invalid characters"
+    if (trimmed.startsWith("/") || trimmed.endsWith("/")) return "Cannot start or end with /"
+    if (trimmed.includes("//")) return "Cannot contain //"
+    if (trimmed.endsWith(".")) return "Cannot end with ."
+    if (trimmed.includes("@{")) return "Cannot contain @{"
+    if (trimmed === "@") return "Cannot be just @"
+    return null
+  }, [])
+
+  const handleCustomBranchNameChange = useCallback((value: string) => {
+    setCustomBranchName(value)
+    const error = validateBranchName(value)
+    setBranchNameError(error)
+  }, [validateBranchName])
+
   // Get/set selected branch for current project (persisted per project)
   const selectedBranch = validatedProject?.id
     ? lastSelectedBranches[validatedProject.id]?.name || ""
@@ -923,12 +949,14 @@ export function NewChatForm({
   const utils = trpc.useUtils()
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
-      // Clear editor, images, pasted texts, and file contents cache only on success
+      // Clear editor, images, pasted texts, file contents cache, and custom branch name only on success
       editorRef.current?.clear()
       clearImages()
       clearPastedTexts()
       fileContentsRef.current.clear()
       clearCurrentDraft()
+      setCustomBranchName("")
+      setBranchNameError(null)
       utils.chats.list.invalidate()
       setSelectedChatId(data.id)
       // New chats are always local
@@ -1044,6 +1072,12 @@ export function NewChatForm({
       return
     }
 
+    // Check for branch name validation error
+    if (branchNameError) {
+      toast.error(branchNameError)
+      return
+    }
+
     // Check if message is a slash command with arguments (e.g. "/hello world")
     // Note: 's' flag makes '.' match newlines, so multi-line arguments are captured
     const slashMatch = message.match(/^\/(\S+)\s*(.*)$/s)
@@ -1149,6 +1183,10 @@ export function NewChatForm({
         workMode === "worktree" ? selectedBranchType : undefined,
       useWorktree: workMode === "worktree",
       mode: agentMode,
+      customBranchName:
+        workMode === "worktree" && customBranchName.trim()
+          ? customBranchName.trim()
+          : undefined,
     })
     // Editor, images, and pasted texts are cleared in onSuccess callback
   }, [
@@ -1159,6 +1197,8 @@ export function NewChatForm({
     selectedBranch,
     selectedBranchType,
     workMode,
+    customBranchName,
+    branchNameError,
     images,
     pastedTexts,
     agentMode,
@@ -2120,6 +2160,52 @@ export function NewChatForm({
                             </div>
                           </div>
                         )}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  {/* Custom branch name input - only visible in coding mode with worktree */}
+                  {validatedProject && currentProjectMode === "coding" && workMode === "worktree" && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            "flex items-center gap-1.5 px-2 py-1 text-sm transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-none",
+                            customBranchName
+                              ? "text-foreground bg-emerald-500/10"
+                              : "text-muted-foreground hover:text-foreground",
+                            branchNameError && "text-destructive bg-destructive/10"
+                          )}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span className="truncate max-w-[120px]">
+                            {customBranchName || "Branch name"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-3" align="start">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Custom Branch Name</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. feature-login"
+                            value={customBranchName}
+                            onChange={(e) => handleCustomBranchNameChange(e.target.value)}
+                            className={cn(
+                              "w-full px-3 py-2 text-sm rounded-md border bg-background outline-none transition-colors",
+                              branchNameError
+                                ? "border-destructive"
+                                : "border-input focus:border-muted-foreground"
+                            )}
+                          />
+                          {branchNameError ? (
+                            <p className="text-xs text-destructive">{branchNameError}</p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              Leave empty to auto-generate. Folder name matches branch name.
+                            </p>
+                          )}
+                        </div>
                       </PopoverContent>
                     </Popover>
                   )}
