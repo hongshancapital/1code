@@ -1,5 +1,5 @@
 import { observable } from "@trpc/server/observable"
-import { eq } from "drizzle-orm"
+import { eq, like } from "drizzle-orm"
 import { app, BrowserWindow, safeStorage } from "electron"
 import { readFileSync } from "fs"
 import * as fs from "fs/promises"
@@ -2133,12 +2133,15 @@ ${prompt}
                   await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
                 }
 
-                // Record usage statistics (even on error)
+                // Record usage statistics (even on error, if projectId is available)
                 // Prefer per-model breakdown from SDK for accurate model attribution
-                if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
+                if (!projectId) {
+                  console.warn(`[Usage] Skipping usage recording on error - projectId not found`)
+                } else if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
                   try {
+                    // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
                     const existingUsage = metadata.sdkMessageUuid
-                      ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                      ? db.select().from(modelUsage).where(like(modelUsage.messageUuid, `${metadata.sdkMessageUuid}-%`)).get()
                       : null
 
                     if (!existingUsage) {
@@ -2147,7 +2150,7 @@ ${prompt}
                         db.insert(modelUsage).values({
                           subChatId: input.subChatId,
                           chatId: input.chatId,
-                          projectId: input.projectId,
+                          projectId,
                           model,
                           inputTokens: usage.inputTokens,
                           outputTokens: usage.outputTokens,
@@ -2166,6 +2169,7 @@ ${prompt}
                   }
                 } else if (metadata.inputTokens || metadata.outputTokens) {
                   try {
+                    // Fallback case uses exact match since messageUuid is stored without model suffix
                     const existingUsage = metadata.sdkMessageUuid
                       ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
                       : null
@@ -2174,7 +2178,7 @@ ${prompt}
                       db.insert(modelUsage).values({
                         subChatId: input.subChatId,
                         chatId: input.chatId,
-                        projectId: input.projectId,
+                        projectId,
                         model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
                         inputTokens: metadata.inputTokens || 0,
                         outputTokens: metadata.outputTokens || 0,
@@ -2257,7 +2261,7 @@ ${prompt}
               .where(eq(chats.id, input.chatId))
               .run()
 
-            // Record usage statistics (if we have token data)
+            // Record usage statistics (if we have token data and projectId)
             // Prefer per-model breakdown from SDK for accurate model attribution
             console.log(`[Usage] metadata at finish:`, JSON.stringify({
               hasModelUsage: !!metadata.modelUsage,
@@ -2266,12 +2270,15 @@ ${prompt}
               outputTokens: metadata.outputTokens,
               totalTokens: metadata.totalTokens,
               sdkMessageUuid: metadata.sdkMessageUuid,
+              projectId,
             }))
-            if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
+            if (!projectId) {
+              console.warn(`[Usage] Skipping usage recording - projectId not found for chat ${input.chatId}`)
+            } else if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
               try {
-                // Check for duplicate by sdkMessageUuid
+                // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
                 const existingUsage = metadata.sdkMessageUuid
-                  ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
+                  ? db.select().from(modelUsage).where(like(modelUsage.messageUuid, `${metadata.sdkMessageUuid}-%`)).get()
                   : null
 
                 if (!existingUsage) {
@@ -2281,7 +2288,7 @@ ${prompt}
                     db.insert(modelUsage).values({
                       subChatId: input.subChatId,
                       chatId: input.chatId,
-                      projectId: input.projectId,
+                      projectId,
                       model,
                       inputTokens: usage.inputTokens,
                       outputTokens: usage.outputTokens,
@@ -2302,6 +2309,7 @@ ${prompt}
               }
             } else if (metadata.inputTokens || metadata.outputTokens) {
               // Fallback: use aggregate data if per-model breakdown not available
+              // Note: Uses exact match since fallback messageUuid is stored without model suffix
               try {
                 const existingUsage = metadata.sdkMessageUuid
                   ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
@@ -2311,7 +2319,7 @@ ${prompt}
                   db.insert(modelUsage).values({
                     subChatId: input.subChatId,
                     chatId: input.chatId,
-                    projectId: input.projectId,
+                    projectId,
                     model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
                     inputTokens: metadata.inputTokens || 0,
                     outputTokens: metadata.outputTokens || 0,
