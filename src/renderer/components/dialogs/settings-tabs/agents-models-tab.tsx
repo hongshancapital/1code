@@ -24,6 +24,7 @@ import {
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Switch } from "../../ui/switch"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../ui/tooltip"
 
 // Helper to format token count
 function formatTokenCount(tokens: number): string {
@@ -98,14 +99,14 @@ function ContributionHeatmap() {
   }, [slideDirection])
 
   // Build activity map for quick lookup
-  const activityMap = new Map<string, { count: number; totalTokens: number }>()
+  const activityMap = new Map<string, { count: number; totalTokens: number; totalCostUsd: number }>()
   activity?.forEach((d) => {
-    activityMap.set(d.date, { count: d.count, totalTokens: d.totalTokens })
+    activityMap.set(d.date, { count: d.count, totalTokens: d.totalTokens, totalCostUsd: d.totalCostUsd || 0 })
   })
 
   // Generate days based on calculated weeks and page offset
   const today = new Date()
-  const days: { date: string; count: number; totalTokens: number }[] = []
+  const days: { date: string; count: number; totalTokens: number; totalCostUsd: number }[] = []
 
   // Calculate end date based on page offset
   const endDate = new Date(today)
@@ -127,23 +128,26 @@ function ContributionHeatmap() {
       date: dateStr,
       count: data?.count || 0,
       totalTokens: data?.totalTokens || 0,
+      totalCostUsd: data?.totalCostUsd || 0,
     })
   }
 
-  // Find max for color scaling
-  const maxCount = Math.max(...days.map((d) => d.count), 1)
+  // Cost-based color scaling: $200 as max threshold
+  const MAX_COST_THRESHOLD = 200
+  const EASTER_EGG_THRESHOLD = 1000
 
-  // Get color intensity (0-4 levels like GitHub)
-  const getLevel = (count: number): number => {
-    if (count === 0) return 0
-    const ratio = count / maxCount
+  // Get color intensity based on cost (0-4 levels, with easter egg at 5)
+  const getLevel = (cost: number): number => {
+    if (cost === 0) return 0
+    if (cost >= EASTER_EGG_THRESHOLD) return 5 // Easter egg level
+    const ratio = cost / MAX_COST_THRESHOLD
     if (ratio <= 0.25) return 1
     if (ratio <= 0.5) return 2
     if (ratio <= 0.75) return 3
     return 4
   }
 
-  // Colors for each level (GitHub green theme)
+  // Colors for each level (GitHub green theme, with special easter egg)
   const levelColors = [
     "bg-muted/30", // level 0 - no activity
     "bg-emerald-900/50", // level 1
@@ -151,6 +155,14 @@ function ContributionHeatmap() {
     "bg-emerald-500/80", // level 3
     "bg-emerald-400", // level 4
   ]
+
+  // Easter egg emojis for $1000+ days
+  const easterEggEmojis = ["🔥", "💸", "🤯", "💰", "🚀", "⚡", "🌟", "💎"]
+  const getEasterEggEmoji = (date: string): string => {
+    // Use date string to deterministically pick an emoji
+    const hash = date.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return easterEggEmojis[hash % easterEggEmojis.length]!
+  }
 
   // Group days into weeks (columns)
   const weeks: typeof days[] = []
@@ -265,25 +277,65 @@ function ContributionHeatmap() {
         </div>
 
         {/* Grid with slide animation */}
-        <div className={`flex gap-[2px] ${getSlideClass()}`} key={pageOffset}>
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex flex-col gap-[2px]">
-              {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
-                const day = week[dayIndex]
-                if (!day) return <div key={dayIndex} className="w-[10px] h-[10px]" />
+        <TooltipProvider delayDuration={100}>
+          <div className={`flex gap-[2px] ${getSlideClass()}`} key={pageOffset}>
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex flex-col gap-[2px]">
+                {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => {
+                  const day = week[dayIndex]
+                  if (!day) return <div key={dayIndex} className="w-[10px] h-[10px]" />
 
-                const level = getLevel(day.count)
-                return (
-                  <div
-                    key={dayIndex}
-                    className={`w-[10px] h-[10px] rounded-[2px] ${levelColors[level]} cursor-default transition-colors hover:ring-1 hover:ring-foreground/30`}
-                    title={`${day.date}: ${day.count} requests, ${formatTokenCount(day.totalTokens)} tokens`}
-                  />
-                )
-              })}
-            </div>
-          ))}
-        </div>
+                  const level = getLevel(day.totalCostUsd)
+                  const isEasterEgg = level === 5
+                  const hasActivity = level > 0
+
+                  // No tooltip for empty days
+                  if (!hasActivity) {
+                    return (
+                      <div
+                        key={dayIndex}
+                        className={`w-[10px] h-[10px] rounded-[2px] ${levelColors[0]} cursor-default`}
+                      />
+                    )
+                  }
+
+                  const tooltipContent = (
+                    <div className="space-y-0.5">
+                      <div className="font-medium">{day.date}</div>
+                      <div>{day.count} requests</div>
+                      <div>{formatTokenCount(day.totalTokens)} tokens</div>
+                      <div>{formatCost(day.totalCostUsd)}{isEasterEgg ? " 🎉" : ""}</div>
+                    </div>
+                  )
+
+                  if (isEasterEgg) {
+                    return (
+                      <Tooltip key={dayIndex}>
+                        <TooltipTrigger asChild>
+                          <div className="w-[10px] h-[10px] rounded-[2px] flex items-center justify-center cursor-default transition-transform hover:scale-150">
+                            <span className="text-[8px] leading-none">{getEasterEggEmoji(day.date)}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="pointer-events-none">{tooltipContent}</TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+
+                  return (
+                    <Tooltip key={dayIndex}>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={`w-[10px] h-[10px] rounded-[2px] ${levelColors[level]} cursor-default transition-colors hover:ring-1 hover:ring-foreground/30`}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="pointer-events-none">{tooltipContent}</TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </TooltipProvider>
 
         {/* Legend */}
         <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-muted-foreground">

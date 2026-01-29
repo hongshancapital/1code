@@ -143,7 +143,7 @@ export const usageRouter = router({
 
   /**
    * Get daily activity for heatmap (last 365 days)
-   * Returns array of { date, count, totalTokens } for contribution graph
+   * Returns array of { date, count, totalTokens, totalCostUsd } for contribution graph
    */
   getDailyActivity: publicProcedure.query(() => {
     const db = getDatabase()
@@ -156,6 +156,7 @@ export const usageRouter = router({
         date: sql<string>`date(${modelUsage.createdAt}, 'unixepoch')`.as("date"),
         count: sql<number>`count(*)`,
         totalTokens: sql<number>`sum(${modelUsage.totalTokens})`,
+        totalCostUsd: sql<number>`coalesce(sum(cast(${modelUsage.costUsd} as real)), 0)`,
       })
       .from(modelUsage)
       .where(gte(modelUsage.createdAt, yearAgo))
