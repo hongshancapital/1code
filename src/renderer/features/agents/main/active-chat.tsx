@@ -6960,7 +6960,8 @@ Make sure to preserve all functionality from both branches when resolving confli
 
         {/* Plan Sidebar - shows plan files on the right (leftmost right sidebar) */}
         {/* Only show when we have an active sub-chat with a plan */}
-        {!hideGitFeatures && !isMobileFullscreen && activeSubChatIdForPlan && (
+        {/* Note: Plan is not a Git feature, so it should be available in cowork mode too */}
+        {!isMobileFullscreen && activeSubChatIdForPlan && (
           <ResizableSidebar
             isOpen={isPlanSidebarOpen && !!currentPlanPath}
             onClose={() => setIsPlanSidebarOpen(false)}
