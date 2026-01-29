@@ -153,13 +153,13 @@ export const usageRouter = router({
 
     return db
       .select({
-        date: sql<string>`date(${modelUsage.createdAt} / 1000, 'unixepoch')`.as("date"),
+        date: sql<string>`date(${modelUsage.createdAt}, 'unixepoch')`.as("date"),
         count: sql<number>`count(*)`,
         totalTokens: sql<number>`sum(${modelUsage.totalTokens})`,
       })
       .from(modelUsage)
       .where(gte(modelUsage.createdAt, yearAgo))
-      .groupBy(sql`date(${modelUsage.createdAt} / 1000, 'unixepoch')`)
+      .groupBy(sql`date(${modelUsage.createdAt}, 'unixepoch')`)
       .orderBy(sql`date`)
       .all()
   }),
@@ -182,7 +182,7 @@ export const usageRouter = router({
 
     const baseQuery = db
       .select({
-        date: sql<string>`date(${modelUsage.createdAt} / 1000, 'unixepoch')`.as(
+        date: sql<string>`date(${modelUsage.createdAt}, 'unixepoch')`.as(
           "date",
         ),
         totalInputTokens: sql<number>`sum(${modelUsage.inputTokens})`,
@@ -199,7 +199,7 @@ export const usageRouter = router({
         : baseQuery
 
     return query
-      .groupBy(sql`date(${modelUsage.createdAt} / 1000, 'unixepoch')`)
+      .groupBy(sql`date(${modelUsage.createdAt}, 'unixepoch')`)
       .orderBy(desc(sql`date`))
       .all()
   }),
