@@ -221,8 +221,7 @@ export const InfoSection = memo(function InfoSection({
     }
   }
 
-const isWorktree = !!worktreePath && worktreePath.includes(".hong/worktrees")
-  const openInEditorHotkey = useResolvedHotkeyDisplay("open-in-editor")
+const openInEditorHotkey = useResolvedHotkeyDisplay("open-in-editor")
 
   const handleOpenInEditor = useCallback(() => {
     if (worktreePath) {
@@ -232,11 +231,11 @@ const isWorktree = !!worktreePath && worktreePath.includes(".hong/worktrees")
 
   // Listen for ⌘O hotkey event
   useEffect(() => {
-    if (!isWorktree) return
+    if (!worktreePath) return
     const handler = () => handleOpenInEditor()
     window.addEventListener("open-in-editor", handler)
     return () => window.removeEventListener("open-in-editor", handler)
-  }, [isWorktree, handleOpenInEditor])
+  }, [worktreePath, handleOpenInEditor])
 
   const handleOpenPr = () => {
     if (pr?.url) {
@@ -383,8 +382,8 @@ Please suggest a new branch name.`
           tooltip="Open in Finder"
         />
       )}
-      {/* Open in Editor - only for actual git worktrees (under ~/.hong/worktrees/) */}
-      {isWorktree && (
+      {/* Open in Editor - for all local projects with a path */}
+      {worktreePath && (
         <div className="flex items-center min-h-[28px]">
           <div className="flex items-center gap-1.5 w-[100px] flex-shrink-0">
             <ExternalLinkIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
