@@ -1,8 +1,8 @@
 "use client"
 
-import { memo, useMemo, useState, useCallback } from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2 } from "lucide-react"
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
 import {
@@ -15,10 +15,23 @@ import {
   runningTasksCountAtomFamily,
 } from "@/features/agents/atoms/background-tasks"
 import type { BackgroundTask, BackgroundTaskStatus } from "@/features/agents/types/background-task"
+import { trpc } from "@/lib/trpc"
+import {
+  terminalsAtom,
+  activeTerminalIdAtom,
+  terminalSidebarOpenAtomFamily,
+} from "@/features/terminal/atoms"
+import type { TerminalInstance } from "@/features/terminal/types"
 
 interface BackgroundTasksWidgetProps {
   /** Active sub-chat ID to get tasks from */
   subChatId: string | null
+  /** Chat ID for terminal scoping */
+  chatId?: string
+  /** Current working directory */
+  cwd?: string
+  /** Workspace ID for terminal */
+  workspaceId?: string
   /** Callback to kill a background task */
   onKillTask?: (taskId: string, shellId: string) => void
 }
@@ -30,48 +43,204 @@ const statusIcons: Record<BackgroundTaskStatus, React.ReactNode> = {
   stopped: <StopCircle className="h-3.5 w-3.5 text-muted-foreground" />,
 }
 
+function generateTerminalId(): string {
+  return crypto.randomUUID().slice(0, 8)
+}
+
+function generatePaneId(chatId: string, terminalId: string): string {
+  return `${chatId}:term:${terminalId}`
+}
+
 const TaskListItem = memo(function TaskListItem({
   task,
   isLast,
   onKill,
+  onOpenInTerminal,
 }: {
   task: BackgroundTask
   isLast: boolean
   onKill?: (taskId: string, shellId: string) => void
+  onOpenInTerminal?: (outputFile: string) => void
 }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [output, setOutput] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Use trpc client directly for reading files
+  const trpcUtils = trpc.useUtils()
+
+  const handleToggleOutput = useCallback(async () => {
+    if (!task.outputFile) return
+
+    if (isExpanded) {
+      setIsExpanded(false)
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const content = await trpcUtils.files.readFile.fetch({
+        path: task.outputFile,
+      })
+      setOutput(content || "(empty)")
+      setIsExpanded(true)
+    } catch (err: any) {
+      console.error("[BackgroundTask] Failed to read output:", err)
+      // SDK cleans up output files after session ends
+      // Show appropriate message based on task status
+      let errorMsg: string
+      if (err?.message?.includes("ENOENT")) {
+        if (task.status === "running") {
+          errorMsg = "Output file not available yet (task starting...)"
+        } else {
+          errorMsg = "Output file cleaned up (SDK removes files after session)"
+        }
+      } else {
+        errorMsg = "Failed to read output file"
+      }
+      setOutput(errorMsg)
+      setIsExpanded(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [task.outputFile, isExpanded, trpcUtils])
+
+  const handleRefreshOutput = useCallback(async () => {
+    if (!task.outputFile) return
+
+    setIsLoading(true)
+    try {
+      const content = await trpcUtils.files.readFile.fetch({
+        path: task.outputFile,
+      })
+      setOutput(content || "(empty)")
+    } catch (err: any) {
+      console.error("[BackgroundTask] Failed to refresh output:", err)
+      let errorMsg: string
+      if (err?.message?.includes("ENOENT")) {
+        if (task.status === "running") {
+          errorMsg = "Output file not available yet (task starting...)"
+        } else {
+          errorMsg = "Output file cleaned up (SDK removes files after session)"
+        }
+      } else {
+        errorMsg = "Failed to read output file"
+      }
+      setOutput(errorMsg)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [task.outputFile, trpcUtils])
+
+  const hasOutput = !!task.outputFile
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 py-1.5 group",
-        !isLast && "border-b border-border/30"
+        "group",
+        !isLast && !isExpanded && "border-b border-border/30"
       )}
     >
-      <div className="flex-shrink-0">{statusIcons[task.status]}</div>
-      <span
+      {/* Task row */}
+      <div
         className={cn(
-          "text-xs truncate flex-1",
-          task.status === "completed" || task.status === "stopped"
-            ? "text-muted-foreground"
-            : "text-foreground"
+          "flex items-center gap-2 px-2 py-1.5",
+          hasOutput && "cursor-pointer hover:bg-muted/30"
         )}
+        onClick={hasOutput ? handleToggleOutput : undefined}
       >
-        {task.summary}
-      </span>
-      {task.status === "running" && onKill && (
+        {/* Expand indicator for tasks with output */}
+        {hasOutput && (
+          <ChevronRight
+            className={cn(
+              "h-3 w-3 text-muted-foreground transition-transform flex-shrink-0",
+              isExpanded && "rotate-90"
+            )}
+          />
+        )}
+        <div className="flex-shrink-0">{statusIcons[task.status]}</div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onKill(task.taskId, task.shellId)
-              }}
-              className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+            <span
+              className={cn(
+                "text-xs truncate flex-1 cursor-default",
+                task.status === "completed" || task.status === "stopped"
+                  ? "text-muted-foreground"
+                  : "text-foreground"
+              )}
             >
-              <X className="h-3 w-3" />
-            </button>
+              {task.summary}
+            </span>
           </TooltipTrigger>
-          <TooltipContent side="left">Kill task</TooltipContent>
+          <TooltipContent side="top" className="max-w-[400px] break-all">
+            <p className="font-mono text-xs">{task.command || task.summary}</p>
+            {task.outputFile && (
+              <p className="text-muted-foreground text-[10px] mt-1">
+                Output: {task.outputFile}
+              </p>
+            )}
+          </TooltipContent>
         </Tooltip>
+        {task.status === "running" && onKill && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onKill(task.taskId, task.shellId)
+                }}
+                className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Kill task</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+
+      {/* Output panel */}
+      {isExpanded && (
+        <div className="border-t border-border/30 bg-muted/20">
+          {/* Output header with refresh and terminal buttons */}
+          <div className="flex items-center justify-between px-2 py-1 border-b border-border/20">
+            <span className="text-[10px] text-muted-foreground font-medium">OUTPUT</span>
+            <div className="flex items-center gap-1">
+              {/* Open in terminal button */}
+              {task.outputFile && onOpenInTerminal && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenInTerminal(task.outputFile!)
+                      }}
+                      className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <TerminalIcon className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Open in terminal (tail -f)</TooltipContent>
+                </Tooltip>
+              )}
+              {/* Refresh button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRefreshOutput()
+                }}
+                disabled={isLoading}
+                className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+              </button>
+            </div>
+          </div>
+          {/* Output content */}
+          <pre className="px-2 py-1.5 text-[10px] text-muted-foreground max-h-[150px] overflow-auto whitespace-pre-wrap break-all font-mono">
+            {isLoading && !output ? "Loading..." : output || "No output"}
+          </pre>
+        </div>
       )}
     </div>
   )
@@ -84,6 +253,9 @@ const TaskListItem = memo(function TaskListItem({
  */
 export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   subChatId,
+  chatId,
+  cwd,
+  workspaceId,
   onKillTask,
 }: BackgroundTasksWidgetProps) {
   // Get tasks from the active sub-chat
@@ -92,6 +264,16 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
     [subChatId]
   )
   const [tasks, setTasks] = useAtom(tasksAtom)
+
+  // Terminal state for opening output in terminal
+  const [allTerminals, setAllTerminals] = useAtom(terminalsAtom)
+  const setAllActiveIds = useSetAtom(activeTerminalIdAtom)
+  // Use per-chat terminal sidebar atom
+  const terminalSidebarAtom = useMemo(
+    () => terminalSidebarOpenAtomFamily(chatId || ""),
+    [chatId]
+  )
+  const setTerminalSidebarOpen = useSetAtom(terminalSidebarAtom)
 
   // Expanded/collapsed state
   const [isExpanded, setIsExpanded] = useState(true)
@@ -123,10 +305,128 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
     [setTasks, onKillTask]
   )
 
+  // Open output file in terminal with tail -f
+  const handleOpenInTerminal = useCallback(
+    (outputFile: string) => {
+      if (!chatId || !cwd) return
+
+      const id = generateTerminalId()
+      // Use "run" prefix for task output terminals
+      const paneId = `${chatId}:run:${id}`
+
+      // Get existing terminals for this chat to generate name
+      const existingTerminals = allTerminals[chatId] || []
+      const existingNumbers = existingTerminals
+        .map((t) => {
+          const match = t.name.match(/^Task Output (\d+)$/)
+          return match ? parseInt(match[1], 10) : 0
+        })
+        .filter((n) => n > 0)
+      const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0
+      const name = `Task Output ${maxNumber + 1}`
+
+      // Create as "run" type terminal with tail -f command
+      const newTerminal: TerminalInstance = {
+        id,
+        paneId,
+        name,
+        createdAt: Date.now(),
+        type: "run",
+        runConfig: {
+          scriptName: "tail",
+          command: `tail -f "${outputFile}"`,
+          projectPath: cwd,
+          packageManager: "shell",
+          isDebugMode: false,
+        },
+        status: "running",
+      }
+
+      setAllTerminals((prev) => ({
+        ...prev,
+        [chatId]: [...(prev[chatId] || []), newTerminal],
+      }))
+
+      setAllActiveIds((prev) => ({
+        ...prev,
+        [chatId]: id,
+      }))
+
+      // Open terminal sidebar
+      setTerminalSidebarOpen(true)
+    },
+    [chatId, cwd, allTerminals, setAllTerminals, setAllActiveIds, setTerminalSidebarOpen]
+  )
+
   // Clear completed/stopped/failed tasks
   const handleClearCompleted = useCallback(() => {
     setTasks((prev) => prev.filter((t) => t.status === "running"))
   }, [setTasks])
+
+  // tRPC utils for polling
+  const trpcUtils = trpc.useUtils()
+
+  // Track last file sizes for detecting task completion
+  const lastFileSizes = useRef<Map<string, number>>(new Map())
+  const unchangedCounts = useRef<Map<string, number>>(new Map())
+
+  // Poll running tasks to detect completion
+  // Check if output file size stopped growing (task likely completed)
+  useEffect(() => {
+    const runningWithOutput = tasks.filter(
+      (t) => t.status === "running" && t.outputFile
+    )
+    if (runningWithOutput.length === 0) return
+
+    const pollInterval = setInterval(async () => {
+      for (const task of runningWithOutput) {
+        if (!task.outputFile) continue
+
+        try {
+          const stat = await trpcUtils.files.getFileStat.fetch({
+            path: task.outputFile,
+          })
+
+          if (!stat.exists) {
+            // File doesn't exist yet, reset counter
+            unchangedCounts.current.set(task.taskId, 0)
+            continue
+          }
+
+          const lastSize = lastFileSizes.current.get(task.taskId) ?? -1
+
+          if (stat.size === lastSize && lastSize > 0) {
+            // File size unchanged
+            const count = (unchangedCounts.current.get(task.taskId) ?? 0) + 1
+            unchangedCounts.current.set(task.taskId, count)
+
+            // If file size unchanged for 3 consecutive checks (6 seconds), mark as completed
+            if (count >= 3) {
+              console.log(`[BackgroundTask] Task ${task.taskId} appears completed (file size stable)`)
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.taskId === task.taskId
+                    ? { ...t, status: "completed" as const, completedAt: Date.now() }
+                    : t
+                )
+              )
+              // Clean up tracking
+              lastFileSizes.current.delete(task.taskId)
+              unchangedCounts.current.delete(task.taskId)
+            }
+          } else {
+            // File size changed, task still running
+            lastFileSizes.current.set(task.taskId, stat.size)
+            unchangedCounts.current.set(task.taskId, 0)
+          }
+        } catch (err) {
+          console.error(`[BackgroundTask] Error checking task ${task.taskId}:`, err)
+        }
+      }
+    }, 2000) // Check every 2 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [tasks, trpcUtils, setTasks])
 
   // Calculate stats
   const runningTasks = tasks.filter((t) => t.status === "running")
@@ -244,6 +544,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 task={task}
                 isLast={idx === runningTasks.length - 1 && completedTasks.length === 0}
                 onKill={handleKill}
+                onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
               />
             ))}
             {/* Completed tasks */}
@@ -252,6 +553,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 key={task.taskId}
                 task={task}
                 isLast={idx === completedTasks.length - 1}
+                onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
               />
             ))}
           </div>

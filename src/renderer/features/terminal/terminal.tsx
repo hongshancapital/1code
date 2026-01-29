@@ -300,6 +300,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
     }
 
     // Create or attach to session
+    console.log(`[Terminal] Creating session paneId=${paneId}, initialCommands=`, initialCommands)
     createOrAttachRef.current(
       {
         paneId,
@@ -312,6 +313,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       },
       {
         onSuccess: (result) => {
+          console.log(`[Terminal] Session created, isNew=${result.isNew}`)
           applySerializedState(result.serializedState)
           xterm.focus()
         },

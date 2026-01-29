@@ -60,6 +60,7 @@ export type UIMessageChunk =
       status: "running" | "completed" | "failed" | "stopped"
       outputFile?: string
       summary: string
+      command?: string // The original Bash command
     }
 
 export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"

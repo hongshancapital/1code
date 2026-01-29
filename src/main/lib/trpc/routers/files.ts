@@ -446,6 +446,38 @@ export const filesRouter = router({
     }),
 
   /**
+   * Get file stats (existence, size, mtime)
+   * Used to check if a file exists and when it was last modified
+   */
+  getFileStat: publicProcedure
+    .input(
+      z.object({
+        path: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        const fileStat = await stat(input.path)
+        return {
+          exists: true,
+          isFile: fileStat.isFile(),
+          size: fileStat.size,
+          mtime: fileStat.mtime.getTime(),
+        }
+      } catch (error: any) {
+        if (error?.code === "ENOENT") {
+          return {
+            exists: false,
+            isFile: false,
+            size: 0,
+            mtime: 0,
+          }
+        }
+        throw error
+      }
+    }),
+
+  /**
    * Write pasted text to a file in the session's pasted directory
    * Used for large text pastes that shouldn't be embedded inline
    */
