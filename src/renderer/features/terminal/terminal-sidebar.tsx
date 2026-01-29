@@ -420,11 +420,17 @@ export function TerminalSidebar({
             >
               <Terminal
                 paneId={activeTerminal.paneId}
-                cwd={cwd}
+                cwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
                 workspaceId={workspaceId}
                 tabId={tabId}
-                initialCommands={initialCommands}
-                initialCwd={cwd}
+                initialCommands={activeTerminal.type === "run" && activeTerminal.runConfig
+                  ? [activeTerminal.runConfig.command]
+                  : initialCommands}
+                initialCwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
               />
             </motion.div>
           ) : (
@@ -513,11 +519,17 @@ export function TerminalSidebar({
             >
               <Terminal
                 paneId={activeTerminal.paneId}
-                cwd={cwd}
+                cwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
                 workspaceId={workspaceId}
                 tabId={tabId}
-                initialCommands={initialCommands}
-                initialCwd={cwd}
+                initialCommands={activeTerminal.type === "run" && activeTerminal.runConfig
+                  ? [activeTerminal.runConfig.command]
+                  : initialCommands}
+                initialCwd={activeTerminal.type === "run" && activeTerminal.runConfig?.projectPath
+                  ? activeTerminal.runConfig.projectPath
+                  : cwd}
               />
             </motion.div>
           ) : (
