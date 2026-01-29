@@ -204,6 +204,9 @@ import { AgentsHeaderControls } from "../ui/agents-header-controls"
 import { ChatTitleEditor } from "../ui/chat-title-editor"
 import { MobileChatHeader } from "../ui/mobile-chat-header"
 import { QuickCommentInput } from "../ui/quick-comment-input"
+import { DocumentCommentInput } from "../ui/document-comment-input"
+import { useDocumentComments } from "../hooks/use-document-comments"
+import { commentInputStateAtom, type CommentInputState, type DocumentType } from "../atoms/review-atoms"
 import { SubChatSelector } from "../ui/sub-chat-selector"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
@@ -2222,6 +2225,10 @@ const ChatViewInner = memo(function ChatViewInner({
     rect: DOMRect
   } | null>(null)
 
+  // Document comment state for review system
+  const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
+  const { addComment } = useDocumentComments(parentChatId)
+
   // Message queue for sending messages while streaming
   const queue = useMessageQueueStore((s) => s.queues[subChatId] ?? EMPTY_QUEUE)
   const addToQueue = useMessageQueueStore((s) => s.addToQueue)
@@ -2412,6 +2419,83 @@ const ChatViewInner = memo(function ChatViewInner({
   const handleQuickCommentCancel = useCallback(() => {
     setQuickCommentState(null)
   }, [])
+
+  // Handler for document comment (review system)
+  const handleAddComment = useCallback((
+    text: string,
+    source: TextSelectionSource,
+    rect: DOMRect,
+    charStart?: number | null,
+    charLength?: number | null,
+    lineStart?: number | null,
+    lineEnd?: number | null
+  ) => {
+    // Map TextSelectionSource to DocumentType
+    let documentType: DocumentType
+    let documentPath: string
+    let lineType: "old" | "new" | undefined
+
+    // Use passed lineStart/lineEnd, but for diff also check source.lineNumber
+    let finalLineStart = lineStart ?? undefined
+    let finalLineEnd = lineEnd ?? undefined
+
+    if (source.type === "plan") {
+      documentType = "plan"
+      documentPath = source.planPath
+    } else if (source.type === "diff") {
+      documentType = "diff"
+      documentPath = source.filePath
+      // For diff, prefer source.lineNumber if available (more accurate from DOM)
+      if (source.lineNumber) {
+        finalLineStart = source.lineNumber
+        // If we don't have lineEnd, use lineStart
+        if (!finalLineEnd) finalLineEnd = finalLineStart
+      }
+      lineType = source.lineType
+    } else if (source.type === "tool-edit") {
+      documentType = "tool-edit"
+      documentPath = source.filePath
+    } else {
+      return // Don't handle assistant-message type for comments
+    }
+
+    setCommentInputState({
+      selectedText: text,
+      documentType,
+      documentPath,
+      lineStart: finalLineStart,
+      lineEnd: finalLineEnd,
+      lineType,
+      charStart: charStart ?? undefined,
+      charLength: charLength ?? undefined,
+      rect,
+    })
+  }, [setCommentInputState])
+
+  // Handler for document comment submit
+  const handleCommentSubmit = useCallback((content: string) => {
+    if (!commentInputState) return
+
+    addComment({
+      documentType: commentInputState.documentType,
+      documentPath: commentInputState.documentPath,
+      selectedText: commentInputState.selectedText,
+      content,
+      lineStart: commentInputState.lineStart,
+      lineEnd: commentInputState.lineEnd,
+      lineType: commentInputState.lineType,
+      charStart: commentInputState.charStart,
+      charLength: commentInputState.charLength,
+    })
+
+    setCommentInputState(null)
+    window.getSelection()?.removeAllRanges()
+  }, [commentInputState, addComment, setCommentInputState])
+
+  // Handler for document comment cancel
+  const handleCommentCancel = useCallback(() => {
+    setCommentInputState(null)
+  }, [setCommentInputState])
 
   // Sync loading status to atom for UI indicators
   // When streaming starts, set loading. When it stops, clear loading.
@@ -4100,6 +4184,7 @@ const ChatViewInner = memo(function ChatViewInner({
         <TextSelectionPopover
           onAddToContext={addTextContext}
           onQuickComment={handleQuickComment}
+          onAddComment={handleAddComment}
           onFocusInput={handleFocusInput}
         />
 
@@ -4111,6 +4196,21 @@ const ChatViewInner = memo(function ChatViewInner({
             rect={quickCommentState.rect}
             onSubmit={handleQuickCommentSubmit}
             onCancel={handleQuickCommentCancel}
+          />
+        )}
+
+        {/* Document comment input for review system */}
+        {commentInputState && (
+          <DocumentCommentInput
+            selectedText={commentInputState.selectedText}
+            documentType={commentInputState.documentType}
+            documentPath={commentInputState.documentPath}
+            lineStart={commentInputState.lineStart}
+            lineEnd={commentInputState.lineEnd}
+            lineType={commentInputState.lineType}
+            rect={commentInputState.rect}
+            onSubmit={handleCommentSubmit}
+            onCancel={handleCommentCancel}
           />
         )}
 
@@ -5470,6 +5570,57 @@ export function ChatView({
     }
   }, [chatId, activeSubChatId, setPendingReviewMessage, setFilteredSubChatId])
 
+  // Review system - document comments for plan sidebar
+  const { comments: reviewComments, commentsByDocument, clearComments } = useDocumentComments(chatId)
+
+  // Handler for submitting review from plan sidebar (document comments)
+  const handleSubmitReview = useCallback((summary: string) => {
+    if (reviewComments.length === 0) {
+      toast.error("No comments to submit")
+      return
+    }
+
+    // Build review message
+    const messageParts: string[] = []
+    messageParts.push("## Review\n")
+
+    // Only show Summary section if there's a summary message
+    if (summary.trim()) {
+      messageParts.push(`### Summary\n${summary.trim()}\n`)
+      messageParts.push("\n### Comments\n")
+    }
+
+    // Group comments by document
+    for (const [path, docComments] of Object.entries(commentsByDocument)) {
+      for (const comment of docComments) {
+        // Format: **filename:L12-34**
+        const fileName = path.split("/").pop() || path
+        const lineRange = comment.anchor.lineStart
+          ? comment.anchor.lineEnd && comment.anchor.lineEnd !== comment.anchor.lineStart
+            ? `:L${comment.anchor.lineStart}-${comment.anchor.lineEnd}`
+            : `:L${comment.anchor.lineStart}`
+          : ""
+        messageParts.push(`\n**${fileName}${lineRange}**\n`)
+
+        // Quote the selected text
+        const quoteText = comment.anchor.selectedText.slice(0, 100)
+        const truncated = comment.anchor.selectedText.length > 100 ? "..." : ""
+        messageParts.push(`\n> ${quoteText}${truncated}\n`)
+
+        // Comment content
+        messageParts.push(`\n${comment.content}\n`)
+      }
+    }
+
+    const message = messageParts.join("")
+
+    // Set pending review message - will be picked up by ChatViewInner
+    setPendingReviewMessage(message)
+
+    // Clear comments after submission
+    clearComments()
+  }, [reviewComments, commentsByDocument, clearComments, setPendingReviewMessage])
+
   // Handle Fix Conflicts - sends a message to Claude to sync with main and fix merge conflicts
   const setPendingConflictResolutionMessage = useSetAtom(pendingConflictResolutionMessageAtom)
 
@@ -6825,12 +6976,14 @@ Make sure to preserve all functionality from both branches when resolving confli
             style={{ borderLeftWidth: "0.5px" }}
           >
             <AgentPlanSidebar
-              chatId={activeSubChatIdForPlan}
+              chatId={chatId}
+              subChatId={activeSubChatIdForPlan || ""}
               planPath={currentPlanPath}
               onClose={() => setIsPlanSidebarOpen(false)}
               onBuildPlan={handleApprovePlanFromSidebar}
               refetchTrigger={planEditRefetchTrigger}
               mode={currentMode}
+              onSubmitReview={handleSubmitReview}
             />
           </ResizableSidebar>
         )}

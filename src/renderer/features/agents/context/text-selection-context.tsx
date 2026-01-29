@@ -22,6 +22,12 @@ export interface TextSelectionState {
   selectedText: string | null
   source: TextSelectionSource | null
   selectionRect: DOMRect | null
+  // Character position info for precise highlighting
+  charStart: number | null
+  charLength: number | null
+  // Line information calculated from selection
+  lineStart: number | null
+  lineEnd: number | null
 }
 
 interface TextSelectionContextValue extends TextSelectionState {
@@ -52,6 +58,36 @@ export function useTextSelection(): TextSelectionContextValue {
 
 interface TextSelectionProviderProps {
   children: ReactNode
+}
+
+// Helper to calculate character offset and line numbers within a container
+function calculateSelectionPosition(
+  container: HTMLElement,
+  range: Range
+): { charStart: number; charLength: number; lineStart: number; lineEnd: number } {
+  // Create a range from the start of container to the start of selection
+  const preSelectionRange = document.createRange()
+  preSelectionRange.selectNodeContents(container)
+  preSelectionRange.setEnd(range.startContainer, range.startOffset)
+
+  // Get the text content before the selection to calculate charStart
+  const preSelectionText = preSelectionRange.toString()
+  const charStart = preSelectionText.length
+
+  // charLength is the length of the selected text
+  const selectedText = range.toString()
+  const charLength = selectedText.length
+
+  // Calculate line numbers (1-indexed)
+  // Count newlines in the text before selection to get lineStart
+  const newlinesBefore = (preSelectionText.match(/\n/g) || []).length
+  const lineStart = newlinesBefore + 1
+
+  // Count newlines in the selected text to get lineEnd
+  const newlinesInSelection = (selectedText.match(/\n/g) || []).length
+  const lineEnd = lineStart + newlinesInSelection
+
+  return { charStart, charLength, lineStart, lineEnd }
 }
 
 // Helper to extract line number from diff selection
@@ -148,14 +184,20 @@ function extractDiffLineInfo(element: Element): { lineNumber?: number; lineType?
   return { lineNumber, lineType }
 }
 
+const emptyState: TextSelectionState = {
+  selectedText: null,
+  source: null,
+  selectionRect: null,
+  charStart: null,
+  charLength: null,
+  lineStart: null,
+  lineEnd: null,
+}
+
 export function TextSelectionProvider({
   children,
 }: TextSelectionProviderProps) {
-  const [state, setState] = useState<TextSelectionState>({
-    selectedText: null,
-    source: null,
-    selectionRect: null,
-  })
+  const [state, setState] = useState<TextSelectionState>(emptyState)
   const [isLocked, setIsLocked] = useState(false)
   const isLockedRef = useRef(false)
 
@@ -166,11 +208,7 @@ export function TextSelectionProvider({
 
   const clearSelection = useCallback(() => {
     window.getSelection()?.removeAllRanges()
-    setState({
-      selectedText: null,
-      source: null,
-      selectionRect: null,
-    })
+    setState(emptyState)
     setIsLocked(false)
   }, [])
 
@@ -203,21 +241,13 @@ export function TextSelectionProvider({
 
         // No selection or collapsed (just cursor)
         if (!selection || selection.isCollapsed) {
-          setState({
-            selectedText: null,
-            source: null,
-            selectionRect: null,
-          })
+          setState(emptyState)
           return
         }
 
         const text = selection.toString().trim()
         if (!text) {
-          setState({
-            selectedText: null,
-            source: null,
-            selectionRect: null,
-          })
+          setState(emptyState)
           return
         }
 
@@ -304,21 +334,46 @@ export function TextSelectionProvider({
 
         // Selection is not within a supported element
         if (!source) {
-          setState({
-            selectedText: null,
-            source: null,
-            selectionRect: null,
-          })
+          setState(emptyState)
           return
         }
 
         // Get the bounding rect of the selection
         const rect = range.getBoundingClientRect()
 
+        // Calculate character position and line numbers within the source container
+        // Find the container element for the source
+        let sourceContainer: HTMLElement | null = null
+        if (source.type === "plan") {
+          sourceContainer = planElement
+        } else if (source.type === "tool-edit") {
+          sourceContainer = toolEditElement
+        } else if (source.type === "diff") {
+          sourceContainer = diffWrapperElement
+        }
+
+        let charStart: number | null = null
+        let charLength: number | null = null
+        let lineStart: number | null = null
+        let lineEnd: number | null = null
+
+        if (sourceContainer) {
+          // Calculate character offset and line numbers from the start of the container
+          const posInfo = calculateSelectionPosition(sourceContainer, range)
+          charStart = posInfo.charStart
+          charLength = posInfo.charLength
+          lineStart = posInfo.lineStart
+          lineEnd = posInfo.lineEnd
+        }
+
         setState({
           selectedText: text,
           source,
           selectionRect: rect,
+          charStart,
+          charLength,
+          lineStart,
+          lineEnd,
         })
       })
     }
