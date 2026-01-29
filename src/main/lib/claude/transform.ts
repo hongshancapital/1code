@@ -213,7 +213,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         yield {
           type: "tool-input-start",
           toolCallId: currentToolCallId,
-          toolName: currentToolName,
+          toolName: currentToolName || "unknown",
         }
       }
 

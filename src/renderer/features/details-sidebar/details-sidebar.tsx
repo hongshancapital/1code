@@ -437,6 +437,9 @@ export function DetailsSidebar({
                   <BackgroundTasksWidget
                     key="background-tasks"
                     subChatId={activeSubChatId || null}
+                    chatId={chatId}
+                    cwd={worktreePath || undefined}
+                    workspaceId={chatId}
                   />
                 )
 

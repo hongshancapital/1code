@@ -1,8 +1,8 @@
 "use client"
 
 import { memo, useMemo, useState, useCallback } from "react"
-import { useAtom, useAtomValue } from "jotai"
-import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw } from "lucide-react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
 import {
@@ -16,10 +16,22 @@ import {
 } from "@/features/agents/atoms/background-tasks"
 import type { BackgroundTask, BackgroundTaskStatus } from "@/features/agents/types/background-task"
 import { trpc } from "@/lib/trpc"
+import {
+  terminalsAtom,
+  activeTerminalIdAtom,
+  terminalSidebarOpenAtom,
+} from "@/features/terminal/atoms"
+import type { TerminalInstance } from "@/features/terminal/types"
 
 interface BackgroundTasksWidgetProps {
   /** Active sub-chat ID to get tasks from */
   subChatId: string | null
+  /** Chat ID for terminal scoping */
+  chatId?: string
+  /** Current working directory */
+  cwd?: string
+  /** Workspace ID for terminal */
+  workspaceId?: string
   /** Callback to kill a background task */
   onKillTask?: (taskId: string, shellId: string) => void
 }
@@ -31,14 +43,24 @@ const statusIcons: Record<BackgroundTaskStatus, React.ReactNode> = {
   stopped: <StopCircle className="h-3.5 w-3.5 text-muted-foreground" />,
 }
 
+function generateTerminalId(): string {
+  return crypto.randomUUID().slice(0, 8)
+}
+
+function generatePaneId(chatId: string, terminalId: string): string {
+  return `${chatId}:term:${terminalId}`
+}
+
 const TaskListItem = memo(function TaskListItem({
   task,
   isLast,
   onKill,
+  onOpenInTerminal,
 }: {
   task: BackgroundTask
   isLast: boolean
   onKill?: (taskId: string, shellId: string) => void
+  onOpenInTerminal?: (outputFile: string) => void
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
@@ -57,10 +79,10 @@ const TaskListItem = memo(function TaskListItem({
 
     setIsLoading(true)
     try {
-      const result = await trpcUtils.files.readFile.fetch({
+      const content = await trpcUtils.files.readFile.fetch({
         path: task.outputFile,
       })
-      setOutput(result.content || "(empty)")
+      setOutput(content || "(empty)")
       setIsExpanded(true)
     } catch (err: any) {
       console.error("[BackgroundTask] Failed to read output:", err)
@@ -88,10 +110,10 @@ const TaskListItem = memo(function TaskListItem({
 
     setIsLoading(true)
     try {
-      const result = await trpcUtils.files.readFile.fetch({
+      const content = await trpcUtils.files.readFile.fetch({
         path: task.outputFile,
       })
-      setOutput(result.content || "(empty)")
+      setOutput(content || "(empty)")
     } catch (err: any) {
       console.error("[BackgroundTask] Failed to refresh output:", err)
       let errorMsg: string
@@ -180,19 +202,39 @@ const TaskListItem = memo(function TaskListItem({
       {/* Output panel */}
       {isExpanded && (
         <div className="border-t border-border/30 bg-muted/20">
-          {/* Output header with refresh button */}
+          {/* Output header with refresh and terminal buttons */}
           <div className="flex items-center justify-between px-2 py-1 border-b border-border/20">
             <span className="text-[10px] text-muted-foreground font-medium">OUTPUT</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleRefreshOutput()
-              }}
-              disabled={isLoading}
-              className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Open in terminal button */}
+              {task.outputFile && onOpenInTerminal && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenInTerminal(task.outputFile!)
+                      }}
+                      className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <TerminalIcon className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Open in terminal (tail -f)</TooltipContent>
+                </Tooltip>
+              )}
+              {/* Refresh button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRefreshOutput()
+                }}
+                disabled={isLoading}
+                className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+              </button>
+            </div>
           </div>
           {/* Output content */}
           <pre className="px-2 py-1.5 text-[10px] text-muted-foreground max-h-[150px] overflow-auto whitespace-pre-wrap break-all font-mono">
@@ -211,6 +253,9 @@ const TaskListItem = memo(function TaskListItem({
  */
 export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   subChatId,
+  chatId,
+  cwd,
+  workspaceId,
   onKillTask,
 }: BackgroundTasksWidgetProps) {
   // Get tasks from the active sub-chat
@@ -219,6 +264,11 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
     [subChatId]
   )
   const [tasks, setTasks] = useAtom(tasksAtom)
+
+  // Terminal state for opening output in terminal
+  const [allTerminals, setAllTerminals] = useAtom(terminalsAtom)
+  const setAllActiveIds = useSetAtom(activeTerminalIdAtom)
+  const setTerminalSidebarOpen = useSetAtom(terminalSidebarOpenAtom)
 
   // Expanded/collapsed state
   const [isExpanded, setIsExpanded] = useState(true)
@@ -248,6 +298,59 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
       onKillTask?.(taskId, shellId)
     },
     [setTasks, onKillTask]
+  )
+
+  // Open output file in terminal with tail -f
+  const handleOpenInTerminal = useCallback(
+    (outputFile: string) => {
+      if (!chatId || !cwd) return
+
+      const id = generateTerminalId()
+      // Use "run" prefix for task output terminals
+      const paneId = `${chatId}:run:${id}`
+
+      // Get existing terminals for this chat to generate name
+      const existingTerminals = allTerminals[chatId] || []
+      const existingNumbers = existingTerminals
+        .map((t) => {
+          const match = t.name.match(/^Task Output (\d+)$/)
+          return match ? parseInt(match[1], 10) : 0
+        })
+        .filter((n) => n > 0)
+      const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0
+      const name = `Task Output ${maxNumber + 1}`
+
+      // Create as "run" type terminal with tail -f command
+      const newTerminal: TerminalInstance = {
+        id,
+        paneId,
+        name,
+        createdAt: Date.now(),
+        type: "run",
+        runConfig: {
+          scriptName: "tail",
+          command: `tail -f "${outputFile}"`,
+          projectPath: cwd,
+          packageManager: "shell",
+          isDebugMode: false,
+        },
+        status: "running",
+      }
+
+      setAllTerminals((prev) => ({
+        ...prev,
+        [chatId]: [...(prev[chatId] || []), newTerminal],
+      }))
+
+      setAllActiveIds((prev) => ({
+        ...prev,
+        [chatId]: id,
+      }))
+
+      // Open terminal sidebar
+      setTerminalSidebarOpen(true)
+    },
+    [chatId, cwd, allTerminals, setAllTerminals, setAllActiveIds, setTerminalSidebarOpen]
   )
 
   // Clear completed/stopped/failed tasks
@@ -371,6 +474,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 task={task}
                 isLast={idx === runningTasks.length - 1 && completedTasks.length === 0}
                 onKill={handleKill}
+                onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
               />
             ))}
             {/* Completed tasks */}
@@ -379,6 +483,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 key={task.taskId}
                 task={task}
                 isLast={idx === completedTasks.length - 1}
+                onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
               />
             ))}
           </div>
