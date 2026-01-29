@@ -211,6 +211,11 @@ import { autoRenameAgentChat } from "../utils/auto-rename"
 import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } from "../utils/pr-message"
 import { ChatInputArea } from "./chat-input-area"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
+import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
+import { expandedWidgetAtomFamily } from "../../details-sidebar/atoms"
+import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
+import { explorerPanelOpenAtomFamily } from "../atoms"
+import type { ProjectMode } from "../../../../shared/feature-config"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())

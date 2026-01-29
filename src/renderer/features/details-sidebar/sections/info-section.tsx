@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useState, useCallback, useEffect } from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
@@ -9,6 +9,8 @@ import {
   ExternalLinkIcon,
 } from "@/components/ui/icons"
 import { Kbd } from "@/components/ui/kbd"
+import { WandSparkles } from "lucide-react"
+import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
   TooltipContent,
@@ -184,28 +186,6 @@ export const InfoSection = memo(function InfoSection({
   // Mutations
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
   const openInAppMutation = trpc.external.openInApp.useMutation()
-
-  // Mutation to open in editor
-  const openInEditorMutation = trpc.editor.openWithEditor.useMutation()
-
-  // Get editor config
-  const editorConfig = useAtomValue(editorConfigAtom)
-
-  // Detect installed editors
-  const { data: detectedEditors } = trpc.editor.detectEditors.useQuery()
-
-  // Determine active editor (configured or first installed)
-  const configuredEditorId = editorConfig.defaultEditor
-  const configuredEditor = configuredEditorId
-    ? detectedEditors?.find((e) => e.id === configuredEditorId && e.installed)
-    : null
-  const firstInstalledEditor = detectedEditors?.find((e) => e.installed)
-  const activeEditor = configuredEditor || firstInstalledEditor
-
-  // Dynamic editor icon - use specific icon if editor detected, generic otherwise (will use system default)
-  const EditorIcon = activeEditor
-    ? getEditorIcon(activeEditor.id)
-    : GenericEditorIcon
 
   // Check if this is a remote sandbox chat (no local worktree)
   const isRemoteChat = !worktreePath && !!remoteInfo
@@ -392,39 +372,18 @@ Please suggest a new branch name.`
         />
       )}
       {/* Path - only for local chats */}
+      {/* Path - for local chats */}
       {worktreePath && (
-        <div className="flex items-center gap-1">
-          <div className="flex-1 min-w-0">
-            <PropertyRow
-              icon={FolderFilledIcon}
-              label="Path"
-              value={folderName}
-              title={worktreePath}
-              onClick={handleOpenFolder}
-              tooltip="Open in Finder"
-            />
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 flex-shrink-0"
-                onClick={handleOpenInEditor}
-                disabled={openInEditorMutation.isPending}
-              >
-                <EditorIcon className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              {activeEditor
-                ? `Open in ${activeEditor.name}`
-                : "Open in default editor"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        <PropertyRow
+          icon={FolderFilledIcon}
+          label="Path"
+          value={folderName}
+          title={worktreePath}
+          onClick={handleOpenFolder}
+          tooltip="Open in Finder"
+        />
       )}
-      {/* Open in Editor - only for actual git worktrees (under ~/.21st/worktrees/) */}
+      {/* Open in Editor - only for actual git worktrees (under ~/.hong/worktrees/) */}
       {isWorktree && (
         <div className="flex items-center min-h-[28px]">
           <div className="flex items-center gap-1.5 w-[100px] flex-shrink-0">
