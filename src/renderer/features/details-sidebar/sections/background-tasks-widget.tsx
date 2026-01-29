@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useMemo, useState, useCallback } from "react"
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -362,6 +362,71 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   const handleClearCompleted = useCallback(() => {
     setTasks((prev) => prev.filter((t) => t.status === "running"))
   }, [setTasks])
+
+  // tRPC utils for polling
+  const trpcUtils = trpc.useUtils()
+
+  // Track last file sizes for detecting task completion
+  const lastFileSizes = useRef<Map<string, number>>(new Map())
+  const unchangedCounts = useRef<Map<string, number>>(new Map())
+
+  // Poll running tasks to detect completion
+  // Check if output file size stopped growing (task likely completed)
+  useEffect(() => {
+    const runningWithOutput = tasks.filter(
+      (t) => t.status === "running" && t.outputFile
+    )
+    if (runningWithOutput.length === 0) return
+
+    const pollInterval = setInterval(async () => {
+      for (const task of runningWithOutput) {
+        if (!task.outputFile) continue
+
+        try {
+          const stat = await trpcUtils.files.getFileStat.fetch({
+            path: task.outputFile,
+          })
+
+          if (!stat.exists) {
+            // File doesn't exist yet, reset counter
+            unchangedCounts.current.set(task.taskId, 0)
+            continue
+          }
+
+          const lastSize = lastFileSizes.current.get(task.taskId) ?? -1
+
+          if (stat.size === lastSize && lastSize > 0) {
+            // File size unchanged
+            const count = (unchangedCounts.current.get(task.taskId) ?? 0) + 1
+            unchangedCounts.current.set(task.taskId, count)
+
+            // If file size unchanged for 3 consecutive checks (6 seconds), mark as completed
+            if (count >= 3) {
+              console.log(`[BackgroundTask] Task ${task.taskId} appears completed (file size stable)`)
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.taskId === task.taskId
+                    ? { ...t, status: "completed" as const, completedAt: Date.now() }
+                    : t
+                )
+              )
+              // Clean up tracking
+              lastFileSizes.current.delete(task.taskId)
+              unchangedCounts.current.delete(task.taskId)
+            }
+          } else {
+            // File size changed, task still running
+            lastFileSizes.current.set(task.taskId, stat.size)
+            unchangedCounts.current.set(task.taskId, 0)
+          }
+        } catch (err) {
+          console.error(`[BackgroundTask] Error checking task ${task.taskId}:`, err)
+        }
+      }
+    }, 2000) // Check every 2 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [tasks, trpcUtils, setTasks])
 
   // Calculate stats
   const runningTasks = tasks.filter((t) => t.status === "running")
