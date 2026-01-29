@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { devNull, homedir } from "node:os";
 import { join } from "node:path";
@@ -896,11 +897,86 @@ export interface WorktreeResult {
 }
 
 /**
+ * Sanitize a custom branch name to be used as a folder name
+ * Converts to lowercase, removes invalid chars, and ensures it's filesystem-safe
+ */
+export function sanitizeBranchNameForFolder(name: string): string {
+	return name
+		.toLowerCase()
+		.replace(/[^a-z0-9\-_]/g, "-") // Replace invalid chars with dash
+		.replace(/-+/g, "-") // Collapse multiple dashes
+		.replace(/^-|-$/g, "") // Trim leading/trailing dashes
+		.slice(0, 50); // Limit length
+}
+
+/**
+ * Validate a git branch name according to git-check-ref-format rules
+ * Returns true if the branch name is valid, false otherwise
+ * @see https://git-scm.com/docs/git-check-ref-format
+ */
+export function isValidBranchName(name: string): { valid: boolean; error?: string } {
+	if (!name || name.trim().length === 0) {
+		return { valid: false, error: "Branch name cannot be empty" };
+	}
+
+	const trimmed = name.trim();
+
+	// Cannot begin with a dot
+	if (trimmed.startsWith(".")) {
+		return { valid: false, error: "Cannot start with ." };
+	}
+
+	// Cannot end with .lock
+	if (trimmed.endsWith(".lock")) {
+		return { valid: false, error: "Cannot end with .lock" };
+	}
+
+	// Cannot contain .. (double dot)
+	if (trimmed.includes("..")) {
+		return { valid: false, error: "Cannot contain .." };
+	}
+
+	// Cannot contain control characters, space, ~, ^, :, ?, *, [, \, or DEL
+	if (/[\x00-\x1f\x7f ~^:?*\[\]\\]/.test(trimmed)) {
+		return { valid: false, error: "Contains invalid characters" };
+	}
+
+	// Cannot begin or end with a slash
+	if (trimmed.startsWith("/") || trimmed.endsWith("/")) {
+		return { valid: false, error: "Cannot start or end with /" };
+	}
+
+	// Cannot contain consecutive slashes
+	if (trimmed.includes("//")) {
+		return { valid: false, error: "Cannot contain //" };
+	}
+
+	// Cannot end with a dot
+	if (trimmed.endsWith(".")) {
+		return { valid: false, error: "Cannot end with ." };
+	}
+
+	// Cannot contain @{
+	if (trimmed.includes("@{")) {
+		return { valid: false, error: "Cannot contain @{" };
+	}
+
+	// Cannot be the single character @
+	if (trimmed === "@") {
+		return { valid: false, error: "Cannot be just @" };
+	}
+
+	return { valid: true };
+}
+
+/**
  * Create a git worktree for a chat (wrapper for chats.ts)
  * @param projectPath - Path to the main repository
  * @param projectSlug - Sanitized project name for worktree directory
  * @param chatId - Chat ID (used for logging)
  * @param selectedBaseBranch - Optional branch to base the worktree off (defaults to auto-detected default branch)
+ * @param branchType - Whether the base branch is local or remote
+ * @param customBranchName - Optional custom branch name (if not provided, auto-generated)
  */
 export async function createWorktreeForChat(
 	projectPath: string,
@@ -908,6 +984,7 @@ export async function createWorktreeForChat(
 	chatId: string,
 	selectedBaseBranch?: string,
 	branchType?: "local" | "remote",
+	customBranchName?: string,
 ): Promise<WorktreeResult> {
 	try {
 		const git = simpleGit(projectPath);
@@ -920,10 +997,27 @@ export async function createWorktreeForChat(
 		// Use provided base branch or auto-detect
 		const baseBranch = selectedBaseBranch || await getDefaultBranch(projectPath);
 
-		const branch = generateBranchName();
+		// Use custom branch name if provided, otherwise generate one
+		const branch = customBranchName?.trim() || generateBranchName();
+
 		const worktreesDir = join(homedir(), ".hong", "worktrees");
 		const projectWorktreeDir = join(worktreesDir, projectSlug);
-		const folderName = generateWorktreeFolderName(projectWorktreeDir);
+
+		// Generate folder name: use sanitized custom branch name, or random name
+		let folderName: string;
+		if (customBranchName?.trim()) {
+			const sanitized = sanitizeBranchNameForFolder(customBranchName);
+			// Check if directory already exists, add suffix if needed
+			const baseFolderPath = join(projectWorktreeDir, sanitized);
+			if (existsSync(baseFolderPath)) {
+				folderName = `${sanitized}-${randomBytes(3).toString("hex")}`;
+			} else {
+				folderName = sanitized;
+			}
+		} else {
+			folderName = generateWorktreeFolderName(projectWorktreeDir);
+		}
+
 		const worktreePath = join(projectWorktreeDir, folderName);
 
 		// Determine startPoint based on branch type

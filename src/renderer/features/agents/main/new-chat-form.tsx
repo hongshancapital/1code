@@ -1,6 +1,5 @@
 "use client"
 
-import { useVirtualizer } from "@tanstack/react-virtual"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { AlignJustify, Plus, Zap } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -28,6 +27,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../../../components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog"
 import { cn } from "../../../lib/utils"
 import {
   agentsDebugModeAtom,
@@ -49,7 +56,7 @@ import {
 import { defaultAgentModeAtom } from "../../../lib/atoms"
 import { ProjectSelector } from "../components/project-selector"
 import { ProjectModeToggle, ProjectModeToggleWithSlogan } from "../components/project-mode-selector"
-import { WorkModeSelector } from "../components/work-mode-selector"
+import { BranchModeSelector } from "../components/branch-mode-selector"
 // import { selectedTeamIdAtom } from "@/lib/atoms/team"
 import { atom } from "jotai"
 const selectedTeamIdAtom = atom<string | null>(null)
@@ -94,7 +101,6 @@ import { AgentImageItem } from "../ui/agent-image-item"
 import { AgentPastedTextItem } from "../ui/agent-pasted-text-item"
 import { AgentsHeaderControls } from "../ui/agents-header-controls"
 import { VoiceWaveIndicator } from "../ui/voice-wave-indicator"
-// import { CreateBranchDialog } from "@/app/(alpha)/agents/{components}/create-branch-dialog"
 import {
   PromptInput,
   PromptInputActions,
@@ -102,7 +108,6 @@ import {
 } from "../../../components/ui/prompt-input"
 import { agentsSidebarOpenAtom, agentsUnseenChangesAtom } from "../atoms"
 import { AgentSendButton } from "../components/agent-send-button"
-import { CreateBranchDialog } from "../components/create-branch-dialog"
 import { formatTimeAgo } from "../utils/format-time-ago"
 import { handlePasteEvent } from "../utils/paste-text"
 import {
@@ -255,7 +260,6 @@ export function NewChatForm({
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
   const [repoSearchQuery, setRepoSearchQuery] = useState("")
-  const [createBranchDialogOpen, setCreateBranchDialogOpen] = useState(false)
 
   // Worktree config banner state
   const [worktreeBannerDismissed, setWorktreeBannerDismissed] = useState(() => {
@@ -324,14 +328,47 @@ export function NewChatForm({
   // Determine current Ollama model (selected or recommended)
   const currentOllamaModel = selectedOllamaModel || availableModels.recommendedModel || availableModels.ollamaModels[0]
   const [repoPopoverOpen, setRepoPopoverOpen] = useState(false)
-  const [branchPopoverOpen, setBranchPopoverOpen] = useState(false)
   const [lastSelectedBranches, setLastSelectedBranches] = useAtom(
     lastSelectedBranchesAtom,
   )
-  const [branchSearch, setBranchSearch] = useState("")
   const [selectedBranchType, setSelectedBranchType] = useState<
     "local" | "remote" | undefined
   >(undefined)
+
+  // Custom branch name state
+  const [customBranchName, setCustomBranchName] = useState("")
+  const [branchNameError, setBranchNameError] = useState<string | null>(null)
+
+  // Pull branch state (for worktree creation)
+  const [pullStatus, setPullStatus] = useState<string | null>(null)
+  const [pullFailedDialog, setPullFailedDialog] = useState<{
+    open: boolean
+    message: string
+    resolve?: (continueCreate: boolean) => void
+  } | null>(null)
+  const pullBranchMutation = trpc.changes.pullBranch.useMutation()
+
+  // Validate branch name (simplified client-side validation)
+  const validateBranchName = useCallback((name: string): string | null => {
+    if (!name || name.trim().length === 0) return null // Empty is ok (will auto-generate)
+    const trimmed = name.trim()
+    if (trimmed.startsWith(".")) return "Cannot start with ."
+    if (trimmed.endsWith(".lock")) return "Cannot end with .lock"
+    if (trimmed.includes("..")) return "Cannot contain .."
+    if (/[\x00-\x1f\x7f ~^:?*\[\]\\]/.test(trimmed)) return "Contains invalid characters"
+    if (trimmed.startsWith("/") || trimmed.endsWith("/")) return "Cannot start or end with /"
+    if (trimmed.includes("//")) return "Cannot contain //"
+    if (trimmed.endsWith(".")) return "Cannot end with ."
+    if (trimmed.includes("@{")) return "Cannot contain @{"
+    if (trimmed === "@") return "Cannot be just @"
+    return null
+  }, [])
+
+  const handleCustomBranchNameChange = useCallback((value: string) => {
+    setCustomBranchName(value)
+    const error = validateBranchName(value)
+    setBranchNameError(error)
+  }, [validateBranchName])
 
   // Get/set selected branch for current project (persisted per project)
   const selectedBranch = validatedProject?.id
@@ -349,7 +386,6 @@ export function NewChatForm({
     },
     [validatedProject?.id, setLastSelectedBranches],
   )
-  const branchListRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -739,33 +775,6 @@ export function NewChatForm({
     })
   }, [branchesQuery.data])
 
-  // Filter branches based on search
-  const filteredBranches = useMemo(() => {
-    if (!branchSearch.trim()) return branches
-    const search = branchSearch.toLowerCase()
-    return branches.filter((b) => b.name.toLowerCase().includes(search))
-  }, [branches, branchSearch])
-
-  // Virtualizer for branch list - only active when popover is open
-  const branchVirtualizer = useVirtualizer({
-    count: filteredBranches.length,
-    getScrollElement: () => branchListRef.current,
-    estimateSize: () => 28, // Each item is h-7 (28px)
-    overscan: 5,
-    enabled: branchPopoverOpen, // Only virtualize when popover is open
-  })
-
-  // Force virtualizer to re-measure when popover opens
-  useEffect(() => {
-    if (branchPopoverOpen) {
-      // Small delay to ensure ref is attached
-      const timer = setTimeout(() => {
-        branchVirtualizer.measure()
-      }, 0)
-      return () => clearTimeout(timer)
-    }
-  }, [branchPopoverOpen])
-
   // Format relative time for branches (reuse shared utility)
   const formatRelativeTime = (dateString: string | null): string => {
     if (!dateString) return ""
@@ -923,12 +932,14 @@ export function NewChatForm({
   const utils = trpc.useUtils()
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
-      // Clear editor, images, pasted texts, and file contents cache only on success
+      // Clear editor, images, pasted texts, file contents cache, and custom branch name only on success
       editorRef.current?.clear()
       clearImages()
       clearPastedTexts()
       fileContentsRef.current.clear()
       clearCurrentDraft()
+      setCustomBranchName("")
+      setBranchNameError(null)
       utils.chats.list.invalidate()
       setSelectedChatId(data.id)
       // New chats are always local
@@ -1044,6 +1055,12 @@ export function NewChatForm({
       return
     }
 
+    // Check for branch name validation error
+    if (branchNameError) {
+      toast.error(branchNameError)
+      return
+    }
+
     // Check if message is a slash command with arguments (e.g. "/hello world")
     // Note: 's' flag makes '.' match newlines, so multi-line arguments are captured
     const slashMatch = message.match(/^\/(\S+)\s*(.*)$/s)
@@ -1138,6 +1155,36 @@ export function NewChatForm({
       }
     }
 
+    // Pull latest changes before creating worktree
+    if (workMode === "worktree" && selectedBranch && validatedProject?.path) {
+      setPullStatus("Pulling latest changes...")
+
+      try {
+        await pullBranchMutation.mutateAsync({
+          worktreePath: validatedProject.path,
+          branch: selectedBranch,
+        })
+      } catch (err) {
+        setPullStatus(null)
+
+        // Show confirmation dialog
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+          setPullFailedDialog({
+            open: true,
+            message: errorMessage,
+            resolve,
+          })
+        })
+
+        if (!shouldContinue) {
+          return // User chose to cancel
+        }
+      }
+
+      setPullStatus(null)
+    }
+
     // Create chat with selected project, branch, and initial message
     createChatMutation.mutate({
       projectId: selectedProject.id,
@@ -1149,16 +1196,23 @@ export function NewChatForm({
         workMode === "worktree" ? selectedBranchType : undefined,
       useWorktree: workMode === "worktree",
       mode: agentMode,
+      customBranchName:
+        workMode === "worktree" && customBranchName.trim()
+          ? customBranchName.trim()
+          : undefined,
     })
     // Editor, images, and pasted texts are cleared in onSuccess callback
   }, [
     selectedProject,
     validatedProject?.path,
     createChatMutation,
+    pullBranchMutation,
     hasContent,
     selectedBranch,
     selectedBranchType,
     workMode,
+    customBranchName,
+    branchNameError,
     images,
     pastedTexts,
     agentMode,
@@ -1635,7 +1689,7 @@ export function NewChatForm({
                         isMobileFullscreen ? "min-h-[56px]" : "min-h-[44px]",
                       )}
                       onPaste={handlePaste}
-                      disabled={createChatMutation.isPending}
+                      disabled={createChatMutation.isPending || pullStatus !== null}
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}
                     />
@@ -1948,10 +2002,10 @@ export function NewChatForm({
                         <AgentSendButton
                           isStreaming={false}
                           isSubmitting={
-                            createChatMutation.isPending || isUploading
+                            createChatMutation.isPending || isUploading || pullStatus !== null
                           }
                           disabled={Boolean(
-                            !hasContent || !selectedProject || isUploading,
+                            !hasContent || !selectedProject || isUploading || pullStatus !== null,
                           )}
                           onClick={handleSend}
                           mode={agentMode}
@@ -1968,176 +2022,33 @@ export function NewChatForm({
                   </PromptInputActions>
                 </PromptInput>
 
-                {/* Project, Work Mode, and Branch selectors - directly under input */}
+                {/* Project and Branch Mode selectors - directly under input */}
                 <div className="mt-1.5 md:mt-2 ml-[5px] flex items-center gap-2">
                   <ProjectSelector />
 
-                  {/* Work mode selector - between project and branch (only in coding mode) */}
+                  {/* Combined branch mode selector (only in coding mode) */}
                   {validatedProject && currentProjectMode === "coding" && (
-                    <WorkModeSelector
-                      value={workMode}
-                      onChange={setWorkMode}
-                      disabled={createChatMutation.isPending}
-                    />
-                  )}
-
-                  {/* Branch selector - only visible in coding mode with worktree */}
-                  {validatedProject && currentProjectMode === "coding" && workMode === "worktree" && (
-                    <Popover
-                      open={branchPopoverOpen}
-                      onOpenChange={(open) => {
-                        if (!open) {
-                          setBranchSearch("") // Clear search on close
-                        }
-                        setBranchPopoverOpen(open)
-                      }}
-                    >
-                      <PopoverTrigger asChild>
-                        <button
-                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
-                          disabled={branchesQuery.isLoading}
-                        >
-                          <BranchIcon className="w-4 h-4" />
-                          <span className="truncate max-w-[100px]">
-                            {selectedBranch ||
-                              branchesQuery.data?.defaultBranch ||
-                              "main"}
-                          </span>
-                          <IconChevronDown className="w-3 h-3 opacity-50" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80 p-0" align="start">
-                        {/* Search input with Create button */}
-                        <div className="flex items-center gap-1.5 h-7 px-1.5 mx-1 my-1 rounded-md bg-muted/50">
-                          <SearchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <input
-                            type="text"
-                            placeholder="Search branches..."
-                            value={branchSearch}
-                            onChange={(e) => setBranchSearch(e.target.value)}
-                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1.5 flex items-center gap-1 text-xs shrink-0"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setCreateBranchDialogOpen(true)
-                              setBranchPopoverOpen(false)
-                            }}
-                          >
-                            <Plus className="h-3 w-3" />
-                            Create
-                          </Button>
-                        </div>
-
-                        {/* Virtualized branch list */}
-                        {filteredBranches.length === 0 ? (
-                          <div className="py-6 text-center text-sm text-muted-foreground">
-                            No branches found.
-                          </div>
-                        ) : (
-                          <div
-                            ref={branchListRef}
-                            className="overflow-auto py-1 scrollbar-hide"
-                            style={{
-                              height: Math.min(
-                                filteredBranches.length * 32 + 8,
-                                300,
-                              ),
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: `${branchVirtualizer.getTotalSize()}px`,
-                                width: "100%",
-                                position: "relative",
-                              }}
-                            >
-                              {branchVirtualizer
-                                .getVirtualItems()
-                                .map((virtualItem) => {
-                                  const branch =
-                                    filteredBranches[virtualItem.index]
-                                  const isSelected =
-                                    (selectedBranch === branch.name &&
-                                      selectedBranchType === branch.type) ||
-                                    (!selectedBranch && branch.isDefault && branch.type === "local")
-                                  return (
-                                    <button
-                                      key={`${branch.type}-${branch.name}`}
-                                      onClick={() => {
-                                        setSelectedBranch(branch.name, branch.type)
-                                        setBranchPopoverOpen(false)
-                                        setBranchSearch("")
-                                      }}
-                                      className={cn(
-                                        "flex items-center gap-1.5 w-[calc(100%-8px)] mx-1 px-1.5 text-sm text-left absolute left-0 top-0 rounded-md cursor-default select-none outline-none transition-colors",
-                                        isSelected
-                                          ? "dark:bg-neutral-800 text-foreground"
-                                          : "dark:hover:bg-neutral-800 hover:text-foreground",
-                                      )}
-                                      style={{
-                                        height: `${virtualItem.size}px`,
-                                        transform: `translateY(${virtualItem.start}px)`,
-                                      }}
-                                    >
-                                      <BranchIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                                      <span className="truncate flex-1">
-                                        {branch.name}
-                                      </span>
-                                      <span
-                                        className={cn(
-                                          "text-[10px] px-1.5 py-0.5 rounded shrink-0",
-                                          branch.type === "local"
-                                            ? "bg-blue-500/10 text-blue-500"
-                                            : "bg-orange-500/10 text-orange-500",
-                                        )}
-                                      >
-                                        {branch.type}
-                                      </span>
-                                      {branch.committedAt && (
-                                        <span className="text-xs text-muted-foreground/70 shrink-0">
-                                          {formatRelativeTime(
-                                            branch.committedAt,
-                                          )}
-                                        </span>
-                                      )}
-                                      {branch.isDefault && (
-                                        <span className="text-[10px] text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded shrink-0">
-                                          default
-                                        </span>
-                                      )}
-                                      {isSelected && (
-                                        <CheckIcon className="h-4 w-4 shrink-0 ml-auto" />
-                                      )}
-                                    </button>
-                                  )
-                                })}
-                            </div>
-                          </div>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  )}
-
-                  {/* Create Branch Dialog */}
-                  {validatedProject && (
-                    <CreateBranchDialog
-                      open={createBranchDialogOpen}
-                      onOpenChange={setCreateBranchDialogOpen}
-                      projectPath={validatedProject.path}
+                    <BranchModeSelector
+                      workMode={workMode}
+                      onWorkModeChange={setWorkMode}
+                      selectedBranch={selectedBranch}
+                      selectedBranchType={selectedBranchType}
+                      onBranchChange={setSelectedBranch}
+                      customBranchName={customBranchName}
+                      onCustomBranchNameChange={handleCustomBranchNameChange}
+                      branchNameError={branchNameError}
                       branches={branches}
-                      defaultBranch={
-                        branchesQuery.data?.defaultBranch || "main"
-                      }
-                      onBranchCreated={(branchName) => {
-                        setSelectedBranch(branchName, "local")
-                      }}
+                      defaultBranch={branchesQuery.data?.defaultBranch || "main"}
+                      isLoading={branchesQuery.isLoading}
+                      disabled={createChatMutation.isPending || pullStatus !== null}
                     />
+                  )}
+
+                  {/* Pull status indicator */}
+                  {pullStatus && (
+                    <span className="text-sm text-muted-foreground animate-[pulse_1.5s_ease-in-out_infinite]">
+                      {pullStatus}
+                    </span>
                   )}
                 </div>
 
@@ -2214,6 +2125,45 @@ export function NewChatForm({
           )}
         </div>
       </div>
+
+      {/* Pull failed confirmation dialog */}
+      <Dialog
+        open={pullFailedDialog?.open ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            pullFailedDialog?.resolve?.(false)
+            setPullFailedDialog(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Failed to pull latest changes</DialogTitle>
+            <DialogDescription>
+              {pullFailedDialog?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                pullFailedDialog?.resolve?.(false)
+                setPullFailedDialog(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                pullFailedDialog?.resolve?.(true)
+                setPullFailedDialog(null)
+              }}
+            >
+              Continue anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

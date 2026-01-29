@@ -8,6 +8,7 @@ import {
   getAvailableConfigPaths,
   type WorktreeConfig,
 } from "../../git/worktree-config"
+import { isValidBranchName } from "../../git/worktree"
 
 const WorktreeConfigSchema = z.object({
   "setup-worktree-unix": z.union([z.array(z.string()), z.string()]).optional(),
@@ -96,5 +97,14 @@ export const worktreeConfigRouter = router({
       }
 
       return getAvailableConfigPaths(project.path)
+    }),
+
+  /**
+   * Validate a branch name according to git rules
+   */
+  validateBranchName: publicProcedure
+    .input(z.object({ name: z.string() }))
+    .query(({ input }) => {
+      return isValidBranchName(input.name)
     }),
 })

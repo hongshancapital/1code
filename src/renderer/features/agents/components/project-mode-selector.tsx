@@ -221,8 +221,7 @@ export function ProjectModeSelector({
             onClick={() => !disabled && onChange(option.id)}
             disabled={disabled}
             className={cn(
-              "relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+              "relative px-3 py-1.5 text-xs font-medium rounded-md transition-colors outline-none",
               value === option.id
                 ? "text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -267,8 +266,7 @@ export function ProjectModeSelector({
             whileHover={{ scale: disabled ? 1 : 1.02 }}
             whileTap={{ scale: disabled ? 1 : 0.98 }}
             className={cn(
-              "relative flex-1 p-4 rounded-xl border-2 text-left transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+              "relative flex-1 p-4 rounded-xl border-2 text-left transition-colors outline-none",
               isSelected
                 ? "border-primary bg-primary/5"
                 : "border-border hover:border-primary/50 hover:bg-accent/50",
@@ -390,8 +388,7 @@ export function ProjectModeToggleWithSlogan({
             onClick={() => !disabled && onChange(option.id)}
             disabled={disabled}
             className={cn(
-              "relative px-2 py-1 text-xs font-medium rounded transition-colors",
-              "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+              "relative px-2 py-1 text-xs font-medium rounded transition-colors outline-none",
               value === option.id
                 ? "text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground",

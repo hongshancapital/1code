@@ -263,6 +263,46 @@ export const createBranchesRouter = () => {
 					return { success: true };
 				});
 			}),
+
+		/**
+		 * Pull latest changes for a specific branch before creating a worktree
+		 * This ensures the new worktree is based on the latest remote state
+		 */
+		pullBranch: publicProcedure
+			.input(z.object({
+				worktreePath: z.string(),
+				branch: z.string(),
+			}))
+			.mutation(async ({ input }): Promise<{ success: boolean; pulled: boolean }> => {
+				assertRegisteredWorktree(input.worktreePath);
+
+				return withGitLock(input.worktreePath, async () => {
+					const git = createGitForNetwork(input.worktreePath);
+
+					// Fetch the specific branch from remote
+					await git.fetch("origin", input.branch);
+
+					// Get current branch
+					const currentBranch = (await git.revparse(["--abbrev-ref", "HEAD"])).trim();
+
+					// Only pull if we're on the target branch
+					if (currentBranch === input.branch) {
+						// Check for uncommitted changes
+						const status = await git.status();
+						if (status.isClean()) {
+							// Fast-forward only to avoid merge conflicts
+							await git.pull("origin", input.branch, ["--ff-only"]);
+							return { success: true, pulled: true };
+						}
+						// Has uncommitted changes, only fetched
+						return { success: true, pulled: false };
+					}
+
+					// Not on target branch, fetch is enough
+					// Worktree will be created from origin/branch
+					return { success: true, pulled: false };
+				});
+			}),
 	});
 };
 
