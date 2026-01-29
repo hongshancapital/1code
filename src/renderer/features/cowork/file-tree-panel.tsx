@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useAtom, useSetAtom, useAtomValue } from "jotai"
 import { useQueryClient } from "@tanstack/react-query"
 import { trpc } from "../../lib/trpc"
-import { useGitWatcher } from "../../lib/hooks/use-file-change-listener"
+import { useGitWatcher, useFileChangeListener } from "../../lib/hooks/use-file-change-listener"
 import { getFileIconByExtension } from "../agents/mentions/agents-file-mention"
 import {
   ChevronRight,
@@ -344,6 +344,7 @@ export function FileTreePanel({
 
   // Subscribe to file system changes to auto-refresh
   useGitWatcher(projectPath)
+  useFileChangeListener(projectPath)
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const contentSearchInputRef = useRef<HTMLInputElement>(null)

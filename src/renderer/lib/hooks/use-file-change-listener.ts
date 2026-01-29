@@ -18,6 +18,11 @@ export function useFileChangeListener(worktreePath: string | null | undefined) {
         queryClient.invalidateQueries({
           queryKey: [["changes", "getStatus"]],
         })
+
+        // Invalidate file tree queries to refresh file list
+        queryClient.invalidateQueries({
+          queryKey: [["files", "listDirectory"]],
+        })
       }
     })
 
