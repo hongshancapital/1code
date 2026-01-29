@@ -46,7 +46,7 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
   diff: { label: "Changes", defaultInCoding: true, defaultInCowork: false },
   artifacts: { label: "Artifacts", defaultInCoding: false, defaultInCowork: true },
   explorer: { label: "Explorer", defaultInCoding: true, defaultInCowork: true },
-  "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: true },
+  "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: false },
 }
 
 /**
@@ -57,6 +57,13 @@ export const GIT_RELATED_WIDGETS: Set<WidgetId> = new Set([
   "info",     // Shows git branch info
   "terminal", // Can execute git commands
   "diff",     // Git diff viewer
+])
+
+/**
+ * Widgets that are NEVER available in cowork mode (non-git related).
+ */
+export const COWORK_DISABLED_WIDGETS: Set<WidgetId> = new Set([
+  "background-tasks", // Not needed in cowork mode
 ])
 
 /**
@@ -93,6 +100,11 @@ export function isWidgetEnabled(
     return false
   }
 
+  // Hard constraint: Cowork-disabled widgets (non-git) are NEVER available in cowork mode
+  if (projectMode === "cowork" && COWORK_DISABLED_WIDGETS.has(widgetId)) {
+    return false
+  }
+
   // Hard constraint: Artifacts is NEVER available in coding mode (use diff instead)
   if (projectMode === "coding" && CODING_DISABLED_WIDGETS.has(widgetId)) {
     return false
@@ -119,6 +131,9 @@ export function isWidgetConfigurable(
 
   // Mode-locked widgets cannot be toggled
   if (projectMode === "cowork" && GIT_RELATED_WIDGETS.has(widgetId)) {
+    return false
+  }
+  if (projectMode === "cowork" && COWORK_DISABLED_WIDGETS.has(widgetId)) {
     return false
   }
   if (projectMode === "coding" && CODING_DISABLED_WIDGETS.has(widgetId)) {

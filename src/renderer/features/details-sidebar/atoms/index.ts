@@ -39,8 +39,14 @@ export const WIDGET_REGISTRY: WidgetConfig[] = [
   { id: "background-tasks", label: WIDGET_DEFAULTS["background-tasks"].label, icon: Cpu, canExpand: false },
 ]
 
-// Default visible widgets (use coding mode as default)
-const DEFAULT_VISIBLE_WIDGETS: WidgetId[] = getDefaultVisibleWidgets("coding")
+// Default visible widgets (merge both modes to ensure widgets show when enabled)
+// The actual filtering is done by enabledWidgets based on project mode
+const DEFAULT_VISIBLE_WIDGETS: WidgetId[] = [
+  ...new Set([
+    ...getDefaultVisibleWidgets("coding"),
+    ...getDefaultVisibleWidgets("cowork"),
+  ]),
+]
 
 // Default widget order (all widgets)
 const DEFAULT_WIDGET_ORDER: WidgetId[] = WIDGET_REGISTRY.map((w) => w.id)
