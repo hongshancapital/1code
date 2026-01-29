@@ -26,6 +26,13 @@ export function getDefaultTerminalBg(isDark = true): string {
 function loadRenderer(xterm: XTerm): { dispose: () => void } {
   let renderer: WebglAddon | CanvasAddon | null = null
 
+  // Check if xterm's render service is ready before loading addons
+  const core = (xterm as unknown as { _core?: { _renderService?: unknown } })._core
+  if (!core?._renderService) {
+    console.log("[Terminal:loadRenderer] Render service not ready, using default renderer")
+    return { dispose: () => {} }
+  }
+
   console.log("[Terminal:loadRenderer] Attempting to load WebGL addon...")
 
   try {
@@ -173,14 +180,24 @@ export function createTerminalInstance(
   }
 
   // 9. Fit to get actual dimensions - only if container has valid size
+  // Use requestAnimationFrame to ensure DOM is ready before fitting
   console.log("[Terminal:create] Step 9: Fitting terminal")
   if (rect.width > 0 && rect.height > 0) {
-    try {
-      fitAddon.fit()
-      console.log("[Terminal:create] Fit successful - cols:", xterm.cols, "rows:", xterm.rows)
-    } catch (err) {
-      console.log("[Terminal:create] Fit failed:", err)
-    }
+    // Wait for next frame to ensure xterm's internal render service is ready
+    requestAnimationFrame(() => {
+      try {
+        // Check if xterm is still valid (not disposed)
+        const core = (xterm as unknown as { _core?: { _renderService?: unknown } })._core
+        if (core?._renderService) {
+          fitAddon.fit()
+          console.log("[Terminal:create] Fit successful - cols:", xterm.cols, "rows:", xterm.rows)
+        } else {
+          console.log("[Terminal:create] Fit skipped - render service not ready")
+        }
+      } catch (err) {
+        console.log("[Terminal:create] Fit failed:", err)
+      }
+    })
   } else {
     console.log("[Terminal:create] Skipping fit - container has no size yet")
   }
