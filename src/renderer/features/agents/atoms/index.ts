@@ -208,7 +208,7 @@ export const lastSelectedAgentIdAtom = atomWithStorage<string>(
 
 export const lastSelectedModelIdAtom = atomWithStorage<string>(
   "agents:lastSelectedModelId",
-  "sonnet",
+  "opus",
   undefined,
   { getOnInit: true },
 )
@@ -644,6 +644,11 @@ export const pendingUserQuestionsAtom = atom<Map<string, PendingUserQuestion>>(n
 // Legacy type alias for backwards compatibility
 export type PendingUserQuestions = PendingUserQuestion
 
+// Expired user questions - questions that timed out but should still be answerable
+// When answered, responses are sent as normal user messages instead of tool approvals
+// Map<subChatId, PendingUserQuestion>
+export const expiredUserQuestionsAtom = atom<Map<string, PendingUserQuestion>>(new Map())
+
 // Track sub-chats with pending plan approval (plan ready but not yet implemented)
 // Map<subChatId, parentChatId> - allows filtering by workspace
 export const pendingPlanApprovalsAtom = atom<Map<string, string>>(new Map())
@@ -862,6 +867,14 @@ export const codingTerminalPanelHeightAtom = atomWithStorage<number>(
   { getOnInit: true },
 )
 
+// Show raw JSON for each message in chat (dev only)
+export const showMessageJsonAtom = atomWithStorage<boolean>(
+  "agents:showMessageJson",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
 // ============================================
 // ENABLED WIDGETS (Feature Configuration)
 // ============================================
@@ -874,66 +887,37 @@ import type { WidgetId } from "../../../../shared/feature-config"
 export const enabledWidgetsAtom = atom<Set<WidgetId>>(new Set())
 
 // ============================================================================
-// Explorer Panel State
+// DESKTOP VIEW NAVIGATION (Automations / Inbox)
 // ============================================================================
 
-// Explorer display mode - sidebar (side peek), center dialog, or fullscreen
-export type ExplorerDisplayMode = "side-peek" | "center-peek" | "full-page"
+// Desktop view mode - takes priority over chat-based rendering
+// null = default behavior (chat/new-chat/kanban)
+export type DesktopView = "automations" | "automations-detail" | "inbox" | null
+export const desktopViewAtom = atom<DesktopView>(null)
 
-export const explorerDisplayModeAtom = atomWithStorage<ExplorerDisplayMode>(
-  "agents:explorerDisplayMode",
-  "side-peek", // default to sidebar for existing behavior
+// Which automation is being viewed/edited (ID or "new" for creation)
+export const automationDetailIdAtom = atom<string | null>(null)
+
+// Template params passed when navigating from "Use Template" to create
+export type AutomationTemplateParams = {
+  name: string
+  platform: string
+  trigger: string
+  instructions: string
+} | null
+export const automationTemplateParamsAtom = atom<AutomationTemplateParams>(null)
+
+// Selected chat within inbox (separate from main selectedAgentChatIdAtom)
+export const inboxSelectedChatIdAtom = atom<string | null>(null)
+
+// Inbox sidebar width
+export const agentsInboxSidebarWidthAtom = atomWithStorage<number>(
+  "agents-inbox-sidebar-width",
+  240,
   undefined,
   { getOnInit: true },
 )
 
-// Explorer sidebar width (persisted globally)
-export const explorerSidebarWidthAtom = atomWithStorage<number>(
-  "agents-explorer-sidebar-width",
-  350,
-  undefined,
-  { getOnInit: true },
-)
-
-// Explorer panel open state storage - window-scoped, stores per chatId
-const explorerPanelOpenStorageAtom = atomWithWindowStorage<Record<string, boolean>>(
-  "agents:explorerPanelOpen",
-  {},
-  { getOnInit: true },
-)
-
-// Runtime open state - not persisted, used for dialog/fullscreen modes
-const explorerPanelOpenRuntimeAtom = atom<Record<string, boolean>>({})
-
-// atomFamily to get/set explorer panel open state per chatId
-// Only restores persisted state when display mode is "side-peek" (sidebar mode)
-// For dialog/fullscreen modes, we use runtime state only (not auto-restored on page load)
-export const explorerPanelOpenAtomFamily = atomFamily((chatId: string) =>
-  atom(
-    (get) => {
-      const displayMode = get(explorerDisplayModeAtom)
-      const runtimeOpen = get(explorerPanelOpenRuntimeAtom)[chatId]
-
-      // If we have a runtime value, use it (user explicitly opened/closed)
-      if (runtimeOpen !== undefined) {
-        return runtimeOpen
-      }
-
-      // For initial load: only restore persisted state for sidebar mode
-      // Dialog and fullscreen should not auto-open on page load
-      if (displayMode !== "side-peek") {
-        return false
-      }
-      return get(explorerPanelOpenStorageAtom)[chatId] ?? false
-    },
-    (get, set, isOpen: boolean) => {
-      // Always update runtime state
-      const currentRuntime = get(explorerPanelOpenRuntimeAtom)
-      set(explorerPanelOpenRuntimeAtom, { ...currentRuntime, [chatId]: isOpen })
-
-      // Also persist for sidebar mode
-      const current = get(explorerPanelOpenStorageAtom)
-      set(explorerPanelOpenStorageAtom, { ...current, [chatId]: isOpen })
-    },
-  ),
-)
+// Inbox mobile view mode
+export type InboxMobileViewMode = "list" | "chat"
+export const inboxMobileViewModeAtom = atom<InboxMobileViewMode>("list")

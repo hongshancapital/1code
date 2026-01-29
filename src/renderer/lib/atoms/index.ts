@@ -71,6 +71,17 @@ export {
   // Mode utilities
   AGENT_MODES,
   getNextMode,
+
+  // Desktop view navigation (Automations / Inbox)
+  desktopViewAtom,
+  automationDetailIdAtom,
+  automationTemplateParamsAtom,
+  inboxSelectedChatIdAtom,
+  agentsInboxSidebarWidthAtom,
+  inboxMobileViewModeAtom,
+  type DesktopView,
+  type AutomationTemplateParams,
+  type InboxMobileViewMode,
 } from "../../features/agents/atoms"
 
 // ============================================
@@ -444,6 +455,24 @@ export const betaGitFeaturesEnabledAtom = atomWithStorage<boolean>(
 export const betaKanbanEnabledAtom = atomWithStorage<boolean>(
   "preferences:beta-kanban-enabled",
   false, // Default OFF
+  undefined,
+  { getOnInit: true },
+)
+
+// Beta: Enable Automations & Inbox
+// When enabled, shows Automations and Inbox navigation in sidebar
+export const betaAutomationsEnabledAtom = atomWithStorage<boolean>(
+  "preferences:beta-automations-enabled",
+  false, // Default OFF
+  undefined,
+  { getOnInit: true },
+)
+
+// Beta: Enable Tasks functionality in Claude Code SDK
+// When enabled (default), the SDK exposes task-related tools (TodoWrite, Task agents)
+export const enableTasksAtom = atomWithStorage<boolean>(
+  "preferences:enable-tasks",
+  true, // Default ON
   undefined,
   { getOnInit: true },
 )
@@ -827,4 +856,17 @@ export const devToolsUnlockedAtom = atom<boolean>(false)
 export const disabledMcpServersAtom = atomWithStorage<Record<string, string[]>>(
   "hong:disabled-mcp-servers",
   {},
+)
+
+// ============================================
+// PREFERRED EDITOR
+// ============================================
+
+import type { ExternalApp } from "../../../shared/external-apps"
+
+export const preferredEditorAtom = atomWithStorage<ExternalApp>(
+  "preferences:preferred-editor",
+  "cursor",
+  undefined,
+  { getOnInit: true },
 )
