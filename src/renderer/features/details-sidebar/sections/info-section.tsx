@@ -1,14 +1,12 @@
 "use client"
 
-import { memo, useState, useCallback, useEffect } from "react"
+import { memo, useState, useCallback } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
-  ExternalLinkIcon,
 } from "@/components/ui/icons"
-import { Kbd } from "@/components/ui/kbd"
 import { WandSparkles } from "lucide-react"
 import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
@@ -18,57 +16,8 @@ import {
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
-import { preferredEditorAtom } from "@/lib/atoms"
-import { useResolvedHotkeyDisplay } from "@/lib/hotkeys"
-import { APP_META } from "../../../../shared/external-apps"
-import type { ExternalApp } from "../../../../shared/external-apps"
-
-// Editor icon imports
-import cursorIcon from "@/assets/app-icons/cursor.svg"
-import vscodeIcon from "@/assets/app-icons/vscode.svg"
-import vscodeInsidersIcon from "@/assets/app-icons/vscode-insiders.svg"
-import zedIcon from "@/assets/app-icons/zed.png"
-import sublimeIcon from "@/assets/app-icons/sublime.svg"
-import xcodeIcon from "@/assets/app-icons/xcode.svg"
-import intellijIcon from "@/assets/app-icons/intellij.svg"
-import webstormIcon from "@/assets/app-icons/webstorm.svg"
-import pycharmIcon from "@/assets/app-icons/pycharm.svg"
-import phpstormIcon from "@/assets/app-icons/phpstorm.svg"
-import rubymineIcon from "@/assets/app-icons/rubymine.svg"
-import golandIcon from "@/assets/app-icons/goland.svg"
-import clionIcon from "@/assets/app-icons/clion.svg"
-import riderIcon from "@/assets/app-icons/rider.svg"
-import datagripIcon from "@/assets/app-icons/datagrip.svg"
-import appcodeIcon from "@/assets/app-icons/appcode.svg"
-import fleetIcon from "@/assets/app-icons/fleet.svg"
-import rustroverIcon from "@/assets/app-icons/rustrover.svg"
-import ghosttyIcon from "@/assets/app-icons/ghostty.svg"
-import windsurfIcon from "@/assets/app-icons/windsurf.svg"
-import traeIcon from "@/assets/app-icons/trae.svg"
-
-const EDITOR_ICONS: Partial<Record<ExternalApp, string>> = {
-  cursor: cursorIcon,
-  vscode: vscodeIcon,
-  "vscode-insiders": vscodeInsidersIcon,
-  zed: zedIcon,
-  windsurf: windsurfIcon,
-  sublime: sublimeIcon,
-  xcode: xcodeIcon,
-  trae: traeIcon,
-  intellij: intellijIcon,
-  webstorm: webstormIcon,
-  pycharm: pycharmIcon,
-  phpstorm: phpstormIcon,
-  rubymine: rubymineIcon,
-  goland: golandIcon,
-  clion: clionIcon,
-  rider: riderIcon,
-  datagrip: datagripIcon,
-  appcode: appcodeIcon,
-  fleet: fleetIcon,
-  rustrover: rustroverIcon,
-  ghostty: ghosttyIcon,
-}
+import { editorConfigAtom } from "@/lib/atoms/editor"
+import { getEditorIcon, GenericEditorIcon } from "@/icons/editor-icons"
 
 interface InfoSectionProps {
   chatId: string
@@ -179,13 +128,28 @@ export const InfoSection = memo(function InfoSection({
   // Extract folder name from path
   const folderName = worktreePath?.split("/").pop() || "Unknown"
 
-  // Preferred editor from settings
-  const preferredEditor = useAtomValue(preferredEditorAtom)
-  const editorMeta = APP_META[preferredEditor]
-
   // Mutations
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
-  const openInAppMutation = trpc.external.openInApp.useMutation()
+  const openInEditorMutation = trpc.editor.openWithEditor.useMutation()
+
+  // Get editor config
+  const editorConfig = useAtomValue(editorConfigAtom)
+
+  // Detect installed editors
+  const { data: detectedEditors } = trpc.editor.detectEditors.useQuery()
+
+  // Determine active editor (configured or first installed)
+  const configuredEditorId = editorConfig.defaultEditor
+  const configuredEditor = configuredEditorId
+    ? detectedEditors?.find((e) => e.id === configuredEditorId && e.installed)
+    : null
+  const firstInstalledEditor = detectedEditors?.find((e) => e.installed)
+  const activeEditor = configuredEditor || firstInstalledEditor
+
+  // Dynamic editor icon - use specific icon if editor detected, generic otherwise (will use system default)
+  const EditorIcon = activeEditor
+    ? getEditorIcon(activeEditor.id)
+    : GenericEditorIcon
 
   // Check if this is a remote sandbox chat (no local worktree)
   const isRemoteChat = !worktreePath && !!remoteInfo
@@ -221,21 +185,15 @@ export const InfoSection = memo(function InfoSection({
     }
   }
 
-const openInEditorHotkey = useResolvedHotkeyDisplay("open-in-editor")
-
-  const handleOpenInEditor = useCallback(() => {
+  const handleOpenInEditor = () => {
     if (worktreePath) {
-      openInAppMutation.mutate({ path: worktreePath, app: preferredEditor })
+      openInEditorMutation.mutate({
+        path: worktreePath,
+        editorId: editorConfig.defaultEditor ?? undefined,
+        customArgs: editorConfig.customArgs || undefined,
+      })
     }
-  }, [worktreePath, preferredEditor, openInAppMutation])
-
-  // Listen for ⌘O hotkey event
-  useEffect(() => {
-    if (!worktreePath) return
-    const handler = () => handleOpenInEditor()
-    window.addEventListener("open-in-editor", handler)
-    return () => window.removeEventListener("open-in-editor", handler)
-  }, [worktreePath, handleOpenInEditor])
+  }
 
   const handleOpenPr = () => {
     if (pr?.url) {
@@ -370,49 +328,37 @@ Please suggest a new branch name.`
           tooltip="Open in GitHub"
         />
       )}
-      {/* Path - only for local chats */}
-      {/* Path - for local chats */}
+      {/* Path - for local chats, with editor button */}
       {worktreePath && (
-        <PropertyRow
-          icon={FolderFilledIcon}
-          label="Path"
-          value={folderName}
-          title={worktreePath}
-          onClick={handleOpenFolder}
-          tooltip="Open in Finder"
-        />
-      )}
-      {/* Open in Editor - for all local projects with a path */}
-      {worktreePath && (
-        <div className="flex items-center min-h-[28px]">
-          <div className="flex items-center gap-1.5 w-[100px] flex-shrink-0">
-            <ExternalLinkIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Open in</span>
+        <div className="flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <PropertyRow
+              icon={FolderFilledIcon}
+              label="Path"
+              value={folderName}
+              title={worktreePath}
+              onClick={handleOpenFolder}
+              tooltip="Open in Finder"
+            />
           </div>
-          <div className="flex-1 min-w-0 pl-2">
-            <Tooltip delayDuration={500}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={handleOpenInEditor}
-                  className="flex items-center gap-1.5 text-xs text-foreground cursor-pointer rounded px-1.5 py-0.5 -ml-1.5 hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  {EDITOR_ICONS[preferredEditor] && (
-                    <img
-                      src={EDITOR_ICONS[preferredEditor]}
-                      alt=""
-                      className="h-3.5 w-3.5 flex-shrink-0"
-                    />
-                  )}
-                  {editorMeta.label}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                Open in {editorMeta.label}
-                {openInEditorHotkey && <Kbd className="normal-case font-sans">{openInEditorHotkey}</Kbd>}
-              </TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 flex-shrink-0"
+                onClick={handleOpenInEditor}
+                disabled={openInEditorMutation.isPending}
+              >
+                <EditorIcon className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {activeEditor
+                ? `Open in ${activeEditor.name}`
+                : "Open in default editor"}
+            </TooltipContent>
+          </Tooltip>
         </div>
       )}
     </div>
