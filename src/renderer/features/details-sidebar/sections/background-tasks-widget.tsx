@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState, useCallback } from "react"
 import { useAtom, useAtomValue } from "jotai"
-import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2 } from "lucide-react"
+import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
 import {
@@ -15,6 +15,7 @@ import {
   runningTasksCountAtomFamily,
 } from "@/features/agents/atoms/background-tasks"
 import type { BackgroundTask, BackgroundTaskStatus } from "@/features/agents/types/background-task"
+import { trpc } from "@/lib/trpc"
 
 interface BackgroundTasksWidgetProps {
   /** Active sub-chat ID to get tasks from */
@@ -39,39 +40,165 @@ const TaskListItem = memo(function TaskListItem({
   isLast: boolean
   onKill?: (taskId: string, shellId: string) => void
 }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [output, setOutput] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Use trpc client directly for reading files
+  const trpcUtils = trpc.useUtils()
+
+  const handleToggleOutput = useCallback(async () => {
+    if (!task.outputFile) return
+
+    if (isExpanded) {
+      setIsExpanded(false)
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const result = await trpcUtils.files.readFile.fetch({
+        path: task.outputFile,
+      })
+      setOutput(result.content || "(empty)")
+      setIsExpanded(true)
+    } catch (err: any) {
+      console.error("[BackgroundTask] Failed to read output:", err)
+      // SDK cleans up output files after session ends
+      // Show appropriate message based on task status
+      let errorMsg: string
+      if (err?.message?.includes("ENOENT")) {
+        if (task.status === "running") {
+          errorMsg = "Output file not available yet (task starting...)"
+        } else {
+          errorMsg = "Output file cleaned up (SDK removes files after session)"
+        }
+      } else {
+        errorMsg = "Failed to read output file"
+      }
+      setOutput(errorMsg)
+      setIsExpanded(true)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [task.outputFile, isExpanded, trpcUtils])
+
+  const handleRefreshOutput = useCallback(async () => {
+    if (!task.outputFile) return
+
+    setIsLoading(true)
+    try {
+      const result = await trpcUtils.files.readFile.fetch({
+        path: task.outputFile,
+      })
+      setOutput(result.content || "(empty)")
+    } catch (err: any) {
+      console.error("[BackgroundTask] Failed to refresh output:", err)
+      let errorMsg: string
+      if (err?.message?.includes("ENOENT")) {
+        if (task.status === "running") {
+          errorMsg = "Output file not available yet (task starting...)"
+        } else {
+          errorMsg = "Output file cleaned up (SDK removes files after session)"
+        }
+      } else {
+        errorMsg = "Failed to read output file"
+      }
+      setOutput(errorMsg)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [task.outputFile, trpcUtils])
+
+  const hasOutput = !!task.outputFile
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 py-1.5 group",
-        !isLast && "border-b border-border/30"
+        "group",
+        !isLast && !isExpanded && "border-b border-border/30"
       )}
     >
-      <div className="flex-shrink-0">{statusIcons[task.status]}</div>
-      <span
+      {/* Task row */}
+      <div
         className={cn(
-          "text-xs truncate flex-1",
-          task.status === "completed" || task.status === "stopped"
-            ? "text-muted-foreground"
-            : "text-foreground"
+          "flex items-center gap-2 px-2 py-1.5",
+          hasOutput && "cursor-pointer hover:bg-muted/30"
         )}
+        onClick={hasOutput ? handleToggleOutput : undefined}
       >
-        {task.summary}
-      </span>
-      {task.status === "running" && onKill && (
+        {/* Expand indicator for tasks with output */}
+        {hasOutput && (
+          <ChevronRight
+            className={cn(
+              "h-3 w-3 text-muted-foreground transition-transform flex-shrink-0",
+              isExpanded && "rotate-90"
+            )}
+          />
+        )}
+        <div className="flex-shrink-0">{statusIcons[task.status]}</div>
         <Tooltip>
           <TooltipTrigger asChild>
+            <span
+              className={cn(
+                "text-xs truncate flex-1 cursor-default",
+                task.status === "completed" || task.status === "stopped"
+                  ? "text-muted-foreground"
+                  : "text-foreground"
+              )}
+            >
+              {task.summary}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[400px] break-all">
+            <p className="font-mono text-xs">{task.command || task.summary}</p>
+            {task.outputFile && (
+              <p className="text-muted-foreground text-[10px] mt-1">
+                Output: {task.outputFile}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+        {task.status === "running" && onKill && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onKill(task.taskId, task.shellId)
+                }}
+                className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Kill task</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+
+      {/* Output panel */}
+      {isExpanded && (
+        <div className="border-t border-border/30 bg-muted/20">
+          {/* Output header with refresh button */}
+          <div className="flex items-center justify-between px-2 py-1 border-b border-border/20">
+            <span className="text-[10px] text-muted-foreground font-medium">OUTPUT</span>
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onKill(task.taskId, task.shellId)
+                handleRefreshOutput()
               }}
-              className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              disabled={isLoading}
+              className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <X className="h-3 w-3" />
+              <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
             </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">Kill task</TooltipContent>
-        </Tooltip>
+          </div>
+          {/* Output content */}
+          <pre className="px-2 py-1.5 text-[10px] text-muted-foreground max-h-[150px] overflow-auto whitespace-pre-wrap break-all font-mono">
+            {isLoading && !output ? "Loading..." : output || "No output"}
+          </pre>
+        </div>
       )}
     </div>
   )

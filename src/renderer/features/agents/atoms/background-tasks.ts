@@ -58,7 +58,8 @@ export function createBackgroundTask(
   taskId: string,
   shellId: string,
   summary: string,
-  command?: string
+  command?: string,
+  outputFile?: string
 ): BackgroundTask {
   return {
     taskId,
@@ -68,6 +69,7 @@ export function createBackgroundTask(
     startedAt: Date.now(),
     subChatId,
     command,
+    outputFile,
   }
 }
 

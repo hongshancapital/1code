@@ -11,6 +11,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
   // Track streaming tool calls
   let currentToolCallId: string | null = null
   let currentToolName: string | null = null
+  let currentToolOriginalId: string | null = null // Original tool ID before composite
   let accumulatedToolInput = ""
 
   // Track already emitted tool IDs to avoid duplicates
@@ -26,6 +27,9 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
   // Map original toolCallId -> composite toolCallId (for tool-result matching)
   const toolIdMapping = new Map<string, string>()
+
+  // Map toolCallId -> Bash command (for background task naming)
+  const bashCommandMapping = new Map<string, string>()
 
   // Track compacting system tool for matching status->boundary events
   let lastCompactId: string | null = null
@@ -60,16 +64,26 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
     if (currentToolCallId) {
       // Track this tool ID to avoid duplicates from assistant message
       emittedToolIds.add(currentToolCallId)
-      
+
+      // Parse accumulated input
+      const parsedInput = accumulatedToolInput ? JSON.parse(accumulatedToolInput) : {}
+
+      // Store Bash command for background task naming (streaming mode)
+      // Use original ID (not compositeId) since tool result uses original ID
+      if (currentToolName === "Bash" && parsedInput.command && currentToolOriginalId) {
+        bashCommandMapping.set(currentToolOriginalId, parsedInput.command)
+      }
+
       // Emit complete tool call with accumulated input
       yield {
         type: "tool-input-available",
         toolCallId: currentToolCallId,
         toolName: currentToolName || "unknown",
-        input: accumulatedToolInput ? JSON.parse(accumulatedToolInput) : {},
+        input: parsedInput,
       }
       currentToolCallId = null
       currentToolName = null
+      currentToolOriginalId = null
       accumulatedToolInput = ""
     }
   }
@@ -189,6 +203,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         const originalId = event.content_block.id || genId()
         currentToolCallId = makeCompositeId(originalId, currentParentToolUseId)
         currentToolName = event.content_block.name || "unknown"
+        currentToolOriginalId = originalId // Store original ID for bash command mapping
         accumulatedToolInput = ""
 
         // Store mapping for tool-result lookup
@@ -333,6 +348,11 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
           // Store mapping for tool-result lookup
           toolIdMapping.set(block.id, compositeId)
 
+          // Store Bash command for background task naming
+          if (block.name === "Bash" && block.input?.command) {
+            bashCommandMapping.set(block.id, block.input.command)
+          }
+
           yield {
             type: "tool-input-available",
             toolCallId: compositeId,
@@ -396,21 +416,58 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
             // Check for background task ID in Bash tool result
             // When Bash runs with run_in_background=true, it returns backgroundTaskId
             if (output && typeof output === 'object' && output.backgroundTaskId) {
-              console.log("[Transform] Background task started:", output.backgroundTaskId)
-              // Extract summary from the tool result content (if available)
-              const summary = typeof block.content === 'string'
-                ? block.content.match(/Command running in background.*Output is being written to: ([^\s]+)/)?.[0] || `Background task ${output.backgroundTaskId}`
-                : `Background task ${output.backgroundTaskId}`
+              // Get the original Bash command from our mapping
+              const bashCommand = bashCommandMapping.get(block.tool_use_id)
+              console.log("[Transform] Background task started:", output.backgroundTaskId, "command:", bashCommand)
+
+              // Use command as summary, truncate if too long
+              let summary: string
+              if (bashCommand) {
+                // Truncate long commands, show first 60 chars
+                summary = bashCommand.length > 60
+                  ? bashCommand.slice(0, 57) + "..."
+                  : bashCommand
+              } else {
+                summary = `Background task ${output.backgroundTaskId}`
+              }
+
+              // Extract output file path from content or SDK response
+              // The path can be in block.content (string) or might need to be extracted differently
+              let outputFile: string | undefined
+              if (typeof block.content === 'string') {
+                // Match path that starts with / and continues until end of line
+                const match = block.content.match(/Output is being written to: (\/[^\n\r]+)/)
+                if (match) {
+                  outputFile = match[1].trim()
+                }
+              }
+              // Also check if it's in the content array (tool_result can have array content)
+              if (!outputFile && Array.isArray(block.content)) {
+                for (const item of block.content) {
+                  if (item.type === 'text' && typeof item.text === 'string') {
+                    const match = item.text.match(/Output is being written to: (\/[^\n\r]+)/)
+                    if (match) {
+                      outputFile = match[1].trim()
+                      break
+                    }
+                  }
+                }
+              }
+              console.log("[Transform] Background task outputFile extraction:", {
+                contentType: typeof block.content,
+                isArray: Array.isArray(block.content),
+                extractedPath: outputFile,
+                fullContent: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+              })
 
               yield {
                 type: "task-notification",
                 taskId: output.backgroundTaskId,
                 shellId: output.backgroundTaskId,
                 status: "running" as const,
-                outputFile: typeof block.content === 'string'
-                  ? block.content.match(/Output is being written to: ([^\s]+)/)?.[1]
-                  : undefined,
+                outputFile,
                 summary,
+                command: bashCommand,
               }
             }
 
@@ -480,12 +537,19 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         lastCompactId = null // Clear for next compacting cycle
       }
 
-      // Task notification - background task status update
+      // Task notification - background task status update (completed/failed/stopped)
+      // Note: SDKTaskNotificationMessage doesn't have shell_id, use task_id as shellId
       if (msg.subtype === "task_notification") {
+        console.log("[Transform] Task notification received:", {
+          task_id: msg.task_id,
+          status: msg.status,
+          output_file: msg.output_file,
+          summary: msg.summary,
+        })
         yield {
           type: "task-notification",
           taskId: msg.task_id,
-          shellId: msg.shell_id,
+          shellId: msg.task_id, // SDK doesn't provide shell_id in notification, use task_id
           status: msg.status,
           outputFile: msg.output_file,
           summary: msg.summary,

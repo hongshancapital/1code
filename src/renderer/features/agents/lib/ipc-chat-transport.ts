@@ -314,7 +314,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
                     subChatId,
                     chunk.taskId,
                     chunk.shellId || chunk.taskId,
-                    chunk.summary
+                    chunk.summary,
+                    chunk.command,
+                    chunk.outputFile
                   )
                   appStore.set(tasksAtom, [...currentTasks, newTask])
                 } else {
