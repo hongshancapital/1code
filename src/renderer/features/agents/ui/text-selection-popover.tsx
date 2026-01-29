@@ -7,15 +7,25 @@ import { useTextSelection, type TextSelectionSource } from "../context/text-sele
 interface TextSelectionPopoverProps {
   onAddToContext: (text: string, source: TextSelectionSource) => void
   onQuickComment?: (text: string, source: TextSelectionSource, rect: DOMRect) => void
+  onAddComment?: (
+    text: string,
+    source: TextSelectionSource,
+    rect: DOMRect,
+    charStart?: number | null,
+    charLength?: number | null,
+    lineStart?: number | null,
+    lineEnd?: number | null
+  ) => void
   onFocusInput?: () => void
 }
 
 export function TextSelectionPopover({
   onAddToContext,
   onQuickComment,
+  onAddComment,
   onFocusInput,
 }: TextSelectionPopoverProps) {
-  const { selectedText, source, selectionRect, clearSelection, lockSelection } =
+  const { selectedText, source, selectionRect, charStart, charLength, lineStart, lineEnd, clearSelection, lockSelection } =
     useTextSelection()
   const [isVisible, setIsVisible] = useState(false)
   const [isMouseDown, setIsMouseDown] = useState(false)
@@ -41,6 +51,14 @@ export function TextSelectionPopover({
       setIsVisible(false)
     }
   }, [selectedText, source, selectionRect, onQuickComment, lockSelection])
+
+  const handleAddComment = useCallback(() => {
+    if (selectedText && source && selectionRect && onAddComment) {
+      onAddComment(selectedText, source, selectionRect, charStart, charLength, lineStart, lineEnd)
+      setIsVisible(false)
+      // Don't clear selection - DocumentCommentInput will handle it after submit
+    }
+  }, [selectedText, source, selectionRect, charStart, charLength, lineStart, lineEnd, onAddComment])
 
   // Track mouse down/up to know when selection is complete
   useEffect(() => {
@@ -88,9 +106,12 @@ export function TextSelectionPopover({
   const viewportWidth = window.innerWidth
   const popoverHeight = 28
 
-  // Calculate actual width based on content
-  const hasCommentButton = onQuickComment && (source.type === "diff" || source.type === "tool-edit")
-  const popoverWidthEstimate = hasCommentButton ? 220 : 120
+  // Estimate width based on which buttons are shown
+  const hasReply = onQuickComment && (source.type === "diff" || source.type === "tool-edit")
+  const hasComment = onAddComment && (source.type === "diff" || source.type === "tool-edit" || source.type === "plan")
+  let popoverWidthEstimate = 100 // base width for "Add to context"
+  if (hasReply) popoverWidthEstimate += 50
+  if (hasComment) popoverWidthEstimate += 70
 
   let left = selectionRect.left + selectionRect.width / 2
 
@@ -140,6 +161,18 @@ export function TextSelectionPopover({
             <button
               onClick={handleQuickComment}
               className="rounded px-2 py-1 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97] whitespace-nowrap"
+            >
+              Comment
+            </button>
+          </>
+        )}
+        {/* Comment button for review system - shows for plan, diff, and tool-edit */}
+        {onAddComment && (source.type === "diff" || source.type === "tool-edit" || source.type === "plan") && (
+          <>
+            <div className="w-px h-3 bg-border" />
+            <button
+              onClick={handleAddComment}
+              className="rounded px-1.5 py-0.5 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97]"
             >
               Comment
             </button>

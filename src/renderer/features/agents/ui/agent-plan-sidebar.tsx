@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { useAtomValue } from "jotai"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useAtomValue, useSetAtom } from "jotai"
 import { Button } from "../../../components/ui/button"
 import { IconDoubleChevronRight, IconSpinner, PlanIcon, MarkdownIcon, CodeIcon } from "../../../components/ui/icons"
 import { Kbd } from "../../../components/ui/kbd"
@@ -11,9 +11,14 @@ import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
 import { CopyButton } from "./message-action-buttons"
 import type { AgentMode } from "../atoms"
+import { ReviewButton } from "./review-button"
+import { CommentHighlightOverlay } from "./comment-highlight-overlay"
+import { useDocumentComments } from "../hooks/use-document-comments"
+import { commentInputStateAtom, type DocumentComment } from "../atoms/review-atoms"
 
 interface AgentPlanSidebarProps {
   chatId: string
+  subChatId: string
   planPath: string | null
   onClose: () => void
   onBuildPlan?: () => void
@@ -21,16 +26,23 @@ interface AgentPlanSidebarProps {
   refetchTrigger?: number
   /** Current agent mode (plan or agent) */
   mode?: AgentMode
+  /** Handler for submitting review comments */
+  onSubmitReview?: (summary: string) => void
 }
 
 export function AgentPlanSidebar({
   chatId,
+  subChatId,
   planPath,
   onClose,
   onBuildPlan,
   refetchTrigger,
   mode = "agent",
+  onSubmitReview,
 }: AgentPlanSidebarProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const setCommentInputState = useSetAtom(commentInputStateAtom)
+
   // View mode: rendered markdown or plaintext
   const [viewMode, setViewMode] = useState<"rendered" | "plaintext">("rendered")
 
@@ -38,6 +50,30 @@ export function AgentPlanSidebar({
   const handleToggleViewMode = useCallback(() => {
     setViewMode((prev) => (prev === "rendered" ? "plaintext" : "rendered"))
   }, [])
+
+  // Get comments for this plan
+  const { getCommentsForDocument } = useDocumentComments(chatId)
+
+  // Filter comments for this specific plan
+  const planComments = useMemo(() => {
+    if (!planPath) return []
+    return getCommentsForDocument(planPath)
+  }, [planPath, getCommentsForDocument])
+
+  // Handle clicking on a highlight to edit the comment
+  const handleHighlightClick = useCallback((comment: DocumentComment, rect: DOMRect) => {
+    setCommentInputState({
+      selectedText: comment.anchor.selectedText,
+      documentType: comment.documentType,
+      documentPath: comment.documentPath,
+      lineStart: comment.anchor.lineStart,
+      lineEnd: comment.anchor.lineEnd,
+      charStart: comment.anchor.charStart,
+      charLength: comment.anchor.charLength,
+      rect,
+      existingCommentId: comment.id,
+    })
+  }, [setCommentInputState])
 
   // Fetch plan file content using tRPC
   const { data: planContent, isLoading, error, refetch } = trpc.files.readFile.useQuery(
@@ -123,6 +159,15 @@ export function AgentPlanSidebar({
             </Tooltip>
           )}
 
+          {/* Review button - shows when there are comments */}
+          {onSubmitReview && (
+            <ReviewButton
+              chatId={chatId}
+              subChatId={subChatId}
+              onSubmitReview={onSubmitReview}
+            />
+          )}
+
           {/* Approve Plan button - only show in plan mode */}
           {mode === "plan" && onBuildPlan && (
             <Button
@@ -185,7 +230,8 @@ export function AgentPlanSidebar({
           </div>
         ) : (
           <div
-            className="px-4 py-3 allow-text-selection"
+            ref={contentRef}
+            className="px-4 py-3 allow-text-selection relative"
             data-plan-path={planPath}
           >
             {viewMode === "rendered" ? (
@@ -197,6 +243,14 @@ export function AgentPlanSidebar({
               <pre className="text-sm font-mono whitespace-pre-wrap text-foreground/80 leading-relaxed">
                 {planContent || ""}
               </pre>
+            )}
+            {/* Comment highlights overlay - only show in rendered mode */}
+            {viewMode === "rendered" && (
+              <CommentHighlightOverlay
+                containerRef={contentRef}
+                comments={planComments}
+                onHighlightClick={handleHighlightClick}
+              />
             )}
           </div>
         )}
