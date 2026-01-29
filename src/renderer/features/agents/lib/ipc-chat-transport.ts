@@ -303,10 +303,16 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
 
               // Handle task notification - background task status updates
               if (chunk.type === "task-notification") {
-                console.log("[BackgroundTask] Received task-notification:", chunk)
                 const subChatId = this.config.subChatId
                 const tasksAtom = backgroundTasksAtomFamily(subChatId)
                 const currentTasks = appStore.get(tasksAtom)
+
+                console.log("[BackgroundTask] Received task-notification:", {
+                  taskId: chunk.taskId,
+                  status: chunk.status,
+                  subChatId,
+                  existingTaskIds: currentTasks.map(t => t.taskId),
+                })
 
                 if (chunk.status === "running") {
                   // New running task - add to list
@@ -318,9 +324,16 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
                     chunk.command,
                     chunk.outputFile
                   )
+                  console.log("[BackgroundTask] Adding new task:", newTask)
                   appStore.set(tasksAtom, [...currentTasks, newTask])
                 } else {
                   // Task completed/failed/stopped - update status
+                  const taskExists = currentTasks.some(t => t.taskId === chunk.taskId)
+                  console.log("[BackgroundTask] Updating task status:", {
+                    taskId: chunk.taskId,
+                    newStatus: chunk.status,
+                    taskExists,
+                  })
                   appStore.set(
                     tasksAtom,
                     currentTasks.map((t) =>
