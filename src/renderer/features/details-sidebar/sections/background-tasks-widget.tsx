@@ -19,7 +19,7 @@ import { trpc } from "@/lib/trpc"
 import {
   terminalsAtom,
   activeTerminalIdAtom,
-  terminalSidebarOpenAtom,
+  terminalSidebarOpenAtomFamily,
 } from "@/features/terminal/atoms"
 import type { TerminalInstance } from "@/features/terminal/types"
 
@@ -268,7 +268,12 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   // Terminal state for opening output in terminal
   const [allTerminals, setAllTerminals] = useAtom(terminalsAtom)
   const setAllActiveIds = useSetAtom(activeTerminalIdAtom)
-  const setTerminalSidebarOpen = useSetAtom(terminalSidebarOpenAtom)
+  // Use per-chat terminal sidebar atom
+  const terminalSidebarAtom = useMemo(
+    () => terminalSidebarOpenAtomFamily(chatId || ""),
+    [chatId]
+  )
+  const setTerminalSidebarOpen = useSetAtom(terminalSidebarAtom)
 
   // Expanded/collapsed state
   const [isExpanded, setIsExpanded] = useState(true)
