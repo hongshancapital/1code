@@ -182,17 +182,23 @@ export function setupInitialCommands(
 	initialCommands: string[] | undefined,
 ): void {
 	if (!initialCommands || initialCommands.length === 0) {
+		console.log(`[Terminal:setupInitialCommands] No initial commands for ${session.paneId}`)
 		return
 	}
 
 	const initialCommandString = `${initialCommands.join(" && ")}\n`
+	console.log(`[Terminal:setupInitialCommands] Setting up initial commands for ${session.paneId}:`, initialCommands)
 
 	const dataHandler = session.pty.onData(() => {
 		dataHandler.dispose()
+		console.log(`[Terminal:setupInitialCommands] Shell ready, writing command: ${initialCommandString.trim()}`)
 
 		setTimeout(() => {
 			if (session.isAlive) {
 				session.pty.write(initialCommandString)
+				console.log(`[Terminal:setupInitialCommands] Command written successfully`)
+			} else {
+				console.log(`[Terminal:setupInitialCommands] Session not alive, skipping command`)
 			}
 		}, 100)
 	})
