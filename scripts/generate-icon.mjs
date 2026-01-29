@@ -217,29 +217,21 @@ async function main() {
   // Step 1: Generate macOS .icns
   // ═══════════════════════════════════════════════════════════════
   console.log('🍎 Generating macOS ICNS file...');
-  console.log('1️⃣  Creating rounded squircle shape...');
 
-  const roundedSource = join(ICONSET_DIR, 'source-rounded.png');
-  await createRoundedSquircle(INPUT_ICON, roundedSource);
+  // Note: Source icon.png is already a complete macOS-style icon with
+  // squircle shape, shadow, and proper margins. We just resize it directly.
+  // Do NOT apply additional rounding or padding.
 
-  console.log('   ✓ Created rounded icon with proper squircle shape\n');
-
-  // Generate all sizes for iconset
-  console.log('2️⃣  Generating all required icon sizes...');
+  console.log('1️⃣  Generating all required icon sizes...');
 
   for (const { size, scale } of ICNS_SIZES) {
     const { filename, actualSize } = await generateIconSize(
-      roundedSource,
+      INPUT_ICON,  // Use source directly, it's already properly formatted
       size,
       scale,
       ICONSET_DIR
     );
     console.log(`   ✓ ${filename} (${actualSize}x${actualSize})`);
-  }
-
-  // Clean up temp file
-  if (existsSync(roundedSource)) {
-    rmSync(roundedSource);
   }
 
   // Create .icns file
