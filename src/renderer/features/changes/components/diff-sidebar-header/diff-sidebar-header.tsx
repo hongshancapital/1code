@@ -104,6 +104,8 @@ interface DiffSidebarHeaderProps {
 	// Diff view display mode (side-peek, center-peek, full-page)
 	displayMode?: "side-peek" | "center-peek" | "full-page";
 	onDisplayModeChange?: (mode: "side-peek" | "center-peek" | "full-page") => void;
+	// User review button slot - replaces AI review when has comments
+	reviewButtonSlot?: React.ReactNode;
 }
 
 function formatTimeSince(date: Date): string {
@@ -153,6 +155,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 	isFullscreen = false,
 	displayMode = "side-peek",
 	onDisplayModeChange,
+	reviewButtonSlot,
 }: DiffSidebarHeaderProps) {
 	// Responsive breakpoints - progressive disclosure
 	const isCompact = sidebarWidth < 350;
@@ -509,8 +512,11 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 					WebkitAppRegion: "no-drag",
 				}}
 			>
-				{/* Review button - visible when there's enough space */}
-				{showReviewButton && diffStats.hasChanges && onReview && (
+				{/* User review button slot - takes precedence over AI review */}
+				{showReviewButton && reviewButtonSlot}
+
+				{/* AI Review button - visible when there's enough space and no user review slot */}
+				{showReviewButton && !reviewButtonSlot && diffStats.hasChanges && onReview && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button

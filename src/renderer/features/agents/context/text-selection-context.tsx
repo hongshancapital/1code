@@ -362,8 +362,43 @@ export function TextSelectionProvider({
           const posInfo = calculateSelectionPosition(sourceContainer, range)
           charStart = posInfo.charStart
           charLength = posInfo.charLength
-          lineStart = posInfo.lineStart
-          lineEnd = posInfo.lineEnd
+
+          // For diff, use actual line numbers from DOM instead of calculating from newlines
+          if (source.type === "diff") {
+            // Get line info from start and end of selection
+            const startElement = range.startContainer.nodeType === Node.TEXT_NODE
+              ? range.startContainer.parentElement
+              : (range.startContainer as Element)
+            const endElement = range.endContainer.nodeType === Node.TEXT_NODE
+              ? range.endContainer.parentElement
+              : (range.endContainer as Element)
+
+            const startLineInfo = startElement ? extractDiffLineInfo(startElement) : {}
+            const endLineInfo = endElement ? extractDiffLineInfo(endElement) : {}
+
+            // Use the extracted line numbers if available
+            if (startLineInfo.lineNumber) {
+              lineStart = startLineInfo.lineNumber
+            }
+            if (endLineInfo.lineNumber) {
+              lineEnd = endLineInfo.lineNumber
+            }
+
+            // If only one line number found, use it for both (single line selection)
+            if (lineStart && !lineEnd) lineEnd = lineStart
+            if (lineEnd && !lineStart) lineStart = lineEnd
+
+            // Ensure lineStart <= lineEnd (in case selection was made bottom-to-top)
+            if (lineStart && lineEnd && lineStart > lineEnd) {
+              const temp = lineStart
+              lineStart = lineEnd
+              lineEnd = temp
+            }
+          } else {
+            // For non-diff sources, use the calculated line numbers
+            lineStart = posInfo.lineStart
+            lineEnd = posInfo.lineEnd
+          }
         }
 
         setState({

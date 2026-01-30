@@ -84,6 +84,10 @@ import { useCodeTheme } from "../../../lib/hooks/use-code-theme"
 import { CommentGutterLayer } from "../../comments/components/comment-gutter-layer"
 import { pendingCommentsAtomFamily } from "../../comments/atoms"
 import type { ReviewComment } from "../../comments/types"
+// New review system imports
+import { useDocumentComments } from "../hooks/use-document-comments"
+import { reviewCommentsAtomFamily, type DocumentComment } from "../atoms/review-atoms"
+import { useAgentSubChatStore } from "../stores/sub-chat-store"
 
 // Simple fast string hash (djb2 algorithm) for content change detection
 function hashString(str: string): string {
@@ -981,8 +985,14 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       setDiscardFilePath(filePath)
     }, [])
 
-    // Get pending comments for this chat
+    // Get active subChatId from store for scoping comments
+    const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+
+    // Get pending comments for this chat (old system)
     const pendingComments = useAtomValue(pendingCommentsAtomFamily(chatId))
+
+    // Get review comments from new review system (scoped by subChatId)
+    const reviewComments = useAtomValue(reviewCommentsAtomFamily(activeSubChatId || ""))
 
     // Get context comments from atom (shared with chat input)
     const contextCommentsFromAtom = useAtomValue(contextCommentsAtom)
@@ -1016,7 +1026,27 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       }))
     }, [effectiveContextComments])
 
-    // Get comments for a specific file (merging pending + context comments)
+    // Convert new review system comments (DocumentComment) to ReviewComment format
+    const reviewCommentsAsReview = useMemo((): ReviewComment[] => {
+      // Only include diff type comments
+      const diffComments = reviewComments.filter((c) => c.documentType === "diff")
+      return diffComments.map((c) => ({
+        id: c.id,
+        filePath: c.documentPath,
+        lineRange: {
+          startLine: c.anchor.lineStart ?? 1,
+          endLine: c.anchor.lineEnd ?? c.anchor.lineStart ?? 1,
+          side: c.anchor.lineType,
+        },
+        body: c.content,
+        selectedCode: c.anchor.selectedText,
+        source: "diff-view" as const,
+        status: "pending" as const,
+        createdAt: new Date(c.createdAt).getTime(),
+      }))
+    }, [reviewComments])
+
+    // Get comments for a specific file (merging pending + context + review comments)
     // Match by exact path or by filename (handles relative vs absolute path differences)
     const getFileComments = useCallback((filePath: string): ReviewComment[] => {
       const normalizedPath = filePath.toLowerCase()
@@ -1035,8 +1065,9 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
 
       const pending = pendingComments.filter((c) => matchPath(c.filePath))
       const context = contextCommentsAsReview.filter((c) => matchPath(c.filePath))
-      return [...pending, ...context]
-    }, [pendingComments, contextCommentsAsReview])
+      const review = reviewCommentsAsReview.filter((c) => matchPath(c.filePath))
+      return [...pending, ...context, ...review]
+    }, [pendingComments, contextCommentsAsReview, reviewCommentsAsReview])
 
     // Viewed files state for tracking reviewed files (GitHub-style)
     const [viewedFiles, setViewedFiles] = useAtom(viewedFilesAtomFamily(chatId))

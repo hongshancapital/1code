@@ -19,12 +19,13 @@ export function ReviewPanel({
   onSubmit,
   onCancel,
 }: ReviewPanelProps) {
+  // Use subChatId to scope comments to specific subChat context
   const {
     comments,
     commentsByDocument,
     removeComment,
     updateComment,
-  } = useDocumentComments(chatId)
+  } = useDocumentComments(subChatId)
   const [summary, setSummary] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState("")

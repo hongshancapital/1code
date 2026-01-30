@@ -42,6 +42,8 @@ export {
   agentsFocusedDiffFileAtom,
   filteredDiffFilesAtom,
   subChatFilesAtom,
+  // Chat area full width mode
+  agentsChatFullWidthAtom,
 
   // Archive atoms
   archivePopoverOpenAtom,

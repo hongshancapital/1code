@@ -65,29 +65,34 @@ const reviewPanelOpenStorageAtom = atom<Record<string, boolean>>({})
 // ============ atomFamily Exports ============
 
 /**
- * atomFamily to get/set review comments per chatId
+ * atomFamily to get/set review comments per subChatId
  * Persisted to localStorage so users can resume editing
+ *
+ * Note: Changed from chatId to subChatId because:
+ * - Plan content is associated with a specific subChat
+ * - Different subChats in the same chat may have different plans
+ * - Comments should be isolated per subChat context
  */
-export const reviewCommentsAtomFamily = atomFamily((chatId: string) =>
+export const reviewCommentsAtomFamily = atomFamily((subChatId: string) =>
   atom(
-    (get) => get(reviewCommentsStorageAtom)[chatId] ?? [],
+    (get) => get(reviewCommentsStorageAtom)[subChatId] ?? [],
     (get, set, comments: DocumentComment[]) => {
       const current = get(reviewCommentsStorageAtom)
-      set(reviewCommentsStorageAtom, { ...current, [chatId]: comments })
+      set(reviewCommentsStorageAtom, { ...current, [subChatId]: comments })
     }
   )
 )
 
 /**
- * atomFamily to get/set review panel open state per chatId
+ * atomFamily to get/set review panel open state per subChatId
  * Not persisted - resets on reload
  */
-export const reviewPanelOpenAtomFamily = atomFamily((chatId: string) =>
+export const reviewPanelOpenAtomFamily = atomFamily((subChatId: string) =>
   atom(
-    (get) => get(reviewPanelOpenStorageAtom)[chatId] ?? false,
+    (get) => get(reviewPanelOpenStorageAtom)[subChatId] ?? false,
     (get, set, isOpen: boolean) => {
       const current = get(reviewPanelOpenStorageAtom)
-      set(reviewPanelOpenStorageAtom, { ...current, [chatId]: isOpen })
+      set(reviewPanelOpenStorageAtom, { ...current, [subChatId]: isOpen })
     }
   )
 )

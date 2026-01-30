@@ -25,8 +25,9 @@ export function ReviewButton({
   onSubmitReview,
   className,
 }: ReviewButtonProps) {
-  const comments = useAtomValue(reviewCommentsAtomFamily(chatId))
-  const [isOpen, setIsOpen] = useAtom(reviewPanelOpenAtomFamily(chatId))
+  // Use subChatId as key since comments are associated with specific subChat context
+  const comments = useAtomValue(reviewCommentsAtomFamily(subChatId))
+  const [isOpen, setIsOpen] = useAtom(reviewPanelOpenAtomFamily(subChatId))
   const commentCount = comments.length
 
   if (commentCount === 0) {

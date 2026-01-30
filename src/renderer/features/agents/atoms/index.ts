@@ -277,6 +277,14 @@ export const agentsDiffSidebarWidthAtom = atomWithStorage<number>(
   { getOnInit: true },
 )
 
+// Chat area full width mode - removes max-w-2xl constraint to fill available space
+export const agentsChatFullWidthAtom = atomWithStorage<boolean>(
+  "agents-chat-full-width",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
 // Changes panel (file list) width within the diff sidebar
 export const agentsChangesPanelWidthAtom = atomWithStorage<number>(
   "agents-changes-panel-width",

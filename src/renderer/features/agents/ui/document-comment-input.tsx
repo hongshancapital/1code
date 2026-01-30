@@ -152,6 +152,7 @@ export function DocumentCommentInput({
       ref={containerRef}
       style={style}
       className={animationClass}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="rounded-md bg-popover border border-border shadow-lg overflow-hidden">
         {/* Preview of selected text */}

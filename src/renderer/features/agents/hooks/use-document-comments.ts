@@ -30,9 +30,11 @@ interface UpdateCommentParams {
 /**
  * Hook for managing document comments
  * Provides CRUD operations and computed values for the review system
+ *
+ * @param subChatId - The subChat ID to scope comments to (changed from chatId for proper isolation)
  */
-export function useDocumentComments(chatId: string) {
-  const [comments, setComments] = useAtom(reviewCommentsAtomFamily(chatId))
+export function useDocumentComments(subChatId: string) {
+  const [comments, setComments] = useAtom(reviewCommentsAtomFamily(subChatId))
 
   /**
    * Add a new comment

@@ -39,7 +39,7 @@ import {
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { isPlanModeAtom, lastSelectedModelIdAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
+import { agentsChatFullWidthAtom, isPlanModeAtom, lastSelectedModelIdAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
 import { pendingFileReferenceAtom } from "../../cowork/atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentsSlashCommand, type SlashCommandOption } from "../commands"
@@ -398,6 +398,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   const [selectedOllamaModel, setSelectedOllamaModel] = useAtom(selectedOllamaModelAtom)
   const availableModels = useAvailableModels()
   const autoOfflineMode = useAtomValue(autoOfflineModeAtom)
+  const isChatFullWidth = useAtomValue(agentsChatFullWidthAtom)
   const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
   const [selectedModel, setSelectedModel] = useState(
     () => availableModels.models.find((m) => m.id === lastSelectedModelId) || availableModels.models[0],
@@ -978,7 +979,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   return (
     <div className="px-2 pb-2 shadow-sm shadow-background relative z-10">
-      <div className="w-full max-w-2xl mx-auto">
+      <div className={cn("w-full mx-auto", !isChatFullWidth && "max-w-2xl")}>
         <div
           className="relative w-full"
           onDragOver={handleDragOver}

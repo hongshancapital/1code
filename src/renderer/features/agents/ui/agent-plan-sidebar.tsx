@@ -51,8 +51,8 @@ export function AgentPlanSidebar({
     setViewMode((prev) => (prev === "rendered" ? "plaintext" : "rendered"))
   }, [])
 
-  // Get comments for this plan
-  const { getCommentsForDocument } = useDocumentComments(chatId)
+  // Get comments for this plan (scoped by subChatId)
+  const { getCommentsForDocument } = useDocumentComments(subChatId)
 
   // Filter comments for this specific plan
   const planComments = useMemo(() => {

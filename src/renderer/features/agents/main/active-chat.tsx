@@ -38,9 +38,11 @@ import { DiffModeEnum } from "@git-diff-view/react"
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   ArrowDown,
+  ArrowLeftFromLine,
   ChevronDown,
   GitFork,
   ListTree,
+  MoveHorizontal,
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -86,10 +88,15 @@ import { getStatusIndicator } from "../../changes/utils/status"
 import {
   detailsSidebarOpenAtom,
   unifiedSidebarEnabledAtom,
+  expandedWidgetAtomFamily,
 } from "../../details-sidebar/atoms"
 import { DetailsSidebar } from "../../details-sidebar/details-sidebar"
-import { terminalSidebarOpenAtomFamily } from "../../terminal/atoms"
-import { TerminalSidebar } from "../../terminal/terminal-sidebar"
+import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
+import { FileViewerSidebar } from "../../file-viewer"
+import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
+import { terminalSidebarOpenAtomFamily, terminalDisplayModeAtom, terminalBottomHeightAtom } from "../../terminal/atoms"
+import { TerminalSidebar, TerminalBottomPanelContent } from "../../terminal/terminal-sidebar"
+import { ResizableBottomPanel } from "@/components/ui/resizable-bottom-panel"
 import {
   agentsChangesPanelCollapsedAtom,
   agentsChangesPanelWidthAtom,
@@ -135,6 +142,7 @@ import {
 currentProjectModeAtom,
   openLocallyChatIdAtom,
   workspaceDiffCacheAtomFamily,
+  agentsChatFullWidthAtom,
   type AgentMode,
   type SelectedCommit
 } from "../atoms"
@@ -203,10 +211,10 @@ import { AgentUserQuestion, type AgentUserQuestionHandle } from "../ui/agent-use
 import { AgentsHeaderControls } from "../ui/agents-header-controls"
 import { ChatTitleEditor } from "../ui/chat-title-editor"
 import { MobileChatHeader } from "../ui/mobile-chat-header"
-import { QuickCommentInput } from "../ui/quick-comment-input"
 import { DocumentCommentInput } from "../ui/document-comment-input"
 import { useDocumentComments } from "../hooks/use-document-comments"
-import { commentInputStateAtom, type CommentInputState, type DocumentType } from "../atoms/review-atoms"
+import { commentInputStateAtom, reviewCommentsAtomFamily, type CommentInputState, type DocumentType } from "../atoms/review-atoms"
+import { ReviewButton } from "../ui/review-button"
 import { SubChatSelector } from "../ui/sub-chat-selector"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
@@ -214,8 +222,6 @@ import { autoRenameAgentChat } from "../utils/auto-rename"
 import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } from "../utils/pr-message"
 import { ChatInputArea } from "./chat-input-area"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
-import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
-import { expandedWidgetAtomFamily } from "../../details-sidebar/atoms"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
 import type { ProjectMode } from "../../../../shared/feature-config"
@@ -1693,6 +1699,9 @@ interface DiffSidebarRendererProps {
   isCommittingToPr: boolean
   subChatsWithFiles: Array<{ id: string; name: string; filePaths: string[]; fileCount: number }>
   setDiffStats: (stats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }) => void
+  // Review system
+  activeSubChatId: string | null
+  onSubmitReview: (summary: string) => void
 }
 
 const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
@@ -1738,9 +1747,27 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
   isCommittingToPr,
   subChatsWithFiles,
   setDiffStats,
+  activeSubChatId,
+  onSubmitReview,
 }: DiffSidebarRendererProps) {
   // Get callbacks and state from context
   const { handleCloseDiff, viewedCount, handleViewedCountChange } = useDiffState()
+
+  // Get review comments count for showing user review button
+  const reviewComments = useAtomValue(reviewCommentsAtomFamily(chatId))
+  const hasReviewComments = reviewComments.length > 0
+
+  // Create review button slot - shows when there are user comments
+  const reviewButtonSlot = useMemo(() => {
+    if (!hasReviewComments || !activeSubChatId) return null
+    return (
+      <ReviewButton
+        chatId={chatId}
+        subChatId={activeSubChatId}
+        onSubmitReview={onSubmitReview}
+      />
+    )
+  }, [hasReviewComments, chatId, activeSubChatId, onSubmitReview])
 
   // Width for responsive layouts - use stored width for sidebar, fixed for dialog/fullpage
   const effectiveWidth = diffDisplayMode === "side-peek"
@@ -1792,6 +1819,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           isFullscreen={isFullscreen}
           displayMode={diffDisplayMode}
           onDisplayModeChange={setDiffDisplayMode}
+          reviewButtonSlot={reviewButtonSlot}
         />
       ) : sandboxId ? (
         <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background flex-shrink-0">
@@ -2115,6 +2143,9 @@ const ChatViewInner = memo(function ChatViewInner({
   // Plan mode state (per-subChat using atomFamily)
   const [subChatMode, setSubChatMode] = useAtom(subChatModeAtomFamily(subChatId))
 
+  // Chat area full width mode
+  const [isChatFullWidth, setIsChatFullWidth] = useAtom(agentsChatFullWidthAtom)
+
   // Mutation for updating sub-chat mode in database
   const updateSubChatModeMutation = api.agents.updateSubChatMode.useMutation({
     onSuccess: () => {
@@ -2250,13 +2281,6 @@ const ChatViewInner = memo(function ChatViewInner({
   useEffect(() => {
     fileContentsRef.current.clear()
   }, [subChatId])
-
-  // Quick comment state
-  const [quickCommentState, setQuickCommentState] = useState<{
-    selectedText: string
-    source: TextSelectionSource
-    rect: DOMRect
-  } | null>(null)
 
   // Document comment state for review system
   const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
@@ -2400,53 +2424,21 @@ const ChatViewInner = memo(function ChatViewInner({
     editorRef.current?.focus()
   }, [])
 
-  // Handler for quick comment trigger from popover
-  const handleQuickComment = useCallback((text: string, source: TextSelectionSource, rect: DOMRect) => {
-    setQuickCommentState({ selectedText: text, source, rect })
-  }, [])
-
-  // Handler for quick comment submission
-  const handleQuickCommentSubmit = useCallback((comment: string, selectedText: string, source: TextSelectionSource) => {
-    // Format message with mention token + comment
-    const preview = selectedText.slice(0, 50).replace(/[:\[\]]/g, "")
-    const encodedText = utf8ToBase64(selectedText)
-
-    let mentionToken: string
-    if (source.type === "diff") {
-      const lineNum = source.lineNumber || 0
-      mentionToken = `@[${MENTION_PREFIXES.DIFF}${source.filePath}:${lineNum}:${preview}:${encodedText}]`
-    } else if (source.type === "tool-edit") {
-      // Tool edit is treated as code/diff context
-      mentionToken = `@[${MENTION_PREFIXES.DIFF}${source.filePath}:0:${preview}:${encodedText}]`
-    } else {
-      mentionToken = `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`
+  // Listen for file-viewer "Add to Context" from the custom context menu
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        text: string
+        source: TextSelectionSource
+      }
+      if (detail.text && detail.source) {
+        addTextContext(detail.text, detail.source)
+        editorRef.current?.focus()
+      }
     }
-
-    const message = `${mentionToken} ${comment}`
-
-    // If streaming, add to queue
-    if (isStreamingRef.current) {
-      const item = createQueueItem(generateQueueId(), message)
-      addToQueue(subChatId, item)
-      toast.success("Reply queued", { description: "Will be sent when current response completes" })
-    } else {
-      // Send directly
-      sendMessageRef.current({
-        role: "user",
-        parts: [{ type: "text", text: message }],
-      })
-      toast.success("Reply sent")
-    }
-
-    // Clear state and selection
-    setQuickCommentState(null)
-    window.getSelection()?.removeAllRanges()
-  }, [addToQueue, subChatId])
-
-  // Handler for quick comment cancel
-  const handleQuickCommentCancel = useCallback(() => {
-    setQuickCommentState(null)
-  }, [])
+    window.addEventListener("file-viewer-add-to-context", handler)
+    return () => window.removeEventListener("file-viewer-add-to-context", handler)
+  }, [addTextContext])
 
   // Handler for document comment (review system)
   const handleAddComment = useCallback((
@@ -3330,31 +3322,48 @@ const ChatViewInner = memo(function ChatViewInner({
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
 
+  // Track previous isActive state to detect when tab becomes active
+  const prevIsActiveRef = useRef(isActive)
+
   // Initialize scroll position on mount (only once per tab with keep-alive)
   // Strategy: wait for content to stabilize, then scroll to bottom ONCE
   // No jumping around - just wait and scroll when ready
-  useLayoutEffect(() => {
+  useEffect(() => {
+    console.log('[scroll-init] useEffect triggered', { isActive, subChatId, hasInitialized: hasInitializedRef.current, container: !!chatContainerRef.current })
+
     // Skip if not active (keep-alive: hidden tabs don't need scroll init)
     if (!isActive) return
 
     const container = chatContainerRef.current
-    if (!container) return
+    if (!container) {
+      console.log('[scroll-init] container not ready')
+      return
+    }
 
     // With keep-alive, only initialize once per tab mount
-    if (hasInitializedRef.current) return
+    if (hasInitializedRef.current) {
+      console.log('[scroll-init] already initialized, skipping')
+      return
+    }
     hasInitializedRef.current = true
+
+    console.log('[scroll-init] initializing scroll, scrollHeight:', container.scrollHeight)
 
     // Reset on sub-chat change
     scrollInitializedRef.current = false
     isInitializingScrollRef.current = true
 
-    // IMMEDIATE scroll to bottom - no waiting
-    container.scrollTop = container.scrollHeight
-    shouldAutoScrollRef.current = true
+    // Use requestAnimationFrame to ensure DOM is fully ready
+    requestAnimationFrame(() => {
+      console.log('[scroll-init] RAF - scrolling to bottom, scrollHeight:', container.scrollHeight)
+      // IMMEDIATE scroll to bottom - no waiting
+      container.scrollTop = container.scrollHeight
+      shouldAutoScrollRef.current = true
 
-    // Mark as initialized IMMEDIATELY
-    scrollInitializedRef.current = true
-    isInitializingScrollRef.current = false
+      // Mark as initialized IMMEDIATELY
+      scrollInitializedRef.current = true
+      isInitializingScrollRef.current = false
+    })
 
     // MutationObserver for async content (images, code blocks loading after initial render)
     const observer = new MutationObserver((mutations) => {
@@ -3421,6 +3430,33 @@ const ChatViewInner = memo(function ChatViewInner({
       }
     }
   }, [isActive, messages, status, subChatId])
+
+  // Auto-scroll to bottom when switching to this workspace (tab becomes active)
+  // This ensures users see the latest messages when switching between workspaces
+  useEffect(() => {
+    const wasActive = prevIsActiveRef.current
+    prevIsActiveRef.current = isActive
+
+    console.log('[workspace-switch] isActive changed', { wasActive, isActive, hasInitialized: hasInitializedRef.current, subChatId })
+
+    // Only trigger when tab becomes active (was inactive, now active)
+    if (!wasActive && isActive && hasInitializedRef.current) {
+      console.log('[workspace-switch] tab became active, scrolling to bottom')
+      const container = chatContainerRef.current
+      if (container) {
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+          console.log('[workspace-switch] RAF - scrolling, scrollHeight:', container.scrollHeight)
+          isAutoScrollingRef.current = true
+          container.scrollTop = container.scrollHeight
+          shouldAutoScrollRef.current = true
+          requestAnimationFrame(() => {
+            isAutoScrollingRef.current = false
+          })
+        })
+      }
+    }
+  }, [isActive])
 
   // Auto-focus input when switching to this chat (any sub-chat change)
   // Skip on mobile to prevent keyboard from opening automatically
@@ -4208,21 +4244,9 @@ const ChatViewInner = memo(function ChatViewInner({
         {/* Text selection popover for adding text to context */}
         <TextSelectionPopover
           onAddToContext={addTextContext}
-          onQuickComment={handleQuickComment}
           onAddComment={handleAddComment}
           onFocusInput={handleFocusInput}
         />
-
-        {/* Quick comment input */}
-        {quickCommentState && (
-          <QuickCommentInput
-            selectedText={quickCommentState.selectedText}
-            source={quickCommentState.source}
-            rect={quickCommentState.rect}
-            onSubmit={handleQuickCommentSubmit}
-            onCancel={handleQuickCommentCancel}
-          />
-        )}
 
         {/* Document comment input for review system */}
         {commentInputState && (
@@ -4244,22 +4268,49 @@ const ChatViewInner = memo(function ChatViewInner({
 
         {/* Chat title - flex above scroll area (desktop only) */}
         {!isMobile && (
-        <div
-          className={cn(
-            "flex-shrink-0 pb-2",
-            isSubChatsSidebarOpen ? "pt-[52px]" : "pt-2",
-          )}
-        >
-          <ChatTitleEditor
-            name={subChatName}
-            placeholder="New Chat"
-            onSave={handleRenameSubChat}
-            isMobile={false}
-            chatId={subChatId}
-            hasMessages={messages.length > 0}
-          />
-        </div>
-      )}
+          <div
+            className={cn(
+              "flex-shrink-0 pb-2",
+              isSubChatsSidebarOpen ? "pt-[52px]" : "pt-2",
+            )}
+          >
+            <div className={cn(
+              "flex items-center gap-2 mx-auto px-4",
+              isChatFullWidth ? "max-w-[calc(100%-48px)]" : "max-w-2xl"
+            )}>
+              <div className="flex-1 min-w-0">
+                <ChatTitleEditor
+                  name={subChatName}
+                  placeholder="New Chat"
+                  onSave={handleRenameSubChat}
+                  isMobile={false}
+                  chatId={subChatId}
+                  hasMessages={messages.length > 0}
+                />
+              </div>
+              {/* Full width toggle button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsChatFullWidth(!isChatFullWidth)}
+                    className="h-7 w-7 p-0 flex-shrink-0 hover:bg-foreground/10"
+                  >
+                    {isChatFullWidth ? (
+                      <ArrowLeftFromLine className="size-4 text-muted-foreground" />
+                    ) : (
+                      <MoveHorizontal className="size-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {isChatFullWidth ? "Restore default width" : "Expand to full width"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        )}
 
       {/* Messages */}
       <div
@@ -4287,7 +4338,10 @@ const ChatViewInner = memo(function ChatViewInner({
         data-chat-container
       >
         <div
-          className="px-2 max-w-2xl mx-auto -mb-4 space-y-4"
+          className={cn(
+            "px-2 mx-auto -mb-4 space-y-4",
+            !isChatFullWidth && "max-w-2xl",
+          )}
           style={{
             paddingBottom: "32px",
           }}
@@ -4317,7 +4371,7 @@ const ChatViewInner = memo(function ChatViewInner({
       {/* User questions panel - shows for both live (pending) and expired (timed out) questions */}
       {displayQuestions && (
         <div className="px-4 relative z-20">
-          <div className="w-full px-2 max-w-2xl mx-auto">
+          <div className={cn("w-full px-2 mx-auto", !isChatFullWidth && "max-w-2xl")}>
             <AgentUserQuestion
               ref={questionRef}
               pendingQuestions={displayQuestions}
@@ -4333,7 +4387,7 @@ const ChatViewInner = memo(function ChatViewInner({
       {!displayQuestions &&
         (queue.length > 0 || changedFilesForSubChat.length > 0) && (
           <div className="px-2 -mb-6 relative z-10">
-            <div className="w-full max-w-2xl mx-auto px-2">
+            <div className={cn("w-full mx-auto px-2", !isChatFullWidth && "max-w-2xl")}>
               {/* Queue indicator card - top card */}
               {queue.length > 0 && (
                 <AgentQueueIndicator
@@ -4472,6 +4526,7 @@ export function ChatView({
 
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
+  const isChatFullWidth = useAtomValue(agentsChatFullWidthAtom)
   const customClaudeConfig = useAtomValue(customClaudeConfigAtom)
   const selectedOllamaModel = useAtomValue(selectedOllamaModelAtom)
   const normalizedCustomClaudeConfig =
@@ -6913,7 +6968,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
               {/* Disabled input while loading */}
               <div className="px-2 pb-2">
-                <div className="w-full max-w-2xl mx-auto">
+                <div className={cn("w-full mx-auto", !isChatFullWidth && "max-w-2xl")}>
                   <div className="relative w-full">
                     <PromptInput
                       className="border bg-input-background relative z-10 p-2 rounded-xl opacity-50 pointer-events-none"
@@ -7072,6 +7127,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               isCommittingToPr={isCommittingToPr}
               subChatsWithFiles={subChatsWithFiles}
               setDiffStats={setDiffStats}
+              activeSubChatId={activeSubChatId}
+              onSubmitReview={handleSubmitReview}
             />
           </DiffStateProvider>
         )}
