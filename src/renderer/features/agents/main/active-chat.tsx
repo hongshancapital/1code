@@ -1069,6 +1069,8 @@ interface DiffSidebarContentProps {
   initialSubChatFilter?: string | null
   // Callback when marking file as viewed to select next file
   onSelectNextFile?: (filePath: string) => void
+  // SubChat ID for scoping comments (from active subChat)
+  subChatId?: string
 }
 
 // Memoized commit file item for History tab
@@ -1127,6 +1129,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
   setDiffMode,
   onCreatePr,
   subChats = [],
+  subChatId,
 }: Omit<DiffSidebarContentProps, 'selectedFilePath' | 'onFileSelect' | 'onCommitSuccess' | 'initialSubChatFilter' | 'onSelectNextFile'>) {
   // Get values from context instead of props
   const {
@@ -1369,6 +1372,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
             <AgentDiffView
               ref={diffViewRef}
               chatId={chatId}
+              subChatId={subChatId}
               sandboxId={sandboxId}
               worktreePath={worktreePath || undefined}
               repository={repository}
@@ -1495,6 +1499,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
           <AgentDiffView
             ref={diffViewRef}
             chatId={chatId}
+            subChatId={subChatId}
             sandboxId={sandboxId}
             worktreePath={worktreePath || undefined}
             repository={repository}
@@ -1753,9 +1758,9 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
   // Get callbacks and state from context
   const { handleCloseDiff, viewedCount, handleViewedCountChange } = useDiffState()
 
-  // Get review comments count for showing user review button
-  const reviewComments = useAtomValue(reviewCommentsAtomFamily(chatId))
-  const hasReviewComments = reviewComments.length > 0
+  // Get review comments count for showing user review button (scoped by subChatId)
+  const reviewComments = useAtomValue(reviewCommentsAtomFamily(activeSubChatId || ""))
+  const hasReviewComments = reviewComments.length > 0 && activeSubChatId
 
   // Create review button slot - shows when there are user comments
   const reviewButtonSlot = useMemo(() => {
@@ -1856,6 +1861,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
         setDiffMode={setDiffMode}
         onCreatePr={handleCreatePr}
         subChats={subChatsWithFiles}
+        subChatId={activeSubChatId || undefined}
       />
     </div>
   )
@@ -2282,9 +2288,13 @@ const ChatViewInner = memo(function ChatViewInner({
     fileContentsRef.current.clear()
   }, [subChatId])
 
-  // Document comment state for review system
+  // Document comment state for review system (scoped by activeSubChatId for consistency with diff view)
+  // We use activeSubChatId instead of subChatId because:
+  // - Comments are added from diff view which reads from activeSubChatId
+  // - This ensures comments are stored and read from the same place
   const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
-  const { addComment } = useDocumentComments(parentChatId)
+  const activeSubChatIdForComment = useAgentSubChatStore((state) => state.activeSubChatId)
+  const { addComment } = useDocumentComments(activeSubChatIdForComment || subChatId)
 
   // Message queue for sending messages while streaming
   const queue = useMessageQueueStore((s) => s.queues[subChatId] ?? EMPTY_QUEUE)
@@ -3368,16 +3378,25 @@ const ChatViewInner = memo(function ChatViewInner({
     // MutationObserver for async content (images, code blocks loading after initial render)
     const observer = new MutationObserver((mutations) => {
       // Skip if not active (keep-alive: don't scroll hidden tabs)
-      if (!isActive) return
-      if (!shouldAutoScrollRef.current) return
+      if (!isActive) {
+        console.log('[mutation-observer] skipping - not active')
+        return
+      }
+      if (!shouldAutoScrollRef.current) {
+        console.log('[mutation-observer] skipping - shouldAutoScroll is false')
+        return
+      }
 
       // Check if content was added
       const hasAddedContent = mutations.some(
         (m) => m.type === "childList" && m.addedNodes.length > 0
       )
 
+      console.log('[mutation-observer] mutation detected', { hasAddedContent, mutationCount: mutations.length })
+
       if (hasAddedContent) {
         requestAnimationFrame(() => {
+          console.log('[mutation-observer] RAF - scrolling, scrollHeight:', container.scrollHeight)
           isAutoScrollingRef.current = true
           container.scrollTop = container.scrollHeight
           requestAnimationFrame(() => {
@@ -5650,8 +5669,8 @@ export function ChatView({
     }
   }, [chatId, activeSubChatId, setPendingReviewMessage, setFilteredSubChatId])
 
-  // Review system - document comments for plan sidebar
-  const { comments: reviewComments, commentsByDocument, clearComments } = useDocumentComments(chatId)
+  // Review system - document comments for plan sidebar (scoped by activeSubChatId)
+  const { comments: reviewComments, commentsByDocument, clearComments } = useDocumentComments(activeSubChatIdForPlan || "")
 
   // Handler for submitting review from plan sidebar (document comments)
   const handleSubmitReview = useCallback((summary: string) => {

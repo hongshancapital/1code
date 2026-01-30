@@ -832,6 +832,8 @@ export interface ContextComment {
 
 interface AgentDiffViewProps {
   chatId: string
+  /** SubChat ID for scoping comments - if not provided, uses activeSubChatId from store */
+  subChatId?: string
   sandboxId: string
   /** Worktree path for local file access (desktop only) */
   worktreePath?: string
@@ -882,13 +884,11 @@ export interface AgentDiffViewRef {
   markAllUnviewed: () => void
 }
 
-// DEBUG: Render counter
-let renderCount = 0
-
 export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
   function AgentDiffView(
     {
       chatId,
+      subChatId: subChatIdProp,
       sandboxId,
       worktreePath,
       repository,
@@ -910,9 +910,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     },
     ref,
   ) {
-    // DEBUG: Log renders
-    renderCount++
-    console.log(`[AgentDiffView] RENDER #${renderCount}`, { chatId, sandboxId, initialDiff: initialDiff?.slice(0, 50), initialParsedFiles: initialParsedFiles?.length })
 
     const { resolvedTheme } = useTheme()
     const isHydrated = useIsHydrated()
@@ -985,14 +982,15 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       setDiscardFilePath(filePath)
     }, [])
 
-    // Get active subChatId from store for scoping comments
-    const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+    // Get active subChatId from store as fallback, prefer prop if provided
+    const activeSubChatIdFromStore = useAgentSubChatStore((state) => state.activeSubChatId)
+    const effectiveSubChatId = subChatIdProp || activeSubChatIdFromStore || ""
 
     // Get pending comments for this chat (old system)
     const pendingComments = useAtomValue(pendingCommentsAtomFamily(chatId))
 
     // Get review comments from new review system (scoped by subChatId)
-    const reviewComments = useAtomValue(reviewCommentsAtomFamily(activeSubChatId || ""))
+    const reviewComments = useAtomValue(reviewCommentsAtomFamily(effectiveSubChatId))
 
     // Get context comments from atom (shared with chat input)
     const contextCommentsFromAtom = useAtomValue(contextCommentsAtom)
@@ -1615,13 +1613,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
 
     useEffect(() => {
       // Desktop: use worktreePath, Web: use sandboxId
-      console.log("[AgentDiffView] File content effect:", {
-        fileDiffsCount: fileDiffs.length,
-        isLoadingFileContents,
-        worktreePath: !!worktreePath,
-        sandboxId,
-        existingContents: Object.keys(fileContents).length
-      })
       if (fileDiffs.length === 0 || isLoadingFileContents) return
       if (!worktreePath && !sandboxId) return
       // Skip if we already have enough contents
@@ -1630,7 +1621,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
         existingContentCount >= Math.min(fileDiffs.length, MAX_PREFETCH_FILES)
       )
         return
-      console.log("[AgentDiffView] Will fetch file contents...")
 
       const fetchAllContents = async () => {
         setIsLoadingFileContents(true)
@@ -1673,7 +1663,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
             setFileContents(newContents)
           } else if (sandboxId) {
             // Sandbox: use remoteApi on desktop, relative fetch on web
-            console.log("[AgentDiffView] Fetching file contents for sandbox, isDesktop:", isDesktopApp())
             const results = await Promise.allSettled(
               filesToFetch.map(async ({ key, filePath }) => {
                 if (isDesktopApp()) {
@@ -1697,14 +1686,12 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
               }),
             )
 
-            console.log("[AgentDiffView] File content results:", results.length, "files")
             const newContents: Record<string, string> = {}
             for (const result of results) {
               if (result.status === "fulfilled" && result.value?.content) {
                 newContents[result.value.key] = result.value.content
               }
             }
-            console.log("[AgentDiffView] Setting file contents:", Object.keys(newContents).length, "files")
             setFileContents(newContents)
           }
         } catch (error) {
@@ -1868,22 +1855,12 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     // When filtering is active, parent already has correct stats from fetchDiffStats
     const prevStatsRef = useRef<{ fileCount: number; additions: number; deletions: number; isLoading: boolean } | null>(null)
     useEffect(() => {
-      console.log('[AgentDiffView] onStatsChange useEffect running', {
-        filteredDiffFiles: filteredDiffFiles?.length,
-        allFileDiffsLength: allFileDiffs.length,
-        isLoadingDiff,
-        totalAdditions,
-        totalDeletions,
-        prevStats: prevStatsRef.current,
-      })
       // Don't report stats when filtering is active - parent already has correct totals
       if (filteredDiffFiles && filteredDiffFiles.length > 0) {
-        console.log('[AgentDiffView] Early return: filtering active')
         return
       }
       if (allFileDiffs.length === 0 && !isLoadingDiff) {
         // Don't report empty stats - let parent's fetchDiffStats be the source of truth
-        console.log('[AgentDiffView] Early return: no files and not loading')
         return
       }
       // Only notify if stats actually changed
@@ -1893,15 +1870,8 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
         prevStatsRef.current?.deletions === totalDeletions &&
         prevStatsRef.current?.isLoading === isLoadingDiff
       ) {
-        console.log('[AgentDiffView] Early return: stats unchanged')
         return
       }
-      console.log('[AgentDiffView] CALLING onStatsChange!', {
-        fileCount: allFileDiffs.length,
-        additions: totalAdditions,
-        deletions: totalDeletions,
-        isLoading: isLoadingDiff,
-      })
       prevStatsRef.current = {
         fileCount: allFileDiffs.length,
         additions: totalAdditions,
