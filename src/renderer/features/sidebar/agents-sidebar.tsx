@@ -29,20 +29,31 @@ import {
   betaKanbanEnabledAtom,
   betaAutomationsEnabledAtom,
 } from "../../lib/atoms"
-import {
-  useRemoteChats,
-  useUserTeams,
-  usePrefetchRemoteChat,
-  useArchiveRemoteChat,
-  useArchiveRemoteChatsBatch,
-  useRestoreRemoteChat,
-  useRenameRemoteChat,
-} from "../../lib/hooks/use-remote-chats"
+// [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
+// import {
+//   useRemoteChats,
+//   useUserTeams,
+//   usePrefetchRemoteChat,
+//   useArchiveRemoteChat,
+//   useArchiveRemoteChatsBatch,
+//   useRestoreRemoteChat,
+//   useRenameRemoteChat,
+// } from "../../lib/hooks/use-remote-chats"
+
+// Stub implementations for disabled cloud features
+const useUserTeams = (_enabled?: boolean) => ({ data: undefined, isLoading: false, isError: false })
+const useRemoteChats = () => ({ data: undefined })
+const usePrefetchRemoteChat = () => () => {}
+const useArchiveRemoteChat = () => ({ mutate: () => {}, isPending: false })
+const useArchiveRemoteChatsBatch = () => ({ mutateAsync: async () => ({ archivedCount: 0 }), isPending: false })
+const useRestoreRemoteChat = () => ({ mutate: () => {} })
+const useRenameRemoteChat = () => ({ mutate: () => {} })
 import { ArchivePopover } from "../agents/ui/archive-popover"
 import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight } from "lucide-react"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
 import { useQuery } from "@tanstack/react-query"
-import { remoteTrpc } from "../../lib/remote-trpc"
+// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
+// import { remoteTrpc } from "../../lib/remote-trpc"
 // import { useRouter } from "next/navigation" // Desktop doesn't use next/navigation
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null })
@@ -1062,7 +1073,7 @@ const ChatListSection = React.memo(function ChatListSection({
 interface AgentsSidebarProps {
   userId?: string | null | undefined
   clerkUser?: any
-  desktopUser?: { id: string; email: string; name?: string } | null
+  desktopUser?: { id: string; email: string; name?: string; imageUrl?: string | null } | null
   onSignOut?: () => void
   onToggleSidebar?: () => void
   isMobileFullscreen?: boolean
@@ -1168,13 +1179,15 @@ const InboxButton = memo(function InboxButton() {
   const setDesktopView = useSetAtom(desktopViewAtom)
   const teamId = useAtomValue(selectedTeamIdAtom)
 
-  const { data: unreadData } = useQuery({
-    queryKey: ["automations", "inboxUnreadCount", teamId],
-    queryFn: () => remoteTrpc.automations.getInboxUnreadCount.query({ teamId: teamId! }),
-    enabled: !!teamId && automationsEnabled,
-    refetchInterval: 30_000,
-  })
-  const inboxUnreadCount = unreadData?.count ?? 0
+  // [CLOUD DISABLED] Remote inbox unread count - disabled until cloud backend is available
+  // const { data: unreadData } = useQuery({
+  //   queryKey: ["automations", "inboxUnreadCount", teamId],
+  //   queryFn: () => remoteTrpc.automations.getInboxUnreadCount.query({ teamId: teamId! }),
+  //   enabled: !!teamId && automationsEnabled,
+  //   refetchInterval: 30_000,
+  // })
+  // const inboxUnreadCount = unreadData?.count ?? 0
+  const inboxUnreadCount = 0
 
   const handleClick = useCallback(() => {
     setSelectedChatId(null)

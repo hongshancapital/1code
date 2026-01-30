@@ -20,8 +20,21 @@ import {
   Trash2,
   MoreHorizontal,
 } from "lucide-react"
-import { remoteTrpc } from "../../lib/remote-trpc"
+// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
+// import { remoteTrpc } from "../../lib/remote-trpc"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+
+// Stub for disabled cloud feature
+const remoteTrpc = {
+  automations: {
+    getAutomation: { query: async () => null },
+    createAutomation: { mutate: async () => ({}) },
+    updateAutomation: { mutate: async () => ({}) },
+    deleteAutomation: { mutate: async () => ({}) },
+  },
+  github: { getConnectionStatus: { query: async () => ({ connected: false }) } },
+  linear: { getIntegration: { query: async () => null } },
+} as any
 import { Switch } from "../../components/ui/switch"
 import {
   Select,

@@ -12,7 +12,13 @@ import {
   showOfflineModeFeaturesAtom,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
-import { remoteTrpc } from "../../../lib/remote-trpc"
+// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
+// import { remoteTrpc } from "../../../lib/remote-trpc"
+
+// Stub for disabled cloud feature
+const remoteTrpc = {
+  agents: { getAgentsSubscription: { query: async () => ({ type: "free" }) } },
+} as any
 import { cn } from "../../../lib/utils"
 import { Button } from "../../ui/button"
 import { ExternalLinkIcon } from "../../ui/icons"

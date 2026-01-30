@@ -73,7 +73,14 @@ import { cn } from "../../../lib/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
 import { api } from "../../../lib/mock-api"
 import { trpcClient } from "../../../lib/trpc"
-import { remoteApi } from "../../../lib/remote-api"
+// [CLOUD DISABLED] Remote API - disabled until cloud backend is available
+// import { remoteApi } from "../../../lib/remote-api"
+
+// Stub for disabled cloud feature
+const remoteApi = {
+  getSandboxFile: async () => { throw new Error("Cloud features disabled") },
+  getSandboxDiff: async () => { throw new Error("Cloud features disabled") },
+} as any
 import {
   getDiffHighlighter,
   setDiffViewTheme,

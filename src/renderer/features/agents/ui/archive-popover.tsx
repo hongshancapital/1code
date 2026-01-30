@@ -10,10 +10,15 @@ import {
   selectedChatIsRemoteAtom,
 } from "../atoms"
 import { showWorkspaceIconAtom, chatSourceModeAtom } from "../../../lib/atoms"
-import {
-  useRemoteArchivedChats,
-  useRestoreRemoteChat,
-} from "../../../lib/hooks/use-remote-chats"
+// [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
+// import {
+//   useRemoteArchivedChats,
+//   useRestoreRemoteChat,
+// } from "../../../lib/hooks/use-remote-chats"
+
+// Stub implementations for disabled cloud features
+const useRemoteArchivedChats = () => ({ data: undefined, isLoading: false })
+const useRestoreRemoteChat = () => ({ mutate: () => {} })
 import { Input } from "../../../components/ui/input"
 import {
   SearchIcon,

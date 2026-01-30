@@ -14,8 +14,16 @@ import { Logo } from "../../components/ui/logo"
 import { useState, useMemo, useCallback } from "react"
 import { Plus, AlignJustify } from "lucide-react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
-import { remoteTrpc } from "../../lib/remote-trpc"
+// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
+// import { remoteTrpc } from "../../lib/remote-trpc"
 import { useQuery } from "@tanstack/react-query"
+
+// Stub for disabled cloud feature
+const remoteTrpc = {
+  automations: { listAutomations: { query: async () => [] } },
+  github: { getConnectionStatus: { query: async () => ({ connected: false }) } },
+  linear: { getIntegration: { query: async () => null } },
+} as any
 
 import {
   AutomationCard,

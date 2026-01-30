@@ -36,8 +36,17 @@ import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
 import { ArrowUpDown, AlignJustify } from "lucide-react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
 import { desktopViewAtom } from "../agents/atoms"
-import { remoteTrpc } from "../../lib/remote-trpc"
+// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
+// import { remoteTrpc } from "../../lib/remote-trpc"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+
+// Stub for disabled cloud feature
+const remoteTrpc = {
+  automations: {
+    getInboxChats: { query: async () => [] },
+    markInboxItemRead: { mutate: async () => ({}) },
+  },
+} as any
 import {
   Popover,
   PopoverContent,

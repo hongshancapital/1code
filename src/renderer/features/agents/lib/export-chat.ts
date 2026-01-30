@@ -1,5 +1,11 @@
 import { trpcClient } from "../../../lib/trpc"
-import { remoteApi } from "../../../lib/remote-api"
+// [CLOUD DISABLED] Remote API - disabled until cloud backend is available
+// import { remoteApi } from "../../../lib/remote-api"
+
+// Stub for disabled cloud feature
+const remoteApi = {
+  getAgentChat: async () => { throw new Error("Cloud features disabled") },
+} as any
 import { toast } from "sonner"
 
 export type ExportFormat = "markdown" | "json" | "text"
