@@ -3332,71 +3332,51 @@ const ChatViewInner = memo(function ChatViewInner({
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
 
-  // Track previous isActive state to detect when tab becomes active
-  const prevIsActiveRef = useRef(isActive)
-
   // Initialize scroll position on mount (only once per tab with keep-alive)
   // Strategy: wait for content to stabilize, then scroll to bottom ONCE
   // No jumping around - just wait and scroll when ready
   useEffect(() => {
-    console.log('[scroll-init] useEffect triggered', { isActive, subChatId, hasInitialized: hasInitializedRef.current, container: !!chatContainerRef.current })
-
     // Skip if not active (keep-alive: hidden tabs don't need scroll init)
     if (!isActive) return
 
     const container = chatContainerRef.current
-    if (!container) {
-      console.log('[scroll-init] container not ready')
-      return
-    }
+    if (!container) return
 
     // With keep-alive, only initialize once per tab mount
-    if (hasInitializedRef.current) {
-      console.log('[scroll-init] already initialized, skipping')
-      return
-    }
+    if (hasInitializedRef.current) return
     hasInitializedRef.current = true
-
-    console.log('[scroll-init] initializing scroll, scrollHeight:', container.scrollHeight)
 
     // Reset on sub-chat change
     scrollInitializedRef.current = false
     isInitializingScrollRef.current = true
 
-    // Use requestAnimationFrame to ensure DOM is fully ready
-    requestAnimationFrame(() => {
-      console.log('[scroll-init] RAF - scrolling to bottom, scrollHeight:', container.scrollHeight)
-      // IMMEDIATE scroll to bottom - no waiting
-      container.scrollTop = container.scrollHeight
-      shouldAutoScrollRef.current = true
+    // Use a small delay to ensure content is loaded, then scroll to bottom
+    // First scroll immediately
+    container.scrollTop = container.scrollHeight
+    shouldAutoScrollRef.current = true
 
-      // Mark as initialized IMMEDIATELY
+    // Then scroll again after a delay to catch any late-loading content
+    const timeoutId = setTimeout(() => {
+      container.scrollTop = container.scrollHeight
+
+      // Mark as initialized
       scrollInitializedRef.current = true
       isInitializingScrollRef.current = false
-    })
+    }, 150)
 
     // MutationObserver for async content (images, code blocks loading after initial render)
     const observer = new MutationObserver((mutations) => {
       // Skip if not active (keep-alive: don't scroll hidden tabs)
-      if (!isActive) {
-        console.log('[mutation-observer] skipping - not active')
-        return
-      }
-      if (!shouldAutoScrollRef.current) {
-        console.log('[mutation-observer] skipping - shouldAutoScroll is false')
-        return
-      }
+      if (!isActive) return
+      if (!shouldAutoScrollRef.current) return
 
       // Check if content was added
       const hasAddedContent = mutations.some(
         (m) => m.type === "childList" && m.addedNodes.length > 0
       )
 
-      console.log('[mutation-observer] mutation detected', { hasAddedContent, mutationCount: mutations.length })
-
       if (hasAddedContent) {
         requestAnimationFrame(() => {
-          console.log('[mutation-observer] RAF - scrolling, scrollHeight:', container.scrollHeight)
           isAutoScrollingRef.current = true
           container.scrollTop = container.scrollHeight
           requestAnimationFrame(() => {
@@ -3409,6 +3389,7 @@ const ChatViewInner = memo(function ChatViewInner({
     observer.observe(container, { childList: true, subtree: true })
 
     return () => {
+      clearTimeout(timeoutId)
       observer.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3449,33 +3430,6 @@ const ChatViewInner = memo(function ChatViewInner({
       }
     }
   }, [isActive, messages, status, subChatId])
-
-  // Auto-scroll to bottom when switching to this workspace (tab becomes active)
-  // This ensures users see the latest messages when switching between workspaces
-  useEffect(() => {
-    const wasActive = prevIsActiveRef.current
-    prevIsActiveRef.current = isActive
-
-    console.log('[workspace-switch] isActive changed', { wasActive, isActive, hasInitialized: hasInitializedRef.current, subChatId })
-
-    // Only trigger when tab becomes active (was inactive, now active)
-    if (!wasActive && isActive && hasInitializedRef.current) {
-      console.log('[workspace-switch] tab became active, scrolling to bottom')
-      const container = chatContainerRef.current
-      if (container) {
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          console.log('[workspace-switch] RAF - scrolling, scrollHeight:', container.scrollHeight)
-          isAutoScrollingRef.current = true
-          container.scrollTop = container.scrollHeight
-          shouldAutoScrollRef.current = true
-          requestAnimationFrame(() => {
-            isAutoScrollingRef.current = false
-          })
-        })
-      }
-    }
-  }, [isActive])
 
   // Auto-focus input when switching to this chat (any sub-chat change)
   // Skip on mobile to prevent keyboard from opening automatically
