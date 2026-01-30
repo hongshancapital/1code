@@ -281,6 +281,12 @@ function registerIpcHandlers(): void {
     return getAuthManager().getUser()
   })
 
+  ipcMain.handle("auth:refresh-user", async (event) => {
+    if (!validateSender(event)) return null
+    // Re-fetch user info from API
+    return getAuthManager().validateAndRefreshUser()
+  })
+
   ipcMain.handle("auth:is-authenticated", (event) => {
     if (!validateSender(event)) return false
     return getAuthManager().isAuthenticated()

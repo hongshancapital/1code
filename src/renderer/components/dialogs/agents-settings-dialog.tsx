@@ -23,7 +23,9 @@ import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
 import { AgentsProjectWorktreeTab } from "./settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
 import { AgentsEditorTab } from "./settings-tabs/agents-editor-tab"
+import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
 import { GenericEditorIcon } from "../../icons/editor-icons"
+import { User } from "lucide-react"
 
 // GitHub avatar icon with loading placeholder
 function GitHubAvatarIcon({ gitOwner, className }: { gitOwner: string; className?: string }) {
@@ -84,6 +86,12 @@ interface AgentsSettingsDialogProps {
 
 // Main settings tabs
 const MAIN_TABS = [
+  {
+    id: "profile" as SettingsTab,
+    label: "Profile",
+    icon: User,
+    description: "Account settings",
+  },
   {
     id: "appearance" as SettingsTab,
     label: "Appearance",
@@ -353,6 +361,8 @@ export function AgentsSettingsDialog({
 
     // Handle static tabs
     switch (activeTab) {
+      case "profile":
+        return <AgentsProfileTab />
       case "appearance":
         return <AgentsAppearanceTab />
       case "keyboard":

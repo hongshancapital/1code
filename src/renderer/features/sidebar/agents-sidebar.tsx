@@ -1298,7 +1298,7 @@ interface SidebarHeaderProps {
   isFullscreen: boolean | null
   isMobileFullscreen: boolean
   userId: string | null | undefined
-  desktopUser: { id: string; email: string; name?: string } | null
+  desktopUser: { id: string; email: string; name?: string; imageUrl?: string | null } | null
   onSignOut: () => void
   onToggleSidebar?: () => void
   setSettingsDialogOpen: (open: boolean) => void
@@ -3409,11 +3409,55 @@ export function AgentsSidebar({
             onAnimationComplete={() => {
               hasFooterAnimated.current = true
             }}
-            className="p-2 pt-2 flex flex-col gap-2"
+            className="p-2 pt-2"
           >
-            <div className="flex items-center">
+            {/* Footer: Avatar on left, icon buttons on right */}
+            <div className="flex items-center gap-2">
+              {/* User Avatar */}
+              <Tooltip delayDuration={500}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (desktopUser) {
+                        setSettingsActiveTab("profile")
+                        setSettingsDialogOpen(true)
+                      } else {
+                        // Not logged in - trigger login flow
+                        window.desktopApi?.startAuthFlow?.()
+                      }
+                    }}
+                    className={cn(
+                      "flex-shrink-0 rounded-lg overflow-hidden transition-[transform,box-shadow] duration-150 ease-out active:scale-[0.97] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 hover:ring-2 hover:ring-foreground/20",
+                      // Match height of icon buttons (h-7 = 28px)
+                      isMobileFullscreen ? "w-10 h-10" : "w-7 h-7",
+                    )}
+                  >
+                    {desktopUser?.imageUrl ? (
+                      <img
+                        src={desktopUser.imageUrl}
+                        alt={desktopUser.name || desktopUser.email}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
+                        <span className={cn("font-medium", isMobileFullscreen ? "text-base" : "text-sm")}>
+                          {desktopUser
+                            ? (desktopUser.name || desktopUser.email || "U").charAt(0).toUpperCase()
+                            : "?"
+                          }
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {desktopUser ? (desktopUser.name || desktopUser.email) : "Sign in"}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Right side: single row of icon buttons */}
               <div className="flex items-center gap-1">
-                {/* Settings Button */}
                 <Tooltip delayDuration={500}>
                   <TooltipTrigger asChild>
                     <button
@@ -3430,31 +3474,11 @@ export function AgentsSidebar({
                   <TooltipContent>Settings</TooltipContent>
                 </Tooltip>
 
-                {/* Help Button - isolated component to prevent sidebar re-renders */}
                 <HelpSection isMobile={isMobileFullscreen} />
-
-                {/* Kanban View Button - isolated component */}
                 <KanbanButton />
-
-                {/* Archive Button - isolated component to prevent sidebar re-renders */}
                 <ArchiveSection archivedChatsCount={archivedChatsCount} />
               </div>
-
-              <div className="flex-1" />
             </div>
-
-            {/* Feedback Button */}
-            <ButtonCustom
-              onClick={() => window.open(FEEDBACK_URL, "_blank")}
-              variant="outline"
-              size="sm"
-              className={cn(
-                "px-2 w-full hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground rounded-lg gap-1.5",
-                isMobileFullscreen ? "h-10" : "h-7",
-              )}
-            >
-              <span className="text-sm font-medium">Feedback</span>
-            </ButtonCustom>
           </motion.div>
         )}
       </AnimatePresence>

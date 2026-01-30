@@ -1,7 +1,6 @@
 import { eq, sql } from "drizzle-orm"
 import { safeStorage, shell } from "electron"
 import { z } from "zod"
-import { getAuthManager } from "../../../index"
 import { getClaudeShellEnvironment } from "../../claude"
 import { getExistingClaudeToken } from "../../claude-token"
 import { getApiUrl } from "../../config"
@@ -16,10 +15,10 @@ import { publicProcedure, router } from "../index"
 
 /**
  * Get desktop auth token for server API calls
+ * @deprecated Auth manager removed - returns null
  */
 async function getDesktopToken(): Promise<string | null> {
-  const authManager = getAuthManager()
-  return authManager.getValidToken()
+  return null
 }
 
 /**
@@ -49,9 +48,6 @@ function decryptToken(encrypted: string): string {
  * If setAsActive is true, also sets this account as active
  */
 function storeOAuthToken(oauthToken: string, setAsActive = true): string {
-  const authManager = getAuthManager()
-  const user = authManager.getUser()
-
   const encryptedToken = encryptToken(oauthToken)
   const db = getDatabase()
   const newId = createId()
@@ -63,7 +59,7 @@ function storeOAuthToken(oauthToken: string, setAsActive = true): string {
       oauthToken: encryptedToken,
       displayName: "Anthropic Account",
       connectedAt: new Date(),
-      desktopUserId: user?.id ?? null,
+      desktopUserId: null,
     })
     .run()
 
@@ -95,7 +91,7 @@ function storeOAuthToken(oauthToken: string, setAsActive = true): string {
       id: "default",
       oauthToken: encryptedToken,
       connectedAt: new Date(),
-      userId: user?.id ?? null,
+      userId: null,
     })
     .run()
 

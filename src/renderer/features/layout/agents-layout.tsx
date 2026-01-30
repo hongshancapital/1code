@@ -167,10 +167,28 @@ export function AgentsLayout() {
     async function fetchUser() {
       if (window.desktopApi?.getUser) {
         const user = await window.desktopApi.getUser()
+        console.log("[UI] Got desktop user:", user?.id, "imageUrl:", user?.imageUrl)
         setDesktopUser(user)
       }
     }
     fetchUser()
+  }, [])
+
+  // Listen for auth success to update user info (e.g., after login with avatar)
+  useEffect(() => {
+    if (!window.desktopApi?.onAuthSuccess) return
+
+    const unsubscribe = window.desktopApi.onAuthSuccess(async (user) => {
+      // Fetch full user info after auth success to get latest imageUrl
+      if (window.desktopApi?.getUser) {
+        const fullUser = await window.desktopApi.getUser()
+        setDesktopUser(fullUser)
+      } else {
+        setDesktopUser(user)
+      }
+    })
+
+    return () => unsubscribe()
   }, [])
 
   // Track if this is the initial load - skip auto-open on first load to respect saved state

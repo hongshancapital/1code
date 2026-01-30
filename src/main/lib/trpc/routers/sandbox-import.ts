@@ -4,7 +4,7 @@ import { getDatabase } from "../../db";
 import { chats, subChats, projects } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import { app } from "electron";
-import { getAuthManager, getBaseUrl } from "../../../index";
+import { getBaseUrl } from "../../../index";
 import { createWorktreeForChat } from "../../git/worktree";
 import { importSandboxToWorktree, type ExportClaudeSession } from "../../git/sandbox-import";
 import { getGitRemoteInfo } from "../../git";
@@ -123,15 +123,14 @@ export const sandboxImportRouter = router({
 		)
 		.mutation(async ({ input }) => {
 			const db = getDatabase();
-			const authManager = getAuthManager();
 			const apiUrl = getBaseUrl();
 
 			console.log(`[OPEN-LOCALLY] Starting import: remoteChatId=${input.remoteChatId}, remoteSubChatId=${input.remoteSubChatId || "all"}, sandboxId=${input.sandboxId}`);
 
-			// Verify auth
-			const token = await authManager.getValidToken();
+			// Auth removed - sandbox import requires manual token or alternative auth
+			const token: string | null = null;
 			if (!token) {
-				throw new Error("Not authenticated");
+				throw new Error("Sandbox import not available - auth manager removed");
 			}
 
 			// Verify project exists
@@ -303,12 +302,12 @@ export const sandboxImportRouter = router({
 			}),
 		)
 		.query(async ({ input }) => {
-			const authManager = getAuthManager();
 			const apiUrl = getBaseUrl();
 
-			const token = await authManager.getValidToken();
+			// Auth removed - sandbox import requires manual token or alternative auth
+			const token: string | null = null;
 			if (!token) {
-				throw new Error("Not authenticated");
+				throw new Error("Sandbox list not available - auth manager removed");
 			}
 
 			// Call web API to get sandbox chats
@@ -355,16 +354,15 @@ export const sandboxImportRouter = router({
 			});
 
 			const db = getDatabase();
-			const authManager = getAuthManager();
 			const apiUrl = getBaseUrl();
 			console.log(`[OPEN-LOCALLY] API URL: ${apiUrl}`);
 
-			// Verify auth
-			console.log(`[OPEN-LOCALLY] Getting auth token...`);
-			const token = await authManager.getValidToken();
+			// Auth removed - sandbox clone requires manual token or alternative auth
+			console.log(`[OPEN-LOCALLY] Auth manager removed - sandbox clone not available`);
+			const token: string | null = null;
 			if (!token) {
 				console.error(`[OPEN-LOCALLY] No auth token available`);
-				throw new Error("Not authenticated");
+				throw new Error("Sandbox clone not available - auth manager removed");
 			}
 			console.log(`[OPEN-LOCALLY] Auth token obtained`);
 

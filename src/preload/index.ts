@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld("desktopApi", {
 
   // Auth methods
   getUser: () => ipcRenderer.invoke("auth:get-user"),
+  refreshUser: () => ipcRenderer.invoke("auth:refresh-user"),
   isAuthenticated: () => ipcRenderer.invoke("auth:is-authenticated"),
   logout: () => ipcRenderer.invoke("auth:logout"),
   startAuthFlow: () => ipcRenderer.invoke("auth:start-flow"),
@@ -334,6 +335,13 @@ export interface DesktopApi {
   getDeviceId: () => Promise<string>
   // Auth
   getUser: () => Promise<{
+    id: string
+    email: string
+    name: string | null
+    imageUrl: string | null
+    username: string | null
+  } | null>
+  refreshUser: () => Promise<{
     id: string
     email: string
     name: string | null

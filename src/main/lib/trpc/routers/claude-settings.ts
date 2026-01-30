@@ -7,10 +7,22 @@ import { router, publicProcedure } from "../index"
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json")
 
 /**
+ * Claude settings structure
+ */
+interface ClaudeSettings {
+  env?: Record<string, string>
+  enabledPlugins?: Record<string, boolean>
+  alwaysThinkingEnabled?: boolean
+  permissions?: Record<string, unknown>
+  includeCoAuthoredBy?: boolean
+  [key: string]: unknown
+}
+
+/**
  * Read Claude settings.json file
  * Returns empty object if file doesn't exist
  */
-async function readClaudeSettings(): Promise<Record<string, unknown>> {
+async function readClaudeSettings(): Promise<ClaudeSettings> {
   try {
     const content = await fs.readFile(CLAUDE_SETTINGS_PATH, "utf-8")
     return JSON.parse(content)
@@ -18,6 +30,49 @@ async function readClaudeSettings(): Promise<Record<string, unknown>> {
     // File doesn't exist or is invalid JSON
     return {}
   }
+}
+
+/**
+ * Read project-level settings.json file
+ */
+async function readProjectSettings(cwd: string): Promise<ClaudeSettings> {
+  const projectSettingsPath = path.join(cwd, ".claude", "settings.json")
+  try {
+    const content = await fs.readFile(projectSettingsPath, "utf-8")
+    return JSON.parse(content)
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Merge user and project settings (project overrides user)
+ */
+function mergeSettings(user: ClaudeSettings, project: ClaudeSettings): ClaudeSettings {
+  return {
+    ...user,
+    ...project,
+    enabledPlugins: {
+      ...user.enabledPlugins,
+      ...project.enabledPlugins,
+    },
+    env: {
+      ...user.env,
+      ...project.env,
+    },
+  }
+}
+
+/**
+ * Get merged settings from user and project levels
+ */
+export async function getMergedSettings(cwd?: string): Promise<ClaudeSettings> {
+  const userSettings = await readClaudeSettings()
+  if (!cwd) {
+    return userSettings
+  }
+  const projectSettings = await readProjectSettings(cwd)
+  return mergeSettings(userSettings, projectSettings)
 }
 
 /**
@@ -60,5 +115,24 @@ export const claudeSettingsRouter = router({
 
       await writeClaudeSettings(settings)
       return { success: true }
+    }),
+
+  /**
+   * Get enabled plugins from merged user + project settings
+   */
+  getEnabledPlugins: publicProcedure
+    .input(z.object({ cwd: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const mergedSettings = await getMergedSettings(input?.cwd)
+      return mergedSettings.enabledPlugins || {}
+    }),
+
+  /**
+   * Get merged settings from user + project levels
+   */
+  getMergedSettings: publicProcedure
+    .input(z.object({ cwd: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      return getMergedSettings(input?.cwd)
     }),
 })

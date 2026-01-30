@@ -8,6 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"
 import { KeyboardIcon } from "../../../components/ui/icons"
+import { HandHelping as HandHelpingIcon } from "lucide-react"
+
+const FEEDBACK_URL = "https://github.com/anthropics/claude-code/issues"
 import { useSetAtom } from "jotai"
 import { agentsSettingsDialogOpenAtom, agentsSettingsDialogActiveTabAtom } from "../../../lib/atoms"
 
@@ -51,6 +54,13 @@ export function AgentsHelpPopover({
             <span className="flex-1">Shortcuts</span>
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem
+          onClick={() => window.open(FEEDBACK_URL, "_blank")}
+          className="gap-2"
+        >
+          <HandHelpingIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="flex-1">Feedback</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

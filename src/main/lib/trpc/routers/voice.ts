@@ -10,8 +10,6 @@ import { execSync } from "node:child_process"
 import os from "node:os"
 import { z } from "zod"
 import { publicProcedure, router } from "../index"
-import { getApiUrl } from "../../config"
-import { getAuthManager } from "../../../auth-manager"
 
 // Max audio size: 25MB (Whisper API limit)
 const MAX_AUDIO_SIZE = 25 * 1024 * 1024
@@ -66,32 +64,9 @@ const PLAN_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 /**
  * Fetch and cache user's subscription plan
+ * @deprecated Auth manager removed - always returns null
  */
 async function getUserPlan(): Promise<{ plan: string; status: string | null } | null> {
-  const authManager = getAuthManager()
-  if (!authManager?.isAuthenticated()) {
-    return null
-  }
-
-  // Return cached plan if still fresh
-  if (cachedUserPlan && Date.now() - cachedUserPlan.fetchedAt < PLAN_CACHE_TTL_MS) {
-    return { plan: cachedUserPlan.plan, status: cachedUserPlan.status }
-  }
-
-  try {
-    const planData = await authManager.fetchUserPlan()
-    if (planData) {
-      cachedUserPlan = {
-        plan: planData.plan,
-        status: planData.status,
-        fetchedAt: Date.now(),
-      }
-      return { plan: planData.plan, status: planData.status }
-    }
-  } catch (err) {
-    console.error("[Voice] Failed to fetch user plan:", err)
-  }
-
   return null
 }
 
@@ -185,72 +160,14 @@ export function clearOpenAIKeyCache(): void {
 
 /**
  * Transcribe audio using Hóng backend (for authenticated users)
+ * @deprecated Auth manager removed - always throws error
  */
 async function transcribeViaBackend(
-  audioBuffer: Buffer,
-  format: string,
-  language?: string
+  _audioBuffer: Buffer,
+  _format: string,
+  _language?: string
 ): Promise<string> {
-  const authManager = getAuthManager()
-  if (!authManager) {
-    throw new Error("Auth manager not initialized")
-  }
-  const token = await authManager.getValidToken()
-  if (!token) {
-    throw new Error("Not authenticated")
-  }
-
-  const apiUrl = getApiUrl()
-
-  // Create form data for the API request
-  const formData = new FormData()
-  const uint8Array = new Uint8Array(audioBuffer)
-  const blob = new Blob([uint8Array], { type: `audio/${format}` })
-  formData.append("file", blob, `audio.${format}`)
-  if (language) {
-    formData.append("language", language)
-  }
-
-  // Create abort controller for timeout
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(`${apiUrl}/api/voice/transcribe`, {
-      method: "POST",
-      headers: {
-        "X-Desktop-Token": token,
-      },
-      body: formData,
-      signal: controller.signal,
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("[Voice] Backend API error:", response.status, errorText)
-
-      if (response.status === 401) {
-        throw new Error("Authentication expired. Please sign in again.")
-      } else if (response.status === 403) {
-        throw new Error("Voice transcription requires a paid subscription.")
-      } else if (response.status === 429) {
-        throw new Error("Rate limit exceeded. Please try again later.")
-      } else if (response.status >= 500) {
-        throw new Error("Service temporarily unavailable")
-      }
-      throw new Error(`Transcription failed (${response.status})`)
-    }
-
-    const data = await response.json()
-    return cleanTranscribedText(data.text || "")
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Transcription timed out. Please try again.")
-    }
-    throw err
-  } finally {
-    clearTimeout(timeoutId)
-  }
+  throw new Error("Backend transcription not available - auth manager removed")
 }
 
 /**
@@ -360,7 +277,7 @@ export const voiceRouter = router({
         )
       }
 
-      // If local OPENAI_API_KEY exists, use it directly (fastest, no network to backend)
+      // If local OPENAI_API_KEY exists, use it directly
       const hasLocalKey = !!getOpenAIApiKey()
       if (hasLocalKey) {
         const text = await transcribeWithWhisper(
@@ -372,30 +289,15 @@ export const voiceRouter = router({
         return { text }
       }
 
-      // Otherwise, try backend if user is authenticated
-      const authManager = getAuthManager()
-      const isAuthenticated = authManager?.isAuthenticated() ?? false
-      if (isAuthenticated) {
-        const text = await transcribeViaBackend(
-          audioBuffer,
-          input.format,
-          input.language
-        )
-        console.log(
-          `[Voice] Backend transcription result: "${text.slice(0, 100)}..."`
-        )
-        return { text }
-      }
-
-      // No local key and not authenticated
+      // No local key available
       throw new Error(
-        "Voice input requires signing in or setting OPENAI_API_KEY environment variable"
+        "Voice input requires setting OPENAI_API_KEY environment variable"
       )
     }),
 
   /**
    * Check if voice transcription is available
-   * Available if: has local OPENAI_API_KEY OR user has paid subscription
+   * Available if: has local OPENAI_API_KEY
    */
   isAvailable: publicProcedure.query(async () => {
     const hasLocalKey = !!getOpenAIApiKey()
@@ -409,33 +311,10 @@ export const voiceRouter = router({
       }
     }
 
-    // Check if user has paid subscription
-    const hasPaid = await hasPaidSubscription()
-    if (hasPaid) {
-      return {
-        available: true,
-        method: "backend" as const,
-        reason: undefined,
-      }
-    }
-
-    // Check if authenticated but free plan
-    const authManager = getAuthManager()
-    const isAuthenticated = authManager?.isAuthenticated() ?? false
-
-    if (isAuthenticated) {
-      return {
-        available: false,
-        method: null,
-        reason: "Voice input requires a paid subscription or OpenAI API key",
-      }
-    }
-
     return {
       available: false,
       method: null,
-      reason:
-        "Add your OpenAI API key in Settings > Models, or sign in with a paid subscription",
+      reason: "Add your OpenAI API key in Settings > Models",
     }
   }),
 

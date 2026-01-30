@@ -4,6 +4,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
+import { getMergedSettings } from "./claude-settings"
 
 interface FileSkill {
   name: string
@@ -133,16 +134,58 @@ const listSkillsProcedure = publicProcedure
     return [...projectSkills, ...userSkills]
   })
 
+// Procedure for listing enabled skills (filtered by enabledPlugins)
+const listEnabledProcedure = publicProcedure
+  .input(
+    z
+      .object({
+        cwd: z.string().optional(),
+      })
+      .optional(),
+  )
+  .query(async ({ input }) => {
+    const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
+    const userSkillsPromise = scanSkillsDirectory(userSkillsDir, "user")
+
+    let projectSkillsPromise = Promise.resolve<FileSkill[]>([])
+    if (input?.cwd) {
+      const projectSkillsDir = path.join(input.cwd, ".claude", "skills")
+      projectSkillsPromise = scanSkillsDirectory(projectSkillsDir, "project", input.cwd)
+    }
+
+    // Scan both directories in parallel and get settings
+    const [userSkills, projectSkills, mergedSettings] = await Promise.all([
+      userSkillsPromise,
+      projectSkillsPromise,
+      getMergedSettings(input?.cwd),
+    ])
+
+    const allSkills = [...projectSkills, ...userSkills]
+    const enabledPlugins = mergedSettings.enabledPlugins || {}
+
+    // If no enabledPlugins configured, return all skills
+    if (Object.keys(enabledPlugins).length === 0) {
+      return allSkills
+    }
+
+    // Filter: only return skills marked as true in enabledPlugins
+    return allSkills.filter((skill) => {
+      return enabledPlugins[skill.name] === true
+    })
+  })
+
 export const skillsRouter = router({
   /**
-   * List all skills from filesystem
+   * List all skills from filesystem (unfiltered)
    * - User skills: ~/.claude/skills/
    * - Project skills: .claude/skills/ (relative to cwd)
    */
   list: listSkillsProcedure,
 
   /**
-   * Alias for list - used by @ mention
+   * List enabled skills - filtered by enabledPlugins in settings.json
+   * Reads from both ~/.claude/settings.json and .claude/settings.json (project level)
+   * Project settings override user settings
    */
-  listEnabled: listSkillsProcedure,
+  listEnabled: listEnabledProcedure,
 })

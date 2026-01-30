@@ -13,6 +13,7 @@ export interface AuthUser {
 export interface AuthData {
   token: string
   refreshToken: string
+  idToken?: string // Okta id_token for user info
   expiresAt: string
   user: AuthUser
 }

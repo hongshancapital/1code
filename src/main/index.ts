@@ -300,7 +300,10 @@ console.log("[Protocol] =============================================")
 
 // Note: app.on("open-url") will be registered in app.whenReady()
 
-// SVG favicon as data URI for auth callback pages (matches web app favicon)
+// App icon as base64 data URI for auth callback pages (64x64 PNG)
+const ICON_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAeGVYSWZNTQAqAAAACAAEARoABQAAAAEAAAA+ARsABQAAAAEAAABGASgAAwAAAAEAAgAAh2kABAAAAAEAAABOAAAAAAAAAEgAAAABAAAASAAAAAEAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAQKADAAQAAAABAAAAQAAAAAB13naHAAAACXBIWXMAAAsTAAALEwEAmpwYAAASJElEQVR4Ae1aeXCU53n/fd+39+63uiWEDhAg2aAEGwTG4IMFEmI7psb2UHdscJNxB0+TScdOard/tAOe/OdOjJuOHacdZxi7jpMwqWlqx2HGblWDMTTIDsdySggkoWt1731+fZ5v9xWr1V4COakzfWe037fv8bzP7/cc77EC5qFomibxXzZR+dqy9Rd1+cblaxPji31mVTrf4FxA8435fbZJkqTNZb6iCfi/DjwTdLFEFCTgiwZ8rkTkJODzAs4TzslHMxHd4PdcHpGVgPkCL6Wka38IxFmIykbCLALmC3yW+eel6mY9KJMEw7xoVaSQF154YRbh2Ybu2bMnp8/kbMgmqIi6GQrdiPXzWaRYwIX0zEdIobHZ2tO94KYJyDZBLuBut3vGfNnGirrW1tZZxp4vIrIScCPWF8qKZybwfIA9Hs8sMqqqqmaBZtmZZMwHEYKEaSVuhoBCwLOBTZLmSj6mP9un3/glk5D5JGIGAfMFPt3i6aC93pZpojs6LpKV2+OEL9Pa3Edpa9ut91XVhdyPqmYSMd8k6JPdKAHplp8N3gWvt1+XnwIdYzBPPPFrZ0nT7XURs1obsSglERMQNkmT3oR/4Irnf6517n1givu54DJ425LECTLSPSKdiMyQ4P1HMXsP9oKiCOBOmebKBl5YXVi8Ax1AR0d016437LdX3b0FpY6HUWLeoJQYGoxOk1W2GRCjhdinJTAaTQSHNfQOQz46oYXeCZw78uGp577mb0ObEW1tzAlUlb3nukfkI4H7FSrFEZAFfW7wSauHQuOS230g6nK5lG+s2PeYXFn6PetSx6ryZhts5QmYrCQ0HoJCpkqQqRKRCGCyIaCZcC1qRodXw6mI9GlfLPJS9Z77f97e3h5vbd1htFjKtHzekOkJ80JAJv5c4IXVU+Ajb3/j/cUWdcHL1tbKh0rWqjAQcFmREYvEce3To4hd64XTqmJSi2Kw041bV61D/Zr1iNucSMQT6EtY8F7QhI9DiX+f8o48c2VT7RUiwZSNhBv1BN0D5hL/xYL/1WO/vtNWV/2vjq80LlWWG8kQ7LkKgt5JfPrOfvi6L8FoJGsPXIM/ZkJJiQ2tt7bAYbWhse1emJbcCoXI4kD+SCrBG36ta8A7sfPanRXHBAlsXQ4JkRduhAQmwMAfcyGBJxYJLxnzLqrph7D8oUcPrrPXlh20PNJYozUYocU0SJJM4Cfwn6+/iCCBhqTA5x+G3+/HVCCA0VEKg2gYVWWVmPR4Ubd6DDV3boAkS9icmEClal/6kqnkYOjEyEPuNZXHBQlJr7uoL5esUzoJrCeXQgmRaC6uCOtngudMnwIff++BtxaVVao/tT/SVKM1Unon8Mmi4cjPX4On6yL5ggHeoB/xRAJm8gK71YpSux2JcAjRWAyDw/0YOn0aE5e6iCcFYUhYGfPjGWu8prLc+dPSjy8vWuE+EOc5heYi+QrdhK7cXmg1KJoAMVn6U4Dnur2uvdICh/1l29eWLok1WYBoQnd8g9GInlMncKnjKExmByYCPljMdtjMJrJOHCU2M6pK7bAYFdI2gYTBgnA4gvFL3ZQco7oJw2TGVRE/vmk3LDEsXPCyZ+9eHTyTIHJPul5zeS+KAMGoYJgZn554BYfEgcg267JHbV+u3R5cXaqDF0rECMSZjw5RAjQhFiOAlOCcVidZ34gytQTVZaWocjrgtCgI+adgpSQIowNhrx/B0Qk9DFgWk3B/YAp3Wc3bjz75zCNnaJUBzc2FdcnnBcle2T+LIiB9qJiI63Q3PHsWP27ba7OX2p6Lb24ki1FDyvMVgwGjvZfhoT+bRaUlT6LkZ6MOQSLBjqryWiyoqEZtRQWaaqtQ5nDAaLYipCmIRmMIjI6TlyQ9nUVKJPhxWjXKLZbn6378H1bQ3NlCgbrOKikxs+oLEpBpfZbAjOsT69Z3R+8uWbjR0FLZFqy3Utwnpifh5Nd3/gzitM6T4SkqEojHY0hQTKtk8XKHmRKcCWUlKirKKygsaMWIxxGIhBEOhXUPYDZFsFNAYHkoiDaD3Na/Zd3GM263rgWZoSA8VejOCuXKBYZsKwCzlWvANDp6Cft8ur3tVvPDsdX10Chr89ikwrTJoaTG1teIiAiBikZiaF5YjtYVdTDGQmhdux5qVS1ZehjDfbQvaFqKgd5BuLt9CMoKAlM+kpFIk8mLKbCZkuMHqrqdXn/TSDr0wCGybbp6Rb1n9YBc4JPu70oKJuubHQ5tb+u3HJLTuiHY6ICUZn3WOkLW8hI4ym26+zI5ViUBh7MMS5tXweCbgmSQYZXNtDskL6iuwOJaChVKeH5aKUK0RCYoFHQGUnD4QNEapiVTxl3S3lfsjp4eTeQCPkGkh2hqSN6HzPuAvD2oUbgU9xOZn63v9hxI3GesrdXKzYsiTnLfNEkkGGG/DwGfV1/yZKKAY1wiy18434Wu/hHCpVCtQp5jxNGOk7h4/hJ8kyOIhacotoP0jBABUerHnpX0Kw6wSqpboKER922qbXW7E6xLMgyShy/Ws9iS1QPE4PQYEnXi2cwv7UiUma01cNrsmpEhsqVTn0xAwK+7fohjmixZrdrw0LYH8OdPPYW7N98DmWIfdDA21zXg8W8+hS3bHsYt678Ku1lBjHKBxjkjFNHB69wmOYCZXLQCcKCstGYPkNB1EYqlnsJo+TBw17wEZMi8/jW1/FCFpkiKKtuMdK4U0JPd2GLRUAhxygMgIAzIrkh0GKqGpJL6JjMlxyBkk4WWOhmyxUaeYILNZofTTmcHA3kGJcxYMEQEXM8rfH7lPOCQSZjJ4JhW6rpO01XFvBRNwOzYWqbLV2gnzS/XlUwqy/4QCfrIijFa882wWS0IECFTE6NECGX64R6M9HXT2u9FaMxDlg4Q4Cg8tFX2BkIwMgGUPCKBYMqrknKTNBcDrbg+RROQQ5xMru3VfCFNSiQTAHspW4gJ8I5RPJP7szWtZOn+sSmcOPZf8A9egmw2w1zZiEjYD4WSokaHn7hvBL/95DDG/TSGEwqRFyEyMgvnAV+c9tmh6NQB4RzTnXInQjZSZpnj7wIuGt+vywgGvRJdVMijWniwYTLolaMJp0Z0yqQ3z8N7/bGBPr2vTMujmTZF17w+9I8kMDnYhf7uIagBWhWcHoxbLsDQvAgVNdU44T5P3lQLmbyE4kYPI5bHf0wxP8MUMiOQpzA2NvQBTRkM1khw+JMWoPZcJdvqdlMesFhVlbdCp4aUsWC3eZIuNQgoF3bTGG1+hvt7wAlQpixvMVvgj8s43zdIbUHUNtTBEAlBmxiDvaocZQvrcLXzPD787SlYTCb4vF49XMJ0YmTkrChLZ+8aNhgxpKG76q0fDV1c7OKqGy6zCEhCKCzPalW12nCV9Kr7gC8xHjjsuDyZTGakLJtC5o0MxfXQ0AA8w0MYGfGggXZ7Z6544D53Fo5yJxqfeBIVO3dCvWMd/GMD+P4/vYbhySDsJgMGRgYwMNhHThDT5QrzssueJjJHI9Ejw6++6g/XVkmsS2GNs/eYHQLMQFHiOqkjJeEdUMYG/QfLTvR8S15TI3OW5j27kQ47rXdswjgRoAXDGKb7gC81r0BLuBn73/2IetAJb20U1tJqjI8O4PU338TJc11YvXgR+vuuEgHDUOi4rNbWIJVndS+IUyC3R6KJ6PjkOxT/KQOmdMmOMW/tLAKyxQlL4JsXj6ed4LVMCzSb7Vp93w7Tfhw5+p0LVUft3d67fUtV2uwQgxTDG7ZuwxrXVvgmJhGmULDTRui1v38S1ZoDVwcG0DDUjTLaGJ0/1YFzly7T7rAVa29bh97LPahpaMDKe7egfvkttDrEdfenGwZ8arbhZCB6dMH+H3yyr369iXWglDitE29OxC1RWmXO11kE5OyZ3nCWvjQmKxrose+TA5Gdm7e8WHaoc4O8e5XMCXDU56OlzwoLxaujvAzldMob7voMdywrxW233gkz7QMWNt8Oi1qOJp8fD26cQOdoBFt3fxcmsjxfmFpsNkQpBOi8oqeXGBn87aicmBqfevG+ffsifet3MCfJwjrRNcRcix7y2Q5EQhDvpMSuivcC4iTY2OiTOPuGw34pEglJHeiPuuv/+nX7Y2t3ff/aezj4L/+MiqYmOBcvweSZk7htQRnu/3IlltWUoumWNhhMVih09lfIonFKhjE66w/1diJatgzlrV/BWx8fhuJQ8WcrVxIJcZiIhJ+ZS/DKWOCNhV+y/wXathlNJovGHtBnHdLMPQ4teWE6854w300xHwOyngYFePHkuzZBAtfxRD0U/o1Q6fbGr5PIK8L50ODfLP/NhduC/t6VY3YTxi+6ofkmUUk3P+trY1hzyxI4q5ugWEoondNOQTbQnxEGK1ncXoZFFXUI9JzGmz/7R7x0ph8lCxZilA4+T6xYjhP2Krw9Fjll+qzjb9XFixUv6cHgrQyeDmXXb4sv6mpnux/UGzI+Zq0CGe0zvnJsiR8nwC6HTl0JtoTT1KA8OvLsiCc4vvPbVtflP2l+AMqqNjhq6zFJN0C/mrLCpNagYsEiGGgTZCDry0baBitG2g6TNxhMMNMy+t9d/Xjl7FW9TzTkxy+OHcY/dHvw+pTcFey8vLNy170jYy33KDzntHK6Lvwtd/xn2wTxiKJOg9wxW+kh5sUSZByd0FZW7DJtPLDzXEALbH9e3fzZbnUjAaFbnto6HIs48L1Dx/HhieOg7R1tjw16lteiARiCY4iP9uIX77+Dv/vdIALkIRKfkuizfPkmdJW0fDbc3bu9cfvyc9Gtu0w8l9Dnkngp9JweMbNjQQ8QMZTuUvzrDLtcphfoJGzdZf7q7/70wpnxzq8/br/jJy+o2xJrjEtoK2zCoStD2PHLw/jhyT6E6O7AqoVhiQVxYWgcT797BN9pP48JyQAjXXhULm5Dc2t3oqbl7p/Yjh//uvxg48Uxks1ziNjX3T8t9gU0oavQnetz4Kct9xxL+nJ4PRcMkZSapCS6yFxZt8v49MD+CfzbJ3/5/reP/fJZ+7ZnTwf7Np0wXFYuxK/h1eMX8eHVITy9ehm6xr1442wv/SxGq0LrFlRUNsNZ0RSzVDa0R2KBfb13SR846+sVZesuYyZ49kDdECkMc1n+BOyCq4DoKM7VIhmmrwhhWhGasQx8PhCrQrSiVKLsLrnbD4Tb2tqMz7veXBO3qg+OIHzPYMK/dBjhUi+ixjDFvtHqiJrV0gmDWtoFu+VwIOx7t+s51wn0d0RV1w7zGMV7OnjWKV/m5/Z063P8Z9vf6KsAd77RkkyILUAPcKmxU6onL0huTEgieQIqSuEiAB448NgPVlDw42P6bnXd/t3KpWpdVcSiOsJ0SPIrYboI6vVc+dFfjbS7DwSXAYZ6l8voadlhjhYEz/9HkD/zZwMvMBftATwglxdwG19JZfMEbmNv4Gc5eQSTMe71Jvo7OvhUq4fmYsp2FQsXympLC+WkKupBqyQDN1Oy66e7E3oXxM60fPKfKITrZ4t9EpWzFNwH5HIdnohDITnxRf2aXI/FlCc0WxlYKifw9OwNVMbIIxQ0oLICUuXWFTNOcXzlPZYixKJn+ZAOHLTXE+s9Z3yx4WF56cueAJ+sL/5zTh7AYoUX8Ht6PgCu/28A39LydbV+Tqd+YrPEY3jXyM9cJX19F1bnbM8Jj1cdkfRu9pdhnp89YM4E8MBCJHAf8cMJE4FUguR6LumEJGuSnwIwf2PQ/My0euY/SKRbPj3x8dhC5YYJYMG5SUj+csR9dBL4hTyCr65n394mV47kZoqPtMmig86wOLeIXWhmzHPbXMHzmJsigAVkI4HrxQXq9A+oVJdOBvfJWVLbWuHq3C8TONfdjOV5PJebJoCFFCKB+4j8kHwv7lO4OvcWFuf3dOD8/UYsz+O4TBPAX/Idibk9X0kngfuJ5CjGCI8Q35mQ7KV9RnU6cG4oBD7XqjVDaOoLg+fX6Yw8FwJ4kD46JUw8ChEh+jEhDC6TmEzAon8h4KLfXJ6zCODBcyEh32SZRIi+mZ4h6jOfmYBF+824u5DBTwFef09vmCsBuTxByMxFhGgv9lkMKYUAi8uNfHv8XPqkg+c+0zlADPi8CRDz/CGemeBZBzp8zCzZOs3s8fv7xpYW1v68Zp3lAWKiPzZPyGXYnAT8sRCRC7jAV5AA0fGL6BGFwDO2ogn4ohBRDGiB5f+fxMD/AmLd6O6mo30QAAAAAElFTkSuQmCC"
+const ICON_DATA_URI = `data:image/png;base64,${ICON_BASE64}`
+// Keep FAVICON for browser tab icon
 const FAVICON_SVG = `<svg width="32" height="32" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="1024" height="1024" fill="#0033FF"/><path fill-rule="evenodd" clip-rule="evenodd" d="M800.165 148C842.048 148 876 181.952 876 223.835V686.415C876 690.606 872.606 694 868.415 694H640.915C636.729 694 633.335 697.394 633.335 701.585V868.415C633.335 872.606 629.936 876 625.75 876H223.835C181.952 876 148 842.048 148 800.165V702.59C148 697.262 150.807 692.326 155.376 689.586L427.843 526.1C434.031 522.388 431.956 513.238 425.327 512.118L423.962 512H155.585C151.394 512 148 508.606 148 504.415V337.585C148 333.394 151.394 330 155.585 330H443.75C447.936 330 451.335 326.606 451.335 322.415V155.585C451.335 151.394 454.729 148 458.915 148H800.165ZM458.915 330C454.729 330 451.335 333.394 451.335 337.585V686.415C451.335 690.606 454.729 694 458.915 694H625.75C629.936 694 633.335 690.606 633.335 686.415V337.585C633.335 333.394 629.936 330 625.75 330H458.915Z" fill="#F4F4F4"/></svg>`
 const FAVICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}`
 
@@ -318,13 +321,32 @@ const server = createServer((req, res) => {
 
     if (url.pathname === "/auth/callback") {
       const code = url.searchParams.get("code")
+      const state = url.searchParams.get("state")
       console.log(
-        "[Auth Server] Received callback with code:",
+        "[Auth Server] Received Okta callback with code:",
         code?.slice(0, 8) + "...",
+        "state:",
+        state?.slice(0, 8) + "...",
       )
 
+      // Verify state parameter to prevent CSRF attacks
+      const pkceState = authManager?.getPkceState()
+      if (!pkceState) {
+        console.error("[Auth Server] No PKCE state found - auth flow not started")
+        res.writeHead(400, { "Content-Type": "text/plain" })
+        res.end("Authentication flow not started. Please try again.")
+        return
+      }
+
+      if (state !== pkceState.state) {
+        console.error("[Auth Server] State mismatch - possible CSRF attack")
+        res.writeHead(400, { "Content-Type": "text/plain" })
+        res.end("Invalid state parameter. Please try again.")
+        return
+      }
+
       if (code) {
-        // Handle the auth code
+        // Handle the auth code (exchange for tokens)
         handleAuthCode(code)
 
         // Send success response and close the browser tab
@@ -383,9 +405,7 @@ const server = createServer((req, res) => {
 </head>
 <body>
   <div class="container">
-    <svg class="logo" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M14.3333 0C15.2538 0 16 0.746192 16 1.66667V11.8333C16 11.9254 15.9254 12 15.8333 12H10.8333C10.7413 12 10.6667 12.0746 10.6667 12.1667V15.8333C10.6667 15.9254 10.592 16 10.5 16H1.66667C0.746192 16 0 15.2538 0 14.3333V12.1888C0 12.0717 0.0617409 11.9632 0.162081 11.903L6.15043 8.30986C6.28644 8.22833 6.24077 8.02716 6.09507 8.00256L6.06511 8H0.166667C0.0746186 8 0 7.92538 0 7.83333V4.16667C0 4.07462 0.0746193 4 0.166667 4H6.5C6.59205 4 6.66667 3.92538 6.66667 3.83333V0.166667C6.66667 0.0746193 6.74129 0 6.83333 0H14.3333ZM6.83333 4C6.74129 4 6.66667 4.07462 6.66667 4.16667V11.8333C6.66667 11.9254 6.74129 12 6.83333 12H10.5C10.592 12 10.6667 11.9254 10.6667 11.8333V4.16667C10.6667 4.07462 10.592 4 10.5 4H6.83333Z" fill="#0033FF"/>
-    </svg>
+    <img class="logo" src="${ICON_DATA_URI}" alt="Hong" />
     <h1>Authentication successful</h1>
     <p>You can close this tab</p>
   </div>
@@ -467,9 +487,7 @@ const server = createServer((req, res) => {
 </head>
 <body>
   <div class="container">
-    <svg class="logo" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path fill-rule="evenodd" clip-rule="evenodd" d="M14.3333 0C15.2538 0 16 0.746192 16 1.66667V11.8333C16 11.9254 15.9254 12 15.8333 12H10.8333C10.7413 12 10.6667 12.0746 10.6667 12.1667V15.8333C10.6667 15.9254 10.592 16 10.5 16H1.66667C0.746192 16 0 15.2538 0 14.3333V12.1888C0 12.0717 0.0617409 11.9632 0.162081 11.903L6.15043 8.30986C6.28644 8.22833 6.24077 8.02716 6.09507 8.00256L6.06511 8H0.166667C0.0746186 8 0 7.92538 0 7.83333V4.16667C0 4.07462 0.0746193 4 0.166667 4H6.5C6.59205 4 6.66667 3.92538 6.66667 3.83333V0.166667C6.66667 0.0746193 6.74129 0 6.83333 0H14.3333ZM6.83333 4C6.74129 4 6.66667 4.07462 6.66667 4.16667V11.8333C6.66667 11.9254 6.74129 12 6.83333 12H10.5C10.592 12 10.6667 11.9254 10.6667 11.8333V4.16667C10.6667 4.07462 10.592 4 10.5 4H6.83333Z" fill="#0033FF"/>
-    </svg>
+    <img class="logo" src="${ICON_DATA_URI}" alt="Hong" />
     <h1>MCP Server authenticated</h1>
     <p>You can close this tab</p>
   </div>
@@ -488,6 +506,172 @@ const server = createServer((req, res) => {
 
 server.listen(AUTH_SERVER_PORT, () => {
   console.log(`[Auth Server] Listening on http://localhost:${AUTH_SERVER_PORT}`)
+})
+
+// Okta OAuth callback server on port 3000 (matches Okta app configuration)
+// This is separate from the main auth server because Okta requires a specific callback URL
+const OKTA_CALLBACK_PORT = 3000
+const oktaCallbackServer = createServer((req, res) => {
+  const url = new URL(req.url || "", `http://localhost:${OKTA_CALLBACK_PORT}`)
+
+  // Serve favicon
+  if (url.pathname === "/favicon.ico" || url.pathname === "/favicon.svg") {
+    res.writeHead(200, { "Content-Type": "image/svg+xml" })
+    res.end(FAVICON_SVG)
+    return
+  }
+
+  // Handle Okta OAuth callback: /implicit/callback
+  if (url.pathname === "/implicit/callback") {
+    const code = url.searchParams.get("code")
+    const state = url.searchParams.get("state")
+    console.log(
+      "[Okta Callback] Received callback with code:",
+      code?.slice(0, 8) + "...",
+      "state:",
+      state?.slice(0, 8) + "...",
+    )
+
+    // Verify state parameter to prevent CSRF attacks
+    const pkceState = authManager?.getPkceState()
+    if (!pkceState) {
+      console.error("[Okta Callback] No PKCE state found - auth flow not started")
+      res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
+      res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hong - Authentication Error</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
+    .error { text-align: center; }
+    h1 { font-size: 16px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Authentication flow not started</h1>
+    <p>Please click "Sign in" in the app first, then try again.</p>
+  </div>
+</body>
+</html>`)
+      return
+    }
+
+    if (state !== pkceState.state) {
+      console.error("[Okta Callback] State mismatch - possible CSRF attack")
+      res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
+      res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hong - Authentication Error</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
+    .error { text-align: center; }
+    h1 { font-size: 16px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Invalid state parameter</h1>
+    <p>Security check failed. Please try again.</p>
+  </div>
+</body>
+</html>`)
+      return
+    }
+
+    if (code) {
+      // Handle the auth code (exchange for tokens)
+      handleAuthCode(code)
+
+      // Send success response and close the browser tab
+      res.writeHead(200, { "Content-Type": "text/html" })
+      res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
+  <title>Hong - Authentication</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #09090b;
+      --text: #fafafa;
+      --text-muted: #71717a;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --text: #09090b;
+        --text-muted: #71717a;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo {
+      width: 24px;
+      height: 24px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img class="logo" src="${ICON_DATA_URI}" alt="Hong" />
+    <h1>Authentication successful</h1>
+    <p>You can close this tab</p>
+  </div>
+  <script>setTimeout(() => window.close(), 1000)</script>
+</body>
+</html>`)
+    } else {
+      res.writeHead(400, { "Content-Type": "text/plain" })
+      res.end("Missing code parameter")
+    }
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain" })
+    res.end("Not found")
+  }
+})
+
+oktaCallbackServer.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    console.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
+    console.warn("[Okta Callback] Okta login may not work until port 3000 is available")
+  } else {
+    console.error("[Okta Callback] Server error:", err)
+  }
+})
+
+oktaCallbackServer.listen(OKTA_CALLBACK_PORT, () => {
+  console.log(`[Okta Callback] Listening on http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`)
 })
 
 // Clean up stale lock files from crashed instances
@@ -989,12 +1173,33 @@ if (gotTheLock) {
     // Initialize analytics after auth manager so we can identify user
     initAnalytics()
 
-    // If user already authenticated from previous session, identify them
+    // If user already authenticated from previous session, validate token and refresh user info
     if (authManager.isAuthenticated()) {
-      const user = authManager.getUser()
-      if (user) {
-        identify(user.id, { email: user.email })
-        console.log("[Analytics] User identified from saved session:", user.id)
+      console.log("[App] Validating saved authentication...")
+      const validatedUser = await authManager.validateAndRefreshUser()
+
+      if (validatedUser) {
+        // Token is valid, identify user for analytics
+        identify(validatedUser.id, { email: validatedUser.email })
+        console.log("[Analytics] User identified from validated session:", validatedUser.id)
+      } else {
+        // Token expired (401), try to refresh first
+        console.log("[App] Token expired, attempting refresh...")
+        const refreshed = await authManager.refresh()
+
+        if (refreshed) {
+          // Refresh successful, validate again to get fresh user info
+          const refreshedUser = await authManager.validateAndRefreshUser()
+          if (refreshedUser) {
+            identify(refreshedUser.id, { email: refreshedUser.email })
+            console.log("[Analytics] User identified after token refresh:", refreshedUser.id)
+          }
+        } else {
+          // Refresh failed, need to re-authenticate
+          console.log("[App] Token refresh failed, user needs to re-authenticate")
+          // Clear invalid session
+          authManager.logout()
+        }
       }
     }
 
