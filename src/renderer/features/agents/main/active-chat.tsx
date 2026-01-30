@@ -234,6 +234,39 @@ function utf8ToBase64(str: string): string {
   return btoa(binString)
 }
 
+/** Wait for streaming to finish by subscribing to the status store.
+ *  Includes a 30s safety timeout — if the store never transitions to "ready",
+ *  the promise resolves anyway to prevent hanging the UI indefinitely. */
+const STREAMING_READY_TIMEOUT_MS = 30_000
+
+function waitForStreamingReady(subChatId: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!useStreamingStatusStore.getState().isStreaming(subChatId)) {
+      resolve()
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      console.warn(
+        `[waitForStreamingReady] Timed out after ${STREAMING_READY_TIMEOUT_MS}ms for subChat ${subChatId.slice(-8)}, proceeding anyway`
+      )
+      unsub()
+      resolve()
+    }, STREAMING_READY_TIMEOUT_MS)
+
+    const unsub = useStreamingStatusStore.subscribe(
+      (state) => state.statuses[subChatId],
+      (status) => {
+        if (status === "ready" || status === undefined) {
+          clearTimeout(timeout)
+          unsub()
+          resolve()
+        }
+      }
+    )
+  })
+}
+
 // Exploring tools - these get grouped when 2+ consecutive
 const EXPLORING_TOOLS = new Set([
   "tool-Read",
@@ -2345,11 +2378,6 @@ const ChatViewInner = memo(function ChatViewInner({
     // Mark as manually aborted to prevent completion sound
     agentChatStore.setManuallyAborted(subChatId, true)
     await stopRef.current()
-    // Call DELETE endpoint to cancel server-side stream
-    await fetch(
-      `/api/agents/chat?id=${encodeURIComponent(subChatId)}`,
-      { method: "DELETE", credentials: "include" },
-    )
   }, [subChatId])
 
   // Wrapper for addTextContext that handles TextSelectionSource
@@ -2514,10 +2542,12 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [isStreaming, subChatId, setLoadingSubChats])
 
   // Watch for pending PR message and send it
+  // Only the active tab should consume pending messages to prevent
+  // inactive ChatViewInner instances from stealing the message
   const [pendingPrMessage, setPendingPrMessage] = useAtom(pendingPrMessageAtom)
 
   useEffect(() => {
-    if (pendingPrMessage && !isStreaming) {
+    if (pendingPrMessage && !isStreaming && isActive) {
       // Clear the pending message immediately to prevent double-sending
       setPendingPrMessage(null)
 
@@ -2530,7 +2560,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // Reset creating PR state after message is sent
       setIsCreatingPr(false)
     }
-  }, [pendingPrMessage, isStreaming, sendMessage, setPendingPrMessage])
+  }, [pendingPrMessage, isStreaming, isActive, sendMessage, setPendingPrMessage])
 
   // Watch for pending Review message and send it
   const [pendingReviewMessage, setPendingReviewMessage] = useAtom(
@@ -2538,7 +2568,7 @@ const ChatViewInner = memo(function ChatViewInner({
   )
 
   useEffect(() => {
-    if (pendingReviewMessage && !isStreaming) {
+    if (pendingReviewMessage && !isStreaming && isActive) {
       // Clear the pending message immediately to prevent double-sending
       setPendingReviewMessage(null)
 
@@ -2548,7 +2578,7 @@ const ChatViewInner = memo(function ChatViewInner({
         parts: [{ type: "text", text: pendingReviewMessage }],
       })
     }
-  }, [pendingReviewMessage, isStreaming, sendMessage, setPendingReviewMessage])
+  }, [pendingReviewMessage, isStreaming, isActive, sendMessage, setPendingReviewMessage])
 
   // Watch for pending conflict resolution message and send it
   const [pendingConflictMessage, setPendingConflictMessage] = useAtom(
@@ -2556,7 +2586,7 @@ const ChatViewInner = memo(function ChatViewInner({
   )
 
   useEffect(() => {
-    if (pendingConflictMessage && !isStreaming) {
+    if (pendingConflictMessage && !isStreaming && isActive) {
       // Clear the pending message immediately to prevent double-sending
       setPendingConflictMessage(null)
 
@@ -2566,7 +2596,7 @@ const ChatViewInner = memo(function ChatViewInner({
         parts: [{ type: "text", text: pendingConflictMessage }],
       })
     }
-  }, [pendingConflictMessage, isStreaming, sendMessage, setPendingConflictMessage])
+  }, [pendingConflictMessage, isStreaming, isActive, sendMessage, setPendingConflictMessage])
 
   // Watch for pending branch rename message and send it
   const [pendingBranchRename, setPendingBranchRename] = useAtom(
@@ -3013,7 +3043,7 @@ const ChatViewInner = memo(function ChatViewInner({
     // Send "Build plan" message (now in agent mode)
     sendMessageRef.current({
       role: "user",
-      parts: [{ type: "text", text: "Build plan" }],
+      parts: [{ type: "text", text: "Implement plan" }],
     })
   }, [subChatId, setSubChatMode, scrollToBottom, updateSubChatModeMutation])
 
@@ -3247,11 +3277,6 @@ const ChatViewInner = memo(function ChatViewInner({
         // Mark as manually aborted to prevent completion sound
         agentChatStore.setManuallyAborted(subChatId, true)
         await stop()
-        // Call DELETE endpoint to cancel server-side stream
-        await fetch(`/api/agents/chat?id=${encodeURIComponent(subChatId)}`, {
-          method: "DELETE",
-          credentials: "include",
-        })
       }
     }
 
@@ -3691,84 +3716,83 @@ const ChatViewInner = memo(function ChatViewInner({
     const item = popItemFromQueue(subChatId, itemId)
     if (!item) return
 
-    // Stop current stream if streaming and wait for status to become ready
-    if (isStreamingRef.current) {
-      await handleStop()
-      // Wait for status to become "ready" (max 2 seconds)
-      const maxWait = 2000
-      const pollInterval = 50
-      let waited = 0
-      while (isStreamingRef.current && waited < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-        waited += pollInterval
+    try {
+      // Stop current stream if streaming and wait for status to become ready.
+      // The server-side save block preserves sessionId on abort, so the next
+      // message can resume the session with full conversation context.
+      if (isStreamingRef.current) {
+        await handleStop()
+        await waitForStreamingReady(subChatId)
       }
-    }
 
-    // Build message parts from queued item
-    const parts: any[] = [
-      ...(item.images || []).map((img) => ({
-        type: "data-image" as const,
-        data: {
-          url: img.url,
-          mediaType: img.mediaType,
-          filename: img.filename,
-          base64Data: img.base64Data,
-        },
-      })),
-      ...(item.files || []).map((f) => ({
-        type: "data-file" as const,
-        data: {
-          url: f.url,
-          mediaType: f.mediaType,
-          filename: f.filename,
-          size: f.size,
-        },
-      })),
-    ]
+      // Build message parts from queued item
+      const parts: any[] = [
+        ...(item.images || []).map((img) => ({
+          type: "data-image" as const,
+          data: {
+            url: img.url,
+            mediaType: img.mediaType,
+            filename: img.filename,
+            base64Data: img.base64Data,
+          },
+        })),
+        ...(item.files || []).map((f) => ({
+          type: "data-file" as const,
+          data: {
+            url: f.url,
+            mediaType: f.mediaType,
+            filename: f.filename,
+            size: f.size,
+          },
+        })),
+      ]
 
-    // Add text contexts as mention tokens
-    let mentionPrefix = ""
-    if (item.textContexts && item.textContexts.length > 0) {
-      const quoteMentions = item.textContexts.map((tc) => {
-        const preview = tc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
-        const encodedText = utf8ToBase64(tc.text) // Base64 encode full text
-        return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`
+      // Add text contexts as mention tokens
+      let mentionPrefix = ""
+      if (item.textContexts && item.textContexts.length > 0) {
+        const quoteMentions = item.textContexts.map((tc) => {
+          const preview = tc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
+          const encodedText = utf8ToBase64(tc.text) // Base64 encode full text
+          return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`
+        })
+        mentionPrefix = quoteMentions.join(" ") + " "
+      }
+
+      // Add diff text contexts as mention tokens
+      if (item.diffTextContexts && item.diffTextContexts.length > 0) {
+        const diffMentions = item.diffTextContexts.map((dtc) => {
+          const preview = dtc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
+          const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
+          const lineNum = dtc.lineNumber || 0
+          return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}]`
+        })
+        mentionPrefix += diffMentions.join(" ") + " "
+      }
+
+      if (item.message || mentionPrefix) {
+        parts.push({ type: "text", text: mentionPrefix + (item.message || "") })
+      }
+
+      // Track message sent
+      trackMessageSent({
+        workspaceId: subChatId,
+        messageLength: item.message.length,
+        mode: subChatModeRef.current,
       })
-      mentionPrefix = quoteMentions.join(" ") + " "
+
+      // Update timestamps
+      useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId)
+
+      // Enable auto-scroll and immediately scroll to bottom
+      shouldAutoScrollRef.current = true
+      scrollToBottom()
+
+      await sendMessageRef.current({ role: "user", parts })
+    } catch (error) {
+      console.error("[handleSendFromQueue] Error sending queued message:", error)
+      // Requeue the item at the front so it isn't lost
+      useMessageQueueStore.getState().prependItem(subChatId, item)
     }
-
-    // Add diff text contexts as mention tokens
-    if (item.diffTextContexts && item.diffTextContexts.length > 0) {
-      const diffMentions = item.diffTextContexts.map((dtc) => {
-        const preview = dtc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
-        const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
-        const lineNum = dtc.lineNumber || 0
-        // Include comment if present: encode it as base64 and append
-        const encodedComment = dtc.comment ? utf8ToBase64(dtc.comment) : ""
-        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}:${encodedComment}]`
-      })
-      mentionPrefix += diffMentions.join(" ") + " "
-    }
-
-    if (item.message || mentionPrefix) {
-      parts.push({ type: "text", text: mentionPrefix + (item.message || "") })
-    }
-
-    // Track message sent
-    trackMessageSent({
-      workspaceId: subChatId,
-      messageLength: item.message.length,
-      mode: subChatModeRef.current,
-    })
-
-    // Update timestamps
-    useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId)
-
-    // Enable auto-scroll and immediately scroll to bottom
-    shouldAutoScrollRef.current = true
-    scrollToBottom()
-
-    await sendMessageRef.current({ role: "user", parts })
   }, [subChatId, popItemFromQueue, handleStop])
 
   const handleRemoveFromQueue = useCallback((itemId: string) => {
@@ -3859,17 +3883,12 @@ const ChatViewInner = memo(function ChatViewInner({
 
     if (!hasText && !hasImages) return
 
-    // Stop current stream if streaming and wait for status to become ready
+    // Stop current stream if streaming and wait for status to become ready.
+    // The server-side save block sets sessionId=null on abort, so the next
+    // message starts fresh without needing an explicit cancel mutation.
     if (isStreamingRef.current) {
       await handleStop()
-      // Wait for status to become "ready" (max 2 seconds)
-      const maxWait = 2000
-      const pollInterval = 50
-      let waited = 0
-      while (isStreamingRef.current && waited < maxWait) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-        waited += pollInterval
-      }
+      await waitForStreamingReady(subChatId)
     }
 
     // Auto-restore archived workspace when sending a message
@@ -3960,7 +3979,13 @@ const ChatViewInner = memo(function ChatViewInner({
     shouldAutoScrollRef.current = true
     scrollToBottom()
 
-    await sendMessageRef.current({ role: "user", parts })
+    try {
+      await sendMessageRef.current({ role: "user", parts })
+    } catch (error) {
+      console.error("[handleForceSend] Error sending message:", error)
+      // Restore editor content so the user can retry
+      editorRef.current?.setValue(finalText)
+    }
   }, [
     sandboxSetupStatus,
     isArchived,
