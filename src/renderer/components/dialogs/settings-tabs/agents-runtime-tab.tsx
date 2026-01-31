@@ -370,9 +370,9 @@ function CommonToolsSection() {
                   key={tool.name}
                   name={tool.name}
                   installed={tool.installed}
-                  version={tool.version}
-                  path={tool.path}
-                  installCommand={tool.installCommand}
+                  version={tool.version ?? null}
+                  path={tool.path ?? null}
+                  installCommand={tool.installCommand ?? null}
                   description={TOOL_DESCRIPTIONS[tool.name] || "CLI tool"}
                   isInstalling={installingTool === tool.name}
                   onInstall={() =>

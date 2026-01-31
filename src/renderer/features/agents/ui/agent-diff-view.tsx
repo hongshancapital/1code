@@ -80,8 +80,8 @@ import { trpcClient } from "../../../lib/trpc"
 
 // Stub type for disabled cloud feature
 interface DisabledRemoteApi {
-  getSandboxFile: () => Promise<never>
-  getSandboxDiff: () => Promise<never>
+  getSandboxFile: (_sandboxId: string, _path: string) => Promise<{ content: string }>
+  getSandboxDiff: (_sandboxId: string) => Promise<{ diff: string }>
 }
 
 // Stub for disabled cloud feature
