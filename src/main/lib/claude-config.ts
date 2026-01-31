@@ -22,8 +22,10 @@ export const CLAUDE_CONFIG_PATH = path.join(os.homedir(), ".claude.json")
 export interface McpServerConfig {
   command?: string
   args?: string[]
+  env?: Record<string, string>
   url?: string
   authType?: "oauth" | "bearer" | "none"
+  headers?: Record<string, string>
   _oauth?: {
     accessToken: string
     refreshToken?: string

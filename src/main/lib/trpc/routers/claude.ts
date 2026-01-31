@@ -2,6 +2,7 @@ import { observable } from "@trpc/server/observable"
 import { eq, like } from "drizzle-orm"
 import { app, BrowserWindow, safeStorage } from "electron"
 import * as fs from "fs/promises"
+import { readFileSync } from "fs"
 import * as os from "os"
 import path from "path"
 import { z } from "zod"
@@ -15,13 +16,51 @@ import {
   logRawClaudeMessage,
   type UIMessageChunk,
 } from "../../claude"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, type McpServerConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
+
+/**
+ * Type for Claude SDK streaming messages
+ * These are the raw messages from the SDK query iterator
+ */
+interface SdkStreamMessage {
+  type?: string
+  subtype?: string
+  mcp_servers?: unknown
+  error?: string | { message?: string }
+  session_id?: string
+  event?: {
+    type?: string
+    delta?: { type?: string }
+    content_block?: { type?: string }
+  }
+  message?: {
+    content?: Array<{ type?: string; text?: string }>
+  }
+  [key: string]: unknown
+}
+
+/**
+ * Input type for AskUserQuestion tool
+ */
+interface AskUserQuestionInput {
+  questions?: unknown[]
+  [key: string]: unknown
+}
+
+/**
+ * Response type for tool permission callback
+ */
+interface ToolPermissionResponse {
+  behavior: "allow" | "deny"
+  updatedInput?: Record<string, unknown> & { answers?: Record<string, unknown> }
+  message?: string
+}
 
 // UTF-8 safe base64 decoding (atob doesn't support Unicode)
 function base64ToUtf8(base64: string): string {
@@ -486,7 +525,7 @@ export async function warmupMcpCache(): Promise<void> {
     const warmupStart = Date.now()
 
     // Read ~/.claude.json to get all projects with MCP servers
-    const claudeJsonPath = join(os.homedir(), ".claude.json")
+    const claudeJsonPath = path.join(os.homedir(), ".claude.json")
     let config: any
     try {
       const configContent = readFileSync(claudeJsonPath, "utf-8")
@@ -502,9 +541,9 @@ export async function warmupMcpCache(): Promise<void> {
     }
 
     // Find projects with MCP servers (excluding worktrees)
-    const projectsWithMcp: Array<{ path: string; servers: Record<string, any> }> = []
-    for (const [projectPath, projectConfig] of Object.entries(config.projects)) {
-      if ((projectConfig as any)?.mcpServers) {
+    const projectsWithMcp: Array<{ path: string; servers: Record<string, McpServerConfig> }> = []
+    for (const [projectPath, projectConfig] of Object.entries(config.projects) as [string, ProjectConfig][]) {
+      if (projectConfig?.mcpServers) {
         // Skip worktrees - they're temporary git working directories and inherit MCP from parent
         if (projectPath.includes("/.hong/worktrees/") || projectPath.includes("\\.hong\\worktrees\\")) {
           continue
@@ -512,7 +551,7 @@ export async function warmupMcpCache(): Promise<void> {
 
         projectsWithMcp.push({
           path: projectPath,
-          servers: (projectConfig as any).mcpServers
+          servers: projectConfig.mcpServers
         })
       }
     }
@@ -550,8 +589,8 @@ export async function warmupMcpCache(): Promise<void> {
         // Wait for init message with MCP server statuses
         let gotInit = false
         for await (const msg of warmupQuery) {
-          const msgAny = msg as any
-          if (msgAny.type === "system" && msgAny.subtype === "init" && msgAny.mcp_servers) {
+          const sdkMsg = msg as SdkStreamMessage
+          if (sdkMsg.type === "system" && sdkMsg.subtype === "init" && sdkMsg.mcp_servers) {
             gotInit = true
             break // We only need the init message
           }
@@ -592,13 +631,13 @@ async function fetchToolsForServer(serverConfig: McpServerConfig): Promise<McpTo
     }
 
     // Stdio transport
-    const command = (serverConfig as any).command as string | undefined
+    const command = serverConfig.command
     if (command) {
       try {
         return await fetchMcpToolsStdio({
           command,
-          args: (serverConfig as any).args,
-          env: (serverConfig as any).env,
+          args: serverConfig.args,
+          env: serverConfig.env,
         })
       } catch {
         return []
@@ -1541,12 +1580,13 @@ ${prompt}
                   }
                   if (toolName === "AskUserQuestion") {
                     const { toolUseID } = options
+                    const askInput = toolInput as AskUserQuestionInput
                     // Emit to UI (safely in case observer is closed)
                     // Frontend will read the latest timeout setting from its store
                     safeEmit({
                       type: "ask-user-question",
                       toolUseId: toolUseID,
-                      questions: (toolInput as any).questions,
+                      questions: askInput.questions,
                     } as UIMessageChunk)
 
                     // Backend uses a long safety timeout (10 minutes) as a fallback
@@ -1605,7 +1645,7 @@ ${prompt}
                     }
 
                     // Update the tool part with answers result for approved
-                    const answers = (response.updatedInput as any)?.answers
+                    const answers = (response.updatedInput as ToolPermissionResponse["updatedInput"])?.answers
                     const answerResult = { answers }
                     if (askToolPart) {
                       askToolPart.result = answerResult
@@ -1703,19 +1743,19 @@ ${prompt}
 
                 // Extra logging for Ollama to diagnose issues
                 if (isUsingOllama) {
-                  const msgAnyPreview = msg as any
+                  const sdkMsgPreview = msg as SdkStreamMessage
                   console.log(`[Ollama] ===== MESSAGE #${messageCount} =====`)
-                  console.log(`[Ollama] Type: ${msgAnyPreview.type}`)
-                  console.log(`[Ollama] Subtype: ${msgAnyPreview.subtype || 'none'}`)
-                  if (msgAnyPreview.event) {
-                    console.log(`[Ollama] Event: ${msgAnyPreview.event.type}`, {
-                      delta_type: msgAnyPreview.event.delta?.type,
-                      content_block_type: msgAnyPreview.event.content_block?.type
+                  console.log(`[Ollama] Type: ${sdkMsgPreview.type}`)
+                  console.log(`[Ollama] Subtype: ${sdkMsgPreview.subtype || 'none'}`)
+                  if (sdkMsgPreview.event) {
+                    console.log(`[Ollama] Event: ${sdkMsgPreview.event.type}`, {
+                      delta_type: sdkMsgPreview.event.delta?.type,
+                      content_block_type: sdkMsgPreview.event.content_block?.type
                     })
                   }
-                  if (msgAnyPreview.message?.content) {
-                    console.log(`[Ollama] Message content blocks:`, msgAnyPreview.message.content.length)
-                    msgAnyPreview.message.content.forEach((block: any, idx: number) => {
+                  if (sdkMsgPreview.message?.content) {
+                    console.log(`[Ollama] Message content blocks:`, sdkMsgPreview.message.content.length)
+                    sdkMsgPreview.message.content.forEach((block, idx) => {
                       console.log(`[Ollama]   Block ${idx}: type=${block.type}, text_length=${block.text?.length || 0}`)
                     })
                   }
@@ -1737,34 +1777,35 @@ ${prompt}
                 logRawClaudeMessage(input.chatId, msg)
 
                 // Check for error messages from SDK (error can be embedded in message payload!)
-                const msgAny = msg as any
-                if (msgAny.type === "error" || msgAny.error) {
+                const sdkMsg = msg as SdkStreamMessage
+                if (sdkMsg.type === "error" || sdkMsg.error) {
                   // Extract detailed error text from message content if available
                   // This is where the actual error description lives (e.g., "API Error: Claude Code is unable to respond...")
-                  const messageText = msgAny.message?.content?.[0]?.text
-                  const sdkError = messageText || msgAny.error || msgAny.message || "Unknown SDK error"
+                  const messageText = sdkMsg.message?.content?.[0]?.text
+                  const errorValue = typeof sdkMsg.error === 'string' ? sdkMsg.error : sdkMsg.error?.message
+                  const sdkError = messageText || errorValue || "Unknown SDK error"
                   lastError = new Error(sdkError)
 
                   // Detailed SDK error logging in main process
                   console.error(`[CLAUDE SDK ERROR] ========================================`)
                   console.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`)
-                  console.error(`[CLAUDE SDK ERROR] Message type: ${msgAny.type}`)
+                  console.error(`[CLAUDE SDK ERROR] Message type: ${sdkMsg.type}`)
                   console.error(`[CLAUDE SDK ERROR] SubChat ID: ${input.subChatId}`)
                   console.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`)
                   console.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`)
                   console.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`)
-                  console.error(`[CLAUDE SDK ERROR] Session ID: ${msgAny.session_id || 'none'}`)
+                  console.error(`[CLAUDE SDK ERROR] Session ID: ${sdkMsg.session_id || 'none'}`)
                   console.error(`[CLAUDE SDK ERROR] Has custom config: ${!!finalCustomConfig}`)
                   console.error(`[CLAUDE SDK ERROR] Is using Ollama: ${isUsingOllama}`)
                   console.error(`[CLAUDE SDK ERROR] Model: ${resolvedModel || 'default'}`)
                   console.error(`[CLAUDE SDK ERROR] Has OAuth token: ${!!claudeCodeToken}`)
                   console.error(`[CLAUDE SDK ERROR] MCP servers: ${mcpServersFiltered ? Object.keys(mcpServersFiltered).join(', ') : 'none'}`)
-                  console.error(`[CLAUDE SDK ERROR] Full message:`, JSON.stringify(msgAny, null, 2))
+                  console.error(`[CLAUDE SDK ERROR] Full message:`, JSON.stringify(sdkMsg, null, 2))
                   console.error(`[CLAUDE SDK ERROR] ========================================`)
 
                   // Categorize SDK-level errors
                   // Use the raw error code (e.g., "invalid_request") for category matching
-                  const rawErrorCode = msgAny.error || ""
+                  const rawErrorCode = sdkMsg.error || ""
                   let errorCategory = "SDK_ERROR"
                   // Default errorContext to the full error text (which may include detailed message)
                   let errorContext = sdkError
@@ -1823,8 +1864,8 @@ ${prompt}
                       debugInfo: {
                         category: errorCategory,
                         rawErrorCode,
-                        sessionId: msgAny.session_id,
-                        messageId: msgAny.message?.id,
+                        sessionId: sdkMsg.session_id,
+                        messageId: sdkMsg.message?.id,
                       },
                     } as UIMessageChunk)
                   }
@@ -1834,9 +1875,9 @@ ${prompt}
                     errorCategory,
                     errorContext: errorContext.slice(0, 200), // Truncate for log readability
                     rawErrorCode,
-                    sessionId: msgAny.session_id,
-                    messageId: msgAny.message?.id,
-                    fullMessage: JSON.stringify(msgAny, null, 2),
+                    sessionId: sdkMsg.session_id,
+                    messageId: sdkMsg.message?.id,
+                    fullMessage: JSON.stringify(sdkMsg, null, 2),
                   })
                   safeEmit({ type: "finish" } as UIMessageChunk)
                   safeComplete()
@@ -1844,31 +1885,31 @@ ${prompt}
                 }
 
                 // Track sessionId for rollback support (available on all messages)
-                if (msgAny.session_id) {
-                  metadata.sessionId = msgAny.session_id
-                  currentSessionId = msgAny.session_id // Share with cleanup
+                if (sdkMsg.session_id) {
+                  metadata.sessionId = sdkMsg.session_id
+                  currentSessionId = sdkMsg.session_id // Share with cleanup
                 }
 
                 // Track UUID from assistant messages for resumeSessionAt
-                if (msgAny.type === "assistant" && msgAny.uuid) {
-                  lastAssistantUuid = msgAny.uuid
+                if (sdkMsg.type === "assistant" && sdkMsg.uuid) {
+                  lastAssistantUuid = sdkMsg.uuid
                 }
 
                 // When result arrives, assign the last assistant UUID to metadata
                 // It will be emitted as part of the merged message-metadata chunk below
-                if (msgAny.type === "result" && historyEnabled && lastAssistantUuid && !abortController.signal.aborted) {
+                if (sdkMsg.type === "result" && historyEnabled && lastAssistantUuid && !abortController.signal.aborted) {
                   metadata.sdkMessageUuid = lastAssistantUuid
                 }
 
                 // Debug: Log system messages from SDK
-                if (msgAny.type === "system") {
+                if (sdkMsg.type === "system") {
                   // Full log to see all fields including MCP errors
-                  console.log(`[SD] SYSTEM message: subtype=${msgAny.subtype}`, JSON.stringify({
-                    cwd: msgAny.cwd,
-                    mcp_servers: msgAny.mcp_servers,
-                    tools: msgAny.tools,
-                    plugins: msgAny.plugins,
-                    permissionMode: msgAny.permissionMode,
+                  console.log(`[SD] SYSTEM message: subtype=${sdkMsg.subtype}`, JSON.stringify({
+                    cwd: sdkMsg.cwd,
+                    mcp_servers: sdkMsg.mcp_servers,
+                    tools: sdkMsg.tools,
+                    plugins: sdkMsg.plugins,
+                    permissionMode: sdkMsg.permissionMode,
                   }, null, 2))
                 }
 

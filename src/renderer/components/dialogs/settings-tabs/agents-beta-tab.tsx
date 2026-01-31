@@ -15,10 +15,15 @@ import { trpc } from "../../../lib/trpc"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../../lib/remote-trpc"
 
+// Stub type for disabled cloud feature
+interface DisabledRemoteTrpc {
+  agents: { getAgentsSubscription: { query: () => Promise<{ type: string }> } }
+}
+
 // Stub for disabled cloud feature
-const remoteTrpc = {
+const remoteTrpc: DisabledRemoteTrpc = {
   agents: { getAgentsSubscription: { query: async () => ({ type: "free" }) } },
-} as any
+}
 import { cn } from "../../../lib/utils"
 import { Button } from "../../ui/button"
 import { ExternalLinkIcon } from "../../ui/icons"

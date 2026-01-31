@@ -37,6 +37,15 @@ import {
 import { useFileOpen } from "../mentions"
 import { MemoizedTextPart } from "./memoized-text-part"
 
+// Helper to safely extract error text from a part object
+function getErrorText(part: Record<string, unknown>): string | undefined {
+  const errorText = part.errorText
+  const error = part.error
+  if (typeof errorText === "string") return errorText
+  if (typeof error === "string") return error
+  return undefined
+}
+
 // Exploring tools - these get grouped when 3+ consecutive
 const EXPLORING_TOOLS = new Set([
   "tool-Read",
@@ -569,7 +578,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
           key={idx}
           input={part.input}
           result={part.result}
-          errorText={(part as any).errorText || (part as any).error}
+          errorText={getErrorText(part)}
           state={isPending ? "call" : "result"}
           isError={isError}
           isStreaming={isStreaming && isLastMessage}
@@ -724,7 +733,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
               isMobile={isMobile}
             />
             */}
-            {onRollback && (message.metadata as any)?.sdkMessageUuid && (
+            {onRollback && (message.metadata as AgentMessageMetadata & { sdkMessageUuid?: string } | undefined)?.sdkMessageUuid && (
               <button
                 onClick={() => onRollback(message)}
                 disabled={isStreaming || isRollingBack}

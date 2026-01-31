@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/electron/renderer"
-import type { ChatTransport, UIMessage } from "ai"
+import type { ChatTransport, UIMessage, UIMessageChunk } from "ai"
+import { isTextUIPart, isDataUIPart } from "ai"
 import { toast } from "sonner"
 import {
   agentsLoginModalOpenAtom,
@@ -128,7 +129,40 @@ const ERROR_TOAST_CONFIG: Record<
   // SDK_ERROR and other unknown errors use chunk.errorText for description
 }
 
-type UIMessageChunk = any // Inferred from subscription
+import type { MCPServer, SessionInfo } from "../../../lib/atoms"
+import type { PendingUserQuestion } from "../atoms"
+import type { BackgroundTaskStatus } from "../types/background-task"
+
+/**
+ * Extended stream chunk type for our Claude transport.
+ * The subscription returns custom chunk types beyond the standard UIMessageChunk.
+ * We use an interface with optional fields since TypeScript discriminated unions
+ * don't work well when there's a fallback type with `type: string`.
+ */
+interface StreamChunk {
+  type: string
+  // AskUserQuestion fields
+  toolUseId?: string
+  questions?: PendingUserQuestion["questions"]
+  result?: unknown
+  // Compacting fields
+  state?: string
+  // Session init fields
+  tools?: string[]
+  mcpServers?: MCPServer[]
+  plugins?: SessionInfo["plugins"]
+  skills?: string[]
+  // Task notification fields
+  taskId?: string
+  status?: BackgroundTaskStatus
+  shellId?: string
+  summary?: string
+  command?: string
+  outputFile?: string
+  // Error fields
+  errorText?: string
+  debugInfo?: { category?: string }
+}
 
 type IPCChatTransportConfig = {
   chatId: string
@@ -237,12 +271,15 @@ askUserQuestionTimeout,
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
           },
           {
-            onData: (chunk: UIMessageChunk) => {
+            // Cast chunk to our extended type - the server sends custom chunk types
+            // that aren't part of the standard UIMessageChunk type from 'ai'
+            onData: (rawChunk) => {
+              const chunk = rawChunk as StreamChunk
               chunkCount++
               lastChunkType = chunk.type
 
               // Handle AskUserQuestion - show question UI and notify user
-              if (chunk.type === "ask-user-question") {
+              if (chunk.type === "ask-user-question" && chunk.toolUseId && chunk.questions) {
                 // Read the latest timeout setting (user may have changed it during the conversation)
                 const latestTimeoutSetting = appStore.get(askUserQuestionTimeoutAtom)
 
@@ -289,7 +326,7 @@ askUserQuestionTimeout,
               }
 
               // Handle AskUserQuestion result - store for real-time updates
-              if (chunk.type === "ask-user-question-result") {
+              if (chunk.type === "ask-user-question-result" && chunk.toolUseId) {
                 const currentResults = appStore.get(askUserQuestionResultsAtom)
                 const newResults = new Map(currentResults)
                 newResults.set(chunk.toolUseId, chunk.result)
@@ -311,12 +348,12 @@ askUserQuestionTimeout,
               }
 
               // Handle session init - store MCP servers, plugins, tools info
-              if (chunk.type === "session-init") {
+              if (chunk.type === "session-init" && chunk.tools && chunk.mcpServers && chunk.plugins && chunk.skills) {
                 console.log("[MCP] Received session-init:", {
-                  tools: chunk.tools?.length,
+                  tools: chunk.tools.length,
                   mcpServers: chunk.mcpServers,
                   plugins: chunk.plugins,
-                  skills: chunk.skills?.length,
+                  skills: chunk.skills.length,
                   // Debug: show all tools to check for MCP tools (format: mcp__servername__toolname)
                   allTools: chunk.tools,
                 })
@@ -329,25 +366,28 @@ askUserQuestionTimeout,
               }
 
               // Handle task notification - background task status updates
-              if (chunk.type === "task-notification") {
+              if (chunk.type === "task-notification" && chunk.taskId && chunk.status) {
                 const subChatId = this.config.subChatId
                 const tasksAtom = backgroundTasksAtomFamily(subChatId)
                 const currentTasks = appStore.get(tasksAtom)
+                // Extract to local const for TypeScript narrowing
+                const taskId = chunk.taskId
+                const taskStatus = chunk.status
 
                 console.log("[BackgroundTask] Received task-notification:", {
-                  taskId: chunk.taskId,
-                  status: chunk.status,
+                  taskId,
+                  status: taskStatus,
                   subChatId,
                   existingTaskIds: currentTasks.map(t => t.taskId),
                 })
 
-                if (chunk.status === "running") {
+                if (taskStatus === "running") {
                   // New running task - add to list
                   const newTask = createBackgroundTask(
                     subChatId,
-                    chunk.taskId,
-                    chunk.shellId || chunk.taskId,
-                    chunk.summary,
+                    taskId,
+                    chunk.shellId ?? taskId,
+                    chunk.summary ?? "Background task",
                     chunk.command,
                     chunk.outputFile
                   )
@@ -355,17 +395,17 @@ askUserQuestionTimeout,
                   appStore.set(tasksAtom, [...currentTasks, newTask])
                 } else {
                   // Task completed/failed/stopped - update status
-                  const taskExists = currentTasks.some(t => t.taskId === chunk.taskId)
+                  const taskExists = currentTasks.some(t => t.taskId === taskId)
                   console.log("[BackgroundTask] Updating task status:", {
-                    taskId: chunk.taskId,
-                    newStatus: chunk.status,
+                    taskId,
+                    newStatus: taskStatus,
                     taskExists,
                   })
                   appStore.set(
                     tasksAtom,
                     currentTasks.map((t) =>
-                      t.taskId === chunk.taskId
-                        ? updateTaskStatus(t, chunk.status)
+                      t.taskId === taskId
+                        ? updateTaskStatus(t, taskStatus)
                         : t
                     )
                   )
@@ -487,8 +527,10 @@ askUserQuestionTimeout,
               }
 
               // Try to enqueue, but don't crash if stream is already closed
+              // rawChunk comes from tRPC subscription and may include custom chunk types
+              // beyond the standard UIMessageChunk type from 'ai' package
               try {
-                controller.enqueue(chunk)
+                controller.enqueue(rawChunk as UIMessageChunk)
               } catch (e) {
                 // CRITICAL: Log when enqueue fails - this could explain missing chunks!
                 console.log(`[SD] R:ENQUEUE_ERR sub=${subId} type=${chunk.type} n=${chunkCount} err=${e}`)
@@ -560,14 +602,13 @@ askUserQuestionTimeout,
       const fileContents: string[] = []
 
       for (const p of msg.parts) {
-        const partType = (p as any).type as string
-        if (partType === "text" && (p as any).text) {
-          textParts.push((p as any).text)
-        } else if (partType === "file-content") {
+        if (isTextUIPart(p)) {
+          textParts.push(p.text)
+        } else if (isDataUIPart(p) && p.type === "data-file-content") {
           // Hidden file content - add to prompt but not displayed in UI
-          const fc = p as any
-          const fileName = fc.filePath?.split("/").pop() || fc.filePath || "file"
-          fileContents.push(`\n--- ${fileName} ---\n${fc.content}`)
+          const data = p.data as { filePath?: string; content?: string }
+          const fileName = data.filePath?.split("/").pop() || data.filePath || "file"
+          fileContents.push(`\n--- ${fileName} ---\n${data.content ?? ""}`)
         }
       }
 
@@ -588,8 +629,8 @@ askUserQuestionTimeout,
 
     for (const part of msg.parts) {
       // Check for data-image parts with base64 data
-      if (part.type === "data-image" && (part as any).data) {
-        const data = (part as any).data
+      if (isDataUIPart(part) && part.type === "data-image") {
+        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string }
         if (data.base64Data && data.mediaType) {
           images.push({
             base64Data: data.base64Data,

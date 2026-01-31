@@ -188,7 +188,6 @@ export function SettingsSidebar() {
           <div
             className="absolute inset-x-0 top-0 h-[32px] z-0"
             style={{
-              // @ts-expect-error - WebKit-specific property
               WebkitAppRegion: "drag",
             }}
             data-sidebar-content

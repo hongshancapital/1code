@@ -9,17 +9,43 @@ export interface MessagePart {
   text?: string
   toolCallId?: string
   state?: string
-  input?: any
-  output?: any
-  result?: any
-  [key: string]: any
+  input?: Record<string, unknown>
+  output?: unknown
+  result?: unknown
+  [key: string]: unknown
+}
+
+/**
+ * Metadata attached to assistant messages containing usage information.
+ * This extends AgentMessageMetadata with additional token tracking fields.
+ */
+export interface MessageMetadata {
+  // Core session and tracking
+  sessionId?: string
+  sdkMessageUuid?: string
+  finalTextId?: string
+  resultSubtype?: string
+
+  // Token usage (flat structure from transform.ts)
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+
+  // Extended token fields (for cache and reasoning)
+  cacheReadInputTokens?: number
+  cacheCreationInputTokens?: number
+  reasoningTokens?: number
+
+  // Cost and timing
+  totalCostUsd?: number
+  durationMs?: number
 }
 
 export interface Message {
   id: string
   role: "user" | "assistant" | "system"
   parts?: MessagePart[]
-  metadata?: any
+  metadata?: MessageMetadata
   createdAt?: Date
 }
 
@@ -452,8 +478,7 @@ export const messageTokenDataAtom = atom((get) => {
   // Get the last message to check if its tokens changed
   const lastId = ids[ids.length - 1]
   const lastMsg = lastId ? get(messageAtomFamily(lastId)) : null
-  // Note: metadata has flat structure (metadata.outputTokens), not nested (metadata.usage.outputTokens)
-  const lastMsgOutputTokens = (lastMsg?.metadata as any)?.outputTokens || 0
+  const lastMsgOutputTokens = lastMsg?.metadata?.outputTokens ?? 0
 
   const cached = tokenDataCacheByChat.get(subChatId)
 
@@ -477,16 +502,13 @@ export const messageTokenDataAtom = atom((get) => {
 
   for (const id of ids) {
     const msg = get(messageAtomFamily(id))
-    const metadata = msg?.metadata as any
-    // Note: metadata has flat structure from transform.ts (metadata.inputTokens, metadata.outputTokens)
-    // Extended fields like cacheReadInputTokens are not currently in MessageMetadata type
+    const metadata = msg?.metadata
     if (metadata) {
-      inputTokens += metadata.inputTokens || 0
-      outputTokens += metadata.outputTokens || 0
-      // These fields are not in current MessageMetadata but kept for future compatibility
-      cacheReadTokens += metadata.cacheReadInputTokens || 0
-      cacheWriteTokens += metadata.cacheCreationInputTokens || 0
-      reasoningTokens += metadata.reasoningTokens || 0
+      inputTokens += metadata.inputTokens ?? 0
+      outputTokens += metadata.outputTokens ?? 0
+      cacheReadTokens += metadata.cacheReadInputTokens ?? 0
+      cacheWriteTokens += metadata.cacheCreationInputTokens ?? 0
+      reasoningTokens += metadata.reasoningTokens ?? 0
     }
   }
 

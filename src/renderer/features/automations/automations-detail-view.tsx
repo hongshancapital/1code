@@ -26,17 +26,43 @@ import { Badge } from "../../components/ui/badge"
 import { cn } from "../../lib/utils"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
-// Stub for disabled cloud feature
+// Type definitions for disabled cloud feature
+interface AutomationExecution {
+  id: string
+  status: string
+  external_id?: string
+  external_url?: string
+  error_message?: string
+  created_at: string
+}
+
+interface AutomationData {
+  name?: string
+  agent_prompt?: string
+  add_to_inbox?: boolean
+  is_enabled?: boolean
+  target_repository?: string
+  triggers?: Array<{
+    id?: string
+    platform: string
+    trigger_type: string
+    filters?: Array<{ field: string; operator: string; value: string }>
+  }>
+  executions?: AutomationExecution[]
+}
+
+// Stub for disabled cloud feature - returns null/empty data until cloud backend is available
 const remoteTrpc = {
   automations: {
-    getAutomation: { query: async () => null },
-    createAutomation: { mutate: async () => ({}) },
-    updateAutomation: { mutate: async () => ({}) },
-    deleteAutomation: { mutate: async () => ({}) },
+    getAutomation: { query: async (_params: { automationId: string }): Promise<AutomationData | null> => null },
+    createAutomation: { mutate: async (_params: Record<string, unknown>): Promise<Record<string, unknown>> => ({}) },
+    updateAutomation: { mutate: async (_params: Record<string, unknown>): Promise<Record<string, unknown>> => ({}) },
+    deleteAutomation: { mutate: async (_params: { automationId: string }): Promise<Record<string, unknown>> => ({}) },
+    listExecutions: { query: async (_params: { automationId: string; limit: number; offset: number }): Promise<{ executions: AutomationExecution[]; total: number }> => ({ executions: [], total: 0 }) },
   },
-  github: { getConnectionStatus: { query: async () => ({ connected: false }) } },
-  linear: { getIntegration: { query: async () => null } },
-} as any
+  github: { getConnectionStatus: { query: async (_params: { teamId: string }): Promise<{ connected: boolean; isConnected?: boolean }> => ({ connected: false }) } },
+  linear: { getIntegration: { query: async (_params: { teamId: string }): Promise<{ isConnected?: boolean } | null> => null } },
+}
 import { Switch } from "../../components/ui/switch"
 import {
   Select,
@@ -158,7 +184,7 @@ export function AutomationsDetailView() {
   // Past Runs state
   const [pastRunsExpanded, setPastRunsExpanded] = useState(true)
   const [pastRunsOffset, setPastRunsOffset] = useState(0)
-  const [additionalExecutions, setAdditionalExecutions] = useState<any[]>([])
+  const [additionalExecutions, setAdditionalExecutions] = useState<AutomationExecution[]>([])
 
   // ============================================================================
   // Fetch existing automation (edit mode)
@@ -189,12 +215,12 @@ export function AutomationsDetailView() {
 
   // Combine initial executions (from getAutomation) with paginated ones
   const allExecutions = useMemo(() => {
-    const initial = (automation as any)?.executions || []
+    const initial = automation?.executions ?? []
     if (additionalExecutions.length === 0) return initial
-    const ids = new Set(initial.map((e: any) => e.id))
-    const extra = additionalExecutions.filter((e: any) => !ids.has(e.id))
+    const ids = new Set(initial.map((e) => e.id))
+    const extra = additionalExecutions.filter((e) => !ids.has(e.id))
     return [...initial, ...extra]
-  }, [(automation as any)?.executions, additionalExecutions])
+  }, [automation?.executions, additionalExecutions])
 
   const totalExecutions = moreExecutionsData?.total ?? allExecutions.length
   const hasMoreExecutions = allExecutions.length < totalExecutions
@@ -672,7 +698,7 @@ export function AutomationsDetailView() {
                         </div>
                       ) : (
                         <div className="divide-y divide-border">
-                          {allExecutions.map((execution: any) => (
+                          {allExecutions.map((execution) => (
                             <div key={execution.id} className="flex items-center gap-3 px-3 py-2.5">
                               <Badge
                                 variant="outline"
@@ -688,10 +714,12 @@ export function AutomationsDetailView() {
                                 {execution.external_url ? (
                                   <button
                                     onClick={() => {
+                                      const url = execution.external_url
+                                      if (!url) return
                                       if (window.desktopApi?.openExternal) {
-                                        window.desktopApi.openExternal(execution.external_url)
+                                        window.desktopApi.openExternal(url)
                                       } else {
-                                        window.open(execution.external_url, "_blank")
+                                        window.open(url, "_blank")
                                       }
                                     }}
                                     className="text-sm text-foreground hover:underline truncate inline-flex items-center gap-1 text-left"

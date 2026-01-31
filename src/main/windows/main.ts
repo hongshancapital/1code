@@ -229,7 +229,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle("window:toggle-devtools", (event) => {
     const win = getWindowFromEvent(event)
     // Check if devtools are unlocked (or in dev mode)
-    const isUnlocked = !app.isPackaged || (global as any).__devToolsUnlocked
+    const isUnlocked = !app.isPackaged || globalThis.__devToolsUnlocked
     if (win && isUnlocked) {
       win.webContents.toggleDevTools()
     }
@@ -238,10 +238,10 @@ function registerIpcHandlers(): void {
   // Unlock DevTools (hidden feature - 5 clicks on Beta tab)
   ipcMain.handle("window:unlock-devtools", () => {
     // Mark as unlocked locally for IPC check
-    ;(global as any).__devToolsUnlocked = true
+    globalThis.__devToolsUnlocked = true
     // Call the global function to rebuild menu
-    if ((global as any).__unlockDevTools) {
-      ;(global as any).__unlockDevTools()
+    if (globalThis.__unlockDevTools) {
+      globalThis.__unlockDevTools()
     }
   })
 

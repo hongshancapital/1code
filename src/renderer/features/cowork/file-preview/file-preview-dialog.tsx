@@ -117,7 +117,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   // Handle save
   const handleSave = useCallback(() => {
     // Call the save function exposed by CodeEditor
-    const saveFunc = (window as any).__codeEditorSave
+    const saveFunc = window.__codeEditorSave
     if (saveFunc) {
       saveFunc()
     }

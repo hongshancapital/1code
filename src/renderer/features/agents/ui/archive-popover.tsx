@@ -346,7 +346,7 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
           gitOwner,
           gitProvider: repository ? "github" : null,
           updatedAt: chat.updated_at,
-          archivedAt: (chat as unknown as { archived_at?: string }).archived_at ?? null,
+          archivedAt: chat.archived_at ?? null,
           isRemote: true,
         })
       }

@@ -149,7 +149,8 @@ currentProjectModeAtom,
   agentsChatFullWidthAtom,
   pendingMentionAtom,
   type AgentMode,
-  type SelectedCommit
+  type SelectedCommit,
+  type CachedParsedDiffFile,
 } from "../atoms"
 import { BUILTIN_SLASH_COMMANDS } from "../commands"
 import { AgentSendButton } from "../components/agent-send-button"
@@ -193,7 +194,7 @@ import {
 } from "../search"
 import { agentChatStore } from "../stores/agent-chat-store"
 import { EMPTY_QUEUE, useMessageQueueStore } from "../stores/message-queue-store"
-import { clearSubChatCaches, isRollingBackAtom, rollbackHandlerAtom, syncMessagesWithStatusAtom } from "../stores/message-store"
+import { clearSubChatCaches, isRollingBackAtom, rollbackHandlerAtom, syncMessagesWithStatusAtom, type MessagePart, type Message, type MessageMetadata } from "../stores/message-store"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
 import {
   useAgentSubChatStore,
@@ -231,6 +232,8 @@ import { IsolatedMessagesSection } from "./isolated-messages-section"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
 import type { ProjectMode } from "../../../../shared/feature-config"
+import type { AgentChat, AgentSubChat, ChatProject } from "../types"
+import { isRemoteChat, getSandboxId, getProjectPath } from "../types"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -238,6 +241,10 @@ const selectedSubChatIdsAtom = atom(new Set<string>())
 const selectedTeamIdAtom = atom<string | null>(null)
 // import type { PlanType } from "@/lib/config/subscription-plans"
 type PlanType = string
+
+// Module-level Map to track pending cache cleanup timeouts
+// Used to cancel cleanup if component remounts with same subChatId
+const pendingCacheCleanups = new Map<string, ReturnType<typeof setTimeout>>()
 
 // UTF-8 safe base64 encoding (btoa doesn't support Unicode)
 function utf8ToBase64(str: string): string {
@@ -2223,18 +2230,16 @@ const ChatViewInner = memo(function ChatViewInner({
       }, 100)
 
       // Store the timeout so it can be cancelled if the component remounts
-      // We use a global map to track pending cleanups
-      ;(window as any).__pendingCacheCleanups = (window as any).__pendingCacheCleanups || new Map()
-      ;(window as any).__pendingCacheCleanups.set(currentSubChatId, timeoutId)
+      pendingCacheCleanups.set(currentSubChatId, timeoutId)
     }
   }, [subChatId])
 
   // Cancel pending cleanup if we remount with the same subChatId
   useEffect(() => {
-    const pendingCleanups = (window as any).__pendingCacheCleanups as Map<string, number> | undefined
-    if (pendingCleanups?.has(subChatId)) {
-      clearTimeout(pendingCleanups.get(subChatId))
-      pendingCleanups.delete(subChatId)
+    const pendingTimeout = pendingCacheCleanups.get(subChatId)
+    if (pendingTimeout !== undefined) {
+      clearTimeout(pendingTimeout)
+      pendingCacheCleanups.delete(subChatId)
     }
   }, [subChatId])
 
@@ -2739,13 +2744,13 @@ const ChatViewInner = memo(function ChatViewInner({
   useEffect(() => {
     // Check if there's a pending AskUserQuestion in the last assistant message
     const pendingQuestionPart = lastAssistantMessage?.parts?.find(
-      (part: any) =>
+      (part: MessagePart) =>
         part.type === "tool-AskUserQuestion" &&
         part.state !== "output-available" &&
         part.state !== "output-error" &&
         part.state !== "result" &&
         part.input?.questions,
-    ) as any | undefined
+    ) as MessagePart | undefined
 
 
     // Helper to clear pending question for this subChat
@@ -3138,13 +3143,14 @@ const ChatViewInner = memo(function ChatViewInner({
     // Count completed plan Edits
     let completedPlanEdits = 0
     for (const msg of messages) {
-      if (msg.role !== "assistant" || !(msg as any).parts) continue
-      for (const part of (msg as any).parts as any[]) {
+      const msgWithParts = msg as Message
+      if (msgWithParts.role !== "assistant" || !msgWithParts.parts) continue
+      for (const part of msgWithParts.parts) {
         if (
           part.type === "tool-Edit" &&
           part.state !== "input-streaming" &&
           part.state !== "pending" &&
-          isPlanFile(part.input?.file_path || "")
+          isPlanFile((part.input?.file_path as string) || "")
         ) {
           completedPlanEdits++
         }
@@ -3178,7 +3184,7 @@ const ChatViewInner = memo(function ChatViewInner({
         return
       }
 
-      const sdkUuid = (assistantMsg.metadata as any)?.sdkMessageUuid
+      const sdkUuid = (assistantMsg.metadata as MessageMetadata | undefined)?.sdkMessageUuid
       if (!sdkUuid) {
         toast.error("Cannot rollback: message has no SDK UUID")
         return
@@ -3620,7 +3626,7 @@ const ChatViewInner = memo(function ChatViewInner({
           type: "data-file" as const,
           data: {
             url: f.url,
-            mediaType: (f as any).mediaType,
+            mediaType: f.type,
             filename: f.filename,
             size: f.size,
           },
@@ -4791,7 +4797,7 @@ export function ChatView({
   }, [setDiffCache])
 
   const setParsedFileDiffs = useCallback((files: ParsedDiffFile[] | null) => {
-    setDiffCache((prev) => ({ ...prev, parsedFileDiffs: files as any }))
+    setDiffCache((prev) => ({ ...prev, parsedFileDiffs: files as CachedParsedDiffFile[] | null }))
   }, [setDiffCache])
 
   const setPrefetchedFileContents = useCallback((contents: Record<string, string>) => {
@@ -5090,10 +5096,7 @@ export function ChatView({
 
   // Get project mode from chat's associated project
   // Each chat has its own project with its own mode
-  const chatProject = (agentChat as any)?.project as {
-    mode?: "cowork" | "coding"
-    featureConfig?: string | null
-  } | undefined
+  const chatProject = (agentChat as AgentChat | null)?.project as ChatProject | undefined
   const chatProjectMode: ProjectMode = chatProject?.mode ?? "cowork"
 
   // Sync currentProjectModeAtom when chat data changes
@@ -5277,7 +5280,7 @@ export function ChatView({
   // Desktop: use worktreePath instead of sandbox, fallback to selectedProject.path during loading
   const worktreePath = (agentChat?.worktreePath as string | null) ?? selectedProject?.path ?? null
   // Desktop: original project path for MCP config lookup
-  const originalProjectPath = (agentChat as any)?.project?.path as string | undefined
+  const originalProjectPath = getProjectPath(agentChat as AgentChat | null)
   // Fallback for web: use sandbox_id
   const sandboxId = agentChat?.sandbox_id
   const sandboxUrl = sandboxId ? `https://3003-${sandboxId}.e2b.app` : null
@@ -5451,7 +5454,7 @@ export function ChatView({
         // Desktop app: use stats already provided in chat data
         // The diff sidebar won't work for remote chats (no worktree), but stats will show
         if (isDesktopApp()) {
-          const remoteStats = (agentChat as any)?.remoteStats
+          const remoteStats = isRemoteChat(agentChat as AgentChat | null) ? (agentChat as AgentChat)?.remoteStats : undefined
           console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", remoteStats)
 
           if (remoteStats) {
@@ -5958,7 +5961,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
     // Find last plan file path from active sub-chat only
     let lastPlanPath: string | null = null
-    const messages = (activeSubChat.messages as any[]) || []
+    const messages = (Array.isArray(activeSubChat.messages) ? activeSubChat.messages : []) as unknown[]
     for (const msg of messages) {
       if (msg.role !== "assistant") continue
       const parts = msg.parts || []
@@ -5991,7 +5994,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
       // Find sub-chat data
       const subChat = agentSubChats.find((sc) => sc.id === subChatId)
-      const messages = (subChat?.messages as any[]) || []
+      const messages = (Array.isArray(subChat?.messages) ? subChat.messages : []) as unknown[]
 
       // Get mode from store metadata (falls back to currentMode)
       const subChatMeta = useAgentSubChatStore
@@ -6002,14 +6005,14 @@ Make sure to preserve all functionality from both branches when resolving confli
       // Create transport based on chat type (local worktree vs remote sandbox)
       // Note: Extended thinking setting is read dynamically inside the transport
       // projectPath: original project path for MCP config lookup (worktreePath is the cwd)
-      const projectPath = (agentChat as any)?.project?.path as string | undefined
-      const chatSandboxId = (agentChat as any)?.sandboxId || (agentChat as any)?.sandbox_id
+      const projectPath = getProjectPath(agentChat as AgentChat | null)
+      const chatSandboxId = getSandboxId(agentChat as AgentChat | null)
       const chatSandboxUrl = chatSandboxId ? `https://3003-${chatSandboxId}.e2b.app` : null
-      const isRemoteChat = !!(agentChat as any)?.isRemote || !!chatSandboxId
+      const isChatRemote = isRemoteChat(agentChat as AgentChat | null) || !!chatSandboxId
 
       console.log("[getOrCreateChat] Transport selection", {
         subChatId: subChatId.slice(-8),
-        isRemoteChat,
+        isChatRemote,
         chatSandboxId,
         chatSandboxUrl,
         worktreePath: worktreePath ? "exists" : "none",
@@ -6017,7 +6020,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
       let transport: IPCChatTransport | RemoteChatTransport | null = null
 
-      if (isRemoteChat && chatSandboxUrl) {
+      if (isChatRemote && chatSandboxUrl) {
         // Remote sandbox chat: use HTTP SSE transport
         const subChatName = subChat?.name || "Chat"
         const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["opus"]
@@ -6147,11 +6150,11 @@ Make sure to preserve all functionality from both branches when resolving confli
     const newSubChatMode = defaultAgentMode
 
     // Check if this is a remote sandbox chat
-    const isRemoteChat = !!(agentChat as any)?.isRemote
+    const isChatRemoteForNew = isRemoteChat(agentChat as AgentChat | null)
 
     let newId: string
 
-    if (isRemoteChat) {
+    if (isChatRemoteForNew) {
       // Sandbox mode: lazy creation (web app pattern)
       // Sub-chat will be persisted on first message via RemoteChatTransport UPSERT
       newId = crypto.randomUUID()
@@ -6207,10 +6210,10 @@ Make sure to preserve all functionality from both branches when resolving confli
     store.setActiveSubChat(newId)
 
     // Create empty Chat instance for the new sub-chat
-    const projectPath = (agentChat as any)?.project?.path as string | undefined
-    const newSubChatSandboxId = (agentChat as any)?.sandboxId || (agentChat as any)?.sandbox_id
+    const projectPath = getProjectPath(agentChat as AgentChat | null)
+    const newSubChatSandboxId = getSandboxId(agentChat as AgentChat | null)
     const newSubChatSandboxUrl = newSubChatSandboxId ? `https://3003-${newSubChatSandboxId}.e2b.app` : null
-    const isNewSubChatRemote = !!(agentChat as any)?.isRemote || !!newSubChatSandboxId
+    const isNewSubChatRemote = isRemoteChat(agentChat as AgentChat | null) || !!newSubChatSandboxId
 
     console.log("[createNewSubChat] Transport selection", {
       newId: newId.slice(-8),

@@ -176,7 +176,8 @@ export function AgentsContent() {
   const { data: teams } = api.teams.getUserTeams.useQuery(undefined, {
     enabled: !!selectedTeamId,
   })
-  const selectedTeam = teams?.find((t: any) => t.id === selectedTeamId) as any
+  type TeamInfo = { id: string; name?: string; image_url?: string }
+  const selectedTeam = (teams as TeamInfo[] | undefined)?.find((t) => t.id === selectedTeamId)
 
   // Fetch agent chats for keyboard navigation and mobile view
   const { data: agentChats } = api.agents.getAgentChats.useQuery(
@@ -811,7 +812,9 @@ export function AgentsContent() {
   const canShowDiff = !!chatData?.sandbox_id
 
   // Check if terminal can be shown (worktree exists - desktop only, not in cowork mode)
-  const worktreePath = (chatData as any)?.worktreePath as string | undefined
+  // chatData includes worktreePath from the chats table schema
+  type ChatDataWithWorktree = typeof chatData & { worktreePath?: string | null }
+  const worktreePath = (chatData as ChatDataWithWorktree)?.worktreePath ?? undefined
   const canShowTerminal = !!worktreePath && !hideGitFeatures
 
   // Mobile layout - completely different structure

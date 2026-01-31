@@ -12,6 +12,37 @@ import { suppressQueryResponses } from "./suppressQueryResponses"
 import { debounce } from "./utils"
 
 /**
+ * Internal xterm.js type for accessing private _core API.
+ * Used to check render service readiness and cell dimensions.
+ */
+interface XTermInternal {
+  _core?: {
+    _renderService?: {
+      dimensions?: {
+        css?: {
+          cell?: { width: number; height: number }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Type guard to safely access xterm's internal _core API.
+ */
+function getXtermCore(xterm: XTerm): XTermInternal["_core"] | undefined {
+  return (xterm as unknown as XTermInternal)._core
+}
+
+/**
+ * Check if xterm's render service is ready.
+ */
+function hasRenderService(xterm: XTerm): boolean {
+  const core = getXtermCore(xterm)
+  return !!core?._renderService
+}
+
+/**
  * Get the default terminal background color based on theme.
  */
 export function getDefaultTerminalBg(isDark = true): string {
@@ -27,8 +58,7 @@ function loadRenderer(xterm: XTerm): { dispose: () => void } {
   let renderer: WebglAddon | CanvasAddon | null = null
 
   // Check if xterm's render service is ready before loading addons
-  const core = (xterm as unknown as { _core?: { _renderService?: unknown } })._core
-  if (!core?._renderService) {
+  if (!hasRenderService(xterm)) {
     console.log("[Terminal:loadRenderer] Render service not ready, using default renderer")
     return { dispose: () => {} }
   }
@@ -119,8 +149,7 @@ export function createTerminalInstance(
   xterm.open(container)
 
   // Debug: Check _renderService after open
-  const core = (xterm as unknown as { _core?: { _renderService?: unknown } })._core
-  console.log("[Terminal:create] After open - _renderService exists:", !!core?._renderService)
+  console.log("[Terminal:create] After open - _renderService exists:", hasRenderService(xterm))
 
   // 3. Load fit addon
   console.log("[Terminal:create] Step 3: Loading FitAddon")
@@ -137,7 +166,7 @@ export function createTerminalInstance(
   const renderer = loadRenderer(xterm)
 
   // Debug: Check dimensions after renderer
-  const coreAfter = (xterm as unknown as { _core?: { _renderService?: { dimensions?: unknown } } })._core
+  const coreAfter = getXtermCore(xterm)
   console.log("[Terminal:create] After renderer - dimensions:", coreAfter?._renderService?.dimensions)
 
   // 6. Set up query response suppression
@@ -187,8 +216,7 @@ export function createTerminalInstance(
     requestAnimationFrame(() => {
       try {
         // Check if xterm is still valid (not disposed)
-        const core = (xterm as unknown as { _core?: { _renderService?: unknown } })._core
-        if (core?._renderService) {
+        if (hasRenderService(xterm)) {
           fitAddon.fit()
           console.log("[Terminal:create] Fit successful - cols:", xterm.cols, "rows:", xterm.rows)
         } else {
@@ -392,19 +420,11 @@ function getTerminalCoordsFromEvent(
   const y = event.clientY - rect.top
 
   // Access internal render service for cell dimensions
-  // Note: _core and _renderService may not be available immediately after terminal creation
-  const core = (xterm as unknown as { _core?: unknown })._core
-  if (!core) return null
+  const core = getXtermCore(xterm)
+  const cell = core?._renderService?.dimensions?.css?.cell
+  if (!cell) return null
 
-  const renderService = (core as { _renderService?: unknown })._renderService
-  if (!renderService) return null
-
-  const dimensions = (renderService as { dimensions?: { css?: { cell?: { width: number; height: number } } } }).dimensions
-  if (!dimensions?.css?.cell) return null
-
-  const cellWidth = dimensions.css.cell.width
-  const cellHeight = dimensions.css.cell.height
-
+  const { width: cellWidth, height: cellHeight } = cell
   if (cellWidth <= 0 || cellHeight <= 0) return null
 
   const col = Math.max(0, Math.min(xterm.cols - 1, Math.floor(x / cellWidth)))

@@ -40,13 +40,21 @@ import { desktopViewAtom } from "../agents/atoms"
 // import { remoteTrpc } from "../../lib/remote-trpc"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
+// Stub type for disabled cloud feature
+interface DisabledRemoteTrpc {
+  automations: {
+    getInboxChats: { query: () => Promise<never[]> }
+    markInboxItemRead: { mutate: () => Promise<Record<string, never>> }
+  }
+}
+
 // Stub for disabled cloud feature
-const remoteTrpc = {
+const remoteTrpc: DisabledRemoteTrpc = {
   automations: {
     getInboxChats: { query: async () => [] },
     markInboxItemRead: { mutate: async () => ({}) },
   },
-} as any
+}
 import {
   Popover,
   PopoverContent,
@@ -366,7 +374,6 @@ export function InboxView() {
             <div
               className="absolute right-2 top-2 z-20"
               style={{
-                // @ts-expect-error - WebKit-specific property
                 WebkitAppRegion: "no-drag",
               }}
             >
@@ -421,7 +428,6 @@ export function InboxView() {
                     className="h-6 w-6 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md text-muted-foreground hover:text-foreground"
                     aria-label="Open sidebar"
                     style={{
-                      // @ts-expect-error - WebKit-specific property
                       WebkitAppRegion: "no-drag",
                     }}
                   >
@@ -430,7 +436,6 @@ export function InboxView() {
                   <div className="flex-1" />
                   <div
                     style={{
-                      // @ts-expect-error - WebKit-specific property
                       WebkitAppRegion: "no-drag",
                     }}
                   >

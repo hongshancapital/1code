@@ -69,6 +69,16 @@ export interface MentionSearchContext {
     additions: number
     deletions: number
   }>
+
+  /**
+   * MCP tools for tools provider
+   */
+  mcpTools?: unknown[]
+
+  /**
+   * MCP servers for tools provider
+   */
+  mcpServers?: unknown[]
 }
 
 /**

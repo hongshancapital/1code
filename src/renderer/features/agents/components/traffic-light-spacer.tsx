@@ -50,7 +50,6 @@ export function TrafficLights({
       <div
         className={cn("relative", className)}
         style={{
-          // @ts-expect-error - WebKit-specific property
           WebkitAppRegion: "no-drag",
         }}
         data-sidebar-content
@@ -69,7 +68,6 @@ export function TrafficLights({
     <div
       className={cn("relative", className)}
       style={{
-        // @ts-expect-error - WebKit-specific property
         WebkitAppRegion: "no-drag",
       }}
       data-sidebar-content
@@ -150,7 +148,6 @@ export function NoDrag({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        // @ts-expect-error - WebKit-specific property
         WebkitAppRegion: "no-drag",
       }}
     >

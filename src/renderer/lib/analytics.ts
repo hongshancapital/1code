@@ -19,7 +19,7 @@ let appArch: string | null = null
 // Renderer can't access env vars directly, so we check a global flag
 const isDev = typeof window !== "undefined" &&
   window.location.hostname === "localhost" &&
-  !(window as any).__FORCE_ANALYTICS__
+  !window.__FORCE_ANALYTICS__
 
 /**
  * Check if user has opted out of analytics

@@ -13,6 +13,31 @@ import { getClaudeShellEnvironment } from './claude/env';
 import { CraftOAuth, fetchOAuthMetadata, getMcpBaseUrl, type OAuthMetadata, type OAuthTokens } from './oauth';
 import { bringToFront } from './window';
 
+// Safe console methods to prevent EPIPE errors when stdout is closed
+function safeLog(...args: unknown[]): void {
+  try {
+    console.log(...args);
+  } catch {
+    // Ignore EPIPE errors when stdout is closed
+  }
+}
+
+function safeError(...args: unknown[]): void {
+  try {
+    console.error(...args);
+  } catch {
+    // Ignore EPIPE errors when stderr is closed
+  }
+}
+
+function safeWarn(...args: unknown[]): void {
+  try {
+    console.warn(...args);
+  } catch {
+    // Ignore EPIPE errors when stderr is closed
+  }
+}
+
 
 /**
  * Fetch tools from an MCP server using the official MCP SDK
@@ -51,10 +76,10 @@ export async function fetchMcpTools(
     const result = await client.listTools();
     const tools = result.tools || [];
 
-    console.log(`[MCP] Fetched ${tools.length} tools via SDK`);
+    safeLog(`[MCP] Fetched ${tools.length} tools via SDK`);
     return tools.map(t => ({ name: t.name, description: t.description }));
   } catch (error) {
-    console.error('[MCP] Failed to fetch tools:', error);
+    safeError('[MCP] Failed to fetch tools:', error);
     return [];
   } finally {
     // Clean up the connection
@@ -122,10 +147,10 @@ export async function fetchMcpToolsStdio(config: {
     const result = await client.listTools();
     const tools = result.tools || [];
 
-    console.log(`[MCP] Fetched ${tools.length} tools via stdio`);
+    safeLog(`[MCP] Fetched ${tools.length} tools via stdio`);
     return tools.map(t => ({ name: t.name, description: t.description }));
   } catch (error) {
-    console.error('[MCP] Failed to fetch tools via stdio:', error);
+    safeError('[MCP] Failed to fetch tools via stdio:', error);
     return [];
   } finally {
     try {
@@ -182,7 +207,7 @@ export async function startMcpOAuth(
   const redirectUri = getMcpOAuthRedirectUri();
   const oauth = new CraftOAuth(
     { mcpBaseUrl: getMcpBaseUrl(serverConfig.url), redirectUri },
-    { onStatus: (msg) => console.log(`[MCP OAuth] ${msg}`), onError: (err) => console.error(`[MCP OAuth] ${err}`) }
+    { onStatus: (msg) => safeLog(`[MCP OAuth] ${msg}`), onError: (err) => safeError(`[MCP OAuth] ${err}`) }
   );
 
   // 3. Start OAuth flow (fetches metadata from .well-known, then gets auth URL)
@@ -191,7 +216,7 @@ export async function startMcpOAuth(
     authFlowResult = await oauth.startAuthFlow();
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[MCP OAuth] Failed to start auth flow: ${msg}`);
+    safeError(`[MCP OAuth] Failed to start auth flow: ${msg}`);
     return { success: false, error: msg };
   }
 
@@ -227,7 +252,7 @@ export async function startMcpOAuth(
 export async function handleMcpOAuthCallback(code: string, state: string): Promise<void> {
   const pending = pendingOAuthFlows.get(state);
   if (!pending) {
-    console.warn(`[MCP OAuth] No pending flow for state: ${state.slice(0, 8)}...`);
+    safeWarn(`[MCP OAuth] No pending flow for state: ${state.slice(0, 8)}...`);
     return;
   }
 
@@ -312,7 +337,7 @@ export async function refreshMcpToken(
     }
 
     if (!serverConfig?.url) {
-      console.log(`[MCP Refresh] No URL for server ${serverName}`);
+      safeLog(`[MCP Refresh] No URL for server ${serverName}`);
       return null;
     }
 
@@ -324,7 +349,7 @@ export async function refreshMcpToken(
     } | undefined;
 
     if (!oauth?.refreshToken || !oauth?.clientId) {
-      console.log(`[MCP Refresh] No refresh token or clientId for ${serverName}`);
+      safeLog(`[MCP Refresh] No refresh token or clientId for ${serverName}`);
       return null;
     }
 
@@ -339,10 +364,10 @@ export async function refreshMcpToken(
     // Update ~/.claude.json with new tokens
     await saveTokensToClaudeJson(serverName, resolvedProjectPath, tokens, oauth.clientId);
 
-    console.log(`[MCP Refresh] Successfully refreshed token for ${serverName}`);
+    safeLog(`[MCP Refresh] Successfully refreshed token for ${serverName}`);
     return tokens.accessToken;
   } catch (error) {
-    console.error(`[MCP Refresh] Failed to refresh token for ${serverName}:`, error);
+    safeError(`[MCP Refresh] Failed to refresh token for ${serverName}:`, error);
     return null;
   }
 }
@@ -371,7 +396,7 @@ export async function ensureMcpTokensFresh(
 
     // Check if token needs refresh (within 5 min of expiry)
     if (needsRefresh(oauth.expiresAt)) {
-      console.log(`[MCP] Token for ${serverName} expires soon, refreshing...`);
+      safeLog(`[MCP] Token for ${serverName} expires soon, refreshing...`);
       const newToken = await refreshMcpToken(serverName, projectPath);
 
       if (newToken) {

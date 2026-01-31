@@ -11,6 +11,13 @@ import {
 } from "../atoms"
 import { Loader2 } from "lucide-react"
 
+// Extend Window interface for code editor save function
+declare global {
+  interface Window {
+    __codeEditorSave?: () => Promise<void>
+  }
+}
+
 // LSP is optional - stub it out if not available
 // TODO: Import real useLSPClient when LSP module is ported
 const useLSPClient = (_opts: { filePath: string; language: string; enabled: boolean }): {
@@ -392,9 +399,9 @@ export function CodeEditor({
   // Expose save function for external use
   useEffect(() => {
     // Store save function on window for dialog to call
-    ;(window as any).__codeEditorSave = handleSave
+    window.__codeEditorSave = handleSave
     return () => {
-      delete (window as any).__codeEditorSave
+      window.__codeEditorSave = undefined
     }
   }, [handleSave])
 

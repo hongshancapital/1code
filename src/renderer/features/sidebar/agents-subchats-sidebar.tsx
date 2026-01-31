@@ -1013,7 +1013,6 @@ export function AgentsSubChatsSidebar({
         <div
           className="absolute inset-0 z-0"
           style={{
-            // @ts-expect-error - WebKit-specific property
             WebkitAppRegion: "drag",
           }}
         />
@@ -1029,7 +1028,6 @@ export function AgentsSubChatsSidebar({
         <div
           className="absolute right-2 top-2 z-20"
           style={{
-            // @ts-expect-error - WebKit-specific property
             WebkitAppRegion: "no-drag",
           }}
         >
@@ -1056,7 +1054,6 @@ export function AgentsSubChatsSidebar({
                       className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
                       aria-label="Toggle agents sidebar"
                       style={{
-                        // @ts-expect-error - WebKit-specific property
                         WebkitAppRegion: "no-drag",
                       }}
                     >
@@ -1069,7 +1066,6 @@ export function AgentsSubChatsSidebar({
               <div className="flex-1" />
               <div
                 style={{
-                  // @ts-expect-error - WebKit-specific property
                   WebkitAppRegion: "no-drag",
                 }}
               >
@@ -1081,7 +1077,6 @@ export function AgentsSubChatsSidebar({
           <div
             className="relative"
             style={{
-              // @ts-expect-error - WebKit-specific property
               WebkitAppRegion: "no-drag",
             }}
           >
@@ -1135,7 +1130,6 @@ export function AgentsSubChatsSidebar({
           {/* New Chat Button */}
           <div
             style={{
-              // @ts-expect-error - WebKit-specific property
               WebkitAppRegion: "no-drag",
             }}
           >
@@ -1163,7 +1157,6 @@ export function AgentsSubChatsSidebar({
       <div
         className="flex-1 min-h-0 relative z-10"
         style={{
-          // @ts-expect-error - WebKit-specific property
           WebkitAppRegion: "no-drag",
         }}
       >
@@ -1798,7 +1791,6 @@ export function AgentsSubChatsSidebar({
             transition={{ duration: 0 }}
             className="flex-shrink-0 p-2 bg-background space-y-2 relative z-10"
             style={{
-              // @ts-expect-error - WebKit-specific property
               WebkitAppRegion: "no-drag",
             }}
           >

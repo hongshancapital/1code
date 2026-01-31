@@ -456,7 +456,6 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
 
       // Get file paths (Electron exposes webUtils)
       const paths = files.map((file) => {
-        // @ts-expect-error - Electron's webUtils API
         return window.webUtils?.getPathForFile?.(file) || file.name
       })
       const text = shellEscapePaths(paths)

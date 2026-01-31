@@ -78,11 +78,17 @@ import { trpcClient } from "../../../lib/trpc"
 // [CLOUD DISABLED] Remote API - disabled until cloud backend is available
 // import { remoteApi } from "../../../lib/remote-api"
 
+// Stub type for disabled cloud feature
+interface DisabledRemoteApi {
+  getSandboxFile: () => Promise<never>
+  getSandboxDiff: () => Promise<never>
+}
+
 // Stub for disabled cloud feature
-const remoteApi = {
+const remoteApi: DisabledRemoteApi = {
   getSandboxFile: async () => { throw new Error("Cloud features disabled") },
   getSandboxDiff: async () => { throw new Error("Cloud features disabled") },
-} as any
+}
 import {
   getDiffHighlighter,
   setDiffViewTheme,
@@ -2174,14 +2180,12 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
             className="flex-shrink-0 bg-background/95 backdrop-blur border-b h-11 min-h-[44px] max-h-[44px]"
             data-mobile-diff-header
             style={{
-              // @ts-expect-error - WebKit-specific property for Electron window dragging
               WebkitAppRegion: "drag",
             }}
           >
             <div
               className="flex h-full items-center px-2 gap-2"
               style={{
-                // @ts-expect-error - WebKit-specific property
                 WebkitAppRegion: "no-drag",
               }}
             >

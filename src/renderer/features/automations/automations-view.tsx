@@ -18,12 +18,19 @@ import { useIsMobile } from "../../lib/hooks/use-mobile"
 // import { remoteTrpc } from "../../lib/remote-trpc"
 import { useQuery } from "@tanstack/react-query"
 
+// Stub type for disabled cloud feature
+interface DisabledRemoteTrpc {
+  automations: { listAutomations: { query: () => Promise<never[]> } }
+  github: { getConnectionStatus: { query: () => Promise<{ connected: boolean }> } }
+  linear: { getIntegration: { query: () => Promise<null> } }
+}
+
 // Stub for disabled cloud feature
-const remoteTrpc = {
+const remoteTrpc: DisabledRemoteTrpc = {
   automations: { listAutomations: { query: async () => [] } },
   github: { getConnectionStatus: { query: async () => ({ connected: false }) } },
   linear: { getIntegration: { query: async () => null } },
-} as any
+}
 
 import {
   AutomationCard,

@@ -290,9 +290,9 @@ export function AgentPreview({
       }
 
       const cleanup = () => {
-        handle.removeEventListener("pointermove", handlePointerMove as any)
-        handle.removeEventListener("pointerup", handlePointerUp as any)
-        handle.removeEventListener("pointercancel", handlePointerCancel as any)
+        handle.removeEventListener("pointermove", handlePointerMove as EventListener)
+        handle.removeEventListener("pointerup", handlePointerUp as EventListener)
+        handle.removeEventListener("pointercancel", handlePointerCancel as EventListener)
         document.body.style.userSelect = ""
         document.body.style.cursor = ""
         resizeCleanupRef.current = null
@@ -300,9 +300,9 @@ export function AgentPreview({
 
       document.body.style.userSelect = "none"
       document.body.style.cursor = "ew-resize"
-      handle.addEventListener("pointermove", handlePointerMove as any)
-      handle.addEventListener("pointerup", handlePointerUp as any)
-      handle.addEventListener("pointercancel", handlePointerCancel as any)
+      handle.addEventListener("pointermove", handlePointerMove as EventListener)
+      handle.addEventListener("pointerup", handlePointerUp as EventListener)
+      handle.addEventListener("pointercancel", handlePointerCancel as EventListener)
       resizeCleanupRef.current = cleanup
     },
     [device, maxWidth, setDevice],
@@ -321,14 +321,12 @@ export function AgentPreview({
           className="flex-shrink-0 bg-background/95 backdrop-blur border-b h-11 min-h-[44px] max-h-[44px]"
           data-mobile-preview-header
           style={{
-            // @ts-expect-error - WebKit-specific property for Electron window dragging
             WebkitAppRegion: "drag",
           }}
         >
           <div
             className="flex h-full items-center px-2 gap-2"
             style={{
-              // @ts-expect-error - WebKit-specific property
               WebkitAppRegion: "no-drag",
             }}
           >
