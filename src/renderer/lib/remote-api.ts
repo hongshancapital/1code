@@ -68,63 +68,52 @@ export const remoteApi = {
   },
 
   /**
-   * Fetch all agent chats for a team (same as web)
+   * [CLOUD DISABLED] Fetch all agent chats for a team
    */
-  async getAgentChats(teamId: string): Promise<RemoteChat[]> {
-    const chats = await remoteTrpc.agents.getAgentChats.query({ teamId })
-    return chats as RemoteChat[]
+  async getAgentChats(_teamId: string): Promise<RemoteChat[]> {
+    return []
   },
 
   /**
-   * Fetch a single agent chat with all sub-chats (same as web)
+   * [CLOUD DISABLED] Fetch a single agent chat with all sub-chats
    */
-  async getAgentChat(chatId: string): Promise<RemoteChatWithSubChats> {
-    const chat = await remoteTrpc.agents.getAgentChat.query({ chatId })
-    return chat as RemoteChatWithSubChats
+  async getAgentChat(_chatId: string): Promise<RemoteChatWithSubChats> {
+    throw new Error("Cloud backend is not available")
   },
 
   /**
-   * Fetch archived chats for a team (same as web)
+   * [CLOUD DISABLED] Fetch archived chats for a team
    */
-  async getArchivedChats(teamId: string): Promise<RemoteChat[]> {
-    const chats = await remoteTrpc.agents.getArchivedChats.query({ teamId })
-    return chats as RemoteChat[]
+  async getArchivedChats(_teamId: string): Promise<RemoteChat[]> {
+    return []
   },
 
   /**
-   * Archive a chat
+   * [CLOUD DISABLED] Archive a chat
    */
-  async archiveChat(chatId: string): Promise<void> {
-    await remoteTrpc.agents.archiveChat.mutate({ chatId })
+  async archiveChat(_chatId: string): Promise<void> {},
+
+  /**
+   * [CLOUD DISABLED] Archive multiple chats at once
+   */
+  async archiveChatsBatch(_chatIds: string[]): Promise<{ archivedCount: number }> {
+    return { archivedCount: 0 }
   },
 
   /**
-   * Archive multiple chats at once
+   * [CLOUD DISABLED] Restore a chat from archive
    */
-  async archiveChatsBatch(chatIds: string[]): Promise<{ archivedCount: number }> {
-    return await remoteTrpc.agents.archiveChatsBatch.mutate({ chatIds })
-  },
+  async restoreChat(_chatId: string): Promise<void> {},
 
   /**
-   * Restore a chat from archive
+   * [CLOUD DISABLED] Rename a sub-chat
    */
-  async restoreChat(chatId: string): Promise<void> {
-    await remoteTrpc.agents.restoreChat.mutate({ chatId })
-  },
+  async renameSubChat(_subChatId: string, _name: string): Promise<void> {},
 
   /**
-   * Rename a sub-chat
+   * [CLOUD DISABLED] Rename a chat (workspace)
    */
-  async renameSubChat(subChatId: string, name: string): Promise<void> {
-    await remoteTrpc.agents.renameSubChat.mutate({ subChatId, name })
-  },
-
-  /**
-   * Rename a chat (workspace)
-   */
-  async renameChat(chatId: string, name: string): Promise<void> {
-    await remoteTrpc.agents.renameChat.mutate({ chatId, name })
-  },
+  async renameChat(_chatId: string, _name: string): Promise<void> {},
 
   /**
    * Get diff from a sandbox (via REST endpoint with signedFetch)

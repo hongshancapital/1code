@@ -62,9 +62,10 @@ const signedFetch: typeof fetch = async (input, init) => {
 
 /**
  * tRPC client connected to web backend
- * Fully typed, handles superjson automatically
+ * [CLOUD DISABLED] Stubbed since web backend is not available
  */
-export const remoteTrpc = createTRPCClient<AppRouter>({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const remoteTrpc: any = createTRPCClient<any>({
   links: [
     httpLink({
       url: TRPC_PLACEHOLDER,
