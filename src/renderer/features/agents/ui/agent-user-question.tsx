@@ -469,9 +469,9 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
 
       {/* Footer */}
       <div className="flex items-center justify-between px-2 py-2">
-        {/* Countdown timer */}
+        {/* Countdown timer - hidden once user interacts */}
         <div className="flex items-center gap-1.5">
-          {timeoutSeconds > 0 && (
+          {timeoutSeconds > 0 && !userInteracted && (
             <span className={cn(
               "text-xs flex items-center gap-1",
               remainingSeconds <= 10 ? "text-destructive" : "text-muted-foreground"
