@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from "react"
 import { useAtom } from "jotai"
-import { useAgentSubChatStore } from "../../lib/stores/sub-chat-store"
+import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
 import { currentTodosAtomFamily } from "../agents/atoms"
 import {
   CheckCircle2,
@@ -64,7 +64,7 @@ const TaskItem = ({
   itemRef,
 }: {
   todo: TodoItem
-  itemRef?: React.RefObject<HTMLDivElement>
+  itemRef?: React.RefObject<HTMLDivElement | null>
 }) => {
   const isCompleted = todo.status === "completed"
   const isInProgress = todo.status === "in_progress"

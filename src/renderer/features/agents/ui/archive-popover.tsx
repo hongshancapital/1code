@@ -17,8 +17,15 @@ import { showWorkspaceIconAtom, chatSourceModeAtom } from "../../../lib/atoms"
 // } from "../../../lib/hooks/use-remote-chats"
 
 // Stub implementations for disabled cloud features
-const useRemoteArchivedChats = () => ({ data: undefined, isLoading: false })
-const useRestoreRemoteChat = () => ({ mutate: () => {} })
+interface RemoteArchivedChatStub {
+  id: string
+  name: string
+  meta: { repository?: string; branch?: string | null } | null
+  updated_at: string
+  archived_at: string | null
+}
+const useRemoteArchivedChats = () => ({ data: [] as RemoteArchivedChatStub[], isLoading: false })
+const useRestoreRemoteChat = () => ({ mutate: (_id: string, _opts?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {} })
 import { Input } from "../../../components/ui/input"
 import {
   SearchIcon,
