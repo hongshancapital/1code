@@ -579,7 +579,7 @@ export const chatsRouter = router({
         (m: any) => m.metadata?.sdkMessageUuid === input.sdkMessageUuid,
       )
 
-      // Fallback: use messageIndex if provided and UUID lookup failed
+      // Fallback 1: use messageIndex if provided and UUID lookup failed
       if (targetIndex === -1 && input.messageIndex !== undefined) {
         // Validate the index is within bounds and points to an assistant message
         if (
@@ -592,12 +592,47 @@ export const chatsRouter = router({
         }
       }
 
+      // Fallback 2: find last assistant message with matching sdkMessageUuid pattern
+      // This handles case where frontend and backend message arrays might be out of sync
       if (targetIndex === -1) {
-        console.error("[rollback] Message not found after all fallbacks")
+        // Find all assistant messages and their sdkMessageUuids
+        const assistantMsgs = messages
+          .map((m: any, idx: number) => ({ msg: m, idx }))
+          .filter(({ msg }: { msg: any }) => msg.role === "assistant")
+
+        console.log("[rollback] Fallback 2 - checking assistant messages:",
+          assistantMsgs.map(({ msg, idx }: { msg: any; idx: number }) => ({
+            idx,
+            sdkUuid: msg.metadata?.sdkMessageUuid,
+          }))
+        )
+
+        // Try to find by the last assistant message (most common rollback case)
+        if (assistantMsgs.length > 0) {
+          const lastAssistant = assistantMsgs[assistantMsgs.length - 1]
+          // Only use this fallback if the last assistant message has a sdkMessageUuid
+          // (indicates historyEnabled was true when message was created)
+          if (lastAssistant.msg.metadata?.sdkMessageUuid) {
+            console.log("[rollback] Fallback 2: using last assistant message at index:", lastAssistant.idx)
+            targetIndex = lastAssistant.idx
+          }
+        }
+      }
+
+      if (targetIndex === -1) {
+        console.error("[rollback] Message not found after all fallbacks. DB has", messages.length, "messages")
         return { success: false, error: "Message not found" }
       }
 
-      console.log("[rollback] Found target message at index:", targetIndex)
+      // Get the actual sdkMessageUuid from the found message (may differ from input if fallback was used)
+      const targetMessage = messages[targetIndex]
+      const targetSdkUuid = targetMessage?.metadata?.sdkMessageUuid || input.sdkMessageUuid
+
+      console.log("[rollback] Found target message at index:", targetIndex, {
+        inputSdkUuid: input.sdkMessageUuid,
+        targetSdkUuid,
+        usedFallback: targetSdkUuid !== input.sdkMessageUuid,
+      })
 
       // 3. Get the parent chat for worktreePath
       const chat = db
@@ -607,8 +642,10 @@ export const chatsRouter = router({
         .get()
 
       // 4. Rollback git state first - if this fails, abort the whole operation
+      // Use targetSdkUuid (from the found message) instead of input.sdkMessageUuid
+      // This ensures we look up the checkpoint that matches the actual message being rolled back to
       if (chat?.worktreePath) {
-        const res = await applyRollbackStash(chat.worktreePath, input.sdkMessageUuid)
+        const res = await applyRollbackStash(chat.worktreePath, targetSdkUuid)
         if (!res.success) {
           return { success: false, error: `Git rollback failed: ${res.error}` }
         }

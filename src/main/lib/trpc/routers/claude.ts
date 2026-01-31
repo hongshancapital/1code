@@ -2343,6 +2343,15 @@ ${prompt}
                 metadata,
               }
 
+              // Log for debugging rollback issues
+              console.log("[SD] Saving assistant message:", {
+                subChatId: input.subChatId,
+                messageId: assistantMessage.id,
+                hasSdkMessageUuid: !!metadata.sdkMessageUuid,
+                sdkMessageUuid: metadata.sdkMessageUuid,
+                historyEnabled: input.historyEnabled,
+              })
+
               const finalMessages = [...messagesToSave, assistantMessage]
 
               db.update(subChats)

@@ -135,9 +135,19 @@ export async function applyRollbackStash(
       commitHash = (await git.raw(["rev-parse", ref])).trim()
       console.log("[checkpoint] Found checkpoint commit:", commitHash)
     } catch (error) {
-      console.warn(
-        `[checkpoint] Rollback checkpoint not found for sdkMessageUuid=${sdkMessageUuid}`,
-      )
+      // Try to list all available checkpoints for debugging
+      try {
+        const allRefs = await git.raw(["for-each-ref", "--format=%(refname)", "refs/checkpoints/"])
+        const checkpointRefs = allRefs.trim().split("\n").filter(Boolean)
+        console.warn(
+          `[checkpoint] Rollback checkpoint not found for sdkMessageUuid=${sdkMessageUuid}. Available checkpoints:`,
+          checkpointRefs.length > 0 ? checkpointRefs : "none"
+        )
+      } catch {
+        console.warn(
+          `[checkpoint] Rollback checkpoint not found for sdkMessageUuid=${sdkMessageUuid}`,
+        )
+      }
       // Checkpoint not found - return success but indicate no checkpoint was applied
       // The caller can decide whether to proceed with message truncation
       return { success: true, checkpointFound: false }
