@@ -58,10 +58,13 @@ export type RemoteChatWithSubChats = RemoteChat & {
 export const remoteApi = {
   /**
    * Fetch user's teams (same as web)
+   * [CLOUD DISABLED] Returns empty array as cloud backend is not available
    */
   async getTeams(): Promise<Team[]> {
-    const teams = await remoteTrpc.teams.getUserTeams.query()
-    return teams.map((t) => ({ id: t.id, name: t.name }))
+    // [CLOUD DISABLED] remoteTrpc is stubbed
+    // const teams = await remoteTrpc.teams.getUserTeams.query()
+    // return teams.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))
+    return []
   },
 
   /**

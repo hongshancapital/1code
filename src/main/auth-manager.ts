@@ -102,7 +102,7 @@ async function fetchApi<T = unknown>(
 
     console.log("[API] ========== Response Debug ==========")
     console.log("[API] Status:", response.status, response.statusText)
-    console.log("[API] Response Headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2))
+    console.log("[API] Response Headers:", JSON.stringify(Object.fromEntries((response.headers as any).entries()), null, 2))
 
     if (response.status === 401) {
       const errorText = await response.text()

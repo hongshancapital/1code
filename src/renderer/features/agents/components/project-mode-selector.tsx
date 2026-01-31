@@ -176,28 +176,18 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     id: "cowork",
     title: "Cowork",
-    subtitle: "简化协作体验",
+    subtitle: "Simplified mode for collaboration. No Git features.",
     icon: <CoworkModeIcon />,
-    features: [
-      "简洁的聊天界面",
-      "任务和交付物追踪",
-      "文件树浏览",
-    ],
+    features: [],
   },
   {
     id: "coding",
     title: "Coding",
-    subtitle: "完整开发体验",
+    subtitle: "Full developer experience with Git, branches, and worktrees.",
     icon: <CodingModeIcon />,
-    features: [
-      "Git 分支管理",
-      "差异查看和代码审查",
-      "Worktree 隔离",
-    ],
+    features: [],
   },
 ]
-
-const EASING_CURVE = [0.55, 0.055, 0.675, 0.19] as const
 
 // ============================================================================
 // Component
@@ -210,8 +200,6 @@ export function ProjectModeSelector({
   compact = false,
   className,
 }: ProjectModeSelectorProps) {
-  const [hoveredMode, setHoveredMode] = useState<ProjectMode | null>(null)
-
   if (compact) {
     return (
       <div className={cn("inline-flex items-center gap-1 p-0.5 bg-muted rounded-lg", className)}>
@@ -254,27 +242,22 @@ export function ProjectModeSelector({
     <div className={cn("flex gap-3", className)}>
       {MODE_OPTIONS.map((option) => {
         const isSelected = value === option.id
-        const isHovered = hoveredMode === option.id
 
         return (
-          <motion.button
+          <button
             key={option.id}
             onClick={() => !disabled && onChange(option.id)}
-            onMouseEnter={() => setHoveredMode(option.id)}
-            onMouseLeave={() => setHoveredMode(null)}
             disabled={disabled}
-            whileHover={{ scale: disabled ? 1 : 1.02 }}
-            whileTap={{ scale: disabled ? 1 : 0.98 }}
             className={cn(
               "relative flex-1 p-4 rounded-xl border-2 text-left transition-colors outline-none",
               isSelected
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-primary/50 hover:bg-accent/50",
+                ? "border-primary bg-primary/10"
+                : "border-border hover:border-primary/50",
               disabled && "opacity-50 cursor-not-allowed"
             )}
           >
             {/* Header */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2.5">
               <div
                 className={cn(
                   "p-2 rounded-lg",
@@ -283,57 +266,12 @@ export function ProjectModeSelector({
               >
                 {option.icon}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-semibold">{option.title}</h3>
-                <p className="text-xs text-muted-foreground">{option.subtitle}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{option.subtitle}</p>
               </div>
             </div>
-
-            {/* Features list with stagger animation */}
-            <AnimatePresence mode="wait">
-              {(isSelected || isHovered) && (
-                <motion.ul
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2, ease: EASING_CURVE }}
-                  className="mt-3 space-y-1 overflow-hidden"
-                >
-                  {option.features.map((feature, i) => (
-                    <motion.li
-                      key={feature}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="flex items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                      {feature}
-                    </motion.li>
-                  ))}
-                </motion.ul>
-              )}
-            </AnimatePresence>
-
-            {/* Selection indicator */}
-            {isSelected && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
-              >
-                <svg
-                  className="w-3 h-3 text-primary-foreground"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </motion.div>
-            )}
-          </motion.button>
+          </button>
         )
       })}
     </div>

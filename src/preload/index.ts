@@ -291,7 +291,7 @@ export interface DesktopApi {
   getVersion: () => Promise<string>
   isPackaged: () => Promise<boolean>
   // Auto-update
-  checkForUpdates: () => Promise<UpdateInfo | null>
+  checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>
   downloadUpdate: () => Promise<boolean>
   installUpdate: () => void
   onUpdateChecking: (callback: () => void) => () => void

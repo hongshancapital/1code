@@ -345,7 +345,11 @@ export function AgentsMcpTab() {
 
   const startOAuthMutation = trpc.claude.startMcpOAuth.useMutation()
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
-  const testConnectionsMutation = trpc.claude.testMcpConnections.useMutation()
+  // [STUB] testMcpConnections is not yet implemented in the router
+  const testConnectionsMutation = {
+    mutateAsync: async (_opts: { projectPath: string }) => {},
+    isPending: false,
+  }
 
   const groups = useMemo(
     () => (allMcpConfig?.groups || []).filter(g => g.mcpServers.length > 0),

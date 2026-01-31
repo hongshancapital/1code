@@ -1173,6 +1173,20 @@ export const ChatInputArea = memo(function ChatInputArea({
               </div>
               <PromptInputActions className="w-full">
                 <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                  {/* Custom model indicator - shown at far left when custom config is set */}
+                  {hasCustomClaudeConfig && normalizedCustomClaudeConfig && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center px-1.5 py-1 rounded-md bg-muted/50 mr-1">
+                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {normalizedCustomClaudeConfig.model}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+
                   {/* Mode toggle (Agent/Plan) */}
                   <DropdownMenu
                     open={modeDropdownOpen}
@@ -1387,47 +1401,24 @@ export const ChatInputArea = memo(function ChatInputArea({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  ) : (
-                    // Online mode: show Claude model selector
+                  ) : !hasCustomClaudeConfig ? (
+                    // Online mode: show Claude model selector (only when no custom config)
                     <DropdownMenu
-                      open={hasCustomClaudeConfig ? false : isModelDropdownOpen}
-                      onOpenChange={(open) => {
-                        if (!hasCustomClaudeConfig) {
-                          setIsModelDropdownOpen(open)
-                        }
-                      }}
+                      open={isModelDropdownOpen}
+                      onOpenChange={setIsModelDropdownOpen}
                     >
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              disabled={hasCustomClaudeConfig}
-                              className={cn(
-                                "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-colors rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
-                                hasCustomClaudeConfig
-                                  ? "cursor-default"
-                                  : "hover:text-foreground hover:bg-muted/50",
-                              )}
-                            >
-                              <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                              {!hasCustomClaudeConfig && (
-                                <>
-                                  <span className="truncate">
-                                    {selectedModel?.name}{" "}
-                                    <span className="text-muted-foreground">4.5</span>
-                                  </span>
-                                  <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                                </>
-                              )}
-                            </button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        {hasCustomClaudeConfig && normalizedCustomClaudeConfig && (
-                          <TooltipContent side="top">
-                            {normalizedCustomClaudeConfig.model}
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                        >
+                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {selectedModel?.name}{" "}
+                            <span className="text-muted-foreground">4.5</span>
+                          </span>
+                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                        </button>
+                      </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-[200px]">
                         {availableModels.models.map((model) => {
                           const isSelected = selectedModel?.id === model.id
@@ -1470,7 +1461,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                         </div>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  )}
+                  ) : null}
 
                 </div>
 
