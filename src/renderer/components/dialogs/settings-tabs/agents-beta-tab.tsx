@@ -131,93 +131,91 @@ export function AgentsBetaTab() {
 
       {/* Beta Features Section */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
-        <div className="p-4 space-y-6">
-          {/* Rollback Toggle */}
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col space-y-1">
-              <span className="text-sm font-medium text-foreground">
-                Rollback
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Allow rolling back to previous messages and restoring files.
-              </span>
-            </div>
-            <Switch
-              checked={historyEnabled}
-              onCheckedChange={setHistoryEnabled}
-            />
+        {/* Rollback Toggle */}
+        <div className="flex items-center justify-between p-4">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm font-medium text-foreground">
+              Rollback
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Allow rolling back to previous messages and restoring files.
+            </span>
           </div>
+          <Switch
+            checked={historyEnabled}
+            onCheckedChange={setHistoryEnabled}
+          />
+        </div>
 
-          {/* Offline Mode Toggle */}
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col space-y-1">
-              <span className="text-sm font-medium text-foreground">
-                Offline Mode
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Enable offline mode UI and Ollama integration.
-              </span>
-            </div>
-            <Switch
-              checked={showOfflineFeatures}
-              onCheckedChange={setShowOfflineFeatures}
-            />
+        {/* Offline Mode Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm font-medium text-foreground">
+              Offline Mode
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Enable offline mode UI and Ollama integration.
+            </span>
           </div>
+          <Switch
+            checked={showOfflineFeatures}
+            onCheckedChange={setShowOfflineFeatures}
+          />
+        </div>
 
-          {/* Kanban Board Toggle */}
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col space-y-1">
-              <span className="text-sm font-medium text-foreground">
-                Kanban Board
-              </span>
-              <span className="text-xs text-muted-foreground">
-                View workspaces as a Kanban board organized by status.
-              </span>
-            </div>
-            <Switch
-              checked={kanbanEnabled}
-              onCheckedChange={setKanbanEnabled}
-            />
+        {/* Kanban Board Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm font-medium text-foreground">
+              Kanban Board
+            </span>
+            <span className="text-xs text-muted-foreground">
+              View workspaces as a Kanban board organized by status.
+            </span>
           </div>
+          <Switch
+            checked={kanbanEnabled}
+            onCheckedChange={setKanbanEnabled}
+          />
+        </div>
 
-          {/* Automations & Inbox Toggle */}
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col space-y-1">
-              <span className={cn("text-sm font-medium", canEnableAutomations ? "text-foreground" : "text-muted-foreground")}>
-                Automations & Inbox
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {canEnableAutomations
-                  ? "Automate workflows with GitHub and Linear triggers, and manage inbox notifications."
-                  : "Requires a paid plan. Upgrade to enable automations and inbox."}
-              </span>
-            </div>
-            <Switch
-              checked={automationsEnabled && canEnableAutomations}
-              onCheckedChange={(checked) => {
-                if (canEnableAutomations) {
-                  setAutomationsEnabled(checked)
-                }
-              }}
-              disabled={!canEnableAutomations}
-            />
+        {/* Automations & Inbox Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col space-y-1">
+            <span className={cn("text-sm font-medium", canEnableAutomations ? "text-foreground" : "text-muted-foreground")}>
+              Automations & Inbox
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {canEnableAutomations
+                ? "Automate workflows with GitHub and Linear triggers, and manage inbox notifications."
+                : "Requires a paid plan. Upgrade to enable automations and inbox."}
+            </span>
           </div>
+          <Switch
+            checked={automationsEnabled && canEnableAutomations}
+            onCheckedChange={(checked) => {
+              if (canEnableAutomations) {
+                setAutomationsEnabled(checked)
+              }
+            }}
+            disabled={!canEnableAutomations}
+          />
+        </div>
 
-          {/* Agent Tasks Toggle */}
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col space-y-1">
-              <span className="text-sm font-medium text-foreground">
-                Agent Tasks
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Enable Task instead of legacy Todo system.
-              </span>
-            </div>
-            <Switch
-              checked={enableTasks}
-              onCheckedChange={setEnableTasks}
-            />
+        {/* Agent Tasks Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col space-y-1">
+            <span className="text-sm font-medium text-foreground">
+              Agent Tasks
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Enable Task instead of legacy Todo system.
+            </span>
           </div>
+          <Switch
+            checked={enableTasks}
+            onCheckedChange={setEnableTasks}
+          />
         </div>
       </div>
 

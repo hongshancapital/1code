@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
 import { editorConfigAtom } from "@/lib/atoms/editor"
 import { getEditorIcon, GenericEditorIcon } from "@/icons/editor-icons"
+import { preferredEditorAtom } from "@/lib/atoms"
+import { useResolvedHotkeyDisplay } from "@/lib/hotkeys"
+import { APP_META } from "../../../../shared/external-apps"
+import { EDITOR_ICONS } from "@/lib/editor-icons"
 
 interface InfoSectionProps {
   chatId: string

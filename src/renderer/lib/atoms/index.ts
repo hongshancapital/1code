@@ -1,5 +1,6 @@
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
+import { desktopViewAtom as _desktopViewAtom } from "../../features/agents/atoms"
 
 // ============================================
 // RE-EXPORT FROM FEATURES/AGENTS/ATOMS (source of truth)
@@ -194,12 +195,19 @@ export type SettingsTab =
   | "agents"
   | "mcp"
   | "worktrees"
+  | "projects"
   | "debug"
   | "beta"
   | "keyboard"
   | `project-${string}` // Dynamic project tabs
-export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("appearance")
-export const agentsSettingsDialogOpenAtom = atom<boolean>(false)
+export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("preferences")
+// Derived atom: maps settings open/close to desktopView navigation
+export const agentsSettingsDialogOpenAtom = atom(
+  (get) => get(_desktopViewAtom) === "settings",
+  (_get, set, open: boolean) => {
+    set(_desktopViewAtom, open ? "settings" : null)
+  }
+)
 
 export type CustomClaudeConfig = {
   model: string
@@ -804,12 +812,20 @@ export const apiKeyOnboardingCompletedAtom = atomWithStorage<boolean>(
 
 export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"
 
+export type MCPServerIcon = {
+  src: string
+  mimeType?: string
+  sizes?: string[]
+  theme?: "light" | "dark"
+}
+
 export type MCPServer = {
   name: string
   status: MCPServerStatus
   serverInfo?: {
     name: string
     version: string
+    icons?: MCPServerIcon[]
   }
   error?: string
 }

@@ -15,10 +15,10 @@ import {
   logRawClaudeMessage,
   type UIMessageChunk,
 } from "../../claude"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, type McpServerConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, type McpServerConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
-import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth } from "../../mcp-auth"
+import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
@@ -575,8 +575,8 @@ export async function warmupMcpCache(): Promise<void> {
  * Fetch tools from an MCP server (HTTP or stdio transport)
  * Times out after 10 seconds to prevent slow MCPs from blocking the cache update
  */
-async function fetchToolsForServer(serverConfig: McpServerConfig): Promise<string[]> {
-  const timeoutPromise = new Promise<string[]>((_, reject) =>
+async function fetchToolsForServer(serverConfig: McpServerConfig): Promise<McpToolInfo[]> {
+  const timeoutPromise = new Promise<McpToolInfo[]>((_, reject) =>
     setTimeout(() => reject(new Error('Timeout')), MCP_FETCH_TIMEOUT_MS)
   )
 
@@ -636,7 +636,7 @@ export async function getAllMcpConfigHandler() {
           let status = getServerStatusFromConfig(serverConfig)
           const headers = serverConfig.headers as Record<string, string> | undefined
 
-          let tools: string[] = []
+          let tools: McpToolInfo[] = []
           let needsAuth = false
 
           try {
@@ -665,6 +665,9 @@ export async function getAllMcpConfigHandler() {
 
             if (needsAuth && !headers?.Authorization) {
               status = "needs-auth"
+            } else {
+              // No tools and doesn't need auth - server failed to connect or has no tools
+              status = "failed"
             }
           }
 
@@ -680,7 +683,7 @@ export async function getAllMcpConfigHandler() {
       groupName: string
       projectPath: string | null
       promise: Promise<{
-        mcpServers: Array<{ name: string; status: string; tools: string[]; needsAuth: boolean; config: Record<string, unknown> }>
+        mcpServers: Array<{ name: string; status: string; tools: McpToolInfo[]; needsAuth: boolean; config: Record<string, unknown> }>
         duration: number
       }>
     }> = []
@@ -2517,5 +2520,68 @@ ${prompt}
     }))
     .query(async ({ input }) => {
       return getMcpAuthStatus(input.serverName, input.projectPath)
+    }),
+
+  addMcpServer: publicProcedure
+    .input(z.object({
+      name: z.string(),
+      type: z.enum(["stdio", "http"]),
+      command: z.string().optional(),
+      args: z.array(z.string()).optional(),
+      url: z.string().optional(),
+      scope: z.enum(["global", "project"]),
+      cwd: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const serverName = input.name.trim()
+      if (!serverName) {
+        throw new Error("Server name is required")
+      }
+      if (input.type === "stdio" && !input.command?.trim()) {
+        throw new Error("Command is required for stdio servers")
+      }
+      if (input.type === "http" && !input.url?.trim()) {
+        throw new Error("URL is required for HTTP servers")
+      }
+      if (input.scope === "project" && !input.cwd) {
+        throw new Error("Project path (cwd) required for project-scoped servers")
+      }
+
+      const serverConfig: McpServerConfig = {}
+      if (input.type === "stdio") {
+        serverConfig.command = input.command!.trim()
+        if (input.args && input.args.length > 0) {
+          serverConfig.args = input.args
+        }
+      } else {
+        serverConfig.url = input.url!.trim()
+      }
+
+      // Check existence before atomic update to avoid throwing inside the mutex
+      const existingConfig = await readClaudeConfig()
+      if (input.scope === "project" && input.cwd) {
+        if (existingConfig.projects?.[input.cwd]?.mcpServers?.[serverName]) {
+          throw new Error(`Server "${serverName}" already exists in this project`)
+        }
+      } else {
+        if (existingConfig.mcpServers?.[serverName]) {
+          throw new Error(`Server "${serverName}" already exists`)
+        }
+      }
+
+      await updateClaudeConfigAtomic((config) => {
+        if (input.scope === "project" && input.cwd) {
+          config.projects = config.projects || {}
+          config.projects[input.cwd] = config.projects[input.cwd] || {}
+          config.projects[input.cwd].mcpServers = config.projects[input.cwd].mcpServers || {}
+          config.projects[input.cwd].mcpServers![serverName] = serverConfig
+        } else {
+          config.mcpServers = config.mcpServers || {}
+          config.mcpServers[serverName] = serverConfig
+        }
+        return config
+      })
+
+      return { success: true, name: input.name }
     }),
 })

@@ -97,6 +97,9 @@ import {
   SwiftIcon,
   PDFIcon,
   SVGIcon,
+  TxtIcon,
+  GitIcon,
+  NpmIcon,
 } from "../../../icons/framework-icons"
 
 interface ChangedFile {
@@ -237,6 +240,8 @@ const KNOWN_FILE_ICON_EXTENSIONS = new Set([
   "otf",
   "woff",
   "woff2",
+  // Text files
+  "txt",
 ])
 
 // Get file icon component based on file extension
@@ -252,9 +257,19 @@ export function getFileIconByExtension(
     return DockerIcon
   }
 
-  // Special handling for .env files
-  // Get the base filename (without path)
+  // Special handling for dotfiles
   const baseFilename = filenameLower.split("/").pop() || filenameLower
+  if (baseFilename === ".gitignore") {
+    return GitIcon
+  }
+  if (baseFilename === ".npmrc") {
+    return NpmIcon
+  }
+  if (baseFilename === ".prettierrc") {
+    return JSONIcon
+  }
+
+  // Special handling for .env files
   // .env (without suffix) -> TOML icon
   // .env.local, .env.example, .env.development, etc. -> Shell icon
   if (baseFilename === ".env") {
@@ -442,6 +457,9 @@ export function getFileIconByExtension(
     case "woff":
     case "woff2":
       return FileType
+    // Text files
+    case "txt":
+      return TxtIcon
     default:
       return returnNullForUnknown ? null : FilesIcon
   }

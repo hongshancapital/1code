@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import {
   IconDoubleChevronRight,
   PlanIcon,
   DiffIcon,
+  OriginalMCPIcon,
 } from "@/components/ui/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
@@ -36,8 +37,13 @@ import { ChangesWidget } from "./sections/changes-widget"
 import { ArtifactsWidget } from "./sections/artifacts-widget"
 import { ExplorerWidget } from "./sections/explorer-widget"
 import { BackgroundTasksWidget } from "./sections/background-tasks-widget"
+import { McpWidget } from "./sections/mcp-widget"
 import type { ParsedDiffFile } from "./types"
 import type { AgentMode } from "../agents/atoms"
+import {
+  agentsSettingsDialogOpenAtom,
+  agentsSettingsDialogActiveTabAtom,
+} from "../../lib/atoms/agents-settings-dialog"
 
 interface DetailsSidebarProps {
   /** Workspace/chat ID */
@@ -118,6 +124,15 @@ export function DetailsSidebar({
 
   // Enabled widgets from project feature config
   const enabledWidgets = useAtomValue(enabledWidgetsAtom)
+
+  // Settings dialog atoms for MCP settings
+  const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
+  const setSettingsTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
+
+  const handleOpenMcpSettings = useCallback(() => {
+    setSettingsTab("mcp")
+    setSettingsOpen(true)
+  }, [setSettingsTab, setSettingsOpen])
 
   // Per-workspace widget visibility
   const widgetVisibilityAtom = useMemo(
@@ -210,6 +225,8 @@ export function DetailsSidebar({
         return FolderTree
       case "background-tasks":
         return Cpu
+      case "mcp":
+        return OriginalMCPIcon
       default:
         return Box
     }
@@ -441,6 +458,34 @@ export function DetailsSidebar({
                     cwd={worktreePath || undefined}
                     workspaceId={chatId}
                   />
+                )
+
+              case "mcp":
+                return (
+                  <WidgetCard
+                    key="mcp"
+                    widgetId="mcp"
+                    title="MCP Servers"
+                    badge={
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleOpenMcpSettings}
+                            className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity] duration-150 ease-out flex-shrink-0"
+                            aria-label="MCP Settings"
+                          >
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">Open settings</TooltipContent>
+                      </Tooltip>
+                    }
+                    hideExpand
+                  >
+                    <McpWidget />
+                  </WidgetCard>
                 )
 
               default:

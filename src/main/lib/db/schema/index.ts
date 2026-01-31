@@ -25,6 +25,8 @@ export const projects = sqliteTable("projects", {
   // Feature configuration: JSON object for widget/tool overrides
   // { widgets?: { [widgetId]: boolean }, tools?: { [toolId]: boolean } }
   featureConfig: text("feature_config"),
+  // Custom project icon (absolute path to local image file)
+  iconPath: text("icon_path"),
 })
 
 export const projectsRelations = relations(projects, ({ many }) => ({
