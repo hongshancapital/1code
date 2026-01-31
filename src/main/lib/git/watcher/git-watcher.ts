@@ -1,7 +1,13 @@
 import { EventEmitter } from "events";
 
 // Chokidar is ESM-only, so we need to dynamically import it
-type FSWatcher = Awaited<ReturnType<typeof import("chokidar")>>["FSWatcher"] extends new () => infer T ? T : never;
+// FSWatcher type: chokidar.watch returns FSWatcher which has on/close methods
+interface FSWatcher {
+	on(event: "add" | "change" | "unlink", listener: (path: string) => void): this;
+	on(event: "error", listener: (error: Error) => void): this;
+	on(event: string, listener: (...args: unknown[]) => void): this;
+	close(): Promise<void>;
+}
 
 // Simple debounce implementation to avoid lodash-es dependency in main process
 function debounce<T extends (...args: unknown[]) => unknown>(
@@ -122,7 +128,7 @@ export class GitWatcher extends EventEmitter {
 			usePolling: false,
 			// Don't follow symlinks
 			followSymlinks: false,
-		});
+		}) as FSWatcher;
 
 		// Debounced flush function
 		const flushChanges = debounce(() => {

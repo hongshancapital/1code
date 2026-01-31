@@ -43,6 +43,7 @@ import {
   GitFork,
   ListTree,
   MoveHorizontal,
+  SquareTerminal,
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -1059,10 +1060,10 @@ interface DiffSidebarContentProps {
   diffStats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }
   setDiffStats: (stats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }) => void
   diffContent: string | null
-  parsedFileDiffs: unknown
+  parsedFileDiffs: ParsedDiffFile[] | null
   prefetchedFileContents: Record<string, string> | undefined
-  setDiffCollapseState: (state: Map<string, boolean>) => void
-  diffViewRef: React.RefObject<{ expandAll: () => void; collapseAll: () => void; getViewedCount: () => number; markAllViewed: () => void; markAllUnviewed: () => void } | null>
+  setDiffCollapseState: (state: { allCollapsed: boolean; allExpanded: boolean }) => void
+  diffViewRef: React.RefObject<AgentDiffViewRef | null>
   agentChat: { prUrl?: string; prNumber?: number } | null | undefined
   // Real-time sidebar width for responsive layout during resize
   sidebarWidth: number
@@ -1386,9 +1387,9 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
               ref={diffViewRef}
               chatId={chatId}
               subChatId={subChatId}
-              sandboxId={sandboxId}
+              sandboxId={sandboxId ?? ""}
               worktreePath={worktreePath || undefined}
-              repository={repository}
+              repository={repository ? `${repository.owner}/${repository.name}` : undefined}
               onStatsChange={setDiffStats}
               initialDiff={effectiveDiff}
               initialParsedFiles={effectiveParsedFiles}
@@ -1513,9 +1514,9 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
             ref={diffViewRef}
             chatId={chatId}
             subChatId={subChatId}
-            sandboxId={sandboxId}
+            sandboxId={sandboxId ?? ""}
             worktreePath={worktreePath || undefined}
-            repository={repository}
+            repository={repository ? `${repository.owner}/${repository.name}` : undefined}
             onStatsChange={setDiffStats}
             initialDiff={effectiveDiff}
             initialParsedFiles={effectiveParsedFiles}
@@ -2475,11 +2476,6 @@ const ChatViewInner = memo(function ChatViewInner({
     window.addEventListener("file-viewer-add-to-context", handler)
     return () => window.removeEventListener("file-viewer-add-to-context", handler)
   }, [addTextContext])
-
-  // Handler for quick comment trigger from popover
-  const handleQuickComment = useCallback((text: string, source: TextSelectionSource, rect: DOMRect) => {
-    setQuickCommentState({ selectedText: text, source, rect })
-  }, [])
 
   // Handler for document comment (review system)
   const handleAddComment = useCallback((
@@ -3781,7 +3777,7 @@ const ChatViewInner = memo(function ChatViewInner({
           type: "data-file" as const,
           data: {
             url: f.url,
-            mediaType: f.mediaType,
+            mediaType: f.mediaType || "application/octet-stream",
             filename: f.filename,
             size: f.size,
           },
@@ -3999,7 +3995,7 @@ const ChatViewInner = memo(function ChatViewInner({
           type: "data-file" as const,
           data: {
             url: f.url,
-            mediaType: f.mediaType,
+            mediaType: f.type || "application/octet-stream",
             filename: f.filename,
             size: f.size,
           },
@@ -4779,7 +4775,8 @@ export function ChatView({
   const diffContent = diffCache.diffContent
 
   // Smart setters that update the cache
-  const setDiffStats = useCallback((val: any) => {
+  type DiffStatsType = { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }
+  const setDiffStats = useCallback((val: DiffStatsType | ((prev: DiffStatsType) => DiffStatsType)) => {
     setDiffCache((prev) => {
       const newVal = typeof val === 'function' ? val(prev.diffStats) : val
       // Only update if something changed
@@ -5454,16 +5451,17 @@ export function ChatView({
         // Desktop app: use stats already provided in chat data
         // The diff sidebar won't work for remote chats (no worktree), but stats will show
         if (isDesktopApp()) {
-          const remoteStats = isRemoteChat(agentChat as AgentChat | null) ? (agentChat as AgentChat)?.remoteStats : undefined
+          const remoteStats = isRemoteChat(agentChat) ? agentChat.remoteStats : undefined
           console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", remoteStats)
 
           if (remoteStats) {
+            const fileCount = (remoteStats.files_added || 0) + (remoteStats.files_modified || 0) + (remoteStats.files_removed || 0)
             setDiffStats({
-              fileCount: remoteStats.fileCount,
-              additions: remoteStats.additions,
-              deletions: remoteStats.deletions,
+              fileCount,
+              additions: remoteStats.lines_added || 0,
+              deletions: remoteStats.lines_removed || 0,
               isLoading: false,
-              hasChanges: remoteStats.fileCount > 0,
+              hasChanges: fileCount > 0,
             })
           } else {
             setDiffStats({
@@ -5961,7 +5959,8 @@ Make sure to preserve all functionality from both branches when resolving confli
 
     // Find last plan file path from active sub-chat only
     let lastPlanPath: string | null = null
-    const messages = (Array.isArray(activeSubChat.messages) ? activeSubChat.messages : []) as unknown[]
+    type MessageLike = { role?: string; parts?: Array<{ type?: string; input?: { file_path?: string } }> }
+    const messages = (Array.isArray(activeSubChat.messages) ? activeSubChat.messages : []) as MessageLike[]
     for (const msg of messages) {
       if (msg.role !== "assistant") continue
       const parts = msg.parts || []
@@ -6623,10 +6622,10 @@ Make sure to preserve all functionality from both branches when resolving confli
             .getState()
             .updateSubChatName(subChatIdToUpdate, name)
           // Also update query cache so init effect doesn't overwrite
-          utils.agents.getAgentChat.setData({ chatId }, (old) => {
+          utils.agents.getAgentChat.setData({ chatId }, (old: typeof old) => {
             if (!old) return old
             const existsInCache = old.subChats.some(
-              (sc) => sc.id === subChatIdToUpdate,
+              (sc: { id: string }) => sc.id === subChatIdToUpdate,
             )
             if (!existsInCache) {
               // Sub-chat not in cache yet (DB save still in flight) - add it
@@ -6649,7 +6648,7 @@ Make sure to preserve all functionality from both branches when resolving confli
             }
             return {
               ...old,
-              subChats: old.subChats.map((sc) =>
+              subChats: old.subChats.map((sc: { id: string; name: string }) =>
                 sc.id === subChatIdToUpdate ? { ...sc, name } : sc,
               ),
             }
@@ -6660,9 +6659,9 @@ Make sure to preserve all functionality from both branches when resolving confli
           // On desktop, selectedTeamId is always null, so we update unconditionally
           utils.agents.getAgentChats.setData(
             { teamId: selectedTeamId },
-            (old) => {
+            (old: typeof old) => {
               if (!old) return old
-              return old.map((c) =>
+              return old.map((c: { id: string; name: string }) =>
                 c.id === chatIdToUpdate ? { ...c, name } : c,
               )
             },
@@ -6895,7 +6894,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                               className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
                               aria-label="Open terminal"
                             >
-                              <TerminalSquare className="h-4 w-4" />
+                              <SquareTerminal className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">

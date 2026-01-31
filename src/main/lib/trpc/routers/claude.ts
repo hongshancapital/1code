@@ -81,6 +81,7 @@ interface StreamMetadata {
   cacheCreationInputTokens?: number
   cacheReadInputTokens?: number
   totalTokens?: number
+  totalCostUsd?: number
   modelUsage?: Record<string, ModelUsageEntry>
   durationMs?: number
 }
@@ -613,7 +614,7 @@ export async function warmupMcpCache(): Promise<void> {
           prompt: "ping",
           options: {
             cwd: project.path,
-            mcpServers: project.servers,
+            mcpServers: project.servers as Record<string, { command: string; args?: string[]; env?: Record<string, string> }>,
             systemPrompt: {
               type: "preset" as const,
               preset: "claude_code" as const,
@@ -1606,14 +1607,14 @@ ${prompt}
                           : ""
                       if (!/\.md$/i.test(filePath)) {
                         return {
-                          behavior: "deny",
+                          behavior: "deny" as const,
                           message:
                             'Only ".md" files can be modified in plan mode.',
                         }
                       }
                     } else if (PLAN_MODE_BLOCKED_TOOLS.has(toolName)) {
                       return {
-                        behavior: "deny",
+                        behavior: "deny" as const,
                         message: `Tool "${toolName}" blocked in plan mode.`,
                       }
                     }
@@ -1677,9 +1678,9 @@ ${prompt}
                         type: "ask-user-question-result",
                         toolUseId: toolUseID,
                         result: errorMessage,
-                      } as UIMessageChunk)
+                      } as unknown as UIMessageChunk)
                       return {
-                        behavior: "deny",
+                        behavior: "deny" as const,
                         message: errorMessage,
                       }
                     }
@@ -1696,14 +1697,14 @@ ${prompt}
                       type: "ask-user-question-result",
                       toolUseId: toolUseID,
                       result: answerResult,
-                    } as UIMessageChunk)
+                    } as unknown as UIMessageChunk)
                     return {
-                      behavior: "allow",
+                      behavior: "allow" as const,
                       updatedInput: response.updatedInput,
                     }
                   }
                   return {
-                    behavior: "allow",
+                    behavior: "allow" as const,
                     updatedInput: toolInput,
                   }
                 },

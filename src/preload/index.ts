@@ -386,13 +386,15 @@ export interface DesktopApi {
   // VS Code theme scanning
   scanVSCodeThemes: () => Promise<DiscoveredTheme[]>
   loadVSCodeTheme: (themePath: string) => Promise<VSCodeThemeData>
+  // File dialogs
+  selectAudioFile: () => Promise<string | null>
 }
 
 declare global {
   interface Window {
     desktopApi: DesktopApi
-    webUtils: {
-      getPathForFile: (file: File) => string
+    webUtils?: {
+      getPathForFile(file: File): string
     }
   }
 }

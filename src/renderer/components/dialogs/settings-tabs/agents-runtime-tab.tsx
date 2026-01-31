@@ -27,6 +27,29 @@ import {
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { trpc } from "../../../lib/trpc"
+
+// Stub types for disabled tool detection feature
+interface ToolInfo {
+  name: string
+  installed: boolean
+  version?: string | null
+  path?: string | null
+  installCommand?: string | null
+}
+interface InstallResult {
+  success: boolean
+  error?: string
+}
+const useDetectToolsStub = () => ({
+  data: [] as ToolInfo[],
+  isLoading: false,
+  refetch: () => Promise.resolve({ data: [] as ToolInfo[] }),
+  isRefetching: false,
+})
+const useInstallToolStub = () => ({
+  mutate: (_params: { command: string }) => {},
+  isPending: false,
+})
 import {
   packageManagerAtom,
   runtimePathsAtom,
@@ -276,28 +299,15 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
 function CommonToolsSection() {
   const [installingTool, setInstallingTool] = useState<string | null>(null)
 
+  // Tool detection feature is currently disabled
   const {
     data: tools,
     isLoading,
     refetch,
     isRefetching,
-  } = trpc.files.detectTools.useQuery()
+  } = useDetectToolsStub()
 
-  const installMutation = trpc.files.installTool.useMutation({
-    onSuccess: (result, variables) => {
-      if (result.success) {
-        toast.success(`Successfully installed tool`)
-        refetch()
-      } else {
-        toast.error(`Failed to install: ${result.error || "Unknown error"}`)
-      }
-      setInstallingTool(null)
-    },
-    onError: (error) => {
-      toast.error(`Installation failed: ${error.message}`)
-      setInstallingTool(null)
-    },
-  })
+  const installMutation = useInstallToolStub()
 
   const handleInstall = useCallback(
     (toolName: string, command: string) => {

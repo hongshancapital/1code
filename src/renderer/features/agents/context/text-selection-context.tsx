@@ -437,12 +437,16 @@ export function TextSelectionProvider({
         rect: DOMRect | null
       }
       if (!detail.text) {
-        setState({ selectedText: null, source: null, selectionRect: null })
+        setState({ selectedText: null, source: null, selectionRect: null, charStart: null, charLength: null, lineStart: null, lineEnd: null })
       } else {
         setState({
           selectedText: detail.text,
           source: detail.source,
           selectionRect: detail.rect,
+          charStart: null,
+          charLength: null,
+          lineStart: null,
+          lineEnd: null,
         })
       }
     }
