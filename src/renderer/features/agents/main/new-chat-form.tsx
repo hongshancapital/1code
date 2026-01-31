@@ -39,7 +39,6 @@ import { cn } from "../../../lib/utils"
 import {
   agentsDebugModeAtom,
   currentProjectModeAtom,
-  isPlanModeAtom,
   justCreatedIdsAtom,
   lastSelectedAgentIdAtom,
   lastSelectedBranchesAtom,
@@ -624,7 +623,18 @@ export function NewChatForm({
 
   // Fetch repos from team
   // Desktop: no remote repos, we use local projects
-  const reposData = { repositories: [] }
+  // Stub type for disabled cloud feature
+  type RepoStub = {
+    id: number
+    name: string
+    full_name: string
+    sandbox_status: string
+    html_url?: string
+    description?: string | null
+    private?: boolean
+    owner?: { login: string }
+  }
+  const reposData: { repositories: RepoStub[] } = { repositories: [] }
   const isLoadingRepos = false
 
   // Memoize repos arrays to prevent useEffect from running on every keystroke
