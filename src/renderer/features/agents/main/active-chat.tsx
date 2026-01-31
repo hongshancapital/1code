@@ -234,7 +234,7 @@ import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
 import type { ProjectMode } from "../../../../shared/feature-config"
 import type { AgentChat, AgentSubChat, ChatProject } from "../types"
-import { isRemoteChat, getSandboxId, getProjectPath } from "../types"
+import { isRemoteChat, getSandboxId, getProjectPath, getRemoteStats } from "../types"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -1055,8 +1055,8 @@ interface DiffSidebarContentProps {
   selectedFilePath: string | null
   onFileSelect: (file: { path: string }, category: string) => void
   chatId: string
-  sandboxId: string | null
-  repository: { owner: string; name: string } | null
+  sandboxId: string | null | undefined
+  repository: { owner: string; name: string } | null | undefined
   diffStats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }
   setDiffStats: (stats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }) => void
   diffContent: string | null
@@ -1064,7 +1064,7 @@ interface DiffSidebarContentProps {
   prefetchedFileContents: Record<string, string> | undefined
   setDiffCollapseState: (state: { allCollapsed: boolean; allExpanded: boolean }) => void
   diffViewRef: React.RefObject<AgentDiffViewRef | null>
-  agentChat: { prUrl?: string; prNumber?: number } | null | undefined
+  agentChat: { prUrl?: string | null; prNumber?: number | null; [key: string]: unknown } | null | undefined
   // Real-time sidebar width for responsive layout during resize
   sidebarWidth: number
   // Commit with AI
@@ -1678,8 +1678,8 @@ const DiffStateProvider = memo(function DiffStateProvider({
 interface DiffSidebarRendererProps {
   worktreePath: string | null
   chatId: string
-  sandboxId: string | null
-  repository: { owner: string; name: string } | null
+  sandboxId: string | null | undefined
+  repository: { owner: string; name: string } | null | undefined
   diffStats: { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }
   diffContent: string | null
   parsedFileDiffs: ParsedDiffFile[] | null
@@ -1687,7 +1687,7 @@ interface DiffSidebarRendererProps {
   setDiffCollapseState: (state: { allCollapsed: boolean; allExpanded: boolean }) => void
   diffViewRef: React.RefObject<AgentDiffViewRef | null>
   diffSidebarRef: React.RefObject<HTMLDivElement | null>
-  agentChat: { prUrl?: string; prNumber?: number } | null | undefined
+  agentChat: { prUrl?: string | null; prNumber?: number | null; [key: string]: unknown } | null | undefined
   branchData: { current: string } | undefined
   gitStatus: { pushCount?: number; pullCount?: number; hasUpstream?: boolean; ahead?: number; behind?: number; staged?: any[]; unstaged?: any[]; untracked?: any[] } | undefined
   isGitStatusLoading: boolean
@@ -1713,7 +1713,7 @@ interface DiffSidebarRendererProps {
   handleMarkAllViewed: () => void
   handleMarkAllUnviewed: () => void
   isDesktop: boolean
-  isFullscreen: boolean
+  isFullscreen: boolean | null
   setDiffDisplayMode: (mode: "side-peek" | "center-peek" | "full-page") => void
   handleCommitToPr: (selectedPaths?: string[]) => void
   isCommittingToPr: boolean
@@ -1837,7 +1837,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           onMarkAllViewed={handleMarkAllViewed}
           onMarkAllUnviewed={handleMarkAllUnviewed}
           isDesktop={isDesktop}
-          isFullscreen={isFullscreen}
+          isFullscreen={isFullscreen ?? undefined}
           displayMode={diffDisplayMode}
           onDisplayModeChange={setDiffDisplayMode}
           reviewButtonSlot={reviewButtonSlot}
@@ -3206,6 +3206,23 @@ const ChatViewInner = memo(function ChatViewInner({
         return
       }
 
+      // Find the index of this message in the current messages array (for fallback)
+      const messageIndex = messages.findIndex(m => m.id === assistantMsg.id)
+
+      // Debug logging to diagnose rollback issues
+      console.log("[handleRollback] Rolling back to message:", {
+        messageId: assistantMsg.id,
+        sdkUuid,
+        messageIndex,
+        totalMessages: messages.length,
+        allAssistantUuids: messages
+          .filter(m => m.role === "assistant")
+          .map(m => ({
+            id: m.id,
+            sdkUuid: (m.metadata as MessageMetadata | undefined)?.sdkMessageUuid,
+          })),
+      })
+
       setIsRollingBack(true)
 
       try {
@@ -3213,6 +3230,7 @@ const ChatViewInner = memo(function ChatViewInner({
         const result = await trpcClient.chats.rollbackToMessage.mutate({
           subChatId,
           sdkMessageUuid: sdkUuid,
+          messageIndex: messageIndex >= 0 ? messageIndex : undefined,
         })
 
         if (!result.success) {
@@ -3235,6 +3253,7 @@ const ChatViewInner = memo(function ChatViewInner({
     [
       isRollingBack,
       isStreaming,
+      messages,
       setMessages,
       subChatId,
       recomputeChangedFiles,
@@ -5051,17 +5070,19 @@ export function ChatView({
         prNumber: null,
         sandbox_id: remoteAgentChat.sandbox_id,
         sandboxId: remoteAgentChat.sandbox_id,
-        isRemote: true,
+        isRemote: true as const,
         // Preserve stats from remote chat for diff display
         remoteStats: remoteAgentChat.stats,
         subChats: remoteAgentChat.subChats?.map(sc => ({
           ...sc,
+          mode: sc.mode as "plan" | "agent" | null | undefined,
           created_at: new Date(sc.created_at),
           updated_at: new Date(sc.updated_at),
         })) ?? [],
       }
     }
-    return localAgentChat
+    // Add isRemote: false for type compatibility
+    return localAgentChat ? { ...localAgentChat, isRemote: false as const } : null
   }, [chatSourceMode, remoteAgentChat, localAgentChat])
 
   const isLoading = chatSourceMode === "sandbox" ? isRemoteLoading : isLocalLoading
@@ -5316,21 +5337,30 @@ export function ChatView({
   // Extract port, repository, and quick setup flag from meta
   const meta = agentChat?.meta as {
     sandboxConfig?: { port?: number }
-    repository?: string
+    repository?: { owner: string; name: string } | string
     branch?: string | null
     isQuickSetup?: boolean
   } | null
-  const repository = meta?.repository
+  // Repository can be either an object or a string (legacy format)
+  const repository = meta?.repository && typeof meta.repository === 'object'
+    ? meta.repository
+    : null
+  // String format for components that expect string (e.g., ActiveChatContainer)
+  const repositoryString = repository
+    ? `${repository.owner}/${repository.name}`
+    : typeof meta?.repository === 'string'
+      ? meta.repository
+      : undefined
 
   // Remote info for Details sidebar (when worktreePath is null but sandboxId exists)
   const remoteInfo = useMemo(() => {
     if (worktreePath || !sandboxId) return null
     return {
-      repository: meta?.repository,
+      repository: repositoryString,
       branch: meta?.branch,
       sandboxId,
     }
-  }, [worktreePath, sandboxId, meta?.repository, meta?.branch])
+  }, [worktreePath, sandboxId, repositoryString, meta?.branch])
 
   // Track if we've already triggered sandbox setup for this chat
   // Check if this is a quick setup (no preview available)
@@ -5474,17 +5504,17 @@ export function ChatView({
         // Desktop app: use stats already provided in chat data
         // The diff sidebar won't work for remote chats (no worktree), but stats will show
         if (isDesktopApp()) {
-          const remoteStats = isRemoteChat(agentChat) ? agentChat.remoteStats : undefined
-          console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", remoteStats)
+          // Use type-safe helper to get normalized remote stats
+          const normalizedStats = getRemoteStats(agentChat)
+          console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", normalizedStats)
 
-          if (remoteStats) {
-            const fileCount = (remoteStats.files_added || 0) + (remoteStats.files_modified || 0) + (remoteStats.files_removed || 0)
+          if (normalizedStats) {
             setDiffStats({
-              fileCount,
-              additions: remoteStats.lines_added || 0,
-              deletions: remoteStats.lines_removed || 0,
+              fileCount: normalizedStats.fileCount,
+              additions: normalizedStats.additions,
+              deletions: normalizedStats.deletions,
               isLoading: false,
-              hasChanges: fileCount > 0,
+              hasChanges: normalizedStats.fileCount > 0,
             })
           } else {
             setDiffStats({
@@ -5990,7 +6020,8 @@ Make sure to preserve all functionality from both branches when resolving confli
       for (const part of parts) {
         if (
           part.type === "tool-Write" &&
-          isPlanFile(part.input?.file_path || "")
+          part.input?.file_path &&
+          isPlanFile(part.input.file_path)
         ) {
           lastPlanPath = part.input.file_path
         }
@@ -6645,7 +6676,7 @@ Make sure to preserve all functionality from both branches when resolving confli
             .getState()
             .updateSubChatName(subChatIdToUpdate, name)
           // Also update query cache so init effect doesn't overwrite
-          utils.agents.getAgentChat.setData({ chatId }, (old: typeof old) => {
+          utils.agents.getAgentChat.setData({ chatId }, (old) => {
             if (!old) return old
             const existsInCache = old.subChats.some(
               (sc: { id: string }) => sc.id === subChatIdToUpdate,
@@ -6682,9 +6713,9 @@ Make sure to preserve all functionality from both branches when resolving confli
           // On desktop, selectedTeamId is always null, so we update unconditionally
           utils.agents.getAgentChats.setData(
             { teamId: selectedTeamId },
-            (old: typeof old) => {
+            (old: { id: string; name: string | null }[] | undefined) => {
               if (!old) return old
-              return old.map((c: { id: string; name: string }) =>
+              return old.map((c) =>
                 c.id === chatIdToUpdate ? { ...c, name } : c,
               )
             },
@@ -7011,7 +7042,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                           onAutoRename={handleAutoRename}
                           onCreateNewSubChat={handleCreateNewSubChat}
                           teamId={selectedTeamId || undefined}
-                          repository={repository}
+                          repository={repositoryString}
                           streamId={agentChatStore.getStreamId(subChatId)}
                           isMobile={isMobileFullscreen}
                           isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
@@ -7261,7 +7292,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                 chatId={chatId}
                 sandboxId={sandboxId}
                 port={previewPort}
-                repository={repository}
+                repository={repositoryString}
                 hideHeader={false}
                 onClose={() => setIsPreviewSidebarOpen(false)}
               />

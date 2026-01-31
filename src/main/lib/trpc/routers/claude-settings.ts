@@ -9,7 +9,7 @@ const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json")
 /**
  * Claude settings structure
  */
-interface ClaudeSettings {
+export interface ClaudeSettings {
   env?: Record<string, string>
   enabledPlugins?: Record<string, boolean>
   alwaysThinkingEnabled?: boolean

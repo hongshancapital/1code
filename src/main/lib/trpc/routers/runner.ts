@@ -18,7 +18,7 @@ interface RuntimeInfo {
   path: string
 }
 
-interface DetectedRuntimes {
+export interface DetectedRuntimes {
   node: RuntimeInfo | null
   bun: RuntimeInfo | null
   npm: RuntimeInfo | null

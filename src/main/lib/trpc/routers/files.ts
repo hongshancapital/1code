@@ -68,7 +68,7 @@ interface FileEntry {
 }
 
 // Content search result type
-interface ContentSearchResult {
+export interface ContentSearchResult {
   file: string
   line: number
   column: number

@@ -13,7 +13,7 @@ const execAsync = promisify(exec)
 
 type Platform = "darwin" | "win32" | "linux"
 
-interface EditorInfo {
+export interface EditorInfo {
   id: string
   name: string
   command: string

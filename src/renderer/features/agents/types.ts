@@ -35,17 +35,24 @@ export interface ChatProject {
  * Remote chat stats for diff display
  */
 export interface RemoteStats {
+  // Original format
   files_added?: number
   files_modified?: number
   files_removed?: number
   lines_added?: number
   lines_removed?: number
+  // Alternative format from some remotes
+  fileCount?: number
+  additions?: number
+  deletions?: number
 }
 
 /**
  * Base chat structure from database
+ * Note: We use Omit to override projectId to allow null for remote/sandbox chats
  */
-export interface BaseAgentChat extends Chat {
+export interface BaseAgentChat extends Omit<Chat, 'projectId'> {
+  projectId: string | null
   subChats?: AgentSubChat[]
   project?: ChatProject
   sandbox_id?: string | null
@@ -64,8 +71,8 @@ export interface LocalAgentChat extends BaseAgentChat {
  */
 export interface RemoteAgentChat extends BaseAgentChat {
   isRemote: true
-  sandboxId?: string
-  remoteStats?: RemoteStats
+  sandboxId?: string | null
+  remoteStats?: RemoteStats | null
 }
 
 /**
@@ -101,4 +108,24 @@ export function getSandboxId(chat: AgentChat | null | undefined): string | null 
  */
 export function getProjectPath(chat: AgentChat | null | undefined): string | undefined {
   return chat?.project?.path
+}
+
+/**
+ * Get remote stats from chat (if available)
+ * Handles both stat formats and returns normalized stats
+ */
+export function getRemoteStats(chat: AgentChat | null | undefined): {
+  fileCount: number
+  additions: number
+  deletions: number
+} | null {
+  if (!chat || !isRemoteChat(chat) || !chat.remoteStats) return null
+
+  const s = chat.remoteStats
+  // Handle both old format (files_added/lines_added) and new format (fileCount/additions)
+  const fileCount = s.fileCount ?? ((s.files_added || 0) + (s.files_modified || 0) + (s.files_removed || 0))
+  const additions = s.additions ?? (s.lines_added || 0)
+  const deletions = s.deletions ?? (s.lines_removed || 0)
+
+  return { fileCount, additions, deletions }
 }
