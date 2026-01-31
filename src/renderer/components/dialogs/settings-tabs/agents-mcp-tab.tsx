@@ -1,7 +1,6 @@
 "use client"
 
-import { ChevronRight, ExternalLink, Loader2, Plus, RefreshCw } from "lucide-react"
-import { AnimatePresence, motion } from "motion/react"
+import { Loader2, Plus } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAtomValue } from "jotai"
 import { Button } from "../../ui/button"
@@ -341,10 +340,9 @@ export function AgentsMcpTab() {
   })
 
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
-  const isRefreshing = isLoadingConfig || isManualRefreshing
+  const _isRefreshing = isLoadingConfig || isManualRefreshing // TODO: use for refresh indicator
 
   const startOAuthMutation = trpc.claude.startMcpOAuth.useMutation()
-  const openInFinderMutation = trpc.external.openInFinder.useMutation()
   // [STUB] testMcpConnections is not yet implemented in the router
   const testConnectionsMutation = {
     mutateAsync: async (_opts: { projectPath: string }) => {},

@@ -8,7 +8,7 @@
 
 import { spawn, ChildProcess } from "node:child_process"
 import { EventEmitter } from "node:events"
-import { resolve, dirname } from "node:path"
+import { resolve } from "node:path"
 import { access } from "node:fs/promises"
 import { app } from "electron"
 import type {

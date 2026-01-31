@@ -145,7 +145,6 @@ import {
   subChatModeAtomFamily,
   undoStackAtom,
 currentProjectModeAtom,
-  openLocallyChatIdAtom,
   workspaceDiffCacheAtomFamily,
   agentsChatFullWidthAtom,
   pendingMentionAtom,
@@ -221,7 +220,7 @@ import { ChatTitleEditor } from "../ui/chat-title-editor"
 import { MobileChatHeader } from "../ui/mobile-chat-header"
 import { DocumentCommentInput } from "../ui/document-comment-input"
 import { useDocumentComments } from "../hooks/use-document-comments"
-import { commentInputStateAtom, reviewCommentsAtomFamily, type CommentInputState, type DocumentType } from "../atoms/review-atoms"
+import { commentInputStateAtom, reviewCommentsAtomFamily, type DocumentType } from "../atoms/review-atoms"
 import { ReviewButton } from "../ui/review-button"
 import { SubChatSelector } from "../ui/sub-chat-selector"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
@@ -233,7 +232,7 @@ import { IsolatedMessagesSection } from "./isolated-messages-section"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
 import type { ProjectMode } from "../../../../shared/feature-config"
-import type { AgentChat, AgentSubChat, ChatProject } from "../types"
+import type { AgentChat, ChatProject } from "../types"
 import { isRemoteChat, getSandboxId, getProjectPath, getRemoteStats } from "../types"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
@@ -241,7 +240,7 @@ const selectedSubChatIdsAtom = atom(new Set<string>())
 // import { selectedTeamIdAtom } from "@/lib/atoms/team"
 const selectedTeamIdAtom = atom<string | null>(null)
 // import type { PlanType } from "@/lib/config/subscription-plans"
-type PlanType = string
+// PlanType stub - cloud subscription plans are disabled
 
 // Module-level Map to track pending cache cleanup timeouts
 // Used to cancel cleanup if component remounts with same subChatId
@@ -285,46 +284,6 @@ function waitForStreamingReady(subChatId: string): Promise<void> {
       }
     )
   })
-}
-
-// Exploring tools - these get grouped when 2+ consecutive
-const EXPLORING_TOOLS = new Set([
-  "tool-Read",
-  "tool-Grep",
-  "tool-Glob",
-  "tool-WebSearch",
-  "tool-WebFetch",
-])
-
-// Group consecutive exploring tools into exploring-group
-function groupExploringTools(parts: any[], nestedToolIds: Set<string>): any[] {
-  const result: any[] = []
-  let currentGroup: any[] = []
-
-  for (const part of parts) {
-    // Skip nested tools - they shouldn't be grouped, they render inside parent
-    const isNested = part.toolCallId && nestedToolIds.has(part.toolCallId)
-
-    if (EXPLORING_TOOLS.has(part.type) && !isNested) {
-      currentGroup.push(part)
-    } else {
-      // Flush group if 3+
-      if (currentGroup.length >= 3) {
-        result.push({ type: "exploring-group", parts: currentGroup })
-      } else {
-        result.push(...currentGroup)
-      }
-      currentGroup = []
-      result.push(part)
-    }
-  }
-  // Flush remaining
-  if (currentGroup.length >= 3) {
-    result.push({ type: "exploring-group", parts: currentGroup })
-  } else {
-    result.push(...currentGroup)
-  }
-  return result
 }
 
 // Get the ID of the first sub-chat by creation date

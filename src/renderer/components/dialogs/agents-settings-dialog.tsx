@@ -1,7 +1,7 @@
 import { useAtom } from "jotai"
-import { Bell, ChevronLeft, ChevronRight, FolderOpen, X } from "lucide-react"
+import { Bell, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
   EyeOpenFilledIcon,
@@ -19,7 +19,7 @@ import { AgentsMcpTab } from "./settings-tabs/agents-mcp-tab"
 import { AgentsModelsTab } from "./settings-tabs/agents-models-tab"
 import { AgentsNotificationsTab } from "./settings-tabs/agents-notifications-tab"
 import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
-import { AgentsProjectWorktreeTab, AgentsProjectsTab } from "./settings-tabs/agents-project-worktree-tab"
+import { AgentsProjectsTab } from "./settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
 import { AgentsEditorTab } from "./settings-tabs/agents-editor-tab"
 import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
