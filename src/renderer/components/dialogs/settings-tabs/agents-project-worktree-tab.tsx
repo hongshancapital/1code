@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { useSetAtom } from "jotai"
+import { useSetAtom, useAtomValue } from "jotai"
 import { trpc } from "../../../lib/trpc"
 import { Button, buttonVariants } from "../../ui/button"
 import { Input } from "../../ui/input"
@@ -40,6 +40,8 @@ import { settingsProjectsSidebarWidthAtom } from "../../../features/agents/atoms
 
 // --- Detail Panel ---
 function ProjectDetail({ projectId }: { projectId: string }) {
+  const utils = trpc.useUtils()
+
   // Get config for selected project
   const { data: configData, refetch: refetchConfig } =
     trpc.worktreeConfig.get.useQuery(
@@ -123,9 +125,19 @@ function ProjectDetail({ projectId }: { projectId: string }) {
   })
 
   // Mode update mutation
+  const selectedProject = useAtomValue(selectedProjectAtom)
   const updateModeMutation = trpc.projects.updateMode.useMutation({
-    onSuccess: () => {
+    onSuccess: (updatedProject) => {
       refetchProject()
+      // Invalidate projects list to update sidebar icons
+      utils.projects.list.invalidate()
+      // Sync selectedProjectAtom if this is the currently selected project
+      if (selectedProject?.id === projectId && updatedProject) {
+        setSelectedProject({
+          ...selectedProject,
+          mode: updatedProject.mode as ProjectMode,
+        })
+      }
       toast.success("Mode updated")
     },
     onError: (err) => {
