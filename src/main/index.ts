@@ -533,7 +533,9 @@ const oktaCallbackServer = createServer((req, res) => {
     )
 
     // Verify state parameter to prevent CSRF attacks
-    const pkceState = authManager?.getPkceState()
+    // Use getAuthManager() instead of authManager variable since server starts before app.whenReady()
+    const currentAuthManager = getAuthManager()
+    const pkceState = currentAuthManager?.getPkceState()
     if (!pkceState) {
       console.error("[Okta Callback] No PKCE state found - auth flow not started")
       res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
