@@ -1473,7 +1473,17 @@ const SidebarHeader = memo(function SidebarHeader({
                       <div className="relative pl-2 pt-1.5 pb-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-8 h-8 rounded flex items-center justify-center bg-background flex-shrink-0 overflow-hidden">
-                            <Logo className="w-4 h-4" />
+                            {desktopUser?.imageUrl ? (
+                              <img
+                                src={desktopUser.imageUrl}
+                                alt={desktopUser.name || desktopUser.email}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="font-medium text-sm text-muted-foreground">
+                                {(desktopUser?.name || desktopUser?.email || "U").charAt(0).toUpperCase()}
+                              </span>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="font-medium text-sm text-foreground truncate">
