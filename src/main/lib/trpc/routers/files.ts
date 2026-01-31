@@ -516,53 +516,6 @@ export const filesRouter = router({
     }),
 
   /**
-   * Read a binary file as base64 (for images)
-   */
-  readBinaryFile: publicProcedure
-    .input(z.object({ filePath: z.string() }))
-    .query(async ({ input }) => {
-      const { filePath } = input
-      const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
-
-      try {
-        const fileStat = await stat(filePath)
-
-        if (fileStat.size > MAX_SIZE) {
-          return { ok: false as const, reason: "too-large" as const, byteLength: fileStat.size }
-        }
-
-        const buffer = await readFile(filePath)
-        const ext = extname(filePath).toLowerCase()
-
-        // Determine MIME type
-        const mimeMap: Record<string, string> = {
-          ".png": "image/png",
-          ".jpg": "image/jpeg",
-          ".jpeg": "image/jpeg",
-          ".gif": "image/gif",
-          ".svg": "image/svg+xml",
-          ".webp": "image/webp",
-          ".ico": "image/x-icon",
-          ".bmp": "image/bmp",
-        }
-        const mimeType = mimeMap[ext] || "application/octet-stream"
-
-        return {
-          ok: true as const,
-          data: buffer.toString("base64"),
-          mimeType,
-          byteLength: fileStat.size,
-        }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error"
-        if (msg.includes("ENOENT") || msg.includes("no such file")) {
-          return { ok: false as const, reason: "not-found" as const, byteLength: 0 }
-        }
-        throw new Error(`Failed to read binary file: ${msg}`)
-      }
-    }),
-
-  /**
    * Watch for file changes in a project directory
    * Emits events when files are modified
    */

@@ -769,8 +769,9 @@ export function AgentsContent() {
 
   // Track sub-chats sidebar open state for animation control
   // Now renders even while loading to show spinner (mobile always uses tabs)
+  // Hide when in settings view
   const isSubChatsSidebarOpen =
-    selectedChatId && subChatsSidebarMode === "sidebar" && !isMobile
+    selectedChatId && subChatsSidebarMode === "sidebar" && !isMobile && desktopView !== "settings"
 
   useEffect(() => {
     // When sidebar closes, reset for animation on next open

@@ -1043,6 +1043,16 @@ export const explorerPanelOpenAtomFamily = atomFamily((chatId: string) =>
   ),
 )
 
+// File viewer display mode - sidebar (side peek), center dialog, or fullscreen
+export type FileViewerDisplayMode = "side-peek" | "center-peek" | "full-page"
+
+export const fileViewerDisplayModeAtom = atomWithStorage<FileViewerDisplayMode>(
+  "agents:fileViewerDisplayMode",
+  "side-peek", // default to sidebar for file viewer
+  undefined,
+  { getOnInit: true },
+)
+
 // File viewer word wrap preference (persisted)
 export const fileViewerWordWrapAtom = atomWithStorage<boolean>(
   "agents:fileViewerWordWrap",

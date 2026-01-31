@@ -463,7 +463,6 @@ const FileDiffCard = memo(function FileDiffCard({
   fileComments,
   onContextCommentClick,
   showViewed = true,
-  chatId,
 }: FileDiffCardProps) {
   const diffViewRef = useRef<{ getDiffFileInstance: () => DiffFile } | null>(
     null,
@@ -2300,7 +2299,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
                         fileComments={getFileComments(file.newPath !== "/dev/null" ? file.newPath : file.oldPath)}
                         onContextCommentClick={onContextCommentClick ?? handleContextCommentClick}
                         showViewed={!!worktreePath}
-                        chatId={chatId}
                       />
                     </div>
                   </div>

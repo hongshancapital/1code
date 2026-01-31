@@ -39,14 +39,14 @@ const DEVTOOLS_UNLOCK_CLICKS = 5
 // General settings tabs
 const MAIN_TABS = [
   {
-    id: "preferences" as SettingsTab,
-    label: "Preferences",
-    icon: SlidersFilledIcon,
-  },
-  {
     id: "profile" as SettingsTab,
     label: "Account",
     icon: ProfileIconFilled,
+  },
+  {
+    id: "preferences" as SettingsTab,
+    label: "Preferences",
+    icon: SlidersFilledIcon,
   },
   {
     id: "appearance" as SettingsTab,
