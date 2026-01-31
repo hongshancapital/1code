@@ -3,8 +3,17 @@ import { trpcClient } from "../../../lib/trpc"
 // import { remoteApi } from "../../../lib/remote-api"
 
 // Stub type for disabled cloud feature
+interface RemoteChatSubChat {
+  id: string
+  name: string
+  messages: Message[]
+}
+interface RemoteChat {
+  name: string
+  subChats: RemoteChatSubChat[]
+}
 interface DisabledRemoteApi {
-  getAgentChat: () => Promise<never>
+  getAgentChat: (_chatId: string) => Promise<RemoteChat>
 }
 
 // Stub for disabled cloud feature

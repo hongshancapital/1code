@@ -31,18 +31,58 @@ import { buildAgentsOption } from "./agent-utils"
 interface SdkStreamMessage {
   type?: string
   subtype?: string
+  uuid?: string
   mcp_servers?: unknown
   error?: string | { message?: string }
   session_id?: string
+  cwd?: string
+  tools?: unknown
+  plugins?: unknown
+  permissionMode?: string
   event?: {
     type?: string
     delta?: { type?: string }
     content_block?: { type?: string }
   }
   message?: {
+    id?: string
     content?: Array<{ type?: string; text?: string }>
   }
   [key: string]: unknown
+}
+
+/**
+ * Type for usage tracking from SDK messages
+ */
+interface SdkUsage {
+  input_tokens?: number
+  output_tokens?: number
+  cache_creation_input_tokens?: number
+  cache_read_input_tokens?: number
+}
+
+/**
+ * Per-model usage breakdown for accurate token attribution
+ */
+interface ModelUsageEntry {
+  inputTokens: number
+  outputTokens: number
+  costUSD?: number
+}
+
+/**
+ * Metadata accumulated during SDK streaming
+ */
+interface StreamMetadata {
+  sessionId?: string
+  sdkMessageUuid?: string
+  inputTokens?: number
+  outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
+  totalTokens?: number
+  modelUsage?: Record<string, ModelUsageEntry>
+  durationMs?: number
 }
 
 /**
@@ -1021,7 +1061,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             // 4. Setup accumulation state
             const parts: any[] = []
             let currentText = ""
-            let metadata: any = {}
+            let metadata: StreamMetadata = {}
 
             // Capture stderr from Claude process for debugging
             const stderrLines: string[] = []
@@ -1234,7 +1274,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
             // Build final env - only add OAuth token if we have one AND no existing API config
             // Existing CLI config takes precedence over OAuth
-            const finalEnv = {
+            const finalEnv: Record<string, string | undefined> = {
               ...claudeEnv,
               ...(claudeCodeToken && !hasExistingApiConfig && {
                 CLAUDE_CODE_OAUTH_TOKEN: claudeCodeToken,

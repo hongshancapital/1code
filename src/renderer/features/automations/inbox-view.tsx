@@ -43,15 +43,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 // Stub type for disabled cloud feature
 interface DisabledRemoteTrpc {
   automations: {
-    getInboxChats: { query: () => Promise<never[]> }
-    markInboxItemRead: { mutate: () => Promise<Record<string, never>> }
+    getInboxChats: { query: (_params: { teamId: string; limit: number }) => Promise<{ chats: never[] }> }
+    markInboxItemRead: { mutate: (_params: { executionId: string }) => Promise<Record<string, never>> }
   }
 }
 
 // Stub for disabled cloud feature
 const remoteTrpc: DisabledRemoteTrpc = {
   automations: {
-    getInboxChats: { query: async () => [] },
+    getInboxChats: { query: async () => ({ chats: [] }) },
     markInboxItemRead: { mutate: async () => ({}) },
   },
 }

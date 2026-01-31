@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

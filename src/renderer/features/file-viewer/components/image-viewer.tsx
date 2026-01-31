@@ -124,9 +124,9 @@ export function ImageViewer({
             <span className="text-sm font-medium truncate" title={filePath}>
               {fileName}
             </span>
-            {data?.ok && (
+            {data && (
               <span className="text-xs text-muted-foreground flex-shrink-0">
-                {formatFileSize(data.byteLength)}
+                {formatFileSize(data.size)}
               </span>
             )}
           </div>
@@ -175,23 +175,23 @@ export function ImageViewer({
           </div>
         )}
 
-        {data && !data.ok && (
+        {error && (
           <div className="flex flex-col items-center gap-3 text-center max-w-[300px]">
             <AlertCircle className="h-10 w-10 text-muted-foreground" />
             <p className="font-medium text-foreground">
-              {data.reason === "too-large" ? "Image too large" : "Image not found"}
+              {error.message.includes("too large") ? "Image too large" : "Image not found"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {data.reason === "too-large"
-                ? "The image exceeds the 20MB size limit."
-                : "The file could not be found."}
+              {error.message.includes("too large")
+                ? "The image exceeds the size limit."
+                : error.message || "The file could not be found."}
             </p>
           </div>
         )}
 
-        {data?.ok && (
+        {data && (
           <img
-            src={`data:${data.mimeType};base64,${data.data}`}
+            src={`data:${data.mimeType};base64,${data.base64}`}
             alt={fileName}
             className="max-w-full max-h-full object-contain rounded-sm"
             style={{ imageRendering: "auto" }}

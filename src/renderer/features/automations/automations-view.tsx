@@ -20,15 +20,15 @@ import { useQuery } from "@tanstack/react-query"
 
 // Stub type for disabled cloud feature
 interface DisabledRemoteTrpc {
-  automations: { listAutomations: { query: () => Promise<never[]> } }
-  github: { getConnectionStatus: { query: () => Promise<{ connected: boolean }> } }
-  linear: { getIntegration: { query: () => Promise<null> } }
+  automations: { listAutomations: { query: (_params: { teamId: string }) => Promise<never[]> } }
+  github: { getConnectionStatus: { query: (_params: { teamId: string }) => Promise<{ isConnected: boolean }> } }
+  linear: { getIntegration: { query: (_params: { teamId: string }) => Promise<null> } }
 }
 
 // Stub for disabled cloud feature
 const remoteTrpc: DisabledRemoteTrpc = {
   automations: { listAutomations: { query: async () => [] } },
-  github: { getConnectionStatus: { query: async () => ({ connected: false }) } },
+  github: { getConnectionStatus: { query: async () => ({ isConnected: false }) } },
   linear: { getIntegration: { query: async () => null } },
 }
 

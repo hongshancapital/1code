@@ -44,10 +44,22 @@ import {
 const useUserTeams = (_enabled?: boolean) => ({ data: undefined, isLoading: false, isError: false })
 const useRemoteChats = () => ({ data: undefined })
 const usePrefetchRemoteChat = () => () => {}
-const useArchiveRemoteChat = () => ({ mutate: () => {}, isPending: false })
-const useArchiveRemoteChatsBatch = () => ({ mutateAsync: async () => ({ archivedCount: 0 }), isPending: false })
-const useRestoreRemoteChat = () => ({ mutate: () => {} })
-const useRenameRemoteChat = () => ({ mutate: () => {} })
+const useArchiveRemoteChat = () => ({
+  mutate: (_id: string, _options?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {},
+  isPending: false
+})
+const useArchiveRemoteChatsBatch = () => ({
+  mutate: (_ids: string[], _options?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {},
+  mutateAsync: async (_ids?: string[]) => ({ archivedCount: 0 }),
+  isPending: false
+})
+const useRestoreRemoteChat = () => ({
+  mutate: (_id: string, _options?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {}
+})
+const useRenameRemoteChat = () => ({
+  mutate: (_data: { id: string; name: string }) => {},
+  mutateAsync: async (_data: { id: string; name: string }) => {}
+})
 import { ArchivePopover } from "../agents/ui/archive-popover"
 import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight } from "lucide-react"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
@@ -56,7 +68,7 @@ import { useQuery } from "@tanstack/react-query"
 // import { remoteTrpc } from "../../lib/remote-trpc"
 // import { useRouter } from "next/navigation" // Desktop doesn't use next/navigation
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
-const useCombinedAuth = () => ({ userId: null })
+const useCombinedAuth = () => ({ userId: null, isLoaded: true })
 // import { AuthDialog } from "@/components/auth/auth-dialog"
 const AuthDialog = () => null
 // Desktop: archive is handled inline, not via hook
