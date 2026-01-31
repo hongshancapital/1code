@@ -69,19 +69,11 @@ export function AutomationsView() {
     enabled: !!teamId,
   })
 
-  // Fetch GitHub connection status
-  const { data: githubStatus } = useQuery({
-    queryKey: ["github", "connectionStatus", teamId],
-    queryFn: () => remoteTrpc.github.getConnectionStatus.query({ teamId: teamId! }),
-    enabled: !!teamId,
-  })
+  // [CLOUD DISABLED] Fetch GitHub connection status - stubbed
+  const githubStatus: { isConnected: boolean } | undefined = undefined
 
-  // Fetch Linear integration status
-  const { data: linearStatus } = useQuery({
-    queryKey: ["linear", "integration", teamId],
-    queryFn: () => remoteTrpc.linear.getIntegration.query({ teamId: teamId! }),
-    enabled: !!teamId,
-  })
+  // [CLOUD DISABLED] Fetch Linear integration status - stubbed
+  const linearStatus: { isConnected: boolean } | undefined = undefined
 
   const automations = automationsData ?? []
 
