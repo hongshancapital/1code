@@ -16,10 +16,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
-import { editorConfigAtom } from "@/lib/atoms/editor"
-import { getEditorIcon, GenericEditorIcon } from "@/icons/editor-icons"
 import { preferredEditorAtom } from "@/lib/atoms"
-import { useResolvedHotkeyDisplay } from "@/lib/hotkeys"
 import { APP_META } from "../../../../shared/external-apps"
 import { EDITOR_ICONS } from "@/lib/editor-icons"
 
@@ -134,26 +131,14 @@ export const InfoSection = memo(function InfoSection({
 
   // Mutations
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
-  const openInEditorMutation = trpc.editor.openWithEditor.useMutation()
+  const openInAppMutation = trpc.external.openInApp.useMutation()
 
-  // Get editor config
-  const editorConfig = useAtomValue(editorConfigAtom)
+  // Get preferred editor from settings
+  const preferredEditor = useAtomValue(preferredEditorAtom)
 
-  // Detect installed editors
-  const { data: detectedEditors } = trpc.editor.detectEditors.useQuery()
-
-  // Determine active editor (configured or first installed)
-  const configuredEditorId = editorConfig.defaultEditor
-  const configuredEditor = configuredEditorId
-    ? detectedEditors?.find((e) => e.id === configuredEditorId && e.installed)
-    : null
-  const firstInstalledEditor = detectedEditors?.find((e) => e.installed)
-  const activeEditor = configuredEditor || firstInstalledEditor
-
-  // Dynamic editor icon - use specific icon if editor detected, generic otherwise (will use system default)
-  const EditorIcon = activeEditor
-    ? getEditorIcon(activeEditor.id)
-    : GenericEditorIcon
+  // Get editor icon for the preferred editor
+  const editorIcon = EDITOR_ICONS[preferredEditor]
+  const editorLabel = APP_META[preferredEditor]?.label || "Editor"
 
   // Check if this is a remote sandbox chat (no local worktree)
   const isRemoteChat = !worktreePath && !!remoteInfo
@@ -191,10 +176,9 @@ export const InfoSection = memo(function InfoSection({
 
   const handleOpenInEditor = () => {
     if (worktreePath) {
-      openInEditorMutation.mutate({
+      openInAppMutation.mutate({
         path: worktreePath,
-        editorId: editorConfig.defaultEditor ?? undefined,
-        customArgs: editorConfig.customArgs || undefined,
+        app: preferredEditor,
       })
     }
   }
@@ -352,15 +336,17 @@ Please suggest a new branch name.`
                 size="icon"
                 className="h-6 w-6 flex-shrink-0"
                 onClick={handleOpenInEditor}
-                disabled={openInEditorMutation.isPending}
+                disabled={openInAppMutation.isPending}
               >
-                <EditorIcon className="h-3.5 w-3.5" />
+                {editorIcon ? (
+                  <img src={editorIcon} alt="" className="h-3.5 w-3.5" />
+                ) : (
+                  <span className="h-3.5 w-3.5 text-muted-foreground">E</span>
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              {activeEditor
-                ? `Open in ${activeEditor.name}`
-                : "Open in default editor"}
+              Open in {editorLabel}
             </TooltipContent>
           </Tooltip>
         </div>
