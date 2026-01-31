@@ -1,4 +1,5 @@
-import { memo, useMemo, useCallback, useEffect } from "react";
+import { memo, useMemo, useCallback, useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { trpc } from "../../../../lib/trpc";
 import { formatRelativeDate } from "../../utils/date";
 import { FileText, ArrowUp } from "lucide-react";
@@ -13,6 +14,8 @@ import {
 	ContextMenuTrigger,
 } from "../../../../components/ui/context-menu";
 import { toast } from "sonner";
+
+const COMMIT_ITEM_HEIGHT = 52; // Height of each commit item in pixels
 
 export interface CommitInfo {
 	hash: string;
@@ -131,8 +134,17 @@ export const HistoryView = memo(function HistoryView({
 		);
 	}
 
+	const parentRef = useRef<HTMLDivElement>(null);
+
+	const virtualizer = useVirtualizer({
+		count: commits.length,
+		getScrollElement: () => parentRef.current,
+		estimateSize: () => COMMIT_ITEM_HEIGHT,
+		overscan: 5,
+	});
+
 	return (
-		<div className="flex-1 overflow-y-auto">
+		<div ref={parentRef} className="flex-1 overflow-y-auto">
 			{/* Worktree not registered warning */}
 			{isWorktreeRegistered === false && worktreePath && (
 				<div className="p-4 bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 text-xs">
@@ -140,16 +152,39 @@ export const HistoryView = memo(function HistoryView({
 				</div>
 			)}
 
-			{/* Commits list - only commits, files are shown in right panel */}
-			{commits.map((commit, index) => (
-				<HistoryCommitItem
-					key={commit.hash}
-					commit={commit}
-					isSelected={selectedCommitHash === commit.hash}
-					isUnpushed={index < (pushCount || 0)}
-					onClick={() => handleCommitClick(commit)}
-				/>
-			))}
+			{/* Virtualized commits list */}
+			<div
+				style={{
+					height: virtualizer.getTotalSize(),
+					width: "100%",
+					position: "relative",
+				}}
+			>
+				{virtualizer.getVirtualItems().map((virtualRow) => {
+					const commit = commits[virtualRow.index]!;
+					const index = virtualRow.index;
+					return (
+						<div
+							key={commit.hash}
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: `${virtualRow.size}px`,
+								transform: `translateY(${virtualRow.start}px)`,
+							}}
+						>
+							<HistoryCommitItem
+								commit={commit}
+								isSelected={selectedCommitHash === commit.hash}
+								isUnpushed={index < (pushCount || 0)}
+								onClick={() => handleCommitClick(commit)}
+							/>
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 });

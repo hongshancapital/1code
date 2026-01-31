@@ -7,14 +7,10 @@ import {
   useMemo,
   type RefObject,
 } from "react"
-import { useAtom } from "jotai"
 import { MessageSquare } from "lucide-react"
-import { activeCommentInputAtom, lineSelectionAtom } from "../atoms"
-import { CommentAddButton } from "./comment-indicator"
-import { CommentInputPopup } from "./comment-input-popup"
 import { CommentEditPopup } from "./comment-edit-popup"
 import { useCommentActions } from "../hooks/use-comment-actions"
-import type { ReviewComment, LineRange } from "../types"
+import type { ReviewComment } from "../types"
 import { cn } from "../../../lib/utils"
 
 // Throttle function for performance
@@ -54,10 +50,12 @@ interface CommentGutterLayerProps {
   comments: ReviewComment[]
   /** Diff mode: unified or split */
   diffMode: "unified" | "split"
-  /** Callback when a comment is added */
-  onCommentAdded?: (comment: ReviewComment) => void
   /** Callback when clicking a context comment bubble */
   onContextCommentClick?: (commentId: string) => void
+  /** Callback to delete a context comment */
+  onDeleteContextComment?: (commentId: string) => void
+  /** Callback to delete a review comment (from ReviewPanel) */
+  onDeleteReviewComment?: (commentId: string) => void
 }
 
 interface LineInfo {
@@ -68,13 +66,11 @@ interface LineInfo {
 }
 
 /**
- * CommentGutterLayer - Overlay layer for adding comments to diff view
+ * CommentGutterLayer - Overlay layer for displaying comments on diff view
  *
- * This component creates an invisible overlay on top of the diff view
- * that handles:
- * - Detecting line hover and showing "+" buttons
- * - Drag selection for multi-line comments
+ * This component creates an overlay on top of the diff view that handles:
  * - Displaying comment indicators for existing comments
+ * - Highlighting commented lines
  */
 export const CommentGutterLayer = memo(function CommentGutterLayer({
   chatId,
@@ -82,19 +78,33 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
   diffViewContainerRef,
   comments,
   diffMode,
-  onCommentAdded,
   onContextCommentClick,
+  onDeleteContextComment,
+  onDeleteReviewComment,
 }: CommentGutterLayerProps) {
-  const [activeInput, setActiveInput] = useAtom(activeCommentInputAtom)
-  const [lineSelection, setLineSelection] = useAtom(lineSelectionAtom)
-  const { addComment, updateComment, deleteComment, closeCommentInput } = useCommentActions(chatId)
+  const { updateComment, deleteComment } = useCommentActions(chatId)
 
-  const [hoveredLine, setHoveredLine] = useState<LineInfo | null>(null)
+  // Callback to delete a comment - handles all three comment types
+  const handleDeleteComment = useCallback((comment: ReviewComment) => {
+    // Check for isReviewComment flag (from ReviewPanel / useDocumentComments)
+    if (comment.isReviewComment && onDeleteReviewComment) {
+      onDeleteReviewComment(comment.id)
+      return
+    }
+    // Check for isContextComment flag (from chat input context comments)
+    if (comment.isContextComment && onDeleteContextComment) {
+      onDeleteContextComment(comment.id)
+      return
+    }
+    // Fallback: try all delete methods
+    onDeleteContextComment?.(comment.id)
+    onDeleteReviewComment?.(comment.id)
+    deleteComment(comment.id)
+  }, [deleteComment, onDeleteContextComment, onDeleteReviewComment])
+
   const [editingComment, setEditingComment] = useState<ReviewComment | null>(null)
   const [lineElements, setLineElements] = useState<LineInfo[]>([])
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null)
-  const isDragging = useRef(false)
-  const dragStartLine = useRef<LineInfo | null>(null)
   const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Scan for line elements when diff view updates
@@ -192,151 +202,6 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     }
   }, [diffViewContainerRef, diffMode])
 
-  // Handle click on add button (single line)
-  const handleAddClick = useCallback(
-    (line: LineInfo, event: React.MouseEvent) => {
-      event.stopPropagation()
-      event.preventDefault()
-
-      // Get the code content for this line
-      const row = line.element.closest("tr")
-      const contentCell = row?.querySelector(".diff-line-content-item")
-      const selectedCode = contentCell?.textContent || undefined
-
-      setActiveInput({
-        filePath,
-        lineRange: {
-          startLine: line.lineNumber,
-          endLine: line.lineNumber,
-          side: line.side,
-        },
-        selectedCode,
-        anchorRect: line.rect,
-        source: "diff-view",
-      })
-    },
-    [filePath, setActiveInput]
-  )
-
-  // Handle mouse down for drag selection
-  const handleMouseDown = useCallback(
-    (line: LineInfo, event: React.MouseEvent) => {
-      // Only start drag on left click
-      if (event.button !== 0) return
-
-      event.preventDefault()
-      isDragging.current = true
-      dragStartLine.current = line
-
-      setLineSelection({
-        filePath,
-        startLine: line.lineNumber,
-        currentLine: line.lineNumber,
-        side: line.side,
-      })
-    },
-    [filePath, setLineSelection]
-  )
-
-  // Handle mouse move during drag
-  useEffect(() => {
-    if (!lineSelection || !isDragging.current) return
-
-    const handleGlobalMouseMove = (event: MouseEvent) => {
-      const mouseY = event.clientY
-
-      // Find the line at current mouse position
-      for (const line of lineElements) {
-        if (
-          mouseY >= line.rect.top &&
-          mouseY <= line.rect.bottom &&
-          line.side === lineSelection.side
-        ) {
-          setLineSelection((prev) =>
-            prev ? { ...prev, currentLine: line.lineNumber } : null
-          )
-          break
-        }
-      }
-    }
-
-    const handleGlobalMouseUp = () => {
-      if (!isDragging.current || !dragStartLine.current) return
-
-      isDragging.current = false
-      const startLine = lineSelection.startLine
-      const endLine = lineSelection.currentLine
-
-      // Get selected code content
-      const minLine = Math.min(startLine, endLine)
-      const maxLine = Math.max(startLine, endLine)
-      let selectedCode = ""
-
-      for (const line of lineElements) {
-        if (
-          line.lineNumber >= minLine &&
-          line.lineNumber <= maxLine &&
-          line.side === lineSelection.side
-        ) {
-          const row = line.element.closest("tr")
-          const contentCell = row?.querySelector(".diff-line-content-item")
-          if (contentCell?.textContent) {
-            selectedCode += contentCell.textContent + "\n"
-          }
-        }
-      }
-
-      // Open comment input
-      const startLineInfo = lineElements.find(
-        (l) => l.lineNumber === minLine && l.side === lineSelection.side
-      )
-
-      if (startLineInfo) {
-        setActiveInput({
-          filePath,
-          lineRange: {
-            startLine: minLine,
-            endLine: maxLine,
-            side: lineSelection.side,
-          },
-          selectedCode: selectedCode.trimEnd() || undefined,
-          anchorRect: startLineInfo.rect,
-          source: "diff-view",
-        })
-      }
-
-      setLineSelection(null)
-      dragStartLine.current = null
-    }
-
-    document.addEventListener("mousemove", handleGlobalMouseMove)
-    document.addEventListener("mouseup", handleGlobalMouseUp)
-
-    return () => {
-      document.removeEventListener("mousemove", handleGlobalMouseMove)
-      document.removeEventListener("mouseup", handleGlobalMouseUp)
-    }
-  }, [lineSelection, lineElements, filePath, setActiveInput, setLineSelection])
-
-  // Handle comment submission
-  const handleSubmitComment = useCallback(
-    (body: string) => {
-      if (!activeInput) return
-
-      const newComment = addComment({
-        filePath: activeInput.filePath,
-        lineRange: activeInput.lineRange,
-        body,
-        selectedCode: activeInput.selectedCode,
-        source: activeInput.source,
-      })
-
-      onCommentAdded?.(newComment)
-      closeCommentInput()
-    },
-    [activeInput, addComment, closeCommentInput, onCommentAdded]
-  )
-
   // Check if a line has comments and return the comments info
   const getCommentsForLine = useCallback(
     (lineNumber: number, side: "old" | "new") => {
@@ -349,56 +214,20 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
     [comments]
   )
 
-  // Get comment count for display
-  const getCommentCountForLine = useCallback(
-    (lineNumber: number, side: "old" | "new") => {
-      return getCommentsForLine(lineNumber, side).length
-    },
-    [getCommentsForLine]
-  )
-
-  // Handle click on comment indicator - opens edit popup for user comments
+  // Handle click on comment indicator - opens edit popup for comments
   const handleCommentIndicatorClick = useCallback(
     (lineNumber: number, side: "old" | "new") => {
       const lineComments = getCommentsForLine(lineNumber, side)
+      if (lineComments.length === 0) return
 
-      // First, check for user's own review comments (can be edited)
-      const userComment = lineComments.find((c) => c.source === "diff-view" && !("isContextComment" in c))
-      if (userComment) {
-        // Open edit mode for this comment
-        setEditingComment(userComment)
-        return
-      }
-
-      // Fall back to context comment handling
-      const contextComment = lineComments.find((c) => (c as any).isContextComment)
-      if (contextComment && onContextCommentClick) {
-        onContextCommentClick(contextComment.id)
+      // Open edit mode for the first comment on this line
+      const comment = lineComments[0]
+      if (comment) {
+        setEditingComment(comment)
       }
     },
-    [getCommentsForLine, onContextCommentClick]
+    [getCommentsForLine]
   )
-
-  // Determine if a line is in the current selection
-  const isLineInSelection = useCallback(
-    (lineNumber: number, side: "old" | "new") => {
-      if (!lineSelection || lineSelection.side !== side) return false
-      const minLine = Math.min(lineSelection.startLine, lineSelection.currentLine)
-      const maxLine = Math.max(lineSelection.startLine, lineSelection.currentLine)
-      return lineNumber >= minLine && lineNumber <= maxLine
-    },
-    [lineSelection]
-  )
-
-  // Memoize comment counts to avoid recalculating on every render
-  const lineCommentCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const line of lineElements) {
-      const key = `${line.lineNumber}-${line.side}`
-      counts.set(key, getCommentCountForLine(line.lineNumber, line.side))
-    }
-    return counts
-  }, [lineElements, getCommentCountForLine])
 
   // Calculate comment highlights for code lines (must be before conditional return)
   const commentHighlights = useMemo(() => {
@@ -522,63 +351,6 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
         )
       })}
 
-      {/* Overlay layer - pointer-events: none so it doesn't block diff view interaction */}
-      <div className="absolute inset-0 z-10 pointer-events-none">
-        {/* Render indicators and buttons for each line */}
-        {lineElements.map((line) => {
-          const key = `${line.lineNumber}-${line.side}`
-          const commentCount = lineCommentCounts.get(key) ?? 0
-          const isHovered = hoveredLine?.lineNumber === line.lineNumber && hoveredLine?.side === line.side
-          const isInSelection = isLineInSelection(line.lineNumber, line.side)
-
-          // Calculate position relative to cached container rect
-          const top = line.rect.top - containerRect.top
-          const left = line.rect.left - containerRect.left - 24 // Position left of line number
-
-          return (
-            <div
-              key={key}
-              className={cn(
-                "absolute flex items-center gap-0.5",
-                isInSelection && "bg-blue-500/20"
-              )}
-              style={{
-                top: `${top}px`,
-                left: `${left}px`,
-                height: `${line.rect.height}px`,
-                width: "24px",
-                // Enable pointer events only for this line's gutter area
-                pointerEvents: "auto",
-              }}
-              onMouseEnter={() => setHoveredLine(line)}
-              onMouseLeave={() => setHoveredLine(null)}
-            >
-              {/* Add button (shown on hover when no existing comments on this line) */}
-              {isHovered && commentCount === 0 && (
-                <CommentAddButton
-                  onClick={(e) => handleAddClick(line, e)}
-                  onMouseDown={(e) => handleMouseDown(line, e)}
-                  className="absolute left-0"
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Comment input popup */}
-      {activeInput && activeInput.filePath === filePath && (
-        <CommentInputPopup
-          filePath={activeInput.filePath}
-          lineRange={activeInput.lineRange}
-          anchorRect={activeInput.anchorRect}
-          selectedCode={activeInput.selectedCode}
-          source={activeInput.source}
-          onSubmit={handleSubmitComment}
-          onCancel={closeCommentInput}
-        />
-      )}
-
       {/* Comment edit popup */}
       {editingComment && editingComment.filePath === filePath && (
         <CommentEditPopup
@@ -589,7 +361,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
             setEditingComment(null)
           }}
           onDelete={() => {
-            deleteComment(editingComment.id)
+            handleDeleteComment(editingComment)
             setEditingComment(null)
           }}
           onCancel={() => setEditingComment(null)}

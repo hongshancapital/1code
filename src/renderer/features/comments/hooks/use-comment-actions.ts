@@ -43,22 +43,10 @@ export function useCommentActions(chatId: string) {
         createdAt: Date.now(),
       }
 
-      console.log("[useCommentActions] addComment called:", {
-        chatId,
-        newComment,
-        currentCommentsCount: comments.length,
-      })
-
-      setComments((prev) => {
-        console.log("[useCommentActions] setComments:", {
-          prevCount: prev.length,
-          newCount: prev.length + 1,
-        })
-        return [...prev, newComment]
-      })
+      setComments((prev) => [...prev, newComment])
       return newComment
     },
-    [setComments, chatId, comments.length]
+    [setComments]
   )
 
   /**

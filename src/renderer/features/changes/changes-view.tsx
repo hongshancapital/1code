@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { toast } from "sonner";
 import { useEffect, useState, useCallback, useRef, useMemo, memo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { trpc } from "../../lib/trpc";
 import { preferredEditorAtom } from "../../lib/atoms";
@@ -889,58 +890,38 @@ export function ChangesView({
 							</span>
 						</div>
 
-						{/* File list */}
-						{totalCount === 0 ? (
-							<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
-								No changes detected
-							</div>
-						) : filteredCount === 0 ? (
-							<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
-								No files match filter
-							</div>
-						) : (
-							<div
-								ref={fileListRef}
-								className="flex-1 overflow-y-auto outline-none"
-								tabIndex={0}
-								onKeyDown={handleKeyDown}
-							>
-								{filteredFiles.map(({ file, category }, index) => (
-									<ChangesFileItemWithContext
-										key={file.path}
-										file={file}
-										category={category}
-										isSelected={selectedFile?.path === file.path}
-										isChecked={selectedForCommit.has(file.path)}
-										isViewed={isFileMarkedAsViewed(file.path)}
-										isHighlighted={highlightedFiles.has(file.path)}
-										highlightedCount={highlightedCount}
-										highlightedPaths={highlightedPaths}
-										index={index}
-										onSelect={() => {
-											handleFileSelect(file, category);
-											fileListRef.current?.focus();
-										}}
-										onDoubleClick={() => handleFileDoubleClick(file, category)}
-										onCheckboxChange={() => handleCheckboxChange(file.path)}
-										onShiftClick={handleShiftClick}
-										onCopyPath={() => handleCopyPath(file.path)}
-										onCopyRelativePath={() => handleCopyRelativePath(file.path)}
-										onRevealInFinder={() => handleRevealInFinder(file.path)}
-										onOpenInFilePreview={() => handleOpenInFilePreview(file.path)}
-										onOpenInEditor={() => handleOpenInPreferredEditor(file.path)}
-										editorLabel={editorMeta.label}
-										onToggleViewed={() => toggleFileViewed(file.path)}
-										onDiscard={() => setDiscardFile(file)}
-										onDiscardSelected={handleDiscardSelected}
-										onIncludeSelected={handleIncludeSelected}
-										onExcludeSelected={handleExcludeSelected}
-										onCopySelectedPaths={() => handleCopySelectedPaths(worktreePath)}
-										onCopySelectedRelativePaths={handleCopySelectedRelativePaths}
-									/>
-								))}
-							</div>
-						)}
+						{/* File list with virtualization */}
+						<VirtualizedFileList
+							fileListRef={fileListRef}
+							filteredFiles={filteredFiles}
+							totalCount={totalCount}
+							filteredCount={filteredCount}
+							selectedFile={selectedFile}
+							selectedForCommit={selectedForCommit}
+							highlightedFiles={highlightedFiles}
+							highlightedCount={highlightedCount}
+							highlightedPaths={highlightedPaths}
+							isFileMarkedAsViewed={isFileMarkedAsViewed}
+							handleKeyDown={handleKeyDown}
+							handleFileSelect={handleFileSelect}
+							handleFileDoubleClick={handleFileDoubleClick}
+							handleCheckboxChange={handleCheckboxChange}
+							handleShiftClick={handleShiftClick}
+							handleCopyPath={handleCopyPath}
+							handleCopyRelativePath={handleCopyRelativePath}
+							handleRevealInFinder={handleRevealInFinder}
+							handleOpenInFilePreview={handleOpenInFilePreview}
+							handleOpenInPreferredEditor={handleOpenInPreferredEditor}
+							editorLabel={editorMeta.label}
+							toggleFileViewed={toggleFileViewed}
+							setDiscardFile={setDiscardFile}
+							handleDiscardSelected={handleDiscardSelected}
+							handleIncludeSelected={handleIncludeSelected}
+							handleExcludeSelected={handleExcludeSelected}
+							handleCopySelectedPaths={handleCopySelectedPaths}
+							handleCopySelectedRelativePaths={handleCopySelectedRelativePaths}
+							worktreePath={worktreePath}
+						/>
 
 						{/* Commit input */}
 						<CommitInput
@@ -1046,3 +1027,171 @@ export function ChangesView({
 		</>
 	);
 }
+
+// Virtualized file list component for better performance with large file counts
+const FILE_ITEM_HEIGHT = 32; // Height of each file item in pixels
+
+interface VirtualizedFileListProps {
+	fileListRef: React.RefObject<HTMLDivElement>;
+	filteredFiles: Array<{ file: ChangedFile; category: ChangeCategory }>;
+	totalCount: number;
+	filteredCount: number;
+	selectedFile: ChangedFile | null;
+	selectedForCommit: Set<string>;
+	highlightedFiles: Set<string>;
+	highlightedCount: number;
+	highlightedPaths: string[];
+	isFileMarkedAsViewed: (filePath: string) => boolean;
+	handleKeyDown: (e: React.KeyboardEvent) => void;
+	handleFileSelect: (file: ChangedFile, category: ChangeCategory) => void;
+	handleFileDoubleClick: (file: ChangedFile, category: ChangeCategory) => void;
+	handleCheckboxChange: (filePath: string) => void;
+	handleShiftClick: (index: number) => void;
+	handleCopyPath: (filePath: string) => void;
+	handleCopyRelativePath: (filePath: string) => void;
+	handleRevealInFinder: (filePath: string) => void;
+	handleOpenInFilePreview: (filePath: string) => void;
+	handleOpenInPreferredEditor: (filePath: string) => void;
+	editorLabel: string;
+	toggleFileViewed: (filePath: string) => void;
+	setDiscardFile: (file: ChangedFile) => void;
+	handleDiscardSelected: () => void;
+	handleIncludeSelected: () => void;
+	handleExcludeSelected: () => void;
+	handleCopySelectedPaths: (worktreePath: string) => void;
+	handleCopySelectedRelativePaths: () => void;
+	worktreePath: string;
+}
+
+const VirtualizedFileList = memo(function VirtualizedFileList({
+	fileListRef,
+	filteredFiles,
+	totalCount,
+	filteredCount,
+	selectedFile,
+	selectedForCommit,
+	highlightedFiles,
+	highlightedCount,
+	highlightedPaths,
+	isFileMarkedAsViewed,
+	handleKeyDown,
+	handleFileSelect,
+	handleFileDoubleClick,
+	handleCheckboxChange,
+	handleShiftClick,
+	handleCopyPath,
+	handleCopyRelativePath,
+	handleRevealInFinder,
+	handleOpenInFilePreview,
+	handleOpenInPreferredEditor,
+	editorLabel,
+	toggleFileViewed,
+	setDiscardFile,
+	handleDiscardSelected,
+	handleIncludeSelected,
+	handleExcludeSelected,
+	handleCopySelectedPaths,
+	handleCopySelectedRelativePaths,
+	worktreePath,
+}: VirtualizedFileListProps) {
+	const parentRef = useRef<HTMLDivElement>(null);
+
+	const virtualizer = useVirtualizer({
+		count: filteredCount,
+		getScrollElement: () => parentRef.current,
+		estimateSize: () => FILE_ITEM_HEIGHT,
+		overscan: 10, // Render 10 extra items above/below viewport for smoother scrolling
+	});
+
+	// Sync fileListRef with parentRef for keyboard navigation scrollIntoView
+	useEffect(() => {
+		if (fileListRef.current !== parentRef.current) {
+			// @ts-expect-error - We need to sync the refs
+			fileListRef.current = parentRef.current;
+		}
+	}, [fileListRef]);
+
+	if (totalCount === 0) {
+		return (
+			<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
+				No changes detected
+			</div>
+		);
+	}
+
+	if (filteredCount === 0) {
+		return (
+			<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
+				No files match filter
+			</div>
+		);
+	}
+
+	return (
+		<div
+			ref={parentRef}
+			className="flex-1 overflow-y-auto outline-none"
+			tabIndex={0}
+			onKeyDown={handleKeyDown}
+		>
+			<div
+				style={{
+					height: virtualizer.getTotalSize(),
+					width: "100%",
+					position: "relative",
+				}}
+			>
+				{virtualizer.getVirtualItems().map((virtualRow) => {
+					const { file, category } = filteredFiles[virtualRow.index]!;
+					const index = virtualRow.index;
+					return (
+						<div
+							key={file.path}
+							data-file-item
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: `${virtualRow.size}px`,
+								transform: `translateY(${virtualRow.start}px)`,
+							}}
+						>
+							<ChangesFileItemWithContext
+								file={file}
+								category={category}
+								isSelected={selectedFile?.path === file.path}
+								isChecked={selectedForCommit.has(file.path)}
+								isViewed={isFileMarkedAsViewed(file.path)}
+								isHighlighted={highlightedFiles.has(file.path)}
+								highlightedCount={highlightedCount}
+								highlightedPaths={highlightedPaths}
+								index={index}
+								onSelect={() => {
+									handleFileSelect(file, category);
+									parentRef.current?.focus();
+								}}
+								onDoubleClick={() => handleFileDoubleClick(file, category)}
+								onCheckboxChange={() => handleCheckboxChange(file.path)}
+								onShiftClick={handleShiftClick}
+								onCopyPath={() => handleCopyPath(file.path)}
+								onCopyRelativePath={() => handleCopyRelativePath(file.path)}
+								onRevealInFinder={() => handleRevealInFinder(file.path)}
+								onOpenInFilePreview={() => handleOpenInFilePreview(file.path)}
+								onOpenInEditor={() => handleOpenInPreferredEditor(file.path)}
+								editorLabel={editorLabel}
+								onToggleViewed={() => toggleFileViewed(file.path)}
+								onDiscard={() => setDiscardFile(file)}
+								onDiscardSelected={handleDiscardSelected}
+								onIncludeSelected={handleIncludeSelected}
+								onExcludeSelected={handleExcludeSelected}
+								onCopySelectedPaths={() => handleCopySelectedPaths(worktreePath)}
+								onCopySelectedRelativePaths={handleCopySelectedRelativePaths}
+							/>
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+});

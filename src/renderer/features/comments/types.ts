@@ -40,6 +40,10 @@ export interface ReviewComment {
   source: CommentSource
   status: CommentStatus
   createdAt: number
+  /** 标记是否为 context comment（来自 chat input 添加的 comment） */
+  isContextComment?: boolean
+  /** 标记是否为 review comment（来自 ReviewPanel 添加的 comment） */
+  isReviewComment?: boolean
 }
 
 // ============================================================================

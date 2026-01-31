@@ -393,16 +393,18 @@ interface FileDiffCardProps {
   isViewed: boolean
   /** Callback to toggle viewed state */
   onToggleViewed: (fileKey: string, diffText: string) => void
-  /** Chat ID for comment storage */
+  /** Chat ID for comment storage and file preview sidebar */
   chatId: string
   /** Comments for this file */
   fileComments: ReviewComment[]
   /** Callback when clicking a context comment bubble */
   onContextCommentClick?: (commentId: string) => void
+  /** Callback to delete a context comment */
+  onDeleteContextComment?: (commentId: string) => void
+  /** Callback to delete a review comment */
+  onDeleteReviewComment?: (commentId: string) => void
   /** Whether to show the viewed checkbox (hide for sandboxes) */
   showViewed?: boolean
-  /** Chat ID for file preview sidebar */
-  chatId?: string
 }
 
 // Custom comparator to prevent unnecessary re-renders
@@ -431,15 +433,18 @@ const fileDiffCardAreEqual = (
   // Comment state
   if (prev.chatId !== next.chatId) return false
   if (prev.fileComments.length !== next.fileComments.length) return false
-  // Deep compare comments (by id and body) for efficient checks
+  // Deep compare comments (by id, body, flags) for efficient checks
   for (let i = 0; i < prev.fileComments.length; i++) {
     if (prev.fileComments[i]?.id !== next.fileComments[i]?.id) return false
     if (prev.fileComments[i]?.body !== next.fileComments[i]?.body) return false
+    if (prev.fileComments[i]?.isContextComment !== next.fileComments[i]?.isContextComment) return false
+    if (prev.fileComments[i]?.isReviewComment !== next.fileComments[i]?.isReviewComment) return false
   }
   // Context comment click handler reference comparison
   if (prev.onContextCommentClick !== next.onContextCommentClick) return false
+  if (prev.onDeleteContextComment !== next.onDeleteContextComment) return false
+  if (prev.onDeleteReviewComment !== next.onDeleteReviewComment) return false
   if (prev.showViewed !== next.showViewed) return false
-  if (prev.chatId !== next.chatId) return false
   return true
 }
 
@@ -462,6 +467,8 @@ const FileDiffCard = memo(function FileDiffCard({
   chatId,
   fileComments,
   onContextCommentClick,
+  onDeleteContextComment,
+  onDeleteReviewComment,
   showViewed = true,
 }: FileDiffCardProps) {
   const diffViewRef = useRef<{ getDiffFileInstance: () => DiffFile } | null>(
@@ -853,6 +860,8 @@ const FileDiffCard = memo(function FileDiffCard({
                 comments={fileComments}
                 diffMode={diffMode === DiffModeEnum.Split ? "split" : "unified"}
                 onContextCommentClick={onContextCommentClick}
+                onDeleteContextComment={onDeleteContextComment}
+                onDeleteReviewComment={onDeleteReviewComment}
               />
             </div>
           )}
@@ -1043,7 +1052,7 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     const reviewComments = useAtomValue(reviewCommentsAtomFamily(effectiveSubChatId))
 
     // Get context comments from atom (shared with chat input)
-    const contextCommentsFromAtom = useAtomValue(contextCommentsAtom)
+    const [contextCommentsFromAtom, setContextCommentsAtom] = useAtom(contextCommentsAtom)
     const setContextCommentClicked = useSetAtom(contextCommentClickedAtom)
 
     // Handle context comment click - set atom to notify chat component
@@ -1051,10 +1060,21 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       setContextCommentClicked(commentId)
     }, [setContextCommentClicked])
 
+    // Handle delete context comment
+    const handleDeleteContextComment = useCallback((commentId: string) => {
+      setContextCommentsAtom((prev) => prev.filter((c) => c.id !== commentId))
+    }, [setContextCommentsAtom])
+
+    // Handle delete review comment (from ReviewPanel / useDocumentComments)
+    const { removeComment: removeReviewComment } = useDocumentComments(effectiveSubChatId)
+    const handleDeleteReviewComment = useCallback((commentId: string) => {
+      removeReviewComment(commentId)
+    }, [removeReviewComment])
+
     // Convert context comments to ReviewComment format
     // Use atom value if props not provided
     const effectiveContextComments = contextComments ?? contextCommentsFromAtom
-    const contextCommentsAsReview = useMemo((): (ReviewComment & { isContextComment?: boolean })[] => {
+    const contextCommentsAsReview = useMemo((): ReviewComment[] => {
       if (!effectiveContextComments || effectiveContextComments.length === 0) return []
       return effectiveContextComments.map((ctx) => ({
         id: ctx.id,
@@ -1075,7 +1095,7 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     }, [effectiveContextComments])
 
     // Convert new review system comments (DocumentComment) to ReviewComment format
-    const reviewCommentsAsReview = useMemo((): ReviewComment[] => {
+    const reviewCommentsAsReview = useMemo((): (ReviewComment & { isReviewComment?: boolean })[] => {
       // Only include diff type comments
       const diffComments = reviewComments.filter((c) => c.documentType === "diff")
       return diffComments.map((c) => ({
@@ -1091,6 +1111,8 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
         source: "diff-view" as const,
         status: "pending" as const,
         createdAt: new Date(c.createdAt).getTime(),
+        // Mark as review system comment (not editable via pendingComments)
+        isReviewComment: true,
       }))
     }, [reviewComments])
 
@@ -2298,6 +2320,8 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
                         chatId={chatId}
                         fileComments={getFileComments(file.newPath !== "/dev/null" ? file.newPath : file.oldPath)}
                         onContextCommentClick={onContextCommentClick ?? handleContextCommentClick}
+                        onDeleteContextComment={handleDeleteContextComment}
+                        onDeleteReviewComment={handleDeleteReviewComment}
                         showViewed={!!worktreePath}
                       />
                     </div>
