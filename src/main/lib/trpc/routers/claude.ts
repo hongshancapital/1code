@@ -1700,7 +1700,7 @@ ${prompt}
                     } as unknown as UIMessageChunk)
                     return {
                       behavior: "allow" as const,
-                      updatedInput: response.updatedInput,
+                      updatedInput: response.updatedInput as Record<string, unknown> | undefined,
                     }
                   }
                   return {

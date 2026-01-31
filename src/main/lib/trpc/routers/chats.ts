@@ -538,6 +538,8 @@ export const chatsRouter = router({
       z.object({
         subChatId: z.string(),
         sdkMessageUuid: z.string(),
+        // Optional: message index as fallback when UUID lookup fails
+        messageIndex: z.number().optional(),
       }),
     )
     .mutation(async ({ input }): Promise<
@@ -556,15 +558,46 @@ export const chatsRouter = router({
         return { success: false, error: "Sub-chat not found" }
       }
 
-      // 2. Parse messages and find the target message by sdkMessageUuid
+      // 2. Parse messages and find the target message
       const messages = JSON.parse(subChat.messages || "[]")
-      const targetIndex = messages.findIndex(
+
+      // Log all messages for debugging
+      console.log("[rollback] Looking for message:", {
+        sdkMessageUuid: input.sdkMessageUuid,
+        messageIndex: input.messageIndex,
+        dbMessageCount: messages.length,
+        dbMessages: messages.map((m: any, idx: number) => ({
+          idx,
+          id: m.id,
+          role: m.role,
+          sdkMessageUuid: m.metadata?.sdkMessageUuid,
+        })),
+      })
+
+      // Primary lookup: by sdkMessageUuid
+      let targetIndex = messages.findIndex(
         (m: any) => m.metadata?.sdkMessageUuid === input.sdkMessageUuid,
       )
 
+      // Fallback: use messageIndex if provided and UUID lookup failed
+      if (targetIndex === -1 && input.messageIndex !== undefined) {
+        // Validate the index is within bounds and points to an assistant message
+        if (
+          input.messageIndex >= 0 &&
+          input.messageIndex < messages.length &&
+          messages[input.messageIndex].role === "assistant"
+        ) {
+          console.log("[rollback] UUID lookup failed, using messageIndex fallback:", input.messageIndex)
+          targetIndex = input.messageIndex
+        }
+      }
+
       if (targetIndex === -1) {
+        console.error("[rollback] Message not found after all fallbacks")
         return { success: false, error: "Message not found" }
       }
+
+      console.log("[rollback] Found target message at index:", targetIndex)
 
       // 3. Get the parent chat for worktreePath
       const chat = db
