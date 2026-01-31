@@ -42,8 +42,25 @@ import {
 
 // Stub implementations for disabled cloud features
 const useUserTeams = (_enabled?: boolean) => ({ data: undefined, isLoading: false, isError: false })
-const useRemoteChats = () => ({ data: undefined })
-const usePrefetchRemoteChat = () => () => {}
+interface RemoteChatStub {
+  id: string
+  name: string
+  owner_id: string
+  sandbox_id: string | null
+  meta: {
+    repository?: string
+    branch?: string | null
+    originalSandboxId?: string | null
+    isQuickSetup?: boolean
+    isPublicImport?: boolean
+  } | null
+  created_at: string
+  updated_at: string
+  archived_at?: string | null
+  stats: { fileCount: number; additions: number; deletions: number; totalTokens: number } | null
+}
+const useRemoteChats = () => ({ data: [] as RemoteChatStub[] })
+const usePrefetchRemoteChat = () => (_chatId: string) => {}
 const useArchiveRemoteChat = () => ({
   mutate: (_id: string, _options?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {},
   isPending: false
@@ -57,8 +74,8 @@ const useRestoreRemoteChat = () => ({
   mutate: (_id: string, _options?: { onSuccess?: () => void; onError?: (err: Error) => void }) => {}
 })
 const useRenameRemoteChat = () => ({
-  mutate: (_data: { id: string; name: string }) => {},
-  mutateAsync: async (_data: { id: string; name: string }) => {}
+  mutate: (_data: { chatId: string; name: string }) => {},
+  mutateAsync: async (_data: { chatId: string; name: string }) => {}
 })
 import { ArchivePopover } from "../agents/ui/archive-popover"
 import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight } from "lucide-react"
@@ -883,7 +900,7 @@ interface ChatListSectionProps {
     projectId: string | null
     isRemote: boolean
     meta?: { repository?: string; branch?: string | null } | null
-    remoteStats?: { fileCount: number; additions: number; deletions: number } | null
+    remoteStats?: { fileCount: number; additions: number; deletions: number; totalTokens: number } | null
   }>
   selectedChatId: string | null
   selectedChatIsRemote: boolean
@@ -898,7 +915,7 @@ interface ChatListSectionProps {
   isDesktop: boolean
   pinnedChatIds: Set<string>
   projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null; mode?: string | null }>
-  workspaceFileStats: Map<string, { fileCount: number; additions: number; deletions: number }>
+  workspaceFileStats: Map<string, { fileCount: number; additions: number; deletions: number; totalTokens: number }>
   filteredChats: Array<{ id: string }>
   canShowPinOption: boolean
   areAllSelectedPinned: boolean
@@ -1238,8 +1255,9 @@ const InboxButton = memo(function InboxButton() {
 const AutomationsButton = memo(function AutomationsButton() {
   const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
 
-  const handleClick = useCallback(() => {
-    window.desktopApi.openExternal("https://21st.dev/agents/app/async/automations")
+  const handleClick = useCallback(async () => {
+    const apiBase = await window.desktopApi.getApiBaseUrl()
+    window.desktopApi.openExternal(`${apiBase}/agents/app/async/automations`)
   }, [])
 
   if (!automationsEnabled) return null
@@ -1845,7 +1863,7 @@ export function AgentsSidebar({
       sandboxId?: string | null
       meta?: { repository?: string; branch?: string | null } | null
       isRemote: boolean
-      remoteStats?: { fileCount: number; additions: number; deletions: number } | null
+      remoteStats?: { fileCount: number; additions: number; deletions: number; totalTokens: number } | null
     }> = []
 
     // Add local chats
