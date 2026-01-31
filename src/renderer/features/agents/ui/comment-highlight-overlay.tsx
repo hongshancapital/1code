@@ -7,7 +7,7 @@ import type { DocumentComment } from "../atoms/review-atoms"
 
 interface CommentHighlightOverlayProps {
   /** Container element to search for text matches */
-  containerRef: React.RefObject<HTMLElement>
+  containerRef: React.RefObject<HTMLElement | null>
   /** Comments to highlight */
   comments: DocumentComment[]
   /** Callback when clicking on a highlight, receives the icon's bounding rect */

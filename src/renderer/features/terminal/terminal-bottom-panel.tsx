@@ -457,9 +457,6 @@ export function TerminalBottomPanel({
       heightAtom={codingTerminalPanelHeightAtom}
       minHeight={100}
       maxHeight={600}
-      animationDuration={PANEL_ANIMATION_DURATION_SECONDS}
-      initialHeight={0}
-      exitHeight={0}
       className="bg-background border-t"
       style={{ borderTopWidth: "0.5px", overflow: "hidden" }}
     >
@@ -498,13 +495,11 @@ export function TerminalBottomPanel({
               cwds={terminalCwds}
               initialCwd={cwd}
               terminalBg={terminalBg}
-              projectPath={projectPath}
               onSelectTerminal={selectTerminal}
               onCloseTerminal={closeTerminal}
               onCloseOtherTerminals={closeOtherTerminals}
               onCloseTerminalsToRight={closeTerminalsToRight}
               onCreateTerminal={createTerminal}
-              onCreateRunTerminal={createRunTerminal}
               onRenameTerminal={renameTerminal}
             />
           )}

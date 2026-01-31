@@ -25,6 +25,7 @@ import {
   chatSourceModeAtom,
   selectedTeamIdAtom,
   type ChatSourceMode,
+  type SettingsTab,
   showWorkspaceIconAtom,
   betaKanbanEnabledAtom,
   betaAutomationsEnabledAtom,
@@ -87,7 +88,7 @@ import { useQuery } from "@tanstack/react-query"
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null, isLoaded: true })
 // import { AuthDialog } from "@/components/auth/auth-dialog"
-const AuthDialog = () => null
+const AuthDialog = (_props: { open?: boolean; onOpenChange?: (open: boolean) => void }) => null
 // Desktop: archive is handled inline, not via hook
 import { AgentsRenameSubChatDialog } from "../agents/components/agents-rename-subchat-dialog"
 import { OpenLocallyDialog } from "../agents/components/open-locally-dialog"
@@ -1102,7 +1103,7 @@ const ChatListSection = React.memo(function ChatListSection({
 interface AgentsSidebarProps {
   userId?: string | null | undefined
   clerkUser?: any
-  desktopUser?: { id: string; email: string; name?: string; imageUrl?: string | null } | null
+  desktopUser?: { id: string; email: string; name?: string | null; imageUrl?: string | null; username?: string | null } | null
   onSignOut?: () => void
   onToggleSidebar?: () => void
   isMobileFullscreen?: boolean
@@ -1328,15 +1329,15 @@ interface SidebarHeaderProps {
   isFullscreen: boolean | null
   isMobileFullscreen: boolean
   userId: string | null | undefined
-  desktopUser: { id: string; email: string; name?: string; imageUrl?: string | null } | null
+  desktopUser: { id: string; email: string; name?: string | null; imageUrl?: string | null } | null
   onSignOut: () => void
   onToggleSidebar?: () => void
   setSettingsDialogOpen: (open: boolean) => void
-  setSettingsActiveTab: (tab: string) => void
+  setSettingsActiveTab: (tab: SettingsTab) => void
   setShowAuthDialog: (open: boolean) => void
   handleSidebarMouseEnter: () => void
-  handleSidebarMouseLeave: () => void
-  closeButtonRef: React.RefObject<HTMLDivElement>
+  handleSidebarMouseLeave: (e: React.MouseEvent) => void
+  closeButtonRef: React.RefObject<HTMLDivElement | null>
 }
 
 const SidebarHeader = memo(function SidebarHeader({

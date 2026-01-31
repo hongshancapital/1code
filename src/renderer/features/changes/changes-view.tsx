@@ -1032,7 +1032,7 @@ export function ChangesView({
 const FILE_ITEM_HEIGHT = 32; // Height of each file item in pixels
 
 interface VirtualizedFileListProps {
-	fileListRef: React.RefObject<HTMLDivElement>;
+	fileListRef: React.RefObject<HTMLDivElement | null>;
 	filteredFiles: Array<{ file: ChangedFile; category: ChangeCategory }>;
 	totalCount: number;
 	filteredCount: number;
@@ -1106,7 +1106,6 @@ const VirtualizedFileList = memo(function VirtualizedFileList({
 	// Sync fileListRef with parentRef for keyboard navigation scrollIntoView
 	useEffect(() => {
 		if (fileListRef.current !== parentRef.current) {
-			// @ts-expect-error - We need to sync the refs
 			fileListRef.current = parentRef.current;
 		}
 	}, [fileListRef]);

@@ -109,8 +109,9 @@ export function AutomationsView() {
     setDesktopView("automations-detail")
   }
 
-  const isGithubConnected = githubStatus?.isConnected ?? false
-  const isLinearConnected = linearStatus?.isConnected ?? false
+  // [CLOUD DISABLED] Always false since cloud is disabled
+  const isGithubConnected = false
+  const isLinearConnected = false
 
   const getTemplateDisabledReason = (platform: Platform): string | undefined => {
     if (platform === "github" && !isGithubConnected) {

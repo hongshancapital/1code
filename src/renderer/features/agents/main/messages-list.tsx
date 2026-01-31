@@ -915,6 +915,7 @@ export function useUserMessageWithAssistants(userMsgId: string) {
 interface SimpleIsolatedGroupProps {
   userMsgId: string
   subChatId: string
+  chatId: string
   isMobile: boolean
   sandboxSetupStatus: "cloning" | "ready" | "error"
   isSubChatsSidebarOpen: boolean
@@ -945,6 +946,7 @@ function areSimpleGroupPropsEqual(
   return (
     prev.userMsgId === next.userMsgId &&
     prev.subChatId === next.subChatId &&
+    prev.chatId === next.chatId &&
     prev.isMobile === next.isMobile &&
     prev.sandboxSetupStatus === next.sandboxSetupStatus &&
     prev.isSubChatsSidebarOpen === next.isSubChatsSidebarOpen &&
@@ -961,6 +963,7 @@ function areSimpleGroupPropsEqual(
 export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   userMsgId,
   subChatId,
+  chatId,
   isMobile,
   sandboxSetupStatus,
   stickyTopClass,
@@ -1105,6 +1108,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
         <MemoizedAssistantMessages
           assistantMsgIds={assistantMsgIds}
           subChatId={subChatId}
+          chatId={chatId}
           isMobile={isMobile}
           sandboxSetupStatus={sandboxSetupStatus}
         />
@@ -1131,6 +1135,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
 
 interface SimpleIsolatedListProps {
   subChatId: string
+  chatId: string
   isMobile: boolean
   sandboxSetupStatus: "cloning" | "ready" | "error"
   isSubChatsSidebarOpen: boolean
@@ -1149,6 +1154,7 @@ function areSimpleListPropsEqual(
 ): boolean {
   return (
     prev.subChatId === next.subChatId &&
+    prev.chatId === next.chatId &&
     prev.isMobile === next.isMobile &&
     prev.sandboxSetupStatus === next.sandboxSetupStatus &&
     prev.isSubChatsSidebarOpen === next.isSubChatsSidebarOpen &&
@@ -1164,6 +1170,7 @@ function areSimpleListPropsEqual(
 
 export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesList({
   subChatId,
+  chatId,
   isMobile,
   sandboxSetupStatus,
   isSubChatsSidebarOpen,
@@ -1185,6 +1192,7 @@ export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesLi
           key={userMsgId}
           userMsgId={userMsgId}
           subChatId={subChatId}
+          chatId={chatId}
           isMobile={isMobile}
           sandboxSetupStatus={sandboxSetupStatus}
           isSubChatsSidebarOpen={isSubChatsSidebarOpen}

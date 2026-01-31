@@ -81,6 +81,8 @@ interface DetailsSidebarProps {
   onExpandPlan?: () => void
   onExpandDiff?: () => void
   onExpandExplorer?: () => void
+  /** Whether explorer panel is open */
+  isExplorerSidebarOpen?: boolean
   /** Callback when a file is selected in Changes widget - opens diff with file selected */
   onFileSelect?: (filePath: string) => void
   /** Remote chat info for sandbox workspaces */

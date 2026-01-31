@@ -290,6 +290,15 @@ export function useLSPClient({
 
               const completions = result.completions || []
 
+              // Get the word at position to create range
+              const word = model.getWordUntilPosition(position)
+              const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              }
+
               return {
                 suggestions: completions.map((item: any) => ({
                   label: item.name,
@@ -298,6 +307,7 @@ export function useLSPClient({
                   detail: item.kindModifiers,
                   sortText: item.sortText,
                   filterText: item.name,
+                  range,
                 })),
               }
             } catch (err) {

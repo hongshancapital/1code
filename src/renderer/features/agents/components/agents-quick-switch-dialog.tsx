@@ -11,10 +11,11 @@ interface AgentsQuickSwitchDialogProps {
   isOpen: boolean
   chats: Array<{
     id: string
-    name: string
-    meta: any
-    sandbox_id: string | null
-    updated_at: Date
+    name: string | null
+    meta?: any
+    sandbox_id?: string | null
+    updated_at?: Date
+    updatedAt?: Date | null
     projectId: string
   }>
   selectedIndex: number

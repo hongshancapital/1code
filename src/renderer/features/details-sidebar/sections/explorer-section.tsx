@@ -48,7 +48,7 @@ export const ExplorerSection = memo(function ExplorerSection({
       />
 
       {/* File preview dialog - triggered by file selection */}
-      <FilePreviewDialog projectPath={worktreePath} />
+      <FilePreviewDialog />
     </div>
   )
 })

@@ -189,7 +189,7 @@ interface AgentsSubChatsSidebarProps {
   onBackToChats?: () => void
   isSidebarOpen?: boolean
   isLoading?: boolean
-  agentName?: string
+  agentName?: string | null
 }
 
 export function AgentsSubChatsSidebar({
