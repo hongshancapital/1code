@@ -98,7 +98,6 @@ export function CommitInput({
 					const result = await generateCommitMutation.mutateAsync({
 						chatId,
 						filePaths: selectedFilePaths,
-						ollamaModel: selectedOllamaModel,
 					});
 					console.log("[CommitInput] AI generated message:", result.message);
 					commitMessage = result.message;

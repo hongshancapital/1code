@@ -53,7 +53,7 @@ import {
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { agentsChatFullWidthAtom, isPlanModeAtom, lastSelectedModelIdAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
+import { agentsChatFullWidthAtom, lastSelectedModelIdAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
 import { pendingFileReferenceAtom } from "../../cowork/atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentsSlashCommand, type SlashCommandOption } from "../commands"
@@ -1011,7 +1011,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
           // Read and cache content (will be added to prompt on send)
           try {
-            const content = await trpcUtils.files.readFile.fetch({ filePath })
+            const content = await trpcUtils.files.readFile.fetch({ path: filePath })
             onCacheFileContent?.(mentionId, content)
           } catch (err) {
             // If reading fails, chip is still there - agent can try to read via path
@@ -1397,30 +1397,37 @@ export const ChatInputArea = memo(function ChatInputArea({
                         }
                       }}
                     >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          disabled={hasCustomClaudeConfig}
-                          className={cn(
-                            "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-colors rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
-                            hasCustomClaudeConfig
-                              ? "opacity-70 cursor-not-allowed"
-                              : "hover:text-foreground hover:bg-muted/50",
-                          )}
-                        >
-                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {hasCustomClaudeConfig ? (
-                              "Custom Model"
-                            ) : (
-                              <>
-                                {selectedModel?.name}{" "}
-                                <span className="text-muted-foreground">4.5</span>
-                              </>
-                            )}
-                          </span>
-                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                        </button>
-                      </DropdownMenuTrigger>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              disabled={hasCustomClaudeConfig}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-colors rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+                                hasCustomClaudeConfig
+                                  ? "cursor-default"
+                                  : "hover:text-foreground hover:bg-muted/50",
+                              )}
+                            >
+                              <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                              {!hasCustomClaudeConfig && (
+                                <>
+                                  <span className="truncate">
+                                    {selectedModel?.name}{" "}
+                                    <span className="text-muted-foreground">4.5</span>
+                                  </span>
+                                  <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                                </>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        {hasCustomClaudeConfig && normalizedCustomClaudeConfig && (
+                          <TooltipContent side="top">
+                            {normalizedCustomClaudeConfig.model}
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
                       <DropdownMenuContent align="start" className="w-[200px]">
                         {availableModels.models.map((model) => {
                           const isSelected = selectedModel?.id === model.id

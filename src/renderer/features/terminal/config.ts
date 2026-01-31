@@ -28,27 +28,27 @@ const TERMINAL_FONT_FAMILY = [
  * - --foreground: hsl(240, 4.8%, 95.9%) = #f4f4f5
  * - --tl-background: hsl(0, 0%, 7%) = #121212
  * - --muted-foreground: hsl(240, 4.4%, 58%) = #8c8c94
- * - --primary: #0034FF
+ * - --primary: #00C853 (emerald green)
  */
 export const TERMINAL_THEME_DARK: ITheme = {
   // Background matches --tl-background (timeline/content area)
   background: "#121212",
   foreground: "#f4f4f5",
-  
+
   // Cursor matches foreground for clean look
   cursor: "#f4f4f5",
   cursorAccent: "#121212",
-  
+
   // Selection - subtle highlight
   selectionBackground: "#3f3f46",
   selectionForeground: "#ffffff",
-  
+
   // ANSI colors (zinc palette + Tailwind colors)
   black: "#18181b",          // zinc-900
   red: "#ef4444",            // red-500
-  green: "#22c55e",          // green-500
+  green: "#00C853",          // --primary (emerald green)
   yellow: "#eab308",         // yellow-500
-  blue: "#0034FF",           // --primary (brand blue)
+  blue: "#3b82f6",           // blue-500
   magenta: "#a855f7",        // purple-500
   cyan: "#06b6d4",           // cyan-500
   white: "#f4f4f5",          // zinc-100
@@ -72,27 +72,27 @@ export const TERMINAL_THEME_DARK: ITheme = {
  * - --foreground: hsl(240, 10%, 3.9%) = #0a0a0a
  * - --tl-background: hsl(0, 0%, 98%) = #fafafa
  * - --muted-foreground: hsl(240, 3.8%, 46.1%) = #717179
- * - --primary: #0034FF
+ * - --primary: #00C853 (emerald green)
  */
 export const TERMINAL_THEME_LIGHT: ITheme = {
   // Background matches --tl-background (timeline/content area)
   background: "#fafafa",
   foreground: "#0a0a0a",
-  
+
   // Cursor matches foreground for clean look
   cursor: "#0a0a0a",
   cursorAccent: "#fafafa",
-  
+
   // Selection - subtle highlight
   selectionBackground: "#d4d4d8",
   selectionForeground: "#0a0a0a",
-  
+
   // ANSI colors (adjusted for light background)
   black: "#18181b",          // zinc-900
   red: "#dc2626",            // red-600 (darker for light bg)
-  green: "#16a34a",          // green-600
+  green: "#00A844",          // --primary (emerald green, darker for light bg)
   yellow: "#ca8a04",         // yellow-600
-  blue: "#0034FF",           // --primary (brand blue)
+  blue: "#2563eb",           // blue-600
   magenta: "#9333ea",        // purple-600
   cyan: "#0891b2",           // cyan-600
   white: "#f4f4f5",          // zinc-100

@@ -9,7 +9,10 @@ let API_BASE: string | null = null
 
 async function getApiBase(): Promise<string> {
   if (!API_BASE) {
-    API_BASE = await window.desktopApi?.getApiBaseUrl() || "https://21st.dev"
+    if (!window.desktopApi?.getApiBaseUrl) {
+      throw new Error("Desktop API not available")
+    }
+    API_BASE = await window.desktopApi.getApiBaseUrl()
   }
   return API_BASE
 }

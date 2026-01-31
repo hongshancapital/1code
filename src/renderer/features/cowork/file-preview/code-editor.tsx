@@ -202,8 +202,8 @@ export function CodeEditor({
   onSave,
   onDirtyChange,
 }: CodeEditorProps) {
-  const editorRef = useRef<MonacoTypes.editor.IStandaloneCodeEditor | null>(null)
-  const monacoRef = useRef<typeof MonacoTypes | null>(null)
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof monaco | null>(null)
   const lspCleanupRef = useRef<(() => void) | null>(null)
 
   const [isDirty, setIsDirty] = useAtom(editorDirtyAtom)
@@ -211,7 +211,7 @@ export function CodeEditor({
   const [editorContent, setEditorContent] = useAtom(editorContentAtom)
 
   // File save mutation
-  const saveFileMutation = trpc.files.writeFile.useMutation()
+  const saveFileMutation = trpc.files.writeFileContent.useMutation()
 
   // Determine language from file extension or explicit prop
   // Use cross-platform path split

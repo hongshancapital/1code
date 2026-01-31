@@ -2318,7 +2318,7 @@ const ChatViewInner = memo(function ChatViewInner({
   // - This ensures comments are stored and read from the same place
   const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
   const activeSubChatIdForComment = useAgentSubChatStore((state) => state.activeSubChatId)
-  const { addComment } = useDocumentComments(activeSubChatIdForComment || subChatId)
+  const { addComment, getComment, updateComment, removeComment } = useDocumentComments(activeSubChatIdForComment || subChatId)
 
   // Message queue for sending messages while streaming
   const queue = useMessageQueueStore((s) => s.queues[subChatId] ?? EMPTY_QUEUE)
@@ -2553,6 +2553,26 @@ const ChatViewInner = memo(function ChatViewInner({
   const handleCommentCancel = useCallback(() => {
     setCommentInputState(null)
   }, [setCommentInputState])
+
+  // Handler for document comment update (edit mode)
+  const handleCommentUpdate = useCallback((content: string) => {
+    if (!commentInputState?.existingCommentId) return
+    updateComment(commentInputState.existingCommentId, { content })
+    setCommentInputState(null)
+  }, [commentInputState, updateComment, setCommentInputState])
+
+  // Handler for document comment delete (edit mode)
+  const handleCommentDelete = useCallback(() => {
+    if (!commentInputState?.existingCommentId) return
+    removeComment(commentInputState.existingCommentId)
+    setCommentInputState(null)
+  }, [commentInputState, removeComment, setCommentInputState])
+
+  // Get existing comment for edit mode
+  const existingComment = useMemo(() => {
+    if (!commentInputState?.existingCommentId) return undefined
+    return getComment(commentInputState.existingCommentId)
+  }, [commentInputState?.existingCommentId, getComment])
 
   // Sync loading status to atom for UI indicators
   // When streaming starts, set loading. When it stops, clear loading.
@@ -4261,6 +4281,9 @@ const ChatViewInner = memo(function ChatViewInner({
             rect={commentInputState.rect}
             onSubmit={handleCommentSubmit}
             onCancel={handleCommentCancel}
+            existingComment={existingComment}
+            onUpdate={handleCommentUpdate}
+            onDelete={handleCommentDelete}
           />
         )}
 
@@ -6608,7 +6631,7 @@ Make sure to preserve all functionality from both branches when resolving confli
         userMessage,
         isFirstSubChat: isFirst,
         generateName: async (msg) => {
-          return generateSubChatNameMutation.mutateAsync({ userMessage: msg, ollamaModel: selectedOllamaModel })
+          return generateSubChatNameMutation.mutateAsync({ userMessage: msg })
         },
         renameSubChat: async (input) => {
           await renameSubChatMutation.mutateAsync(input)

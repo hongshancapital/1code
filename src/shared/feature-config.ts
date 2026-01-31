@@ -17,6 +17,7 @@ export type WidgetId =
   | "artifacts"
   | "explorer"
   | "background-tasks"
+  | "mcp"
 
 /**
  * Stored in projects.featureConfig as JSON string
@@ -47,6 +48,7 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
   artifacts: { label: "Artifacts", defaultInCoding: false, defaultInCowork: true },
   explorer: { label: "Explorer", defaultInCoding: true, defaultInCowork: true },
   "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: false },
+  mcp: { label: "MCP Servers", defaultInCoding: false, defaultInCowork: false },
 }
 
 /**

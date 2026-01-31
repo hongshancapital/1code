@@ -387,29 +387,34 @@ const server = createServer((req, res) => {
       align-items: center;
       gap: 8px;
     }
-    .logo {
-      width: 24px;
-      height: 24px;
-      margin-bottom: 8px;
+    .brand {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 16px;
     }
     h1 {
       font-size: 14px;
       font-weight: 500;
       margin-bottom: 4px;
     }
-    p {
+    a {
       font-size: 12px;
       color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
+      transition: opacity 0.15s;
+    }
+    a:hover {
+      opacity: 0.7;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <img class="logo" src="${ICON_DATA_URI}" alt="Hong" />
+    <span class="brand">Hóng</span>
     <h1>Authentication successful</h1>
-    <p>You can close this tab</p>
+    <a onclick="window.close()">Close this tab</a>
   </div>
-  <script>setTimeout(() => window.close(), 1000)</script>
 </body>
 </html>`)
       } else {
@@ -628,29 +633,34 @@ const oktaCallbackServer = createServer((req, res) => {
       align-items: center;
       gap: 8px;
     }
-    .logo {
-      width: 24px;
-      height: 24px;
-      margin-bottom: 8px;
+    .brand {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 16px;
     }
     h1 {
       font-size: 14px;
       font-weight: 500;
       margin-bottom: 4px;
     }
-    p {
+    a {
       font-size: 12px;
       color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
+      transition: opacity 0.15s;
+    }
+    a:hover {
+      opacity: 0.7;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <img class="logo" src="${ICON_DATA_URI}" alt="Hong" />
+    <span class="brand">Hóng</span>
     <h1>Authentication successful</h1>
-    <p>You can close this tab</p>
+    <a onclick="window.close()">Close this tab</a>
   </div>
-  <script>setTimeout(() => window.close(), 1000)</script>
 </body>
 </html>`)
     } else {

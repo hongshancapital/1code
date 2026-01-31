@@ -123,6 +123,7 @@ export function TerminalSection({
       paneId,
       name,
       createdAt: Date.now(),
+      type: "shell",
     }
 
     setAllTerminals((prev) => ({

@@ -62,7 +62,7 @@ export const PlanWidget = memo(function PlanWidget({
     isLoading,
     error,
     refetch,
-  } = trpc.files.readFile.useQuery({ filePath: planPath! }, { enabled: !!planPath })
+  } = trpc.files.readFile.useQuery({ path: planPath! }, { enabled: !!planPath })
 
   // Update cache when content loads successfully
   useEffect(() => {

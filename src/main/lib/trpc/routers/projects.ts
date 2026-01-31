@@ -575,9 +575,9 @@ export const projectsRouter = router({
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
 
-      // Default to ~/.21st/repos/
+      // Default to ~/.hong/repos/
       const homePath = app.getPath("home")
-      const defaultPath = join(homePath, ".21st", "repos")
+      const defaultPath = join(homePath, ".hong", "repos")
       await mkdir(defaultPath, { recursive: true })
 
       const result = await dialog.showOpenDialog(window, {

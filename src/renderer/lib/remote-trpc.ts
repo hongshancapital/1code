@@ -1,9 +1,14 @@
 /**
- * tRPC client for remote web backend (21st.dev)
+ * tRPC client for remote web backend
  * Uses signedFetch via IPC for authentication (no CORS issues)
+ *
+ * [CLOUD DISABLED] This module is currently disabled as the web backend is not available.
+ * The AppRouter type is stubbed to allow compilation.
  */
 import { createTRPCClient, httpLink } from "@trpc/client"
-import type { AppRouter } from "../../../../web/server/api/root"
+// [CLOUD DISABLED] Stub type for disabled cloud features
+// import type { AppRouter } from "../../../../web/server/api/root"
+type AppRouter = Record<string, never>
 import SuperJSON from "superjson"
 
 // Placeholder URL - actual base is fetched dynamically from main process
@@ -14,7 +19,10 @@ let cachedApiBase: string | null = null
 
 async function getApiBase(): Promise<string> {
   if (!cachedApiBase) {
-    cachedApiBase = await window.desktopApi?.getApiBaseUrl() || "https://21st.dev"
+    if (!window.desktopApi?.getApiBaseUrl) {
+      throw new Error("Desktop API not available")
+    }
+    cachedApiBase = await window.desktopApi.getApiBaseUrl()
   }
   return cachedApiBase
 }

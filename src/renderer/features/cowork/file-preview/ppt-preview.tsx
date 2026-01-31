@@ -228,10 +228,9 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
   }, [data, fetchError])
 
   // Open file in external app
+  const openPathMutation = trpc.external.openPath.useMutation()
   const handleOpenExternal = () => {
-    if (window.desktopApi?.openPath) {
-      window.desktopApi.openPath(filePath)
-    }
+    openPathMutation.mutate(filePath)
   }
 
   if (hasError) {

@@ -43,6 +43,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
   const [remainingSeconds, setRemainingSeconds] = useState<number>(
     timeoutSeconds > 0 ? Math.max(0, timeoutSeconds - Math.floor((Date.now() - receivedAt) / 1000)) : 0
   )
+  const [userInteracted, setUserInteracted] = useState(false) // Track if user has interacted
   const prevIndexRef = useRef(currentQuestionIndex)
   const prevToolUseIdRef = useRef(toolUseId)
   const customInputRef = useRef<HTMLInputElement>(null)
@@ -76,6 +77,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
       setAnswers({})
       setCustomAnswers({})
       setFocusedOptionIndex(0)
+      setUserInteracted(false) // Reset interaction state
       setRemainingSeconds(
         timeoutSeconds > 0 ? Math.max(0, timeoutSeconds - Math.floor((Date.now() - receivedAt) / 1000)) : 0
       )
@@ -83,9 +85,10 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     }
   }, [toolUseId, timeoutSeconds, receivedAt])
 
-  // Countdown timer - auto-skip when time runs out
+  // Countdown timer - auto-skip when time runs out (stops when user interacts)
   useEffect(() => {
     if (timeoutSeconds <= 0) return // No timeout
+    if (userInteracted) return // Stop countdown when user has interacted
 
     const updateRemaining = () => {
       const elapsed = Math.floor((Date.now() - receivedAt) / 1000)
@@ -104,7 +107,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     // Update every second
     const interval = setInterval(updateRemaining, 1000)
     return () => clearInterval(interval)
-  }, [timeoutSeconds, receivedAt, isSubmitting, onSkip])
+  }, [timeoutSeconds, receivedAt, isSubmitting, onSkip, userInteracted])
 
   // Animate on question change
   useEffect(() => {
@@ -132,6 +135,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
 
   // Handle custom answer change
   const handleCustomAnswerChange = (questionText: string, value: string) => {
+    setUserInteracted(true) // Stop countdown when user starts typing
     setCustomAnswers((prev) => ({
       ...prev,
       [questionText]: value,
@@ -148,6 +152,8 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
   // Handle option click - auto-advance for single-select questions
   const handleOptionClick = useCallback(
     (questionText: string, optionLabel: string, questionIndex: number) => {
+      setUserInteracted(true) // Stop countdown when user selects an option
+
       const question = questions[questionIndex]
       const allowMultiple = question?.multiSelect || false
       const isLastQuestion = questionIndex === questions.length - 1

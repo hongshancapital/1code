@@ -5,6 +5,8 @@ import { Button, buttonVariants } from "../../ui/button"
 import { Input } from "../../ui/input"
 import { Plus, Trash2, FolderOpen } from "lucide-react"
 import { AIPenIcon, ExternalLinkIcon, FolderFilledIcon, ImageIcon } from "../../ui/icons"
+import { ProjectModeToggle } from "../../../features/agents/components/project-mode-selector"
+import type { ProjectMode } from "../../../features/agents/atoms"
 import { invalidateProjectIcon, useProjectIcon } from "../../../lib/hooks/use-project-icon"
 import { ProjectIcon } from "../../ui/project-icon"
 import finderIcon from "../../../assets/app-icons/finder.png"
@@ -117,6 +119,17 @@ function ProjectDetail({ projectId }: { projectId: string }) {
       invalidateProjectIcon(projectId)
       refetchProject()
       toast.success("Icon removed")
+    },
+  })
+
+  // Mode update mutation
+  const updateModeMutation = trpc.projects.updateMode.useMutation({
+    onSuccess: () => {
+      refetchProject()
+      toast.success("Mode updated")
+    },
+    onError: (err) => {
+      toast.error(`Failed to update mode: ${err.message}`)
     },
   })
 
@@ -406,6 +419,28 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ── Mode ── */}
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-2">Mode</h4>
+          <div className="bg-background rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex-1">
+                <span className="text-sm font-medium text-foreground">Project Mode</span>
+                <p className="text-sm text-muted-foreground">
+                  Cowork: 简化协作体验 | Coding: 完整开发功能 (Git)
+                </p>
+              </div>
+              <ProjectModeToggle
+                value={(project?.mode as ProjectMode) ?? "cowork"}
+                onChange={(newMode) => {
+                  updateModeMutation.mutate({ id: projectId, mode: newMode })
+                }}
+                disabled={updateModeMutation.isPending}
+              />
+            </div>
           </div>
         </div>
 

@@ -4,7 +4,7 @@
 
 Best UI for Claude Code with local and remote agent execution.
 
-By [21st.dev](https://21st.dev) team
+By [Hong](https://cowork.hongshan.com) team
 
 > **Platforms:** macOS, Linux, and Windows. Windows support improved thanks to community contributions from [@jesus-mgtc](https://github.com/jesus-mgtc) and [@evgyur](https://github.com/evgyur).
 

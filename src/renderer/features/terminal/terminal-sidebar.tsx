@@ -215,6 +215,7 @@ export function TerminalSidebar({
       paneId,
       name,
       createdAt: Date.now(),
+      type: "shell",
     }
 
     setAllTerminals((prev) => ({
@@ -655,7 +656,7 @@ export function TerminalBottomPanelContent({
     const id = generateTerminalId()
     const paneId = generatePaneId(currentChatId, id)
     const name = getNextTerminalName(currentTerminals)
-    const newTerminal: TerminalInstance = { id, paneId, name, createdAt: Date.now() }
+    const newTerminal: TerminalInstance = { id, paneId, name, createdAt: Date.now(), type: "shell" }
     setAllTerminals((prev) => ({
       ...prev,
       [currentChatId]: [...(prev[currentChatId] || []), newTerminal],

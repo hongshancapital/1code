@@ -6,8 +6,11 @@ let cachedApiBase: string | null = null
 
 async function getApiBase(): Promise<string> {
   if (!cachedApiBase) {
-    // Uses MAIN_VITE_API_URL in dev, "https://21st.dev" in production
-    cachedApiBase = await window.desktopApi?.getApiBaseUrl() || "https://21st.dev"
+    // Uses MAIN_VITE_API_URL from environment
+    if (!window.desktopApi?.getApiBaseUrl) {
+      throw new Error("Desktop API not available")
+    }
+    cachedApiBase = await window.desktopApi.getApiBaseUrl()
   }
   return cachedApiBase
 }

@@ -220,8 +220,8 @@ rm -rf ~/Library/Application\ Support/Agents\ Dev/
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -kill -r -domain local -domain system -domain user
 
 # 3. Clear app preferences
-defaults delete dev.21st.agents.dev  # Dev mode
-defaults delete dev.21st.agents      # Production
+defaults delete dev.hong.agents.dev  # Dev mode
+defaults delete dev.hong.agents      # Production
 
 # 4. Run in dev mode with clean state
 bun run dev
@@ -234,8 +234,8 @@ bun run dev
 ## Releasing a New Version
 
 ### Prerequisites for Notarization
-- Keychain profile: `21st-notarize`
-- Create with: `xcrun notarytool store-credentials "21st-notarize" --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID`
+- Keychain profile: `hong-notarize`
+- Create with: `xcrun notarytool store-credentials "hong-notarize" --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID`
 
 ### Release Commands
 
@@ -255,7 +255,7 @@ bun run dist:manifest      # Generate latest-mac.yml manifests
 
 ### After Release Script Completes
 
-1. Wait for notarization (2-5 min): `xcrun notarytool history --keychain-profile "21st-notarize"`
+1. Wait for notarization (2-5 min): `xcrun notarytool history --keychain-profile "hong-notarize"`
 2. Staple DMGs: `cd release && xcrun stapler staple *.dmg`
 3. Re-upload stapled DMGs to R2 and GitHub (see RELEASE.md)
 4. Update changelog: `gh release edit v0.0.X --notes "..."`

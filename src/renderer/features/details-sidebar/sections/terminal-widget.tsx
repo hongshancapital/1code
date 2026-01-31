@@ -128,6 +128,7 @@ export const TerminalWidget = memo(function TerminalWidget({
       paneId,
       name,
       createdAt: Date.now(),
+      type: "shell",
     }
 
     setAllTerminals((prev) => ({

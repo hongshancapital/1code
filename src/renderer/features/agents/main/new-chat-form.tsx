@@ -625,14 +625,15 @@ export function NewChatForm({
   // Desktop: no remote repos, we use local projects
   // Stub type for disabled cloud feature
   type RepoStub = {
-    id: number
+    id: string
     name: string
     full_name: string
-    sandbox_status: string
+    sandbox_status: "not_setup" | "in_progress" | "ready" | "error"
     html_url?: string
     description?: string | null
     private?: boolean
     owner?: { login: string }
+    pushed_at?: string | null
   }
   const reposData: { repositories: RepoStub[] } = { repositories: [] }
   const isLoadingRepos = false
@@ -1514,7 +1515,7 @@ export function NewChatForm({
 
           // Read and cache content (will be added to prompt on send)
           try {
-            const content = await trpcUtils.files.readFile.fetch({ filePath })
+            const content = await trpcUtils.files.readFile.fetch({ path: filePath })
             fileContentsRef.current.set(mentionId, content)
           } catch (err) {
             // If reading fails, chip is still there - agent can try to read via path
