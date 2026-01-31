@@ -107,6 +107,10 @@ import {
   agentsSubChatsSidebarModeAtom,
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
+  fileSearchDialogOpenAtom,
+  fileViewerDisplayModeAtom,
+  fileViewerOpenAtomFamily,
+  fileViewerSidebarWidthAtom,
   clearLoading,
   compactingSubChatsAtom,
   currentPlanPathAtomFamily,
@@ -143,6 +147,7 @@ currentProjectModeAtom,
   openLocallyChatIdAtom,
   workspaceDiffCacheAtomFamily,
   agentsChatFullWidthAtom,
+  pendingMentionAtom,
   type AgentMode,
   type SelectedCommit
 } from "../atoms"
@@ -177,6 +182,7 @@ import {
 } from "../lib/queue-utils"
 import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
+  FileOpenProvider,
   MENTION_PREFIXES,
   type AgentsMentionsEditorHandle,
 } from "../mentions"
@@ -1682,6 +1688,7 @@ interface DiffSidebarRendererProps {
   diffSidebarWidth: number
   handleReview: () => void
   isReviewing: boolean
+  handleCreatePrDirect: () => void
   handleCreatePr: () => void
   isCreatingPr: boolean
   handleMergePr: () => void
@@ -1730,6 +1737,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
   diffSidebarWidth,
   handleReview,
   isReviewing,
+  handleCreatePrDirect,
   handleCreatePr,
   isCreatingPr,
   handleMergePr,
@@ -1801,7 +1809,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           behindDefault={gitStatus?.behind ?? 0}
           onReview={handleReview}
           isReviewing={isReviewing}
-          onCreatePr={handleCreatePr}
+          onCreatePr={handleCreatePrDirect}
           isCreatingPr={isCreatingPr}
           onCreatePrWithAI={handleCreatePr}
           isCreatingPrWithAI={isCreatingPr}
@@ -1859,7 +1867,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
         isCommittingWithAI={isCommittingToPr}
         diffMode={diffMode}
         setDiffMode={setDiffMode}
-        onCreatePr={handleCreatePr}
+        onCreatePr={handleCreatePrDirect}
         subChats={subChatsWithFiles}
         subChatId={activeSubChatId || undefined}
       />
@@ -1992,6 +2000,16 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Project mode for hiding git features in SubChatStatusCard
   const projectMode = useAtomValue(currentProjectModeAtom)
+
+  // Consume pending mentions from external components (e.g. MCP widget in sidebar)
+  const [pendingMention, setPendingMention] = useAtom(pendingMentionAtom)
+  useEffect(() => {
+    if (pendingMention) {
+      editorRef.current?.insertMention(pendingMention)
+      editorRef.current?.focus()
+      setPendingMention(null)
+    }
+  }, [pendingMention, setPendingMention])
 
   // TTS playback rate state (persists across messages and sessions via localStorage)
   const [ttsPlaybackRate, setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
@@ -2426,6 +2444,9 @@ const ChatViewInner = memo(function ChatViewInner({
     } else if (source.type === "plan") {
       // Plan selections are treated as code selections (similar to diff)
       addDiffTextContext(text, source.planPath)
+    } else if (source.type === "file-viewer") {
+      // File viewer selections are treated as code selections
+      addDiffTextContext(text, source.filePath)
     }
   }, [addTextContextOriginal, addDiffTextContext])
 
@@ -2449,6 +2470,11 @@ const ChatViewInner = memo(function ChatViewInner({
     window.addEventListener("file-viewer-add-to-context", handler)
     return () => window.removeEventListener("file-viewer-add-to-context", handler)
   }, [addTextContext])
+
+  // Handler for quick comment trigger from popover
+  const handleQuickComment = useCallback((text: string, source: TextSelectionSource, rect: DOMRect) => {
+    setQuickCommentState({ selectedText: text, source, rect })
+  }, [])
 
   // Handler for document comment (review system)
   const handleAddComment = useCallback((
@@ -4543,12 +4569,24 @@ export function ChatView({
   )
   const [currentPlanPath, setCurrentPlanPath] = useAtom(currentPlanPathAtom)
 
+  // File viewer sidebar state - per-chat open file path
+  const fileViewerAtom = useMemo(
+    () => fileViewerOpenAtomFamily(chatId),
+    [chatId],
+  )
+  const [fileViewerPath, setFileViewerPath] = useAtom(fileViewerAtom)
+  const [fileViewerDisplayMode] = useAtom(fileViewerDisplayModeAtom)
+
+  // File search dialog (Cmd+P)
+  const [fileSearchOpen, setFileSearchOpen] = useAtom(fileSearchDialogOpenAtom)
+
   // Details sidebar state (unified sidebar that combines all right sidebars)
   const isUnifiedSidebarEnabled = useAtomValue(unifiedSidebarEnabledAtom)
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useAtom(detailsSidebarOpenAtom)
 
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
+  const toggleTerminalHotkey = useResolvedHotkeyDisplay("toggle-terminal")
 
   // Close plan sidebar when switching to a sub-chat that has no plan
   const prevSubChatIdRef = useRef(activeSubChatIdForPlan)
@@ -4585,6 +4623,27 @@ export function ChatView({
     [chatId],
   )
   const [isTerminalSidebarOpen, setIsTerminalSidebarOpen] = useAtom(terminalSidebarAtom)
+  const terminalDisplayMode = useAtomValue(terminalDisplayModeAtom)
+
+  // Keyboard shortcut: Cmd+J to toggle terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.metaKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        e.code === "KeyJ"
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsTerminalSidebarOpen(!isTerminalSidebarOpen)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [isTerminalSidebarOpen, setIsTerminalSidebarOpen])
 
   // Per-chat expanded widget state - for Explorer and other expandable widgets
   const expandedWidgetAtom = useMemo(
@@ -4638,13 +4697,16 @@ export function ChatView({
     const terminalJustOpened = isTerminalSidebarOpen && !prev.terminal
     const terminalJustClosed = !isTerminalSidebarOpen && prev.terminal
 
+    // Terminal in "bottom" mode doesn't conflict with Details sidebar
+    const terminalConflictsWithDetails = terminalDisplayMode === "side-peek"
+
     // Details opened → close conflicting sidebars and remember
     if (detailsJustOpened) {
       if (isPlanOpen) {
         auto.planClosedByDetails = true
         setIsPlanSidebarOpen(false)
       }
-      if (isTerminalSidebarOpen) {
+      if (isTerminalSidebarOpen && terminalConflictsWithDetails) {
         auto.terminalClosedByDetails = true
         setIsTerminalSidebarOpen(false)
       }
@@ -4670,8 +4732,8 @@ export function ChatView({
       auto.detailsClosedBy = null
       setIsDetailsSidebarOpen(true)
     }
-    // Terminal opened → close Details and remember
-    else if (terminalJustOpened && isDetailsSidebarOpen) {
+    // Terminal opened → close Details and remember (only in side-peek mode)
+    else if (terminalJustOpened && isDetailsSidebarOpen && terminalConflictsWithDetails) {
       auto.detailsClosedBy = "terminal"
       setIsDetailsSidebarOpen(false)
     }
@@ -4691,6 +4753,7 @@ export function ChatView({
     isPlanSidebarOpen,
     currentPlanPath,
     isTerminalSidebarOpen,
+    terminalDisplayMode,
     setIsDetailsSidebarOpen,
     setIsPlanSidebarOpen,
     setIsTerminalSidebarOpen,
@@ -5122,6 +5185,17 @@ export function ChatView({
   // Merge PR mutation
   const trpcUtils = trpc.useUtils()
 
+  // Direct PR creation mutation (push branch and open GitHub)
+  const createPrMutation = trpc.changes.createPR.useMutation({
+    onSuccess: () => {
+      toast.success("Opening GitHub to create PR...", { position: "top-center" })
+      refetchGitStatus()
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create PR", { position: "top-center" })
+    },
+  })
+
   // Sync from main mutation (for resolving merge conflicts)
   const mergeFromDefaultMutation = trpc.changes.mergeFromDefault.useMutation({
     onSuccess: () => {
@@ -5526,7 +5600,22 @@ export function ChatView({
     }
   }, [totalSubChatFileCount, fetchDiffStats])
 
-  // Handle Create PR - sends a message to Claude to create the PR
+  // Handle Create PR (Direct) - pushes branch and opens GitHub compare URL
+  const handleCreatePrDirect = useCallback(async () => {
+    if (!worktreePath) {
+      toast.error("No workspace path available", { position: "top-center" })
+      return
+    }
+
+    setIsCreatingPr(true)
+    try {
+      await createPrMutation.mutateAsync({ worktreePath })
+    } finally {
+      setIsCreatingPr(false)
+    }
+  }, [worktreePath, createPrMutation])
+
+  // Handle Create PR with AI - sends a message to Claude to create the PR
   const setPendingPrMessage = useSetAtom(pendingPrMessageAtom)
 
   const handleCreatePr = useCallback(async () => {
@@ -6479,38 +6568,6 @@ Make sure to preserve all functionality from both branches when resolving confli
     return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [isDiffSidebarOpen])
 
-  // Keyboard shortcut: Create PR (preview)
-  // Web: Opt+Cmd+P (browser uses Cmd+P for print)
-  // Desktop: Cmd+P
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isDesktop = isDesktopApp()
-
-      // Desktop: Cmd+P (without Alt)
-      const isDesktopShortcut =
-        isDesktop &&
-        e.metaKey &&
-        e.code === "KeyP" &&
-        !e.altKey &&
-        !e.shiftKey &&
-        !e.ctrlKey
-      // Web: Opt+Cmd+P (with Alt)
-      const isWebShortcut = e.altKey && e.metaKey && e.code === "KeyP"
-
-      if (isDesktopShortcut || isWebShortcut) {
-        e.preventDefault()
-        e.stopPropagation()
-
-        // Only create PR if there are changes and not already creating
-        if (diffStats.hasChanges && !isCreatingPr) {
-          handleCreatePr()
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown, true)
-    return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [diffStats.hasChanges, isCreatingPr, handleCreatePr])
 
   // Keyboard shortcut: Cmd + Shift + E to restore archived workspace
   useEffect(() => {
@@ -6656,7 +6713,17 @@ Make sure to preserve all functionality from both branches when resolving confli
   // No early return - let the UI render with loading state handled by activeChat check below
 
   return (
+    <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
+    {/* File Search Dialog (Cmd+P) */}
+    {worktreePath && (
+      <FileSearchDialog
+        open={fileSearchOpen}
+        onOpenChange={setFileSearchOpen}
+        projectPath={worktreePath}
+        onSelectFile={setFileViewerPath}
+      />
+    )}
     <div className="flex h-full flex-col">
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex">
@@ -6694,6 +6761,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                       diffStats={hideGitFeatures ? undefined : diffStats}
                       onOpenTerminal={hideGitFeatures ? undefined : onOpenTerminal}
                       canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
+                      isTerminalOpen={isTerminalSidebarOpen}
                       isArchived={isArchived}
                       onRestore={handleRestoreWorkspace}
                       onOpenLocally={handleOpenLocally}
@@ -6722,6 +6790,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                         diffStats={hideGitFeatures ? undefined : diffStats}
                         onOpenTerminal={hideGitFeatures ? undefined : () => setIsTerminalSidebarOpen(true)}
                         canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
+                        isTerminalOpen={isTerminalSidebarOpen}
                         chatId={chatId}
                       />
                       {/* Open Locally button - desktop only, sandbox mode */}
@@ -7078,6 +7147,7 @@ Make sure to preserve all functionality from both branches when resolving confli
               diffSidebarWidth={diffSidebarWidth}
               handleReview={handleReview}
               isReviewing={isReviewing}
+              handleCreatePrDirect={handleCreatePrDirect}
               handleCreatePr={handleCreatePr}
               isCreatingPr={isCreatingPr}
               handleMergePr={handleMergePr}
@@ -7174,6 +7244,54 @@ Make sure to preserve all functionality from both branches when resolving confli
           </ResizableSidebar>
         )}
 
+        {/* File Viewer - opens when a file is clicked */}
+        {!isMobileFullscreen && fileViewerPath && worktreePath && fileViewerDisplayMode === "side-peek" && (
+          <ResizableSidebar
+            isOpen={!!fileViewerPath}
+            onClose={() => setFileViewerPath(null)}
+            widthAtom={fileViewerSidebarWidthAtom}
+            minWidth={350}
+            maxWidth={900}
+            side="right"
+            animationDuration={0}
+            initialWidth={0}
+            exitWidth={0}
+            showResizeTooltip={true}
+            className="bg-tl-background border-l"
+            style={{ borderLeftWidth: "0.5px" }}
+          >
+            <FileViewerSidebar
+              filePath={fileViewerPath}
+              projectPath={worktreePath}
+              onClose={() => setFileViewerPath(null)}
+            />
+          </ResizableSidebar>
+        )}
+        {fileViewerPath && worktreePath && fileViewerDisplayMode === "center-peek" && (
+          <DiffCenterPeekDialog
+            isOpen={!!fileViewerPath}
+            onClose={() => setFileViewerPath(null)}
+          >
+            <FileViewerSidebar
+              filePath={fileViewerPath}
+              projectPath={worktreePath}
+              onClose={() => setFileViewerPath(null)}
+            />
+          </DiffCenterPeekDialog>
+        )}
+        {fileViewerPath && worktreePath && fileViewerDisplayMode === "full-page" && (
+          <DiffFullPageView
+            isOpen={!!fileViewerPath}
+            onClose={() => setFileViewerPath(null)}
+          >
+            <FileViewerSidebar
+              filePath={fileViewerPath}
+              projectPath={worktreePath}
+              onClose={() => setFileViewerPath(null)}
+            />
+          </DiffFullPageView>
+        )}
+
         {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden when hideGitFeatures is true */}
         {!hideGitFeatures && worktreePath && (
           <TerminalSidebar
@@ -7257,7 +7375,30 @@ Make sure to preserve all functionality from both branches when resolving confli
           />
         )}
       </div>
+
+      {/* Terminal Bottom Panel — renders below the main row when displayMode is "bottom" */}
+      {terminalDisplayMode === "bottom" && worktreePath && !isMobileFullscreen && (
+        <ResizableBottomPanel
+          isOpen={isTerminalSidebarOpen}
+          onClose={() => setIsTerminalSidebarOpen(false)}
+          heightAtom={terminalBottomHeightAtom}
+          minHeight={150}
+          maxHeight={500}
+          showResizeTooltip={true}
+          closeHotkey={toggleTerminalHotkey ?? undefined}
+          className="bg-background border-t"
+          style={{ borderTopWidth: "0.5px" }}
+        >
+          <TerminalBottomPanelContent
+            chatId={chatId}
+            cwd={worktreePath}
+            workspaceId={chatId}
+            onClose={() => setIsTerminalSidebarOpen(false)}
+          />
+        </ResizableBottomPanel>
+      )}
     </div>
     </TextSelectionProvider>
+    </FileOpenProvider>
   )
 }

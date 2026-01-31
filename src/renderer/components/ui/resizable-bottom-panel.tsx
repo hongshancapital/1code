@@ -3,7 +3,8 @@
 import { useAtom, type WritableAtom } from "jotai"
 import { AnimatePresence, motion } from "motion/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { flushSync } from "react-dom"
+import { createPortal } from "react-dom"
+import { Kbd } from "./kbd"
 
 interface ResizableBottomPanelProps {
   isOpen: boolean
@@ -11,18 +12,15 @@ interface ResizableBottomPanelProps {
   heightAtom: WritableAtom<number, [number], void>
   minHeight?: number
   maxHeight?: number
-  animationDuration?: number
+  closeHotkey?: string
+  showResizeTooltip?: boolean
   children: React.ReactNode
   className?: string
-  initialHeight?: number | string
-  exitHeight?: number | string
-  /** Custom styles for the panel container */
   style?: React.CSSProperties
 }
 
-const DEFAULT_MIN_HEIGHT = 100
-const DEFAULT_MAX_HEIGHT = 600
-const DEFAULT_ANIMATION_DURATION = 0 // Disabled for performance
+const DEFAULT_MIN_HEIGHT = 150
+const DEFAULT_MAX_HEIGHT = 500
 const EXTENDED_HOVER_AREA_HEIGHT = 8
 
 export function ResizableBottomPanel({
@@ -31,78 +29,98 @@ export function ResizableBottomPanel({
   heightAtom,
   minHeight = DEFAULT_MIN_HEIGHT,
   maxHeight = DEFAULT_MAX_HEIGHT,
-  animationDuration = DEFAULT_ANIMATION_DURATION,
+  closeHotkey,
+  showResizeTooltip = false,
   children,
   className = "",
-  initialHeight = 0,
-  exitHeight = 0,
   style,
 }: ResizableBottomPanelProps) {
   const [panelHeight, setPanelHeight] = useAtom(heightAtom)
 
-  // Track if this is the first open to avoid initial animation when already open
   const hasOpenedOnce = useRef(false)
   const wasOpenRef = useRef(false)
   const [shouldAnimate, setShouldAnimate] = useState(!isOpen)
 
-  // Resize handle state
   const [isResizing, setIsResizing] = useState(false)
+  const [isHoveringResizeHandle, setIsHoveringResizeHandle] = useState(false)
+  const [tooltipX, setTooltipX] = useState<number | null>(null)
+  const [isTooltipDismissed, setIsTooltipDismissed] = useState(false)
   const resizeHandleRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  // Local height state for smooth resizing (avoids localStorage sync during resize)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [localHeight, setLocalHeight] = useState<number | null>(null)
 
-  // Use local height during resize, otherwise use persisted height
   const currentHeight = localHeight ?? panelHeight
 
+  const tooltipPosition = useMemo(() => {
+    if (!tooltipX || !panelRef.current) return null
+    const rect = panelRef.current.getBoundingClientRect()
+    return {
+      x: tooltipX,
+      y: rect.top - 8,
+    }
+  }, [tooltipX, currentHeight])
+
   useEffect(() => {
-    // When panel closes, reset hasOpenedOnce so animation plays on next open
     if (!isOpen && wasOpenRef.current) {
       hasOpenedOnce.current = false
       setShouldAnimate(true)
-      // Clear local height when panel closes
       setLocalHeight(null)
+    }
+    if (isOpen) {
+      setIsTooltipDismissed(false)
     }
     wasOpenRef.current = isOpen
 
-    // Mark as opened after animation completes
     if (isOpen && !hasOpenedOnce.current) {
-      const timer = setTimeout(
-        () => {
-          hasOpenedOnce.current = true
-          setShouldAnimate(false)
-        },
-        animationDuration * 1000 + 50,
-      )
+      const timer = setTimeout(() => {
+        hasOpenedOnce.current = true
+        setShouldAnimate(false)
+      }, 50)
       return () => clearTimeout(timer)
     } else if (isOpen && hasOpenedOnce.current) {
-      // Already opened before, don't animate
       setShouldAnimate(false)
     }
-  }, [isOpen, animationDuration])
+  }, [isOpen])
+
+  // Cleanup tooltip timeout on unmount or close
+  useEffect(() => {
+    if (!isOpen) {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+        tooltipTimeoutRef.current = null
+      }
+      setIsHoveringResizeHandle(false)
+      setTooltipX(null)
+    }
+    return () => {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+        tooltipTimeoutRef.current = null
+      }
+    }
+  }, [isOpen])
 
   const handleClose = useCallback(() => {
-    // Reset resizing state synchronously so exit animation sees the final height
-    flushSync(() => {
-      if (isResizing) {
-        setIsResizing(false)
-      }
-      if (localHeight !== null) {
-        setLocalHeight(null)
-      }
-    })
-    // Ensure animation is enabled when closing
+    if (isHoveringResizeHandle && !isTooltipDismissed) {
+      setIsTooltipDismissed(true)
+    }
+    if (isResizing) {
+      setIsResizing(false)
+    }
+    if (localHeight !== null) {
+      setLocalHeight(null)
+    }
     setShouldAnimate(true)
-    // Close panel - this will trigger exit animation via AnimatePresence
     onClose()
-  }, [onClose, isResizing, localHeight])
+    setIsHoveringResizeHandle(false)
+    setTooltipX(null)
+  }, [onClose, localHeight, isResizing, isHoveringResizeHandle, isTooltipDismissed])
 
-  // Handle resize interactions
   const handleResizePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) {
-        return
-      }
+      if (event.button !== 0) return
 
       event.preventDefault()
       event.stopPropagation()
@@ -113,55 +131,47 @@ export function ResizableBottomPanel({
       let hasMoved = false
       let currentLocalHeight: number | null = null
 
-      const handleElement =
-        resizeHandleRef.current ?? (event.currentTarget as HTMLElement)
-
-      const clampHeight = (height: number) =>
-        Math.max(minHeight, Math.min(maxHeight, height))
-
+      const handleElement = resizeHandleRef.current ?? (event.currentTarget as HTMLElement)
       handleElement.setPointerCapture?.(pointerId)
-      setIsResizing(true)
-
-      const updateHeight = (clientY: number) => {
-        // Moving up (negative delta) increases height
-        const delta = startY - clientY
-        const newHeight = clampHeight(startHeight + delta)
-        currentLocalHeight = newHeight
-        // Use local state for smooth real-time updates during resize
-        setLocalHeight(newHeight)
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+        tooltipTimeoutRef.current = null
       }
+      setIsResizing(true)
+      setIsHoveringResizeHandle(false)
 
-      const handlePointerMove = (pointerEvent: PointerEvent) => {
-        const delta = Math.abs(startY - pointerEvent.clientY)
+      const clampHeight = (h: number) =>
+        Math.max(minHeight, Math.min(maxHeight, h))
+
+      const handlePointerMove = (e: PointerEvent) => {
+        const delta = Math.abs(startY - e.clientY)
         if (!hasMoved && delta >= 3) {
           hasMoved = true
         }
-
         if (hasMoved) {
-          // Update height immediately for real-time resize
-          updateHeight(pointerEvent.clientY)
+          const newHeight = clampHeight(startHeight + (startY - e.clientY))
+          currentLocalHeight = newHeight
+          setLocalHeight(newHeight)
         }
       }
 
-      const finishResize = (pointerEvent?: PointerEvent) => {
+      const finishResize = (e?: PointerEvent) => {
         if (handleElement.hasPointerCapture?.(pointerId)) {
           handleElement.releasePointerCapture(pointerId)
         }
-
         document.removeEventListener("pointermove", handlePointerMove)
         document.removeEventListener("pointerup", handlePointerUp)
         document.removeEventListener("pointercancel", handlePointerCancel)
         setIsResizing(false)
 
-        if (hasMoved && pointerEvent) {
-          const delta = startY - pointerEvent.clientY
-          const finalHeight = clampHeight(startHeight + delta)
-          // Save final height to persisted atom (triggers localStorage sync)
+        if (!hasMoved && e) {
+          // Click without drag — close
+          handleClose()
+        } else if (hasMoved && e) {
+          const finalHeight = clampHeight(startHeight + (startY - e.clientY))
           setPanelHeight(finalHeight)
-          // Clear local height to use persisted value
           setLocalHeight(null)
         } else {
-          // If no pointer event but resize was happening, save current local height
           if (currentLocalHeight !== null) {
             setPanelHeight(currentLocalHeight)
             setLocalHeight(null)
@@ -169,98 +179,186 @@ export function ResizableBottomPanel({
         }
       }
 
-      const handlePointerUp = (pointerEvent: PointerEvent) => {
-        finishResize(pointerEvent)
-      }
-
-      const handlePointerCancel = () => {
-        finishResize()
-      }
+      const handlePointerUp = (e: PointerEvent) => finishResize(e)
+      const handlePointerCancel = () => finishResize()
 
       document.addEventListener("pointermove", handlePointerMove)
       document.addEventListener("pointerup", handlePointerUp, { once: true })
-      document.addEventListener("pointercancel", handlePointerCancel, {
-        once: true,
-      })
+      document.addEventListener("pointercancel", handlePointerCancel, { once: true })
     },
-    [panelHeight, setPanelHeight, minHeight, maxHeight],
+    [panelHeight, setPanelHeight, handleClose, minHeight, maxHeight],
   )
 
-  // Resize handle style (top edge)
-  const resizeHandleStyle = useMemo(() => {
-    return {
-      top: "0px",
-      left: "0px",
-      right: "0px",
-      height: "4px",
-      marginTop: "-2px",
-    }
-  }, [])
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent) => {
+      if (isResizing) return
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+      }
+      if (!tooltipX) {
+        setTooltipX(e.clientX)
+      }
+      tooltipTimeoutRef.current = setTimeout(() => {
+        setIsHoveringResizeHandle(true)
+      }, 300)
+    },
+    [isResizing, tooltipX],
+  )
 
-  const extendedHoverAreaStyle = useMemo(() => {
-    return {
-      height: `${EXTENDED_HOVER_AREA_HEIGHT}px`,
-      top: "0px",
-      left: "0px",
-      right: "0px",
-    }
-  }, [])
+  const handleMouseLeave = useCallback(
+    (e: React.MouseEvent) => {
+      if (isResizing) return
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+        tooltipTimeoutRef.current = null
+      }
+      const relatedTarget = e.relatedTarget
+      if (
+        relatedTarget instanceof Node &&
+        (resizeHandleRef.current?.contains(relatedTarget) ||
+          resizeHandleRef.current === relatedTarget)
+      ) {
+        return
+      }
+      setIsHoveringResizeHandle(false)
+      setTooltipX(null)
+      setIsTooltipDismissed(false)
+    },
+    [isResizing],
+  )
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          ref={panelRef}
-          initial={
-            !shouldAnimate
-              ? {
-                  height: currentHeight,
-                  opacity: 1,
-                }
-              : {
-                  height: initialHeight,
-                  opacity: 0,
-                }
-          }
-          animate={{
-            height: currentHeight,
-            opacity: 1,
-          }}
-          exit={{
-            height: exitHeight,
-            opacity: 0,
-          }}
-          transition={{
-            duration: isResizing ? 0 : animationDuration,
-            ease: [0.4, 0, 0.2, 1],
-          }}
-          className={`bg-transparent flex flex-col text-xs w-full relative flex-shrink-0 ${className}`}
-          style={{ minHeight: minHeight, overflow: "hidden", ...style }}
-        >
-          {/* Extended hover area */}
-          <div
-            data-extended-hover-area
-            className="absolute cursor-row-resize"
-            style={{
-              ...extendedHoverAreaStyle,
-              pointerEvents: isResizing ? "none" : "auto",
-              zIndex: isResizing ? 5 : 10,
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            ref={panelRef}
+            initial={
+              !shouldAnimate
+                ? { height: currentHeight, opacity: 1 }
+                : { height: 0, opacity: 0 }
+            }
+            animate={{ height: currentHeight, opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{
+              duration: isResizing ? 0 : 0,
+              ease: [0.4, 0, 0.2, 1],
             }}
-            onPointerDown={handleResizePointerDown}
-          />
+            className={`relative flex-shrink-0 ${className}`}
+            style={{ minHeight, overflow: "hidden", ...style }}
+          >
+            {/* Extended hover area */}
+            <div
+              data-extended-hover-area
+              className="absolute left-0 right-0 cursor-row-resize"
+              style={{
+                height: `${EXTENDED_HOVER_AREA_HEIGHT}px`,
+                top: 0,
+                pointerEvents: isResizing ? "none" : "auto",
+                zIndex: isResizing ? 5 : 10,
+              }}
+              onPointerDown={handleResizePointerDown}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            />
 
-          {/* Resize Handle */}
-          <div
-            ref={resizeHandleRef}
-            onPointerDown={handleResizePointerDown}
-            className="absolute cursor-row-resize z-10"
-            style={resizeHandleStyle}
-          />
+            {/* Resize handle — top edge */}
+            <div
+              ref={resizeHandleRef}
+              onPointerDown={handleResizePointerDown}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={(e) => {
+                if (isResizing) return
+                if (tooltipTimeoutRef.current) {
+                  clearTimeout(tooltipTimeoutRef.current)
+                  tooltipTimeoutRef.current = null
+                }
+                const relatedTarget = e.relatedTarget
+                if (
+                  relatedTarget instanceof Element &&
+                  relatedTarget.closest("[data-extended-hover-area]")
+                ) {
+                  return
+                }
+                setIsHoveringResizeHandle(false)
+                setTooltipX(null)
+                setIsTooltipDismissed(false)
+              }}
+              className="absolute top-0 left-0 right-0 h-[4px] cursor-row-resize z-10"
+              style={{ marginTop: "-2px" }}
+            />
 
-          {/* Children content */}
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
+            {/* Hover Tooltip — Notion style */}
+            {showResizeTooltip &&
+              isHoveringResizeHandle &&
+              !isResizing &&
+              !isTooltipDismissed &&
+              tooltipPosition &&
+              typeof window !== "undefined" &&
+              createPortal(
+                <AnimatePresence>
+                  {tooltipPosition && (
+                    <motion.div
+                      key="tooltip"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.05, ease: "easeOut" }}
+                      className="fixed z-10"
+                      style={{
+                        left: `${tooltipPosition.x}px`,
+                        top: `${tooltipPosition.y}px`,
+                        transform: "translateX(-50%) translateY(-100%)",
+                        transformOrigin: "center bottom",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <div
+                        ref={tooltipRef}
+                        role="dialog"
+                        data-tooltip="true"
+                        className="relative rounded-md border border-border bg-popover px-2 py-1 flex flex-col items-start gap-0.5 text-xs text-popover-foreground shadow-lg dark pointer-events-auto"
+                        onPointerDown={(e) => {
+                          e.stopPropagation()
+                          if (e.button === 0) {
+                            setIsTooltipDismissed(true)
+                            handleClose()
+                          }
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          setIsTooltipDismissed(true)
+                          handleClose()
+                        }}
+                      >
+                        <div className="flex items-center gap-1 text-xs">
+                          <span>Close</span>
+                          <span className="text-muted-foreground inline-flex items-center gap-1">
+                            <span>Click</span>
+                            {closeHotkey && (
+                              <>
+                                <span>or</span>
+                                <Kbd>{closeHotkey}</Kbd>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs">
+                          <span>Resize</span>
+                          <span className="text-muted-foreground">Drag</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>,
+                document.body,
+              )}
+
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

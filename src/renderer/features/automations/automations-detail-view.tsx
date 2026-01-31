@@ -11,7 +11,7 @@ import {
   agentsMobileViewModeAtom,
 } from "../agents/atoms"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
-import { IconSpinner } from "../../components/ui/icons"
+import { IconSpinner, IconChevronDown, ExternalLinkIcon } from "../../components/ui/icons"
 import { Logo } from "../../components/ui/logo"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import {
@@ -20,8 +20,10 @@ import {
   Trash2,
   MoreHorizontal,
 } from "lucide-react"
+import { Badge } from "../../components/ui/badge"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../lib/remote-trpc"
+import { cn } from "../../lib/utils"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 // Stub for disabled cloud feature
@@ -70,6 +72,46 @@ import {
   type TriggerType,
 } from "./_components"
 
+/** Shorten external_id for display: "owner/repo#123" → "repo#123", "owner/repo:push" → "repo:push" */
+function formatExternalId(externalId: string | null | undefined): string {
+  if (!externalId) return "Triggered run"
+  const slashIdx = externalId.indexOf("/")
+  if (slashIdx !== -1) {
+    return externalId.slice(slashIdx + 1)
+  }
+  return externalId
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case "success":
+      return "bg-green-500/10 text-green-600 border-green-500/20"
+    case "failed":
+      return "bg-red-500/10 text-red-600 border-red-500/20"
+    case "pending":
+      return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+    case "skipped":
+      return "bg-muted text-muted-foreground border-border"
+    default:
+      return "bg-muted text-muted-foreground"
+  }
+}
+
+function formatDistanceToNow(date: Date): string {
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHr = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffSec < 60) return "less than a minute ago"
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`
+  const diffMonth = Math.floor(diffDay / 30)
+  return `${diffMonth} month${diffMonth === 1 ? "" : "s"} ago`
+}
+
 export function AutomationsDetailView() {
   const teamId = useAtomValue(selectedTeamIdAtom)
   const automationId = useAtomValue(automationDetailIdAtom)
@@ -113,6 +155,11 @@ export function AutomationsDetailView() {
   // Delete confirmation
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
+  // Past Runs state
+  const [pastRunsExpanded, setPastRunsExpanded] = useState(true)
+  const [pastRunsOffset, setPastRunsOffset] = useState(0)
+  const [additionalExecutions, setAdditionalExecutions] = useState<any[]>([])
+
   // ============================================================================
   // Fetch existing automation (edit mode)
   // ============================================================================
@@ -121,6 +168,36 @@ export function AutomationsDetailView() {
     queryFn: () => remoteTrpc.automations.getAutomation.query({ automationId: automationId! }),
     enabled: !isCreateMode && !!automationId,
   })
+
+  // Fetch additional executions for Past Runs pagination
+  const { data: moreExecutionsData, isFetching: isFetchingMoreExecutions } = useQuery({
+    queryKey: ["automations", "listExecutions", automationId, pastRunsOffset],
+    queryFn: () => remoteTrpc.automations.listExecutions.query({
+      automationId: automationId!,
+      limit: 20,
+      offset: pastRunsOffset,
+    }),
+    enabled: !isCreateMode && !!automationId && pastRunsOffset > 0,
+  })
+
+  // Accumulate additional executions when data arrives
+  useEffect(() => {
+    if (moreExecutionsData?.executions) {
+      setAdditionalExecutions((prev) => [...prev, ...moreExecutionsData.executions])
+    }
+  }, [moreExecutionsData])
+
+  // Combine initial executions (from getAutomation) with paginated ones
+  const allExecutions = useMemo(() => {
+    const initial = (automation as any)?.executions || []
+    if (additionalExecutions.length === 0) return initial
+    const ids = new Set(initial.map((e: any) => e.id))
+    const extra = additionalExecutions.filter((e: any) => !ids.has(e.id))
+    return [...initial, ...extra]
+  }, [(automation as any)?.executions, additionalExecutions])
+
+  const totalExecutions = moreExecutionsData?.total ?? allExecutions.length
+  const hasMoreExecutions = allExecutions.length < totalExecutions
 
   // ============================================================================
   // Fetch GitHub connection status
@@ -562,6 +639,108 @@ export function AutomationsDetailView() {
                 <span className="ml-auto text-xs bg-muted px-1.5 py-0.5 rounded">Soon</span>
               </button>
             </section>
+
+            {/* Past Runs section - only for existing automations */}
+            {!isCreateMode && (
+              <>
+                <div className="w-0.5 h-14 bg-border rounded-full my-4" />
+
+                <section className="w-full mb-8">
+                  <button
+                    onClick={() => setPastRunsExpanded(!pastRunsExpanded)}
+                    className="flex items-center gap-1 text-xs font-medium text-muted-foreground mb-2 hover:text-foreground transition-colors"
+                  >
+                    <IconChevronDown className={cn(
+                      "h-3.5 w-3.5 transition-transform",
+                      !pastRunsExpanded && "-rotate-90"
+                    )} />
+                    <span>Past Runs</span>
+                    {allExecutions.length > 0 && (
+                      <span className="text-muted-foreground/60 ml-1">
+                        ({totalExecutions})
+                      </span>
+                    )}
+                  </button>
+
+                  {pastRunsExpanded && (
+                    <div className="rounded-xl bg-background border border-border overflow-hidden">
+                      {allExecutions.length === 0 ? (
+                        <div className="p-6 text-center">
+                          <p className="text-sm text-muted-foreground">
+                            No runs yet. This automation will appear here once triggered.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-border">
+                          {allExecutions.map((execution: any) => (
+                            <div key={execution.id} className="flex items-center gap-3 px-3 py-2.5">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] px-1.5 py-0 h-5 flex-shrink-0 capitalize",
+                                  getStatusColor(execution.status)
+                                )}
+                              >
+                                {execution.status}
+                              </Badge>
+
+                              <div className="flex-1 min-w-0">
+                                {execution.external_url ? (
+                                  <button
+                                    onClick={() => {
+                                      if (window.desktopApi?.openExternal) {
+                                        window.desktopApi.openExternal(execution.external_url)
+                                      } else {
+                                        window.open(execution.external_url, "_blank")
+                                      }
+                                    }}
+                                    className="text-sm text-foreground hover:underline truncate inline-flex items-center gap-1 text-left"
+                                  >
+                                    <span className="truncate">
+                                      {formatExternalId(execution.external_id)}
+                                    </span>
+                                    <ExternalLinkIcon className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                                  </button>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground truncate block">
+                                    {formatExternalId(execution.external_id)}
+                                  </span>
+                                )}
+                                {execution.status === "failed" && execution.error_message && (
+                                  <p className="text-xs text-red-500 mt-0.5 truncate">
+                                    {execution.error_message}
+                                  </p>
+                                )}
+                              </div>
+
+                              <span className="text-xs text-muted-foreground flex-shrink-0">
+                                {formatDistanceToNow(new Date(execution.created_at))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {hasMoreExecutions && (
+                        <div className="border-t border-border px-3 py-2">
+                          <button
+                            onClick={() => setPastRunsOffset((prev) => prev === 0 ? 10 : prev + 20)}
+                            disabled={isFetchingMoreExecutions}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center py-1"
+                          >
+                            {isFetchingMoreExecutions ? (
+                              <IconSpinner className="h-3 w-3 mx-auto" />
+                            ) : (
+                              "Show more"
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
           </div>
         </div>
       </div>

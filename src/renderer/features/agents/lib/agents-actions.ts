@@ -23,8 +23,8 @@ export interface AgentActionContext {
 
   // UI states
   setSidebarOpen?: (open: boolean | ((prev: boolean) => boolean)) => void
-  setSettingsDialogOpen?: (open: boolean) => void
   setSettingsActiveTab?: (tab: SettingsTab) => void
+  setFileSearchDialogOpen?: (open: boolean) => void
   toggleChatSearch?: () => void
 
   // Data
@@ -62,9 +62,10 @@ const openShortcutsAction: AgentActionDefinition = {
   category: "general",
   hotkey: "?",
   handler: async (context) => {
-    // Open settings dialog on Keyboard tab instead of separate shortcuts dialog
+    // Open settings page on Keyboard tab
     context.setSettingsActiveTab?.("keyboard")
-    context.setSettingsDialogOpen?.(true)
+    context.setDesktopView?.("settings")
+    context.setSidebarOpen?.(true)
     return { success: true }
   },
 }
@@ -92,12 +93,13 @@ const createNewAgentAction: AgentActionDefinition = {
 const openSettingsAction: AgentActionDefinition = {
   id: "open-settings",
   label: "Settings",
-  description: "Open settings dialog",
+  description: "Open settings page",
   category: "general",
   hotkey: ["cmd+,", "ctrl+,"],
   handler: async (context) => {
-    context.setSettingsActiveTab?.("profile")
-    context.setSettingsDialogOpen?.(true)
+    context.setSettingsActiveTab?.("preferences")
+    context.setDesktopView?.("settings")
+    context.setSidebarOpen?.(true)
     return { success: true }
   },
 }
@@ -184,6 +186,30 @@ const openInboxAction: AgentActionDefinition = {
   },
 }
 
+const openFileInEditorAction: AgentActionDefinition = {
+  id: "open-file-in-editor",
+  label: "Open file in editor",
+  description: "Open currently previewed file in preferred editor",
+  category: "general",
+  hotkey: "cmd+shift+o",
+  handler: async () => {
+    window.dispatchEvent(new CustomEvent("open-file-in-editor"))
+    return { success: true }
+  },
+}
+
+const fileSearchAction: AgentActionDefinition = {
+  id: "file-search",
+  label: "Go to file",
+  description: "Search and open a file in the workspace",
+  category: "navigation",
+  hotkey: "cmd+p",
+  handler: async (context) => {
+    context.setFileSearchDialogOpen?.(true)
+    return { success: true }
+  },
+}
+
 // ============================================================================
 // ACTION REGISTRY
 // ============================================================================
@@ -198,6 +224,8 @@ export const AGENT_ACTIONS: Record<string, AgentActionDefinition> = {
   "open-automations": openAutomationsAction,
   "open-inbox": openInboxAction,
   "open-in-editor": openInEditorAction,
+  "open-file-in-editor": openFileInEditorAction,
+  "file-search": fileSearchAction,
 }
 
 export function getAgentAction(id: string): AgentActionDefinition | undefined {

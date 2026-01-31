@@ -1,6 +1,7 @@
 import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
+import type { FileMentionOption } from "../mentions/agents-mentions-editor"
 
 // Agent mode type - extensible for future modes like "debug"
 export type AgentMode = "agent" | "plan"
@@ -43,6 +44,10 @@ export const selectedDraftIdAtom = atom<string | null>(null)
 // Set to false when kanban is explicitly opened (via hotkey or button)
 // Set to true when "New Workspace" is clicked
 export const showNewChatFormAtom = atom<boolean>(true)
+
+// Pending mention to insert into the editor from external components (e.g. MCP widget in sidebar)
+// When set, active-chat picks it up, calls editorRef.insertMention(), and resets to null
+export const pendingMentionAtom = atom<FileMentionOption | null>(null)
 
 // Preview paths storage - stores all preview paths keyed by chatId
 const previewPathsStorageAtom = atomWithStorage<Record<string, string>>(
@@ -422,6 +427,33 @@ export const currentTodosAtomFamily = atomFamily((subChatId: string) =>
     (get, set, newState: TodoState) => {
       const current = get(allTodosStorageAtom)
       set(allTodosStorageAtom, { ...current, [subChatId]: newState })
+    },
+  ),
+)
+
+// Current task tools state per sub-chat (from TaskCreate/TaskUpdate/TaskList/TaskGet)
+// Synced from AgentTaskToolsGroup component snapshot cache
+export interface TaskToolItem {
+  id: string
+  subject: string
+  description?: string
+  activeForm?: string
+  status: "pending" | "in_progress" | "completed"
+}
+
+interface TaskToolState {
+  tasks: TaskToolItem[]
+}
+
+const allTaskToolsStorageAtom = atom<Record<string, TaskToolState>>({})
+
+// atomFamily to get/set task tool state per subChatId
+export const currentTaskToolsAtomFamily = atomFamily((subChatId: string) =>
+  atom(
+    (get) => get(allTaskToolsStorageAtom)[subChatId] ?? { tasks: [] },
+    (get, set, newState: TaskToolState) => {
+      const current = get(allTaskToolsStorageAtom)
+      set(allTaskToolsStorageAtom, { ...current, [subChatId]: newState })
     },
   ),
 )
@@ -900,7 +932,7 @@ export const enabledWidgetsAtom = atom<Set<WidgetId>>(new Set())
 
 // Desktop view mode - takes priority over chat-based rendering
 // null = default behavior (chat/new-chat/kanban)
-export type DesktopView = "automations" | "automations-detail" | "inbox" | null
+export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | null
 export const desktopViewAtom = atom<DesktopView>(null)
 
 // Which automation is being viewed/edited (ID or "new" for creation)
@@ -930,6 +962,14 @@ export const agentsInboxSidebarWidthAtom = atomWithStorage<number>(
 export type InboxMobileViewMode = "list" | "chat"
 export const inboxMobileViewModeAtom = atom<InboxMobileViewMode>("list")
 
+// Settings inner sidebar widths (for MCP, Skills, Agents two-panel layouts)
+// Non-persisted — resets to default on re-render
+export const settingsMcpSidebarWidthAtom = atom(240)
+export const settingsSkillsSidebarWidthAtom = atom(240)
+export const settingsAgentsSidebarWidthAtom = atom(240)
+export const settingsKeyboardSidebarWidthAtom = atom(240)
+export const settingsProjectsSidebarWidthAtom = atom(240)
+
 // ============================================================================
 // Explorer Panel State
 // ============================================================================
@@ -948,6 +988,14 @@ export const explorerDisplayModeAtom = atomWithStorage<ExplorerDisplayMode>(
 export const explorerSidebarWidthAtom = atomWithStorage<number>(
   "agents-explorer-sidebar-width",
   350,
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer sidebar width (persisted)
+export const fileViewerSidebarWidthAtom = atomWithStorage<number>(
+  "agents:fileViewerSidebarWidth",
+  500,
   undefined,
   { getOnInit: true },
 )
@@ -991,6 +1039,94 @@ export const explorerPanelOpenAtomFamily = atomFamily((chatId: string) =>
       // Also persist for sidebar mode
       const current = get(explorerPanelOpenStorageAtom)
       set(explorerPanelOpenStorageAtom, { ...current, [chatId]: isOpen })
+    },
+  ),
+)
+
+// File viewer display mode - sidebar (side peek), center dialog, or fullscreen
+export type FileViewerDisplayMode = "side-peek" | "center-peek" | "full-page"
+
+export const fileViewerDisplayModeAtom = atomWithStorage<FileViewerDisplayMode>(
+  "agents:fileViewerDisplayMode",
+  "side-peek", // default to sidebar for file viewer
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer word wrap preference (persisted)
+export const fileViewerWordWrapAtom = atomWithStorage<boolean>(
+  "agents:fileViewerWordWrap",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer minimap preference (persisted)
+export const fileViewerMinimapAtom = atomWithStorage<boolean>(
+  "agents:fileViewerMinimap",
+  true,
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer line numbers preference (persisted)
+export const fileViewerLineNumbersAtom = atomWithStorage<boolean>(
+  "agents:fileViewerLineNumbers",
+  true,
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer sticky scroll preference (persisted)
+export const fileViewerStickyScrollAtom = atomWithStorage<boolean>(
+  "agents:fileViewerStickyScroll",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer render whitespace preference (persisted)
+export type FileViewerWhitespace = "none" | "selection" | "all"
+export const fileViewerWhitespaceAtom = atomWithStorage<FileViewerWhitespace>(
+  "agents:fileViewerWhitespace",
+  "selection",
+  undefined,
+  { getOnInit: true },
+)
+
+// File viewer bracket pair colorization preference (persisted)
+export const fileViewerBracketPairsAtom = atomWithStorage<boolean>(
+  "agents:fileViewerBracketPairs",
+  true,
+  undefined,
+  { getOnInit: true },
+)
+
+// File search dialog open state (Cmd+P)
+export const fileSearchDialogOpenAtom = atom<boolean>(false)
+
+// File viewer open state - stores the currently open file path per chatId
+const fileViewerOpenStorageAtom = atom<Record<string, string | null>>({})
+
+// Recently opened files - ordered list (most recent first), max 50
+const MAX_RECENT_FILES = 50
+export const recentlyOpenedFilesAtom = atom<string[]>([])
+
+export const fileViewerOpenAtomFamily = atomFamily((chatId: string) =>
+  atom(
+    (get) => get(fileViewerOpenStorageAtom)[chatId] ?? null,
+    (get, set, filePath: string | null) => {
+      const current = get(fileViewerOpenStorageAtom)
+      set(fileViewerOpenStorageAtom, { ...current, [chatId]: filePath })
+      // Track in recently opened files
+      if (filePath) {
+        const recent = get(recentlyOpenedFilesAtom)
+        const filtered = recent.filter((p) => p !== filePath)
+        set(
+          recentlyOpenedFilesAtom,
+          [filePath, ...filtered].slice(0, MAX_RECENT_FILES),
+        )
+      }
     },
   ),
 )

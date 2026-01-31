@@ -2,13 +2,13 @@
 
 import { useAtomValue } from "jotai"
 import { ListTree } from "lucide-react"
-import { memo, useCallback, useMemo, useState } from "react"
+import { memo, useCallback, useContext, useMemo, useState } from "react"
 
 import { CollapseIcon, ExpandIcon, IconTextUndo, PlanIcon } from "../../../components/ui/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
 import { isRollingBackAtom, rollbackHandlerAtom } from "../stores/message-store"
-import { showMessageJsonAtom } from "../atoms"
+import { selectedProjectAtom, showMessageJsonAtom } from "../atoms"
 import { MessageJsonDisplay } from "../ui/message-json-display"
 import { AgentAskUserQuestionTool } from "../ui/agent-ask-user-question-tool"
 import { AgentBashTool } from "../ui/agent-bash-tool"
@@ -34,6 +34,7 @@ import {
   // PlayButton, // TODO: TTS 功能暂时隐藏，后续启用
   getMessageTextContent,
 } from "../ui/message-action-buttons"
+import { useFileOpen } from "../mentions"
 import { MemoizedTextPart } from "./memoized-text-part"
 
 // Exploring tools - these get grouped when 3+ consecutive
@@ -278,6 +279,9 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
   const onRollback = useAtomValue(rollbackHandlerAtom)
   const isRollingBack = useAtomValue(isRollingBackAtom)
   const showMessageJson = useAtomValue(showMessageJsonAtom)
+  const selectedProject = useAtomValue(selectedProjectAtom)
+  const projectPath = selectedProject?.path
+  const onOpenFile = useFileOpen()
   const isDev = import.meta.env.DEV
   const messageParts = message?.parts || []
 
@@ -577,14 +581,20 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
     if (part.type in AgentToolRegistry) {
       const meta = AgentToolRegistry[part.type]
       const { isPending, isError } = getToolStatus(part, status)
+      // Make Read tool clickable to open file in viewer
+      const handleClick = part.type === "tool-Read" && onOpenFile && part.input?.file_path
+        ? () => onOpenFile(part.input.file_path)
+        : undefined
       return (
         <AgentToolCall
           key={idx}
           icon={meta.icon}
           title={meta.title(part)}
           subtitle={meta.subtitle?.(part)}
+          tooltipContent={meta.tooltipContent?.(part, projectPath)}
           isPending={isPending}
           isError={isError}
+          onClick={handleClick}
         />
       )
     }

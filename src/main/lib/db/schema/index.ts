@@ -25,6 +25,8 @@ export const projects = sqliteTable("projects", {
   // Feature configuration: JSON object for widget/tool overrides
   // { widgets?: { [widgetId]: boolean }, tools?: { [toolId]: boolean } }
   featureConfig: text("feature_config"),
+  // Custom project icon (absolute path to local image file)
+  iconPath: text("icon_path"),
 })
 
 export const projectsRelations = relations(projects, ({ many }) => ({
@@ -196,5 +198,3 @@ export type NewModelUsage = typeof modelUsage.$inferInsert
 export type AnthropicAccount = typeof anthropicAccounts.$inferSelect
 export type NewAnthropicAccount = typeof anthropicAccounts.$inferInsert
 export type AnthropicSettings = typeof anthropicSettings.$inferSelect
-export type ModelUsage = typeof modelUsage.$inferSelect
-export type NewModelUsage = typeof modelUsage.$inferInsert

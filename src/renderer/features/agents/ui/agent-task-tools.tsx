@@ -1,10 +1,12 @@
 "use client"
 
 import { ChevronsUpDown } from "lucide-react"
-import { memo, useMemo, useState } from "react"
+import { useSetAtom } from "jotai"
+import { memo, useEffect, useMemo, useState } from "react"
 import { CheckIcon, PlanIcon } from "../../../components/ui/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
+import { currentTaskToolsAtomFamily } from "../atoms"
 import { getToolStatus } from "./agent-tool-registry"
 
 /**
@@ -826,6 +828,45 @@ export const AgentTaskToolsGroup = memo(function AgentTaskToolsGroup({
 
     return { previousSnapshot, currentSnapshot }
   }, [parts, subChatId])
+
+  // Sync the FULL accumulated task snapshot to Jotai atom for details sidebar.
+  // We read the last group's snapshot from the cache (which accumulates all previous groups)
+  // instead of syncing each group's partial snapshot, avoiding race conditions
+  // where intermediate groups overwrite the full state.
+  const taskToolsAtom = useMemo(
+    () => currentTaskToolsAtomFamily(subChatId || "default"),
+    [subChatId],
+  )
+  const setTaskToolsState = useSetAtom(taskToolsAtom)
+
+  useEffect(() => {
+    if (!subChatId) return
+
+    // Get the full accumulated snapshot: last group in the order has all tasks
+    const groupOrder = groupOrderCache.get(subChatId)
+    const historyMap = snapshotHistoryCache.get(subChatId)
+    if (!groupOrder || !historyMap || groupOrder.length === 0) return
+
+    const lastGroupKey = groupOrder[groupOrder.length - 1]
+    const fullSnapshot = historyMap.get(lastGroupKey)
+    if (!fullSnapshot || fullSnapshot.size === 0) return
+
+    const tasks = Array.from(fullSnapshot.values()).map((snap) => ({
+      id: snap.id,
+      subject: snap.subject,
+      description: snap.description,
+      activeForm: snap.activeForm,
+      status: snap.status,
+    }))
+    // Sort by ID for consistent order
+    tasks.sort((a, b) => {
+      const numA = parseInt(a.id, 10)
+      const numB = parseInt(b.id, 10)
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+      return a.id.localeCompare(b.id)
+    })
+    setTaskToolsState({ tasks })
+  }, [currentSnapshot, subChatId, setTaskToolsState])
 
   // Build snapshot subjects map for cross-group task name resolution
   // This needs to be computed BEFORE extractChangesFromParts so it can be passed in

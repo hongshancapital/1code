@@ -65,12 +65,20 @@ export type UIMessageChunk =
 
 export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"
 
+export type MCPServerIcon = {
+  src: string
+  mimeType?: string
+  sizes?: string[]
+  theme?: "light" | "dark"
+}
+
 export type MCPServer = {
   name: string
   status: MCPServerStatus
   serverInfo?: {
     name: string
     version: string
+    icons?: MCPServerIcon[]
   }
   error?: string
 }

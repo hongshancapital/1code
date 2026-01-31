@@ -496,7 +496,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         })
         // Map MCP servers with validated status type and additional info
         const mcpServers: MCPServer[] = (msg.mcp_servers || []).map(
-          (s: { name: string; status: string; serverInfo?: { name: string; version: string }; error?: string }) => ({
+          (s: { name: string; status: string; serverInfo?: { name: string; version: string; icons?: { src: string; mimeType?: string; sizes?: string[]; theme?: "light" | "dark" }[] }; error?: string }) => ({
             name: s.name,
             status: (["connected", "failed", "pending", "needs-auth"].includes(
               s.status,

@@ -97,6 +97,7 @@ import {
   type FileMentionOption,
 } from "../mentions"
 import { pendingFileReferenceAtom } from "../../cowork/atoms"
+import { AgentFileItem } from "../ui/agent-file-item"
 import { AgentImageItem } from "../ui/agent-image-item"
 import { AgentPastedTextItem } from "../ui/agent-pasted-text-item"
 import { AgentsHeaderControls } from "../ui/agents-header-controls"
@@ -292,11 +293,9 @@ export function NewChatForm({
   }
 
   const handleConfigureWorktree = () => {
-    // Open the project-specific worktree settings tab
-    if (validatedProject?.id) {
-      setSettingsActiveTab(`project-${validatedProject.id}` as any)
-      setSettingsDialogOpen(true)
-    }
+    // Open the projects settings tab
+    setSettingsActiveTab("projects")
+    setSettingsDialogOpen(true)
   }
   // Parse owner/repo from GitHub URL
   const parseGitHubUrl = (url: string) => {
@@ -403,12 +402,15 @@ export function NewChatForm({
     }
   }, [validatedProject?.id, lastSelectedBranches])
 
-  // Image upload hook
+  // File upload hook
   const {
     images,
+    files,
     handleAddAttachments,
     removeImage,
+    removeFile,
     clearImages,
+    clearFiles,
     isUploading,
   } = useAgentsFileUpload()
 
@@ -932,9 +934,10 @@ export function NewChatForm({
   const utils = trpc.useUtils()
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
-      // Clear editor, images, pasted texts, file contents cache, and custom branch name only on success
+      // Clear editor, images, files, pasted texts, file contents cache, and custom branch name only on success
       editorRef.current?.clear()
       clearImages()
+      clearFiles()
       clearPastedTexts()
       fileContentsRef.current.clear()
       clearCurrentDraft()
@@ -1046,12 +1049,13 @@ export function NewChatForm({
     // Get value from uncontrolled editor
     let message = editorRef.current?.getValue() || ""
 
-    // Allow send if there's text, images, or pasted text files
+    // Allow send if there's text, images, files, or pasted text files
     const hasText = message.trim().length > 0
     const hasImages = images.filter((img) => !img.isLoading && img.url).length > 0
+    const hasFiles = files.filter((f) => !f.isLoading).length > 0
     const hasPastedTexts = pastedTexts.length > 0
 
-    if ((!hasText && !hasImages && !hasPastedTexts) || !selectedProject) {
+    if ((!hasText && !hasImages && !hasFiles && !hasPastedTexts) || !selectedProject) {
       return
     }
 
@@ -1201,7 +1205,7 @@ export function NewChatForm({
           ? customBranchName.trim()
           : undefined,
     })
-    // Editor, images, and pasted texts are cleared in onSuccess callback
+    // Editor, images, files, and pasted texts are cleared in onSuccess callback
   }, [
     selectedProject,
     validatedProject?.path,
@@ -1214,6 +1218,7 @@ export function NewChatForm({
     customBranchName,
     branchNameError,
     images,
+    files,
     pastedTexts,
     agentMode,
     trpcUtils,
@@ -1528,9 +1533,9 @@ export function NewChatForm({
     [validatedProject?.path, handleAddAttachments, trpcUtils],
   )
 
-  // Context items for images and pasted text files
+  // Context items for images, files, and pasted text files
   const contextItems =
-    images.length > 0 || pastedTexts.length > 0 ? (
+    images.length > 0 || files.length > 0 || pastedTexts.length > 0 ? (
       <div className="flex flex-wrap gap-[6px]">
         {(() => {
           // Build allImages array for gallery navigation
@@ -1555,6 +1560,17 @@ export function NewChatForm({
             />
           ))
         })()}
+        {files.map((f) => (
+          <AgentFileItem
+            key={f.id}
+            id={f.id}
+            filename={f.filename}
+            url={f.url || ""}
+            size={f.size}
+            isLoading={f.isLoading}
+            onRemove={() => removeFile(f.id)}
+          />
+        ))}
         {pastedTexts.map((pt) => (
           <AgentPastedTextItem
             key={pt.id}
@@ -1976,11 +1992,10 @@ export function NewChatForm({
                         type="file"
                         ref={fileInputRef}
                         hidden
-                        accept="image/jpeg,image/png"
                         multiple
                         onChange={(e) => {
-                          const files = Array.from(e.target.files || [])
-                          handleAddAttachments(files)
+                          const inputFiles = Array.from(e.target.files || [])
+                          handleAddAttachments(inputFiles)
                           e.target.value = "" // Reset to allow same file selection
                         }}
                       />
@@ -1993,7 +2008,7 @@ export function NewChatForm({
                           size="icon"
                           className="h-7 w-7 rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
                           onClick={() => fileInputRef.current?.click()}
-                          disabled={images.length >= 5}
+                          disabled={images.length >= 5 && files.length >= 10}
                         >
                           <AttachIcon className="h-4 w-4" />
                         </Button>

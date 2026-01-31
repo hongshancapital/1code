@@ -3,6 +3,7 @@ import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
 import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
+import { OriginalMCPIcon } from "../../../components/ui/icons"
 import {
   type WidgetId,
   type ProjectMode,
@@ -37,6 +38,8 @@ export const WIDGET_REGISTRY: WidgetConfig[] = [
   { id: "explorer", label: WIDGET_DEFAULTS.explorer.label, icon: FolderTree, canExpand: true },
   // Background tasks (available in both modes)
   { id: "background-tasks", label: WIDGET_DEFAULTS["background-tasks"].label, icon: Cpu, canExpand: false },
+  // MCP Servers (from main)
+  { id: "mcp", label: "MCP Servers", icon: OriginalMCPIcon as unknown as LucideIcon, canExpand: false },
 ]
 
 // Default visible widgets (merge both modes to ensure widgets show when enabled)
