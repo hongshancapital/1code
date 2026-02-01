@@ -1,6 +1,10 @@
 // Why Did You Render - MUST be first import (before React)
 import "./wdyr"
 
+// Validate environment variables early
+import { validateEnv } from "./lib/env"
+validateEnv()
+
 // Only initialize Sentry in production to avoid IPC errors in dev mode
 if (import.meta.env.PROD) {
   import("@sentry/electron/renderer").then((Sentry) => {

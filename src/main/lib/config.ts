@@ -1,20 +1,15 @@
 /**
  * Shared configuration for the desktop app
  */
-import { app } from "electron"
+import { getEnv } from "./env"
 
 const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
 
 /**
- * Get the API base URL
- * In packaged app, ALWAYS use production URL to prevent localhost leaking into releases
- * In dev mode, allow override via MAIN_VITE_API_URL env variable
+ * Get the API base URL from validated environment
  */
 export function getApiUrl(): string {
-  if (app.isPackaged) {
-    return "https://cowork.hongshan.com"
-  }
-  return import.meta.env.MAIN_VITE_API_URL || "https://cowork.hongshan.com"
+  return getEnv().MAIN_VITE_API_URL
 }
 
 /**

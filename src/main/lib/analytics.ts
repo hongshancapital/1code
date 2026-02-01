@@ -7,11 +7,19 @@ import { PostHog } from "posthog-node"
 import { app } from "electron"
 import * as fs from "fs"
 import * as path from "path"
+import { getEnv } from "./env"
 
-// PostHog configuration - hardcoded key for opensource users, env var override for internal builds
-// This enables analytics for all users including those building from source
-const POSTHOG_DESKTOP_KEY = import.meta.env.MAIN_VITE_POSTHOG_KEY || "phc_wM7gbrJhOLTvynyhnhPkrVGDc5mKRSXsLGQHqM3T3vq"
-const POSTHOG_HOST = import.meta.env.MAIN_VITE_POSTHOG_HOST || "https://us.i.posthog.com"
+// PostHog configuration from validated environment (optional)
+function getPostHogConfig(): { key: string; host: string } | null {
+  const env = getEnv()
+  if (!env.MAIN_VITE_POSTHOG_KEY || !env.MAIN_VITE_POSTHOG_HOST) {
+    return null
+  }
+  return {
+    key: env.MAIN_VITE_POSTHOG_KEY,
+    host: env.MAIN_VITE_POSTHOG_HOST,
+  }
+}
 
 let posthog: PostHog | null = null
 let currentUserId: string | null = null
@@ -115,14 +123,14 @@ export function initAnalytics() {
 
   if (posthog) return
 
-  // Skip if no PostHog key configured
-  if (!POSTHOG_DESKTOP_KEY) {
+  const config = getPostHogConfig()
+  if (!config) {
     console.log("[Analytics] Skipping PostHog initialization (no key configured)")
     return
   }
 
-  posthog = new PostHog(POSTHOG_DESKTOP_KEY, {
-    host: POSTHOG_HOST,
+  posthog = new PostHog(config.key, {
+    host: config.host,
     // Flush events every 30 seconds or when 20 events are queued
     flushAt: 20,
     flushInterval: 30000,

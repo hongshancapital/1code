@@ -16,7 +16,7 @@ import {
   logRawClaudeMessage,
   type UIMessageChunk,
 } from "../../claude"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, type McpServerConfig, type ProjectConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
@@ -25,6 +25,8 @@ import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
 import { discoverPluginMcpServers } from "../../plugins"
+import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig } from "../../builtin-mcp"
+import { getAuthManager } from "../../../index"
 
 /**
  * Type for Claude SDK streaming messages
@@ -845,6 +847,47 @@ export async function getAllMcpConfigHandler() {
       mcpServers
     }))
 
+    // Built-in MCP (Hong internal API with Okta auth)
+    // Use AuthManager to ensure token is fresh (auto-refreshed if needed)
+    const authManager = getAuthManager()
+    const builtinConfig = await getBuiltinMcpConfig(authManager)
+
+    if (builtinConfig) {
+      // Try to fetch tools from built-in MCP
+      let builtinTools: McpToolInfo[] = []
+      let builtinStatus = "connected"
+
+      try {
+        builtinTools = await fetchMcpTools(builtinConfig.url, builtinConfig.headers)
+        if (builtinTools.length === 0) {
+          builtinStatus = "failed"
+        }
+        // Cache the working status
+        const cacheKey = mcpCacheKey(null, BUILTIN_MCP_NAME)
+        workingMcpServers.set(cacheKey, builtinTools.length > 0)
+      } catch (error) {
+        console.error(`[MCP] Failed to fetch tools for built-in MCP:`, error)
+        builtinStatus = "failed"
+        workingMcpServers.set(mcpCacheKey(null, BUILTIN_MCP_NAME), false)
+      }
+
+      groups.unshift({
+        groupName: "Built-in",
+        projectPath: null,
+        mcpServers: [{
+          name: BUILTIN_MCP_NAME,
+          status: builtinStatus,
+          tools: builtinTools,
+          needsAuth: false, // Auth is handled internally via Okta
+          config: {
+            url: builtinConfig.url,
+            type: builtinConfig.type,
+            _builtin: true,
+          },
+        }],
+      })
+    }
+
     // Plugin MCPs (from installed plugins)
     const [enabledPluginSources, pluginMcpConfigs, approvedServers] = await Promise.all([
       getEnabledPlugins(),
@@ -1338,7 +1381,10 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   }
 
                   // Priority: project > global > plugin
-                  const allServers = { ...pluginServers, ...globalServers, ...projectServers }
+                  // Then inject built-in MCP (lowest priority, can be overridden by user config)
+                  // Uses async to ensure token is fresh (auto-refreshed if needed)
+                  const authManager = getAuthManager()
+                  const allServers = await injectBuiltinMcp({ ...pluginServers, ...globalServers, ...projectServers }, authManager)
 
                   // Filter to only working MCPs using scoped cache keys
                   if (workingMcpServers.size > 0) {

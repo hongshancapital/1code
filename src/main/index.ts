@@ -1,5 +1,10 @@
 import * as Sentry from "@sentry/electron/main"
+import { validateEnv, getEnv } from "./lib/env"
 import { app, BrowserWindow, Menu, protocol, session } from "electron"
+
+// Validate environment variables early (before app logic starts)
+// This will throw if required env vars are missing
+validateEnv()
 import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { createServer } from "http"
 import { join } from "path"
@@ -54,11 +59,11 @@ if (IS_DEV) {
 
 // Initialize Sentry before app is ready (production only)
 if (app.isPackaged && !IS_DEV) {
-  const sentryDsn = import.meta.env.MAIN_VITE_SENTRY_DSN
-  if (sentryDsn) {
+  const env = getEnv()
+  if (env.MAIN_VITE_SENTRY_DSN) {
     try {
       Sentry.init({
-        dsn: sentryDsn,
+        dsn: env.MAIN_VITE_SENTRY_DSN,
       })
       console.log("[App] Sentry initialized")
     } catch (error) {
@@ -72,13 +77,8 @@ if (app.isPackaged && !IS_DEV) {
 }
 
 // URL configuration (exported for use in other modules)
-// In packaged app, ALWAYS use production URL to prevent localhost leaking into releases
-// In dev mode, allow override via MAIN_VITE_API_URL env variable
 export function getBaseUrl(): string {
-  if (app.isPackaged) {
-    return "https://hongshan.com"
-  }
-  return import.meta.env.MAIN_VITE_API_URL || "https://hongshan.com"
+  return getEnv().MAIN_VITE_API_URL
 }
 
 export function getAppUrl(): string {

@@ -197,6 +197,11 @@ contextBridge.exposeInMainWorld("desktopApi", {
     ipcRenderer.on("auth:error", handler)
     return () => ipcRenderer.removeListener("auth:error", handler)
   },
+  onSessionExpired: (callback: (data: { reason: string }) => void) => {
+    const handler = (_event: unknown, data: { reason: string }) => callback(data)
+    ipcRenderer.on("auth:session-expired", handler)
+    return () => ipcRenderer.removeListener("auth:session-expired", handler)
+  },
 
   // Shortcut events (from main process menu accelerators)
   onShortcutNewAgent: (callback: () => void) => {
@@ -379,6 +384,7 @@ export interface DesktopApi {
   onStreamError: (streamId: string, callback: (error: string) => void) => () => void
   onAuthSuccess: (callback: (user: any) => void) => () => void
   onAuthError: (callback: (error: string) => void) => () => void
+  onSessionExpired: (callback: (data: { reason: string }) => void) => () => void
   // Shortcuts
   onShortcutNewAgent: (callback: () => void) => () => void
   // File changes

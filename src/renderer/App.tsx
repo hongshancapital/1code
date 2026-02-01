@@ -1,7 +1,7 @@
 import { Provider as JotaiProvider, useAtomValue, useSetAtom } from "jotai"
 import { ThemeProvider, useTheme } from "next-themes"
 import { useEffect, useMemo } from "react"
-import { Toaster } from "sonner"
+import { toast, Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
 import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext"
@@ -173,9 +173,24 @@ export function App() {
     }
     identifyUser()
 
+    // Listen for session expiration (when refresh token fails)
+    const unsubscribeSessionExpired = window.desktopApi?.onSessionExpired?.(() => {
+      toast.error("会话已过期，请重新登录", {
+        duration: 5000,
+        action: {
+          label: "重新登录",
+          onClick: () => {
+            // Reload the page to trigger re-authentication
+            window.location.reload()
+          },
+        },
+      })
+    })
+
     // Cleanup on unmount
     return () => {
       shutdown()
+      unsubscribeSessionExpired?.()
     }
   }, [])
 

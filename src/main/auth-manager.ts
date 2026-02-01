@@ -2,39 +2,20 @@ import { AuthStore, AuthData, AuthUser } from "./auth-store"
 import { app, BrowserWindow } from "electron"
 import { AUTH_SERVER_PORT } from "./constants"
 import { generateCodeVerifier, generateCodeChallenge, generateState } from "./lib/okta/pkce"
+import { getEnv, getApiOrigin } from "./lib/env"
 
-// Okta configuration from environment variables
+// Okta configuration from validated environment
 function getOktaConfig() {
-  const issuer = import.meta.env.MAIN_VITE_OKTA_ISSUER
-  const clientId = import.meta.env.MAIN_VITE_OKTA_CLIENT_ID
-
-  if (!issuer || !clientId) {
-    throw new Error("Okta configuration missing. Set MAIN_VITE_OKTA_ISSUER and MAIN_VITE_OKTA_CLIENT_ID")
+  const env = getEnv()
+  return {
+    issuer: env.MAIN_VITE_OKTA_ISSUER,
+    clientId: env.MAIN_VITE_OKTA_CLIENT_ID,
   }
-
-  return { issuer, clientId }
 }
 
-// API base URL
+// API base URL from validated environment
 function getApiBaseUrl(): string {
-  return import.meta.env.MAIN_VITE_API_URL || "https://lite-api-dev.hongshan.com"
-}
-
-// API Origin for CORS (derived from API URL or explicit env var)
-function getApiOrigin(): string {
-  if (import.meta.env.MAIN_VITE_API_ORIGIN) {
-    return import.meta.env.MAIN_VITE_API_ORIGIN
-  }
-  // Derive origin from API URL: lite-api-dev.hongshan.com -> lite-dev.hongshan.com
-  const apiUrl = getApiBaseUrl()
-  try {
-    const url = new URL(apiUrl)
-    // Replace "lite-api-" with "lite-" in hostname
-    const origin = `${url.protocol}//${url.hostname.replace("lite-api-", "lite-")}`
-    return origin
-  } catch {
-    return "https://lite-dev.hongshan.com"
-  }
+  return getEnv().MAIN_VITE_API_URL
 }
 
 /**
@@ -239,8 +220,7 @@ export class AuthManager {
    * Uses the configured callback URL from Okta application settings
    */
   private getRedirectUri(): string {
-    // Use the Okta-configured callback URL (must match Okta app settings)
-    return import.meta.env.MAIN_VITE_OKTA_CALLBACK || "http://localhost:3000/implicit/callback"
+    return getEnv().MAIN_VITE_OKTA_CALLBACK
   }
 
   /**
@@ -443,7 +423,7 @@ export class AuthManager {
         // If refresh fails with 401/400, the refresh token is likely expired
         if (response.status === 401 || response.status === 400) {
           console.log("[Auth] Refresh token expired, logging out...")
-          this.logout()
+          this.logout("session_expired")
         }
         return false
       }
@@ -536,16 +516,27 @@ export class AuthManager {
   }
 
   /**
-   * Logout and clear stored credentials
+   * Logout and clear stored credentials.
+   * Optionally triggered by session expiration (when refresh token fails).
+   *
+   * @param reason - Optional reason for logout ("manual" | "session_expired")
    */
-  logout(): void {
+  logout(reason: "manual" | "session_expired" = "manual"): void {
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer)
       this.refreshTimer = undefined
     }
     this.clearPkceState()
     this.store.clear()
-    console.log("[Auth] User logged out")
+
+    // Notify all renderer windows about logout
+    // Use different events for manual logout vs session expiration
+    const eventName = reason === "session_expired" ? "auth:session-expired" : "auth:logout"
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send(eventName, { reason })
+    })
+
+    console.log(`[Auth] User logged out (reason: ${reason})`)
   }
 
   /**
@@ -599,10 +590,7 @@ export class AuthManager {
     if (!token) return null
 
     try {
-      // Use the hongshan.com API with the Okta access token
-      const apiUrl = app.isPackaged
-        ? "https://hongshan.com"
-        : (import.meta.env.MAIN_VITE_API_URL || "https://hongshan.com")
+      const apiUrl = getEnv().MAIN_VITE_API_URL
 
       const response = await fetch(`${apiUrl}/api/desktop/user/plan`, {
         headers: {

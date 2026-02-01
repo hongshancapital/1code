@@ -4,10 +4,19 @@
  */
 
 import posthog from "posthog-js"
+import { getEnv } from "./env"
 
-// PostHog configuration from environment
-const POSTHOG_DESKTOP_KEY = import.meta.env.VITE_POSTHOG_KEY
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com"
+// PostHog configuration from environment (optional)
+function getPostHogConfig(): { key: string; host: string } | null {
+  const env = getEnv()
+  if (!env.VITE_POSTHOG_KEY || !env.VITE_POSTHOG_HOST) {
+    return null
+  }
+  return {
+    key: env.VITE_POSTHOG_KEY,
+    host: env.VITE_POSTHOG_HOST,
+  }
+}
 
 let initialized = false
 let currentUserId: string | null = null
@@ -55,8 +64,8 @@ export async function initAnalytics() {
 
   if (initialized) return
 
-  // Skip if no PostHog key configured
-  if (!POSTHOG_DESKTOP_KEY) {
+  const config = getPostHogConfig()
+  if (!config) {
     console.log("[Analytics] Skipping PostHog initialization (no key configured)")
     return
   }
@@ -76,8 +85,8 @@ export async function initAnalytics() {
     console.warn("[Analytics] Failed to get app info:", error)
   }
 
-  posthog.init(POSTHOG_DESKTOP_KEY, {
-    api_host: POSTHOG_HOST,
+  posthog.init(config.key, {
+    api_host: config.host,
     // Disable automatic tracking - we track manually
     autocapture: false,
     capture_pageview: false,

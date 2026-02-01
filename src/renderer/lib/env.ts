@@ -1,0 +1,53 @@
+/**
+ * Environment variable validation and access for Renderer Process
+ *
+ * All environment variables are injected at build time via Vite's import.meta.env.
+ * This module validates that required variables are set and provides typed access.
+ */
+
+/**
+ * Environment variables for renderer (all optional)
+ */
+interface Env {
+  // Analytics (disabled if not set)
+  VITE_POSTHOG_KEY?: string
+  VITE_POSTHOG_HOST?: string
+
+  // Feedback URL
+  VITE_FEEDBACK_URL?: string
+}
+
+// Cached validated environment
+let validatedEnv: Env | null = null
+
+/**
+ * Validate and cache environment variables.
+ * Should be called early in app startup.
+ * Renderer has no required env vars currently.
+ */
+export function validateEnv(): Env {
+  if (validatedEnv) {
+    return validatedEnv
+  }
+
+  // Build env object (all optional for renderer)
+  validatedEnv = {
+    VITE_POSTHOG_KEY: import.meta.env.VITE_POSTHOG_KEY,
+    VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
+    VITE_FEEDBACK_URL: import.meta.env.VITE_FEEDBACK_URL,
+  }
+
+  console.log("[Env] Renderer environment loaded")
+  return validatedEnv
+}
+
+/**
+ * Get validated environment variables.
+ * Throws if validateEnv() hasn't been called yet.
+ */
+export function getEnv(): Env {
+  if (!validatedEnv) {
+    throw new Error("[Env] Environment not validated. Call validateEnv() first.")
+  }
+  return validatedEnv
+}

@@ -17,14 +17,23 @@ declare module "react" {
 // Extend Vite's ImportMetaEnv with our custom env vars
 declare global {
   interface ImportMetaEnv {
-    // Main process (MAIN_VITE_ prefix)
+    // Main process - Required (MAIN_VITE_ prefix)
+    readonly MAIN_VITE_OKTA_ISSUER: string
+    readonly MAIN_VITE_OKTA_CLIENT_ID: string
+    readonly MAIN_VITE_OKTA_CALLBACK: string
+    readonly MAIN_VITE_API_URL: string
+    readonly MAIN_VITE_API_ORIGIN: string
+
+    // Main process - Optional
     readonly MAIN_VITE_SENTRY_DSN?: string
+    readonly MAIN_VITE_OPENAI_API_KEY?: string
     readonly MAIN_VITE_POSTHOG_KEY?: string
     readonly MAIN_VITE_POSTHOG_HOST?: string
 
-    // Renderer process (VITE_ prefix)
+    // Renderer process - Optional (VITE_ prefix)
     readonly VITE_POSTHOG_KEY?: string
     readonly VITE_POSTHOG_HOST?: string
+    readonly VITE_FEEDBACK_URL?: string
   }
 
   /**
