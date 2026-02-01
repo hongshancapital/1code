@@ -196,8 +196,13 @@ export type SelectedProject = {
   gitOwner?: string | null
   gitRepo?: string | null
   // Project mode and feature configuration
-  mode?: "cowork" | "coding"
+  // "chat" = pure chat mode (runs in playground, no file tools)
+  // "cowork" = simplified mode (no git features, focus on chat)
+  // "coding" = full mode (git, diff, terminal, etc.)
+  mode?: "chat" | "cowork" | "coding"
   featureConfig?: string | null  // JSON string of ProjectFeatureConfig
+  // Whether this is the playground project (for chat mode)
+  isPlayground?: boolean
 } | null
 
 // Selected local project - uses window-scoped storage so each window can work with different projects
@@ -871,6 +876,26 @@ export const workspaceDiffCacheAtomFamily = atomFamily((chatId: string) =>
   ),
 )
 
+// ============================================
+// DIFF PENDING CHANGES (manual refresh feature)
+// ============================================
+
+// Storage atom for pending changes flag per chatId
+const diffHasPendingChangesStorageAtom = atom<Record<string, boolean>>({})
+
+// Diff has pending changes flag - when true, shows "Refresh" button in diff header
+// Set to true when files change while diff sidebar is open
+// Reset when user clicks Refresh or closes the sidebar
+export const diffHasPendingChangesAtomFamily = atomFamily((chatId: string) =>
+  atom(
+    (get) => get(diffHasPendingChangesStorageAtom)[chatId] ?? false,
+    (get, set, hasPending: boolean) => {
+      const current = get(diffHasPendingChangesStorageAtom)
+      set(diffHasPendingChangesStorageAtom, { ...current, [chatId]: hasPending })
+    },
+  ),
+)
+
 // Context comments for diff view - shared between chat input and diff gutter
 // These are comments from diffTextContexts that have a comment field
 export interface ContextCommentItem {
@@ -892,11 +917,13 @@ export const contextCommentClickedAtom = atom<string | null>(null)
 // ============================================
 
 // Current project mode - set by ChatView based on active workspace's project
+// "chat" = pure chat mode (runs in playground, no file tools)
 // "cowork" = simplified mode (no git features, focus on chat)
 // "coding" = full mode (git, diff, terminal, etc.)
 // This is a writable atom that ChatView updates when workspace changes
-export type ProjectMode = "cowork" | "coding"
-export const currentProjectModeAtom = atom<ProjectMode>("cowork")
+// Default to "chat" mode so users can start chatting immediately without selecting a project
+export type ProjectMode = "chat" | "cowork" | "coding"
+export const currentProjectModeAtom = atom<ProjectMode>("chat")
 
 // ============================================
 // TERMINAL PANEL HEIGHT (Coding mode)

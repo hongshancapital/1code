@@ -106,6 +106,9 @@ interface DiffSidebarHeaderProps {
 	onDisplayModeChange?: (mode: "side-peek" | "center-peek" | "full-page") => void;
 	// User review button slot - replaces AI review when has comments
 	reviewButtonSlot?: React.ReactNode;
+	// Manual diff refresh - when files change while sidebar is open
+	hasPendingDiffChanges?: boolean;
+	onRefreshDiff?: () => void;
 }
 
 function formatTimeSince(date: Date): string {
@@ -156,6 +159,8 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 	displayMode = "side-peek",
 	onDisplayModeChange,
 	reviewButtonSlot,
+	hasPendingDiffChanges = false,
+	onRefreshDiff,
 }: DiffSidebarHeaderProps) {
 	// Responsive breakpoints - progressive disclosure
 	const isCompact = sidebarWidth < 350;
@@ -509,6 +514,24 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 					WebkitAppRegion: "no-drag",
 				}}
 			>
+				{/* Pending diff changes - Refresh button (GitHub-style amber) */}
+				{hasPendingDiffChanges && onRefreshDiff && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={onRefreshDiff}
+								className="h-6 px-2 gap-1 text-xs bg-amber-500/10 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 hover:text-amber-700 dark:hover:text-amber-300"
+							>
+								<RefreshCw className="size-3.5" />
+								<span>Refresh</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">Files have changed. Click to refresh diff view.</TooltipContent>
+					</Tooltip>
+				)}
+
 				{/* User review button slot - takes precedence over AI review */}
 				{showReviewButton && reviewButtonSlot}
 

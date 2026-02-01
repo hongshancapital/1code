@@ -32,14 +32,31 @@ export function useFileChangeListener(worktreePath: string | null | undefined) {
   }, [worktreePath, queryClient])
 }
 
+export interface UseGitWatcherOptions {
+  /** When true, diff changes will NOT auto-refresh. Instead onPendingChange(true) is called. */
+  isDiffSidebarOpen?: boolean
+  /** Callback when pending diff changes state changes */
+  onPendingChange?: (hasPending: boolean) => void
+}
+
 /**
  * Hook that subscribes to the GitWatcher for real-time file system monitoring.
  * Uses chokidar on the main process for efficient file watching.
  * Automatically invalidates git status queries when files change.
+ *
+ * When isDiffSidebarOpen is true, diff data will NOT auto-refresh to prevent
+ * disrupting the user's review. Instead, onPendingChange(true) is called to
+ * show a "Refresh" button.
  */
-export function useGitWatcher(worktreePath: string | null | undefined) {
+export function useGitWatcher(
+  worktreePath: string | null | undefined,
+  options?: UseGitWatcherOptions
+) {
   const queryClient = useQueryClient()
   const isSubscribedRef = useRef(false)
+  // Use refs to avoid re-subscribing when options change
+  const optionsRef = useRef(options)
+  optionsRef.current = options
 
   useEffect(() => {
     if (!worktreePath) return
@@ -69,14 +86,22 @@ export function useGitWatcher(worktreePath: string | null | undefined) {
           queryKey: [["files", "listDirectory"]],
         })
 
-        // Also invalidate parsed diff if files were modified
+        // Handle parsed diff - check if files were modified
         const hasModifiedFiles = data.changes.some(
           (change) => change.type === "change" || change.type === "add"
         )
         if (hasModifiedFiles) {
-          queryClient.invalidateQueries({
-            queryKey: [["changes", "getParsedDiff"]],
-          })
+          const { isDiffSidebarOpen, onPendingChange } = optionsRef.current || {}
+
+          if (isDiffSidebarOpen) {
+            // Diff sidebar is open - don't auto-refresh, just mark as pending
+            onPendingChange?.(true)
+          } else {
+            // Diff sidebar is closed - auto-refresh as before
+            queryClient.invalidateQueries({
+              queryKey: [["changes", "getParsedDiff"]],
+            })
+          }
         }
       }
     })
