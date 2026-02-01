@@ -63,6 +63,7 @@ import {
   clearSubChatDraft,
   saveSubChatDraftWithAttachments,
 } from "../lib/drafts"
+import { useInputHistory } from "../hooks/use-input-history"
 import { CLAUDE_MODELS } from "../lib/models"
 import type { DiffTextContext, SelectedTextContext } from "../lib/queue-utils"
 import {
@@ -530,6 +531,9 @@ export const ChatInputArea = memo(function ChatInputArea({
   const [isTranscribing, setIsTranscribing] = useState(false)
   const voiceMountedRef = useRef(true)
 
+  // Input history navigation (ArrowUp/ArrowDown like terminal)
+  const { getHistoryUp, getHistoryDown, resetHistory } = useInputHistory()
+
   useEffect(() => {
     voiceMountedRef.current = true
     return () => {
@@ -809,7 +813,9 @@ export const ChatInputArea = memo(function ChatInputArea({
     } else {
       onSend()
     }
-  }, [editorRef, images, files, textContexts, diffTextContexts, queueLength, onSendFromQueue, firstQueueItemId, onStop, onSend])
+    // Reset input history navigation after sending
+    resetHistory()
+  }, [editorRef, images, files, textContexts, diffTextContexts, queueLength, onSendFromQueue, firstQueueItemId, onStop, onSend, resetHistory])
 
   // Mention select handler
   const handleMentionSelect = useCallback((mention: FileMentionOption) => {
@@ -1169,6 +1175,8 @@ export const ChatInputArea = memo(function ChatInputArea({
                   onPaste={handlePaste}
                   onFocus={() => setIsFocused(true)}
                   onBlur={handleEditorBlur}
+                  onHistoryUp={getHistoryUp}
+                  onHistoryDown={getHistoryDown}
                 />
               </div>
               <PromptInputActions className="w-full">

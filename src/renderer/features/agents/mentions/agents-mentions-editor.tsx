@@ -85,6 +85,9 @@ type AgentsMentionsEditorProps = {
   onShiftTab?: () => void // callback for Shift+Tab (e.g., mode switching)
   onFocus?: () => void
   onBlur?: () => void
+  // Input history navigation (ArrowUp/ArrowDown)
+  onHistoryUp?: (currentValue: string) => string | null // Navigate to older history
+  onHistoryDown?: () => string | null // Navigate to newer history or draft
 }
 
 // Append text to element (no styling in input, ultrathink only in sent messages)
@@ -514,6 +517,8 @@ export const AgentsMentionsEditor = memo(
         onShiftTab,
         onFocus,
         onBlur,
+        onHistoryUp,
+        onHistoryDown,
       },
       ref,
     ) {
@@ -1084,8 +1089,81 @@ export const AgentsMentionsEditor = memo(
             e.preventDefault()
             onShiftTab?.()
           }
+
+          // ArrowUp - navigate to older history when cursor is at start
+          if (e.key === "ArrowUp" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            // Skip if dropdown is active (let dropdown handle navigation)
+            if (triggerActive.current || slashTriggerActive.current) {
+              return
+            }
+
+            // Only trigger history if cursor is at the start of the editor
+            if (editorRef.current && onHistoryUp) {
+              const sel = window.getSelection()
+              if (sel && sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0)
+                // Only proceed if selection is collapsed (no text selected)
+                if (range.collapsed) {
+                  const { textBeforeCursor } = walkTreeOnce(editorRef.current, range)
+                  // Cursor is at the start if there's no text before it
+                  if (textBeforeCursor.length === 0) {
+                    const currentValue = serializeContent(editorRef.current)
+                    const historyText = onHistoryUp(currentValue)
+                    if (historyText !== null) {
+                      e.preventDefault()
+                      // Use setValue logic to update content
+                      buildContentFromSerialized(editorRef.current, historyText, resolveMention)
+                      setHasContent(!!historyText)
+                      onContentChange?.(!!historyText)
+                      // Move cursor to start (so user can continue pressing Up)
+                      if (historyText) {
+                        sel.selectAllChildren(editorRef.current)
+                        sel.collapseToStart()
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // ArrowDown - navigate to newer history or draft when cursor is at end
+          if (e.key === "ArrowDown" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            // Skip if dropdown is active (let dropdown handle navigation)
+            if (triggerActive.current || slashTriggerActive.current) {
+              return
+            }
+
+            // Only trigger history if cursor is at the end of the editor
+            if (editorRef.current && onHistoryDown) {
+              const sel = window.getSelection()
+              if (sel && sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0)
+                // Only proceed if selection is collapsed (no text selected)
+                if (range.collapsed) {
+                  const { serialized, textBeforeCursor } = walkTreeOnce(editorRef.current, range)
+                  // Cursor is at the end if textBeforeCursor equals full content
+                  if (textBeforeCursor.length === serialized.length) {
+                    const historyText = onHistoryDown()
+                    if (historyText !== null) {
+                      e.preventDefault()
+                      // Use setValue logic to update content
+                      buildContentFromSerialized(editorRef.current, historyText, resolveMention)
+                      setHasContent(!!historyText)
+                      onContentChange?.(!!historyText)
+                      // Move cursor to end
+                      if (historyText) {
+                        sel.selectAllChildren(editorRef.current)
+                        sel.collapseToEnd()
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
-        [onSubmit, onForceSubmit, onCloseTrigger, onCloseSlashTrigger, onShiftTab, restoreCursor, onContentChange, getCurrentState],
+        [onSubmit, onForceSubmit, onCloseTrigger, onCloseSlashTrigger, onShiftTab, restoreCursor, onContentChange, getCurrentState, onHistoryUp, onHistoryDown, resolveMention],
       )
 
       // Expose methods via ref (UNCONTROLLED pattern)
