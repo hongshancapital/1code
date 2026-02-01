@@ -34,7 +34,7 @@ import {
 // e2b API routes are used instead of useSandboxManager for agents
 // import { clearSubChatSelectionAtom, isSubChatMultiSelectModeAtom, selectedSubChatIdsAtom } from "@/lib/atoms/agent-subchat-selection"
 import { Chat, useChat } from "@ai-sdk/react"
-import { DiffModeEnum } from "@git-diff-view/react"
+import type { DiffViewMode } from "../ui/agent-diff-view"
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   ArrowDown,
@@ -148,6 +148,7 @@ currentProjectModeAtom,
   workspaceDiffCacheAtomFamily,
   agentsChatFullWidthAtom,
   pendingMentionAtom,
+  suppressInputFocusAtom,
   type AgentMode,
   type SelectedCommit,
   type CachedParsedDiffFile,
@@ -1030,8 +1031,8 @@ interface DiffSidebarContentProps {
   onCommitWithAI?: () => void
   isCommittingWithAI?: boolean
   // Diff view mode
-  diffMode: DiffModeEnum
-  setDiffMode: (mode: DiffModeEnum) => void
+  diffMode: DiffViewMode
+  setDiffMode: (mode: DiffViewMode) => void
   // Create PR callback
   onCreatePr?: () => void
   // Called after successful commit to reset diff view state
@@ -1667,8 +1668,8 @@ interface DiffSidebarRendererProps {
   handleFixConflicts: () => void
   handleExpandAll: () => void
   handleCollapseAll: () => void
-  diffMode: DiffModeEnum
-  setDiffMode: (mode: DiffModeEnum) => void
+  diffMode: DiffViewMode
+  setDiffMode: (mode: DiffViewMode) => void
   handleMarkAllViewed: () => void
   handleMarkAllUnviewed: () => void
   isDesktop: boolean
@@ -3466,6 +3467,11 @@ const ChatViewInner = memo(function ChatViewInner({
 
     // Use requestAnimationFrame to ensure DOM is ready after render
     requestAnimationFrame(() => {
+      // Skip if sidebar keyboard navigation is active (user is arrowing through sidebar items)
+      if (appStore.get(suppressInputFocusAtom)) {
+        appStore.set(suppressInputFocusAtom, false)
+        return
+      }
       editorRef.current?.focus()
     })
   }, [isActive, subChatId, isMobile])
@@ -4874,7 +4880,15 @@ export function ChatView({
     prevDiffStateRef.current = { isOpen: isDiffSidebarOpen, mode: diffDisplayMode, detailsOpen: isDetailsSidebarOpen }
   }, [isDiffSidebarOpen, diffDisplayMode, isDetailsSidebarOpen, setDiffDisplayMode, setIsDetailsSidebarOpen, setIsDiffSidebarOpen])
 
-  // Note: Traffic light hiding for full-page mode is now handled by FullPageView component
+  // Hide/show traffic lights based on full-page diff or full-page file viewer
+  useEffect(() => {
+    if (!isDesktop || isFullscreen) return
+    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
+
+    const isFullPageDiff = isDiffSidebarOpen && diffDisplayMode === "full-page"
+    const isFullPageFileViewer = !!fileViewerPath && fileViewerDisplayMode === "full-page"
+    window.desktopApi.setTrafficLightVisibility(!isFullPageDiff && !isFullPageFileViewer)
+  }, [isDiffSidebarOpen, diffDisplayMode, fileViewerPath, fileViewerDisplayMode, isDesktop, isFullscreen])
 
   // Track diff sidebar width for responsive header
   const storedDiffSidebarWidth = useAtomValue(agentsDiffSidebarWidthAtom)
@@ -5292,6 +5306,9 @@ export function ChatView({
 
   // Subscribe to GitWatcher for real-time file system monitoring (chokidar on main process)
   useGitWatcher(worktreePath)
+
+  // Plugin MCP approval - disabled for now since official marketplace plugins
+  // are trusted by default. Will re-enable when third-party plugin support is added.
 
   // Extract port, repository, and quick setup flag from meta
   const meta = agentChat?.meta as {

@@ -20,6 +20,7 @@ import { usageRouter } from "./usage"
 import { runnerRouter } from "./runner"
 import { lspRouter } from "./lsp"
 import { editorRouter } from "./editor"
+import { pluginsRouter } from "./plugins"
 import { createGitRouter } from "../../git"
 import { BrowserWindow } from "electron"
 
@@ -50,6 +51,7 @@ export function createAppRouter(getWindow: () => BrowserWindow | null) {
     runner: runnerRouter,
     lsp: lspRouter,
     editor: editorRouter,
+    plugins: pluginsRouter,
     // Git operations - named "changes" to match Superset API
     changes: createGitRouter(),
   })

@@ -6,6 +6,30 @@ import { router, publicProcedure } from "../index"
 
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json")
 
+// Cache for enabled plugins to avoid repeated filesystem reads
+let enabledPluginsCache: { plugins: string[]; timestamp: number } | null = null
+const ENABLED_PLUGINS_CACHE_TTL_MS = 5000 // 5 seconds
+
+// Cache for approved plugin MCP servers
+let approvedMcpCache: { servers: string[]; timestamp: number } | null = null
+const APPROVED_MCP_CACHE_TTL_MS = 5000 // 5 seconds
+
+/**
+ * Invalidate the enabled plugins cache
+ * Call this when enabledPlugins setting changes
+ */
+export function invalidateEnabledPluginsCache(): void {
+  enabledPluginsCache = null
+}
+
+/**
+ * Invalidate the approved MCP servers cache
+ * Call this when approvedPluginMcpServers setting changes
+ */
+export function invalidateApprovedMcpCache(): void {
+  approvedMcpCache = null
+}
+
 /**
  * Claude settings structure
  */
@@ -15,6 +39,7 @@ export interface ClaudeSettings {
   alwaysThinkingEnabled?: boolean
   permissions?: Record<string, unknown>
   includeCoAuthoredBy?: boolean
+  approvedPluginMcpServers?: string[]
   [key: string]: unknown
 }
 
@@ -76,6 +101,55 @@ export async function getMergedSettings(cwd?: string): Promise<ClaudeSettings> {
 }
 
 /**
+ * Get list of enabled plugin identifiers from settings.json
+ * Plugins are DISABLED by default — only plugins explicitly in this list are active.
+ * Returns empty array if no plugins have been enabled.
+ * Results are cached for 5 seconds to reduce filesystem reads.
+ */
+export async function getEnabledPlugins(): Promise<string[]> {
+  // Return cached result if still valid
+  if (enabledPluginsCache && Date.now() - enabledPluginsCache.timestamp < ENABLED_PLUGINS_CACHE_TTL_MS) {
+    return enabledPluginsCache.plugins
+  }
+
+  const settings = await readClaudeSettings()
+  const plugins = Array.isArray(settings.enabledPlugins) ? settings.enabledPlugins as string[] : []
+
+  enabledPluginsCache = { plugins, timestamp: Date.now() }
+  return plugins
+}
+
+/**
+ * Get list of approved plugin MCP server identifiers from settings.json
+ * Format: "{pluginSource}:{serverName}" e.g., "ccsetup:ccsetup:context7"
+ * Returns empty array if no approved servers
+ * Results are cached for 5 seconds to reduce filesystem reads
+ */
+export async function getApprovedPluginMcpServers(): Promise<string[]> {
+  // Return cached result if still valid
+  if (approvedMcpCache && Date.now() - approvedMcpCache.timestamp < APPROVED_MCP_CACHE_TTL_MS) {
+    return approvedMcpCache.servers
+  }
+
+  const settings = await readClaudeSettings()
+  const servers = Array.isArray(settings.approvedPluginMcpServers)
+    ? settings.approvedPluginMcpServers as string[]
+    : []
+
+  approvedMcpCache = { servers, timestamp: Date.now() }
+  return servers
+}
+
+/**
+ * Check if a plugin MCP server is approved
+ */
+export async function isPluginMcpApproved(pluginSource: string, serverName: string): Promise<boolean> {
+  const approved = await getApprovedPluginMcpServers()
+  const identifier = `${pluginSource}:${serverName}`
+  return approved.includes(identifier)
+}
+
+/**
  * Write Claude settings.json file
  * Creates the .claude directory if it doesn't exist
  */
@@ -118,9 +192,17 @@ export const claudeSettingsRouter = router({
     }),
 
   /**
-   * Get enabled plugins from merged user + project settings
+   * Get list of enabled plugins (array format from main)
+   * Plugins are disabled by default — only explicitly enabled ones are active.
    */
-  getEnabledPlugins: publicProcedure
+  getEnabledPlugins: publicProcedure.query(async () => {
+    return await getEnabledPlugins()
+  }),
+
+  /**
+   * Get enabled plugins from merged user + project settings (Record format from cowork-sync)
+   */
+  getEnabledPluginsRecord: publicProcedure
     .input(z.object({ cwd: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const mergedSettings = await getMergedSettings(input?.cwd)
@@ -134,5 +216,136 @@ export const claudeSettingsRouter = router({
     .input(z.object({ cwd: z.string().optional() }).optional())
     .query(async ({ input }) => {
       return getMergedSettings(input?.cwd)
+    }),
+
+  /**
+   * Set a plugin's enabled state
+   * Plugins are disabled by default — adding to enabledPlugins activates them.
+   */
+  setPluginEnabled: publicProcedure
+    .input(
+      z.object({
+        pluginSource: z.string(),
+        enabled: z.boolean(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const enabledPlugins = Array.isArray(settings.enabledPlugins)
+        ? (settings.enabledPlugins as string[])
+        : []
+
+      if (input.enabled && !enabledPlugins.includes(input.pluginSource)) {
+        enabledPlugins.push(input.pluginSource)
+      } else if (!input.enabled) {
+        const index = enabledPlugins.indexOf(input.pluginSource)
+        if (index > -1) enabledPlugins.splice(index, 1)
+      }
+
+      settings.enabledPlugins = enabledPlugins as unknown as Record<string, boolean>
+      await writeClaudeSettings(settings)
+      invalidateEnabledPluginsCache()
+      return { success: true }
+    }),
+
+  /**
+   * Get list of approved plugin MCP servers
+   */
+  getApprovedPluginMcpServers: publicProcedure.query(async () => {
+    return await getApprovedPluginMcpServers()
+  }),
+
+  /**
+   * Approve a plugin MCP server
+   * Identifier format: "{pluginSource}:{serverName}"
+   */
+  approvePluginMcpServer: publicProcedure
+    .input(z.object({ identifier: z.string() }))
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const approved = Array.isArray(settings.approvedPluginMcpServers)
+        ? (settings.approvedPluginMcpServers as string[])
+        : []
+
+      if (!approved.includes(input.identifier)) {
+        approved.push(input.identifier)
+      }
+
+      settings.approvedPluginMcpServers = approved
+      await writeClaudeSettings(settings)
+      invalidateApprovedMcpCache()
+      return { success: true }
+    }),
+
+  /**
+   * Revoke approval for a plugin MCP server
+   * Identifier format: "{pluginSource}:{serverName}"
+   */
+  revokePluginMcpServer: publicProcedure
+    .input(z.object({ identifier: z.string() }))
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const approved = Array.isArray(settings.approvedPluginMcpServers)
+        ? (settings.approvedPluginMcpServers as string[])
+        : []
+
+      const index = approved.indexOf(input.identifier)
+      if (index > -1) {
+        approved.splice(index, 1)
+      }
+
+      settings.approvedPluginMcpServers = approved
+      await writeClaudeSettings(settings)
+      invalidateApprovedMcpCache()
+      return { success: true }
+    }),
+
+  /**
+   * Approve all MCP servers from a plugin
+   * Takes the pluginSource (e.g., "ccsetup:ccsetup") and list of server names
+   */
+  approveAllPluginMcpServers: publicProcedure
+    .input(z.object({
+      pluginSource: z.string(),
+      serverNames: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const approved = Array.isArray(settings.approvedPluginMcpServers)
+        ? (settings.approvedPluginMcpServers as string[])
+        : []
+
+      for (const serverName of input.serverNames) {
+        const identifier = `${input.pluginSource}:${serverName}`
+        if (!approved.includes(identifier)) {
+          approved.push(identifier)
+        }
+      }
+
+      settings.approvedPluginMcpServers = approved
+      await writeClaudeSettings(settings)
+      invalidateApprovedMcpCache()
+      return { success: true }
+    }),
+
+  /**
+   * Revoke all MCP servers from a plugin
+   * Removes all identifiers matching "{pluginSource}:*"
+   */
+  revokeAllPluginMcpServers: publicProcedure
+    .input(z.object({
+      pluginSource: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const approved = Array.isArray(settings.approvedPluginMcpServers)
+        ? (settings.approvedPluginMcpServers as string[])
+        : []
+
+      const prefix = `${input.pluginSource}:`
+      settings.approvedPluginMcpServers = approved.filter((id) => !id.startsWith(prefix))
+      await writeClaudeSettings(settings)
+      invalidateApprovedMcpCache()
+      return { success: true }
     }),
 })

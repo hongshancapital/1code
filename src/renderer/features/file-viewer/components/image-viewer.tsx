@@ -116,7 +116,7 @@ export function ImageViewer({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0 flex-1 ml-1">
             {(() => {
               const Icon = getFileIconByExtension(filePath)
               return Icon ? <Icon className="h-3.5 w-3.5 flex-shrink-0" /> : null

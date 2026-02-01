@@ -1376,12 +1376,11 @@ const SidebarHeader = memo(function SidebarHeader({
         />
       )}
 
-      {/* Custom traffic lights - positioned at top left, centered in 32px area */}
+      {/* No-drag zone over native traffic lights */}
       <TrafficLights
-        isHovered={isDropdownOpen}
         isFullscreen={isFullscreen}
         isDesktop={isDesktop}
-        className="absolute left-4 top-[14px] z-20"
+        className="absolute left-[15px] top-[12px] z-20"
       />
 
       {/* Close button - positioned at top right */}
@@ -2925,16 +2924,14 @@ export function AgentsSidebar({
     }
   }, [])
 
+  // Update sidebar hover UI - DOM manipulation for close button, state for TrafficLights
+  // TrafficLights component handles native traffic light visibility via its own effect
   // Update sidebar hover UI via DOM manipulation (no state update to avoid re-renders)
   const updateSidebarHoverUI = useCallback((hovered: boolean) => {
     isSidebarHoveredRef.current = hovered
     // Update close button opacity
     if (closeButtonRef.current) {
       closeButtonRef.current.style.opacity = hovered ? "1" : "0"
-    }
-    // Update native traffic light visibility
-    if (typeof window !== "undefined" && window.desktopApi?.setTrafficLightVisibility) {
-      window.desktopApi.setTrafficLightVisibility(hovered)
     }
   }, [])
 
