@@ -1003,7 +1003,7 @@ const FileDiffCard = memo(function FileDiffCard({
                 filePath={displayPath}
                 diffViewContainerRef={diffContentRef}
                 comments={fileComments}
-                diffMode={diffMode === DiffModeEnum.Split ? "split" : "unified"}
+                diffMode={diffMode === "split" ? "split" : "unified"}
                 onContextCommentClick={onContextCommentClick}
                 onDeleteContextComment={onDeleteContextComment}
                 onDeleteReviewComment={onDeleteReviewComment}
