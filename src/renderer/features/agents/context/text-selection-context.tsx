@@ -375,7 +375,7 @@ export function TextSelectionProvider({
         } else if (source.type === "tool-edit") {
           sourceContainer = toolEditElement
         } else if (source.type === "diff") {
-          sourceContainer = diffWrapperElement
+          sourceContainer = diffCard
         }
 
         let charStart: number | null = null

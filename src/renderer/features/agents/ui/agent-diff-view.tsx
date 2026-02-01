@@ -97,7 +97,6 @@ import {
   setDiffViewTheme,
   type DiffHighlighter,
 } from "../../../lib/themes/diff-view-highlighter"
-import { useCodeTheme } from "../../../lib/hooks/use-code-theme"
 // Comment feature imports
 import { CommentGutterLayer } from "../../comments/components/comment-gutter-layer"
 import { pendingCommentsAtomFamily } from "../../comments/atoms"

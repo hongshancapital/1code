@@ -23,6 +23,8 @@ import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStat
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
+import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
+import { discoverPluginMcpServers } from "../../plugins"
 
 /**
  * Type for Claude SDK streaming messages
