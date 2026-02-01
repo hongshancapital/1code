@@ -1435,9 +1435,6 @@ const SidebarHeader = memo(function SidebarHeader({
                   suppressHydrationWarning
                 >
                   <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-                    <div className="flex items-center justify-center flex-shrink-0">
-                      <Logo className="w-3.5 h-3.5" />
-                    </div>
                     <div className="min-w-0 flex-1 overflow-hidden">
                       <div className="text-sm font-medium text-foreground truncate">
                         Hóng
@@ -3463,53 +3460,8 @@ export function AgentsSidebar({
             }}
             className="p-2 pt-2"
           >
-            {/* Footer: Avatar on left, icon buttons on right */}
-            <div className="flex items-center gap-2">
-              {/* User Avatar */}
-              <Tooltip delayDuration={500}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (desktopUser) {
-                        setSettingsActiveTab("profile")
-                        setSettingsDialogOpen(true)
-                      } else {
-                        // Not logged in - trigger login flow
-                        window.desktopApi?.startAuthFlow?.()
-                      }
-                    }}
-                    className={cn(
-                      "flex-shrink-0 rounded-lg overflow-hidden transition-[transform,box-shadow] duration-150 ease-out active:scale-[0.97] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 hover:ring-2 hover:ring-foreground/20",
-                      // Match height of icon buttons (h-7 = 28px)
-                      isMobileFullscreen ? "w-10 h-10" : "w-7 h-7",
-                    )}
-                  >
-                    {desktopUser?.imageUrl ? (
-                      <img
-                        src={desktopUser.imageUrl}
-                        alt={desktopUser.name || desktopUser.email}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
-                        <span className={cn("font-medium", isMobileFullscreen ? "text-base" : "text-sm")}>
-                          {desktopUser
-                            ? (desktopUser.name || desktopUser.email || "U").charAt(0).toUpperCase()
-                            : "?"
-                          }
-                        </span>
-                      </div>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {desktopUser ? (desktopUser.name || desktopUser.email) : "Sign in"}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Right side: single row of icon buttons */}
-              <div className="flex items-center gap-1">
+            {/* Footer: icon buttons */}
+            <div className="flex items-center gap-1">
                 <Tooltip delayDuration={500}>
                   <TooltipTrigger asChild>
                     <button
@@ -3529,7 +3481,6 @@ export function AgentsSidebar({
                 <HelpSection isMobile={isMobileFullscreen} />
                 <KanbanButton />
                 <ArchiveSection archivedChatsCount={archivedChatsCount} />
-              </div>
             </div>
           </motion.div>
         )}
