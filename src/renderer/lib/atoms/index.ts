@@ -194,6 +194,7 @@ export type SettingsTab =
   | "skills"
   | "agents"
   | "mcp"
+  | "plugins"
   | "worktrees"
   | "projects"
   | "debug"
@@ -484,6 +485,15 @@ export const betaAutomationsEnabledAtom = atomWithStorage<boolean>(
 export const enableTasksAtom = atomWithStorage<boolean>(
   "preferences:enable-tasks",
   true, // Default ON
+  undefined,
+  { getOnInit: true },
+)
+
+// Beta: Enable Early Access Updates
+// When enabled, the app checks for beta releases in addition to stable releases
+export const betaUpdatesEnabledAtom = atomWithStorage<boolean>(
+  "preferences:beta-updates-enabled",
+  false, // Default OFF - only stable releases
   undefined,
   { getOnInit: true },
 )
@@ -889,3 +899,20 @@ export const preferredEditorAtom = atomWithStorage<ExternalApp>(
   undefined,
   { getOnInit: true },
 )
+
+// ============================================
+// MCP APPROVAL DIALOG ATOMS
+// ============================================
+
+export type PendingMcpApproval = {
+  pluginSource: string
+  serverName: string
+  identifier: string
+  config: Record<string, unknown>
+}
+
+// Whether the MCP approval dialog is open
+export const mcpApprovalDialogOpenAtom = atom<boolean>(false)
+
+// Pending MCP approvals to show in the dialog
+export const pendingMcpApprovalsAtom = atom<PendingMcpApproval[]>([])

@@ -11,6 +11,7 @@ import {
 } from './claude-config';
 import { getClaudeShellEnvironment } from './claude/env';
 import { CraftOAuth, fetchOAuthMetadata, getMcpBaseUrl, type OAuthMetadata, type OAuthTokens } from './oauth';
+import { discoverPluginMcpServers } from './plugins';
 import { bringToFront } from './window';
 
 // Safe console methods to prevent EPIPE errors when stdout is closed
@@ -197,7 +198,26 @@ export async function startMcpOAuth(
 ): Promise<{ success: boolean; error?: string }> {
   // 1. Read server config from ~/.claude.json
   const config = await readClaudeConfig();
-  const serverConfig = getMcpServerConfig(config, projectPath, serverName);
+  let serverConfig = getMcpServerConfig(config, projectPath, serverName);
+
+  // Fallback: check plugin MCP servers if not found in ~/.claude.json
+  if (!serverConfig?.url) {
+    const pluginMcpConfigs = await discoverPluginMcpServers();
+    for (const pluginConfig of pluginMcpConfigs) {
+      if (pluginConfig.mcpServers[serverName]) {
+        serverConfig = pluginConfig.mcpServers[serverName];
+        // Save plugin server config to ~/.claude.json so token storage works
+        await updateClaudeConfigAtomic((cfg) => {
+          return updateMcpServerConfig(cfg, GLOBAL_MCP_PATH, serverName, {
+            url: serverConfig!.url,
+            type: serverConfig!.url?.endsWith('/sse') ? 'sse' : 'http',
+            authType: 'oauth',
+          });
+        });
+        break;
+      }
+    }
+  }
 
   if (!serverConfig?.url) {
     return { success: false, error: `MCP server "${serverName}" URL not configured` };

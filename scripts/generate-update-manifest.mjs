@@ -27,6 +27,17 @@ import { fileURLToPath } from "url"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// Parse --channel argument (default: "latest")
+const channelArgIndex = process.argv.indexOf("--channel")
+const channel = channelArgIndex !== -1 && process.argv[channelArgIndex + 1]
+  ? process.argv[channelArgIndex + 1]
+  : "latest"
+
+if (channel !== "latest" && channel !== "beta") {
+  console.error(`Invalid channel: "${channel}". Must be "latest" or "beta".`)
+  process.exit(1)
+}
+
 // Get version from package.json
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, "../package.json"), "utf-8")
@@ -125,10 +136,11 @@ function generateMacManifest(arch) {
   }
 
   // Manifest file names expected by electron-updater:
-  // arm64: latest-mac.yml (primary)
-  // x64: latest-mac-x64.yml
+  // For stable (latest): latest-mac.yml / latest-mac-x64.yml
+  // For beta: beta-mac.yml / beta-mac-x64.yml
+  const prefix = channel === "beta" ? "beta" : "latest"
   const manifestFileName =
-    arch === "arm64" ? "latest-mac.yml" : "latest-mac-x64.yml"
+    arch === "arm64" ? `${prefix}-mac.yml` : `${prefix}-mac-x64.yml`
   const manifestPath = join(releaseDir, manifestFileName)
 
   // Convert to YAML format (simple implementation)
@@ -245,6 +257,7 @@ console.log("=".repeat(50))
 console.log("Generating electron-updater manifests")
 console.log("=".repeat(50))
 console.log(`Version: ${version}`)
+console.log(`Channel: ${channel}`)
 console.log(`Release dir: ${releaseDir}`)
 console.log()
 
@@ -264,15 +277,16 @@ if (!arm64Manifest && !x64Manifest && !windowsManifest) {
 console.log("=".repeat(50))
 console.log("Manifest generation complete!")
 console.log()
+const prefix = channel === "beta" ? "beta" : "latest"
 console.log("Next steps:")
 console.log("1. Upload the following files to cowork.hongshan.com/releases/desktop/:")
 if (arm64Manifest) {
-  console.log(`   - latest-mac.yml`)
+  console.log(`   - ${prefix}-mac.yml`)
   console.log(`   - Hong-${version}-arm64-mac.zip`)
   console.log(`   - Hong-${version}-arm64.dmg (for manual download)`)
 }
 if (x64Manifest) {
-  console.log(`   - latest-mac-x64.yml`)
+  console.log(`   - ${prefix}-mac-x64.yml`)
   console.log(`   - Hong-${version}-mac.zip`)
   console.log(`   - Hong-${version}.dmg (for manual download)`)
 }

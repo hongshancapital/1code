@@ -65,13 +65,22 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
       // Track this tool ID to avoid duplicates from assistant message
       emittedToolIds.add(currentToolCallId)
 
-      // Parse accumulated input
-      const parsedInput = accumulatedToolInput ? JSON.parse(accumulatedToolInput) : {}
+      let parsedInput: Record<string, unknown> = {}
+      if (accumulatedToolInput) {
+        try {
+          parsedInput = JSON.parse(accumulatedToolInput)
+        } catch (e) {
+          // Stream may have been interrupted mid-JSON (e.g. network error, abort)
+          // resulting in incomplete JSON like '{"prompt":"write co'
+          console.error("[transform] Failed to parse tool input JSON:", (e as Error).message, "partial:", accumulatedToolInput.slice(0, 120))
+          parsedInput = { _raw: accumulatedToolInput, _parseError: true }
+        }
+      }
 
       // Store Bash command for background task naming (streaming mode)
       // Use original ID (not compositeId) since tool result uses original ID
       if (currentToolName === "Bash" && parsedInput.command && currentToolOriginalId) {
-        bashCommandMapping.set(currentToolOriginalId, parsedInput.command)
+        bashCommandMapping.set(currentToolOriginalId, parsedInput.command as string)
       }
 
       // Emit complete tool call with accumulated input

@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("desktopApi", {
   checkForUpdates: (force?: boolean) => ipcRenderer.invoke("update:check", force),
   downloadUpdate: () => ipcRenderer.invoke("update:download"),
   installUpdate: () => ipcRenderer.invoke("update:install"),
+  setUpdateChannel: (channel: "latest" | "beta") => ipcRenderer.invoke("update:set-channel", channel),
+  getUpdateChannel: () => ipcRenderer.invoke("update:get-channel") as Promise<"latest" | "beta">,
 
   // Auto-update event listeners
   onUpdateChecking: (callback: () => void) => {
@@ -294,6 +296,8 @@ export interface DesktopApi {
   checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>
   downloadUpdate: () => Promise<boolean>
   installUpdate: () => void
+  setUpdateChannel: (channel: "latest" | "beta") => Promise<boolean>
+  getUpdateChannel: () => Promise<"latest" | "beta">
   onUpdateChecking: (callback: () => void) => () => void
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void
   onUpdateNotAvailable: (callback: () => void) => () => void
