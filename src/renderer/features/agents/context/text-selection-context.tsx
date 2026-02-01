@@ -277,31 +277,38 @@ export function TextSelectionProvider({
         // --- Resolve source ---
         let source: TextSelectionSource | null = null
 
+        // Declare element references outside the if block so they can be used later
+        let fileViewerElement: HTMLElement | null = null
+        let planElement: HTMLElement | null = null
+        let messageElement: HTMLElement | null = null
+        let toolEditElement: HTMLElement | null = null
+        let diffCard: HTMLElement | null = null
+
         if (element) {
           // Check for file viewer content
-          const fileViewerElement = element.closest?.(
+          fileViewerElement = element.closest?.(
             "[data-file-viewer-path]"
           ) as HTMLElement | null
 
           // Check for plan sidebar content
-          const planElement = element.closest?.(
+          planElement = element.closest?.(
             "[data-plan-path]"
           ) as HTMLElement | null
 
           // Check for assistant message
-          const messageElement = element.closest?.(
+          messageElement = element.closest?.(
             "[data-assistant-message-id]"
           ) as HTMLElement | null
 
           // Check for tool-edit (Edit/Write tool in chat)
-          const toolEditElement = element.closest?.(
+          toolEditElement = element.closest?.(
             '[data-part-type="tool-Edit"], [data-part-type="tool-Write"]'
           ) as HTMLElement | null
 
           // Check for diff — element may be inside Shadow DOM of diffs-container
           // With getComposedRanges, element is the actual node inside the shadow tree
           // Walk up through shadow boundaries to find [data-diff-file-path]
-          const diffCard = (() => {
+          diffCard = (() => {
             let node: Node | null = element
             while (node) {
               if (node instanceof HTMLElement) {
