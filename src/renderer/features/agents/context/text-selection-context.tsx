@@ -326,6 +326,15 @@ export function TextSelectionProvider({
             return null
           })()
 
+          // Fallback for browsers without getComposedRanges (Chromium < 137)
+          // Use .agent-diff-wrapper class to detect diff selections in light DOM
+          if (!diffCard) {
+            const diffWrapperElement = element.closest?.(".agent-diff-wrapper") as HTMLElement | null
+            if (diffWrapperElement) {
+              diffCard = diffWrapperElement.closest?.("[data-diff-file-path]") as HTMLElement | null
+            }
+          }
+
           // Priority: file-viewer > plan > tool-edit > diff > assistant-message
           if (fileViewerElement) {
             const filePath = fileViewerElement.getAttribute("data-file-viewer-path") || "unknown"
