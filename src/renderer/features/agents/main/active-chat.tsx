@@ -6744,9 +6744,68 @@ Make sure to preserve all functionality from both branches when resolving confli
 
   // No early return - let the UI render with loading state handled by activeChat check below
 
+  // Global comment input state for TextSelectionPopover at ChatView level
+  // This enables comment functionality for diff sidebar which is outside ChatViewInner
+  const [, setGlobalCommentInputState] = useAtom(commentInputStateAtom)
+
+  // Handler for adding comment from top-level TextSelectionPopover
+  // This is a simplified version that only handles diff comments (no addTextContext)
+  const handleGlobalAddComment = useCallback((
+    text: string,
+    source: TextSelectionSource,
+    rect: DOMRect,
+    charStart?: number | null,
+    charLength?: number | null,
+    lineStart?: number | null,
+    lineEnd?: number | null
+  ) => {
+    // Map TextSelectionSource to DocumentType
+    let documentType: DocumentType
+    let documentPath: string
+    let lineType: "old" | "new" | undefined
+
+    let finalLineStart = lineStart ?? undefined
+    let finalLineEnd = lineEnd ?? undefined
+
+    if (source.type === "plan") {
+      documentType = "plan"
+      documentPath = source.planPath
+    } else if (source.type === "diff") {
+      documentType = "diff"
+      documentPath = source.filePath
+      if (source.lineNumber) {
+        finalLineStart = source.lineNumber
+        if (!finalLineEnd) finalLineEnd = finalLineStart
+      }
+      lineType = source.lineType
+    } else if (source.type === "tool-edit") {
+      documentType = "tool-edit"
+      documentPath = source.filePath
+    } else {
+      return // Don't handle assistant-message or file-viewer types
+    }
+
+    setGlobalCommentInputState({
+      selectedText: text,
+      documentType,
+      documentPath,
+      lineStart: finalLineStart,
+      lineEnd: finalLineEnd,
+      lineType,
+      rect,
+      charStart: charStart ?? undefined,
+      charLength: charLength ?? undefined,
+    })
+  }, [setGlobalCommentInputState])
+
   return (
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
+    {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
+    <TextSelectionPopover
+      onAddToContext={() => {}} // No-op - diff sidebar doesn't have chat input
+      onAddComment={handleGlobalAddComment}
+    />
     {/* File Search Dialog (Cmd+P) */}
     {worktreePath && (
       <FileSearchDialog
