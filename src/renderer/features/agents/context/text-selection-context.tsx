@@ -251,9 +251,18 @@ export function TextSelectionProvider({
         }
 
         const selection = window.getSelection()
+        if (!selection) {
+          setState(emptyState)
+          return
+        }
 
-        // No selection or collapsed (just cursor)
-        if (!selection || selection.isCollapsed) {
+        // For Shadow DOM selections, selection.isCollapsed may incorrectly return true
+        // So we skip the early return if there are shadow roots (diffs-container elements)
+        const shadowRoots = getDiffShadowRoots()
+        const hasShadowRoots = shadowRoots.length > 0
+
+        // Only trust isCollapsed when there are no shadow roots
+        if (!hasShadowRoots && selection.isCollapsed) {
           setState(emptyState)
           return
         }

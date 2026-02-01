@@ -5791,7 +5791,11 @@ export function ChatView({
 
     // Clear comments after submission
     clearComments()
-  }, [reviewComments, commentsByDocument, clearComments, setPendingReviewMessage])
+
+    // Close sidebar panels to focus on chat input
+    setIsPlanSidebarOpen(false)
+    setIsDiffSidebarOpen(false)
+  }, [reviewComments, commentsByDocument, clearComments, setPendingReviewMessage, setIsPlanSidebarOpen, setIsDiffSidebarOpen])
 
   // Handle Fix Conflicts - sends a message to Claude to sync with main and fix merge conflicts
   const setPendingConflictResolutionMessage = useSetAtom(pendingConflictResolutionMessageAtom)

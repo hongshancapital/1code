@@ -13,6 +13,16 @@ import { useCommentActions } from "../hooks/use-comment-actions"
 import type { ReviewComment } from "../types"
 import { cn } from "../../../lib/utils"
 
+// Get Shadow Roots from diffs-container elements (for @pierre/diffs library)
+function getDiffShadowRoots(container: HTMLElement): ShadowRoot[] {
+  const roots: ShadowRoot[] = []
+  container.querySelectorAll("diffs-container").forEach((el) => {
+    const sr = (el as HTMLElement).shadowRoot
+    if (sr) roots.push(sr)
+  })
+  return roots
+}
+
 // Throttle function for performance
 function throttle<T extends (...args: any[]) => void>(fn: T, delay: number): T {
   let lastCall = 0
@@ -121,53 +131,88 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
       const rect = container.getBoundingClientRect()
       setContainerRect(rect)
 
-      // Find all line number cells in the diff view
-      // @git-diff-view uses .diff-line-num class for line numbers
-      const lineNumCells = container.querySelectorAll(".diff-line-num")
+      // Strategy 1: Find line elements in @pierre/diffs Shadow DOM
+      // @pierre/diffs uses data-line and data-line-type attributes
+      const shadowRoots = getDiffShadowRoots(container)
+      for (const sr of shadowRoots) {
+        const lineRows = sr.querySelectorAll("[data-line]")
+        lineRows.forEach((row) => {
+          const lineNum = row.getAttribute("data-line")
+          const lineTypeAttr = row.getAttribute("data-line-type")
+          if (!lineNum) return
 
-      lineNumCells.forEach((cell) => {
-        const lineNumText = cell.textContent?.trim()
-        if (!lineNumText || lineNumText === "...") return
+          const lineNumber = parseInt(lineNum, 10)
+          if (isNaN(lineNumber)) return
 
-        const lineNumber = parseInt(lineNumText, 10)
-        if (isNaN(lineNumber)) return
-
-        // Determine side (old/new) based on cell position or class
-        // In unified mode, we need to check the cell's position in the row
-        // In split mode, left side is old, right side is new
-        const row = cell.closest("tr")
-        if (!row) return
-
-        const cells = Array.from(row.querySelectorAll(".diff-line-num"))
-        const cellIndex = cells.indexOf(cell as HTMLElement)
-
-        let side: "old" | "new" = "new"
-        if (diffMode === "split") {
-          // In split mode: first cell is old, second is new
-          side = cellIndex === 0 ? "old" : "new"
-        } else {
-          // In unified mode: check if row has deletion or addition class
-          const rowClasses = row.className
-          if (rowClasses.includes("diff-line-del")) {
+          // @pierre/diffs uses change-deletion/change-addition instead of old/new
+          let side: "old" | "new" = "new"
+          if (lineTypeAttr?.includes("deletion")) {
             side = "old"
-          } else if (rowClasses.includes("diff-line-add")) {
-            side = "new"
           }
-        }
 
-        // Deduplicate: only keep the first occurrence of each lineNumber-side combination
-        const key = `${lineNumber}-${side}`
-        if (seenKeys.has(key)) return
-        seenKeys.add(key)
+          const key = `${lineNumber}-${side}`
+          if (seenKeys.has(key)) return
+          seenKeys.add(key)
 
-        const cellRect = cell.getBoundingClientRect()
-        lines.push({
-          element: cell as HTMLElement,
-          lineNumber,
-          side,
-          rect: cellRect,
+          const rowRect = (row as HTMLElement).getBoundingClientRect()
+          lines.push({
+            element: row as HTMLElement,
+            lineNumber,
+            side,
+            rect: rowRect,
+          })
         })
-      })
+      }
+
+      // Strategy 2: Fallback to @git-diff-view DOM structure
+      // @git-diff-view uses .diff-line-num class for line numbers
+      if (lines.length === 0) {
+        const lineNumCells = container.querySelectorAll(".diff-line-num")
+
+        lineNumCells.forEach((cell) => {
+          const lineNumText = cell.textContent?.trim()
+          if (!lineNumText || lineNumText === "...") return
+
+          const lineNumber = parseInt(lineNumText, 10)
+          if (isNaN(lineNumber)) return
+
+          // Determine side (old/new) based on cell position or class
+          // In unified mode, we need to check the cell's position in the row
+          // In split mode, left side is old, right side is new
+          const row = cell.closest("tr")
+          if (!row) return
+
+          const cells = Array.from(row.querySelectorAll(".diff-line-num"))
+          const cellIndex = cells.indexOf(cell as HTMLElement)
+
+          let side: "old" | "new" = "new"
+          if (diffMode === "split") {
+            // In split mode: first cell is old, second is new
+            side = cellIndex === 0 ? "old" : "new"
+          } else {
+            // In unified mode: check if row has deletion or addition class
+            const rowClasses = row.className
+            if (rowClasses.includes("diff-line-del")) {
+              side = "old"
+            } else if (rowClasses.includes("diff-line-add")) {
+              side = "new"
+            }
+          }
+
+          // Deduplicate: only keep the first occurrence of each lineNumber-side combination
+          const key = `${lineNumber}-${side}`
+          if (seenKeys.has(key)) return
+          seenKeys.add(key)
+
+          const cellRect = cell.getBoundingClientRect()
+          lines.push({
+            element: cell as HTMLElement,
+            lineNumber,
+            side,
+            rect: cellRect,
+          })
+        })
+      }
 
       setLineElements(lines)
     }
@@ -185,6 +230,12 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
       mutationTimeoutId = setTimeout(scanLines, 100)
     })
     observer.observe(container, { childList: true, subtree: true })
+
+    // Also observe Shadow DOM mutations for @pierre/diffs
+    const shadowRoots = getDiffShadowRoots(container)
+    for (const sr of shadowRoots) {
+      observer.observe(sr, { childList: true, subtree: true })
+    }
 
     const handleScroll = () => {
       throttledScan()
@@ -294,11 +345,18 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
           if (!lineInfo) return null
 
           // Find the content cell for this line to highlight
-          const row = lineInfo.element.closest("tr")
-          const contentCell = row?.querySelector(".diff-line-content-item") as HTMLElement | null
-          if (!contentCell) return null
+          // Strategy 1: @pierre/diffs - look for [data-column-content] inside the line row
+          let contentCell = lineInfo.element.querySelector("[data-column-content]") as HTMLElement | null
+          // Strategy 2: @git-diff-view - look for .diff-line-content-item in the row
+          if (!contentCell) {
+            const row = lineInfo.element.closest("tr")
+            contentCell = row?.querySelector(".diff-line-content-item") as HTMLElement | null
+          }
+          // Strategy 3: For @pierre/diffs, the lineInfo.element itself might be the row
+          // Use the element's rect if no content cell found
+          const targetElement = contentCell || lineInfo.element
 
-          const contentRect = contentCell.getBoundingClientRect()
+          const contentRect = targetElement.getBoundingClientRect()
           const top = contentRect.top - containerRect.top
           const left = contentRect.left - containerRect.left
           const width = contentRect.width
