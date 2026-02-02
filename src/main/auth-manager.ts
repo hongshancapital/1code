@@ -1,6 +1,6 @@
 import { AuthStore, AuthData, AuthUser } from "./auth-store"
 import { app, BrowserWindow } from "electron"
-import { AUTH_SERVER_PORT } from "./constants"
+import { AUTH_SERVER_PORT, OKTA_CALLBACK_PORT } from "./constants"
 import { generateCodeVerifier, generateCodeChallenge, generateState } from "./lib/okta/pkce"
 import { getEnv, getApiOrigin } from "./lib/env"
 
@@ -217,10 +217,11 @@ export class AuthManager {
 
   /**
    * Get the redirect URI for Okta callback
-   * Uses the configured callback URL from Okta application settings
+   * Automatically uses correct port based on dev/production mode
+   * Dev: port 3300, Production: port 3000
    */
   private getRedirectUri(): string {
-    return getEnv().MAIN_VITE_OKTA_CALLBACK
+    return `http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`
   }
 
   /**
