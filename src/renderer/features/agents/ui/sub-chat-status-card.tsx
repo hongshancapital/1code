@@ -217,7 +217,8 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
           {!isStreaming && (
             <span className="text-xs text-muted-foreground">
               {totals.fileCount} {totals.fileCount === 1 ? "file" : "files"}
-              {(totals.additions > 0 || totals.deletions > 0) && (
+              {/* Only show line stats in Coding mode */}
+              {isCodingMode && (totals.additions > 0 || totals.deletions > 0) && (
                 <>
                   {" "}
                   <span className="text-green-600 dark:text-green-400">
@@ -321,12 +322,17 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
                     <span className="truncate flex-1 text-foreground">
                       {file.displayPath}
                     </span>
-                    <span className="flex-shrink-0 text-green-600 dark:text-green-400">
-                      +{file.additions}
-                    </span>
-                    <span className="flex-shrink-0 text-red-600 dark:text-red-400">
-                      -{file.deletions}
-                    </span>
+                    {/* Only show line stats in Coding mode */}
+                    {isCodingMode && (
+                      <>
+                        <span className="flex-shrink-0 text-green-600 dark:text-green-400">
+                          +{file.additions}
+                        </span>
+                        <span className="flex-shrink-0 text-red-600 dark:text-red-400">
+                          -{file.deletions}
+                        </span>
+                      </>
+                    )}
                   </div>
                 )
               })}

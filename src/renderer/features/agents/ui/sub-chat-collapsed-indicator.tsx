@@ -1,4 +1,5 @@
 import { memo, useState } from "react"
+import { useAtomValue } from "jotai"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
 import {
@@ -6,6 +7,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "../../../components/ui/hover-card"
+import { currentProjectModeAtom } from "../atoms"
 
 interface SubChatCollapsedIndicatorProps {
   subChatId: string
@@ -30,6 +32,8 @@ const IndicatorLine = memo(function IndicatorLine({
 }) {
   const [isHovered, setIsHovered] = useState(false)
   const isPlan = input.mode === "plan"
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
 
   return (
     <HoverCard openDelay={200} closeDelay={100}>
@@ -61,7 +65,8 @@ const IndicatorLine = memo(function IndicatorLine({
               {input.fileCount > 0 && (
                 <span>
                   {input.fileCount} files
-                  {(input.additions > 0 || input.deletions > 0) && (
+                  {/* Only show line stats in Coding mode */}
+                  {isCodingMode && (input.additions > 0 || input.deletions > 0) && (
                     <>
                       {" "}
                       <span className="text-green-600">+{input.additions}</span>

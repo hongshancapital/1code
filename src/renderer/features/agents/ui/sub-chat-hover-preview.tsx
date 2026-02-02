@@ -1,4 +1,5 @@
 import { memo, useState } from "react"
+import { useAtomValue } from "jotai"
 import {
   HoverCard,
   HoverCardContent,
@@ -6,6 +7,7 @@ import {
 } from "../../../components/ui/hover-card"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
+import { currentProjectModeAtom } from "../atoms"
 
 interface UserInputSummary {
   messageId: string
@@ -35,6 +37,8 @@ interface InputItemProps {
 
 const InputItem = memo(function InputItem({ input, onClick }: InputItemProps) {
   const isPlan = input.mode === "plan"
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
 
   return (
     <button
@@ -57,7 +61,8 @@ const InputItem = memo(function InputItem({ input, onClick }: InputItemProps) {
           {input.fileCount > 0 ? (
             <>
               <span>{input.fileCount} file{input.fileCount > 1 ? "s" : ""}</span>
-              {(input.additions > 0 || input.deletions > 0) && (
+              {/* Only show line stats in Coding mode */}
+              {isCodingMode && (input.additions > 0 || input.deletions > 0) && (
                 <>
                   <span className="text-green-600 dark:text-green-400">+{input.additions}</span>
                   <span className="text-red-600 dark:text-red-400">-{input.deletions}</span>

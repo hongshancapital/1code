@@ -18,6 +18,7 @@ import {
   undoStackAtom,
   subChatModeAtomFamily,
   suppressInputFocusAtom,
+  currentProjectModeAtom,
   type UndoItem,
 } from "../agents/atoms"
 import {
@@ -268,6 +269,8 @@ export function AgentsSubChatsSidebar({
   const [justCreatedIds, setJustCreatedIds] = useAtom(justCreatedIdsAtom)
   const pendingQuestionsMap = useAtomValue(pendingUserQuestionsAtom)
   const defaultAgentMode = useAtomValue(defaultAgentModeAtom)
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
 
   // Pending plan approvals from DB - only for open sub-chats
   const { data: pendingPlanApprovalsData } = trpc.chats.getPendingPlanApprovals.useQuery(
@@ -1424,7 +1427,8 @@ export function AgentsSubChatsSidebar({
                                           </span>
                                         )}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                                          {!draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
+                                          {/* Only show line stats in Coding mode */}
+                                          {isCodingMode && !draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
                                             <>
                                               <span className="text-green-600 dark:text-green-400">
                                                 +{stats.additions}
@@ -1724,7 +1728,8 @@ export function AgentsSubChatsSidebar({
                                           </span>
                                         )}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                                          {!draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
+                                          {/* Only show line stats in Coding mode */}
+                                          {isCodingMode && !draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
                                             <>
                                               <span className="text-green-600 dark:text-green-400">
                                                 +{stats.additions}

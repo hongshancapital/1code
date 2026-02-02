@@ -731,7 +731,8 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 />
                 <span className="truncate flex-1 min-w-0">{displayText}</span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {stats && (stats.additions > 0 || stats.deletions > 0) && (
+                  {/* Only show line stats in Coding mode */}
+                  {projectMode === "coding" && stats && (stats.additions > 0 || stats.deletions > 0) && (
                     <>
                       <span className="text-green-600 dark:text-green-400">
                         +{stats.additions}
