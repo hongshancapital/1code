@@ -1,9 +1,23 @@
-# electron-builder config with environment variables
+# electron-builder config for PRODUCTION environment
 # This extends the base config in package.json
+# Must repeat full mac config because yaml overwrites (not merges) the mac section
 
 mac:
-  # Code signing identity - set via APPLE_IDENTITY env var
-  # Example: "Developer ID Application: Your Name (TEAM_ID)"
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Hong needs microphone access for voice dictation
   identity: ${env.APPLE_IDENTITY}
   notarize:
     teamId: ${env.APPLE_TEAM_ID}
