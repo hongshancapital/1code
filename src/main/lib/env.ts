@@ -36,6 +36,13 @@ interface OptionalEnv {
   // LiteLLM proxy (internal use)
   MAIN_VITE_LITELLM_BASE_URL?: string
   MAIN_VITE_LITELLM_API_KEY?: string
+
+  // Azure AD OAuth (Windows domain users)
+  // Required for Windows machines joined to hongshan.cn domain
+  MAIN_VITE_AZURE_TENANT_ID?: string
+  MAIN_VITE_AZURE_CLIENT_ID?: string
+  // Azure AD login URL (e.g., https://login.partner.microsoftonline.cn for China)
+  MAIN_VITE_AZURE_LOGIN_URL?: string
 }
 
 /**
@@ -94,6 +101,11 @@ export function validateEnv(): Env {
     MAIN_VITE_POSTHOG_HOST: import.meta.env.MAIN_VITE_POSTHOG_HOST,
     MAIN_VITE_LITELLM_BASE_URL: import.meta.env.MAIN_VITE_LITELLM_BASE_URL,
     MAIN_VITE_LITELLM_API_KEY: import.meta.env.MAIN_VITE_LITELLM_API_KEY,
+
+    // Azure AD (optional, for Windows domain users)
+    MAIN_VITE_AZURE_TENANT_ID: import.meta.env.MAIN_VITE_AZURE_TENANT_ID,
+    MAIN_VITE_AZURE_CLIENT_ID: import.meta.env.MAIN_VITE_AZURE_CLIENT_ID,
+    MAIN_VITE_AZURE_LOGIN_URL: import.meta.env.MAIN_VITE_AZURE_LOGIN_URL,
   }
 
   console.log("[Env] Environment validated successfully")

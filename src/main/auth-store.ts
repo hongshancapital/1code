@@ -10,12 +10,18 @@ export interface AuthUser {
   username: string | null
 }
 
+/**
+ * Supported authentication providers
+ */
+export type AuthProviderType = "okta" | "azure"
+
 export interface AuthData {
   token: string
   refreshToken: string
-  idToken?: string // Okta id_token for user info
+  idToken?: string // OAuth id_token for user info
   expiresAt: string
   user: AuthUser
+  provider?: AuthProviderType // Which auth provider was used (defaults to "okta" for backwards compat)
 }
 
 /**
@@ -175,6 +181,14 @@ export class AuthStore {
   getRefreshToken(): string | null {
     const data = this.load()
     return data?.refreshToken ?? null
+  }
+
+  /**
+   * Get auth provider type used for this session
+   */
+  getProvider(): AuthProviderType {
+    const data = this.load()
+    return data?.provider ?? "okta" // Default to okta for backwards compatibility
   }
 
   /**
