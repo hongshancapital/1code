@@ -256,6 +256,23 @@ export const OFFLINE_PROFILE: ModelProfile = {
   },
 }
 
+// Override model mode: "litellm" uses env-configured LiteLLM proxy, "custom" uses manual config
+export type OverrideModelMode = "litellm" | "custom" | null
+export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
+  "agents:override-model-mode",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+// LiteLLM selected model (when using internal LiteLLM proxy from env)
+export const litellmSelectedModelAtom = atomWithStorage<string>(
+  "agents:litellm-selected-model",
+  "claude-opus-4-5-20251101", // Default model
+  undefined,
+  { getOnInit: true },
+)
+
 // Legacy single config (deprecated, kept for backwards compatibility)
 export const customClaudeConfigAtom = atomWithStorage<CustomClaudeConfig>(
   "agents:claude-custom-config",

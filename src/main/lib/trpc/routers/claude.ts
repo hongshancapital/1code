@@ -17,6 +17,7 @@ import {
   logRawClaudeMessage,
   type UIMessageChunk,
 } from "../../claude"
+import { getEnv } from "../../env"
 import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
@@ -1011,8 +1012,8 @@ export const claudeRouter = router({
         customConfig: z
           .object({
             model: z.string().min(1),
-            token: z.string().min(1),
-            baseUrl: z.string().min(1),
+            token: z.string(), // Can be empty for LiteLLM mode (uses env)
+            baseUrl: z.string(), // Can be empty for LiteLLM mode (uses env)
           })
           .optional(),
         maxThinkingTokens: z.number().optional(), // Enable extended thinking
@@ -1155,11 +1156,33 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 .run()
             }
 
-            // 2.5. AUTO-FALLBACK: Check internet and switch to Ollama if offline
+            // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
+            let resolvedCustomConfig = input.customConfig
+            if (input.customConfig && !input.customConfig.token && !input.customConfig.baseUrl && input.customConfig.model) {
+              // LiteLLM mode: populate from env
+              const env = getEnv()
+              const litellmBaseUrl = env.MAIN_VITE_LITELLM_BASE_URL
+              const litellmApiKey = env.MAIN_VITE_LITELLM_API_KEY
+
+              if (litellmBaseUrl) {
+                resolvedCustomConfig = {
+                  model: input.customConfig.model,
+                  token: litellmApiKey || "litellm",
+                  baseUrl: litellmBaseUrl.replace(/\/+$/, ""),
+                }
+                console.log(`[SD] Using LiteLLM mode: model=${input.customConfig.model} baseUrl=${litellmBaseUrl}`)
+              } else {
+                // LiteLLM not configured, fall back to no custom config
+                console.log(`[SD] LiteLLM mode requested but MAIN_VITE_LITELLM_BASE_URL not configured`)
+                resolvedCustomConfig = undefined
+              }
+            }
+
+            // 2.6. AUTO-FALLBACK: Check internet and switch to Ollama if offline
             // Only check if offline mode is enabled in settings
             const claudeCodeToken = getClaudeCodeToken()
             const offlineResult = await checkOfflineFallback(
-              input.customConfig,
+              resolvedCustomConfig,
               claudeCodeToken,
               undefined, // selectedOllamaModel - will be read from customConfig if present
               input.offlineModeEnabled ?? false, // Pass offline mode setting
@@ -1173,7 +1196,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             }
 
             // Use offline config if available
-            const finalCustomConfig = offlineResult.config || input.customConfig
+            const finalCustomConfig = offlineResult.config || resolvedCustomConfig
             const isUsingOllama = offlineResult.isUsingOllama
 
             // Track connection method for analytics
