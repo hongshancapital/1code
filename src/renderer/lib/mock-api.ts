@@ -333,6 +333,11 @@ export const api = {
               await utils.chats.get.invalidate({ id: args.chatId })
             }
           },
+          fetch: async (args?: { chatId: string }) => {
+            if (!args?.chatId) return null
+            // Fetch fresh data and update cache, returns the raw data
+            return utils.chats.get.fetch({ id: args.chatId })
+          },
         },
         getSubChats: {
           invalidate: async () => {},

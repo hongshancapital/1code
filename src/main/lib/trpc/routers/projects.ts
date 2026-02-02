@@ -12,8 +12,15 @@ import { extname } from "node:path"
 import { getGitRemoteInfo, isGitRepo } from "../../git"
 import { trackProjectOpened } from "../../analytics"
 import { getLaunchDirectory } from "../../cli"
+import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
 
 const execAsync = promisify(exec)
+
+// Get the playground directory path
+export function getPlaygroundPath(): string {
+  const homePath = app.getPath("home")
+  return join(homePath, PLAYGROUND_RELATIVE_PATH)
+}
 
 export const projectsRouter = router({
   /**
@@ -25,11 +32,71 @@ export const projectsRouter = router({
   }),
 
   /**
-   * List all projects
+   * List all projects (excludes playground project by default)
    */
-  list: publicProcedure.query(() => {
+  list: publicProcedure
+    .input(z.object({ includePlayground: z.boolean().default(false) }).optional())
+    .query(({ input }) => {
+      const db = getDatabase()
+      const all = db.select().from(projects).orderBy(desc(projects.updatedAt)).all()
+      if (input?.includePlayground) {
+        return all
+      }
+      // Filter out playground project
+      return all.filter((p) => !p.isPlayground)
+    }),
+
+  /**
+   * Get or create the playground project for chat mode
+   * Playground runs in {User}/.hong/.playground
+   */
+  getOrCreatePlayground: publicProcedure.mutation(async () => {
     const db = getDatabase()
-    return db.select().from(projects).orderBy(desc(projects.updatedAt)).all()
+    const playgroundPath = getPlaygroundPath()
+
+    // Check if playground project already exists
+    const existing = db
+      .select()
+      .from(projects)
+      .where(eq(projects.isPlayground, true))
+      .get()
+
+    if (existing) {
+      // Ensure directory exists
+      if (!existsSync(playgroundPath)) {
+        await mkdir(playgroundPath, { recursive: true })
+      }
+      return existing
+    }
+
+    // Create playground directory
+    await mkdir(playgroundPath, { recursive: true })
+
+    // Create playground project
+    const playground = db
+      .insert(projects)
+      .values({
+        name: PLAYGROUND_PROJECT_NAME,
+        path: playgroundPath,
+        mode: "chat",
+        isPlayground: true,
+      })
+      .returning()
+      .get()
+
+    return playground
+  }),
+
+  /**
+   * Get the playground project (if exists)
+   */
+  getPlayground: publicProcedure.query(() => {
+    const db = getDatabase()
+    return db
+      .select()
+      .from(projects)
+      .where(eq(projects.isPlayground, true))
+      .get() ?? null
   }),
 
   /**
@@ -149,7 +216,8 @@ export const projectsRouter = router({
     .input(z.object({
       path: z.string(),
       name: z.string().optional(),
-      mode: z.enum(["cowork", "coding"]).optional(),
+      mode: z.enum(["chat", "cowork", "coding"]).optional(),
+      isPlayground: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = getDatabase()
@@ -166,9 +234,9 @@ export const projectsRouter = router({
         return existing
       }
 
-      // Check if folder is a git repo and get remote info
-      const hasGit = await isGitRepo(input.path)
-      const gitInfo = await getGitRemoteInfo(input.path)
+      // Check if folder is a git repo and get remote info (skip for chat mode)
+      const hasGit = input.mode !== "chat" && await isGitRepo(input.path)
+      const gitInfo = input.mode !== "chat" ? await getGitRemoteInfo(input.path) : { remoteUrl: null, provider: null, owner: null, repo: null }
 
       // Use provided mode or auto-detect based on git status
       const mode = input.mode ?? (hasGit ? "coding" : "cowork")
@@ -183,6 +251,7 @@ export const projectsRouter = router({
           gitOwner: gitInfo.owner,
           gitRepo: gitInfo.repo,
           mode,
+          isPlayground: input.isPlayground ?? false,
         })
         .returning()
         .get()
@@ -374,15 +443,23 @@ export const projectsRouter = router({
 
   /**
    * Update project mode
-   * @param mode - Project mode: "cowork" (simplified) or "coding" (full git features)
+   * @param mode - Project mode: "chat" (playground) | "cowork" (simplified) | "coding" (full git features)
+   * Note: Playground projects cannot change mode
    */
   updateMode: publicProcedure
     .input(z.object({
       id: z.string(),
-      mode: z.enum(["cowork", "coding"]),
+      mode: z.enum(["chat", "cowork", "coding"]),
     }))
     .mutation(({ input }) => {
       const db = getDatabase()
+
+      // Don't allow changing mode of playground project
+      const project = db.select().from(projects).where(eq(projects.id, input.id)).get()
+      if (project?.isPlayground) {
+        return project
+      }
+
       return db
         .update(projects)
         .set({ mode: input.mode, updatedAt: new Date() })

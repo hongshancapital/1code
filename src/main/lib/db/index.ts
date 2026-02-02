@@ -65,7 +65,21 @@ export function initDatabase() {
     console.log("[DB] Migrations completed")
   } catch (error) {
     console.error("[DB] Migration error:", error)
-    throw error
+    // Don't throw - try to continue with manual column additions
+    console.log("[DB] Attempting manual schema fixes...")
+  }
+
+  // Ensure is_playground column exists (for chat mode feature)
+  // This handles cases where migrations fail due to conflicts
+  try {
+    sqlite.exec(`ALTER TABLE projects ADD COLUMN is_playground INTEGER DEFAULT 0`)
+    console.log("[DB] Added is_playground column")
+  } catch (e: unknown) {
+    // Column likely already exists, ignore
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] is_playground column check:", error.message)
+    }
   }
 
   return db

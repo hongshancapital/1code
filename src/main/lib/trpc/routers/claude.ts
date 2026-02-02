@@ -7,6 +7,7 @@ import * as os from "os"
 import path from "path"
 import { z } from "zod"
 import { setConnectionMethod } from "../../analytics"
+import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
   buildClaudeEnv,
   checkOfflineFallback,
@@ -497,6 +498,30 @@ const PLAN_MODE_BLOCKED_TOOLS = new Set([
   "Bash",
   "NotebookEdit",
 ])
+
+// Tools blocked in chat mode (playground) - only allow conversation, no file operations
+// When user wants to work with files, they should convert to cowork/coding mode
+const CHAT_MODE_BLOCKED_TOOLS = new Set([
+  "Read",
+  "Write",
+  "Edit",
+  "Glob",
+  "Grep",
+  "Bash",
+  "NotebookEdit",
+  "LS",
+  "Find",
+])
+
+// Check if a cwd is the playground directory (for chat mode)
+function isPlaygroundPath(cwd: string): boolean {
+  const homePath = app.getPath("home")
+  const playgroundPath = path.join(homePath, PLAYGROUND_RELATIVE_PATH)
+  // Normalize paths for comparison (handle Windows path separators)
+  const normalizedCwd = path.normalize(cwd).toLowerCase()
+  const normalizedPlayground = path.normalize(playgroundPath).toLowerCase()
+  return normalizedCwd.startsWith(normalizedPlayground)
+}
 
 const clearPendingApprovals = (message: string, subChatId?: string) => {
   for (const [toolUseId, pending] of pendingToolApprovals) {
@@ -1749,6 +1774,16 @@ ${prompt}
                       toolInput.command = toolInput.cmd
                       delete toolInput.cmd
                       console.log('[Ollama] Fixed Bash tool: cmd -> command')
+                    }
+                  }
+
+                  // Chat mode (playground): block file tools, user should convert to cowork/coding mode
+                  if (isPlaygroundPath(input.cwd)) {
+                    if (CHAT_MODE_BLOCKED_TOOLS.has(toolName)) {
+                      return {
+                        behavior: "deny" as const,
+                        message: `Tool "${toolName}" is not available in chat mode. To work with files, please convert this chat to a workspace (Cowork or Coding mode).`,
+                      }
                     }
                   }
 

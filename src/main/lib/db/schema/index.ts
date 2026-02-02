@@ -20,13 +20,16 @@ export const projects = sqliteTable("projects", {
   gitProvider: text("git_provider"), // "github" | "gitlab" | "bitbucket" | null
   gitOwner: text("git_owner"),
   gitRepo: text("git_repo"),
-  // Project mode: "cowork" (simplified, no git) or "coding" (full features with git)
+  // Project mode: "chat" (playground) | "cowork" (simplified, no git) | "coding" (full features with git)
   mode: text("mode").notNull().default("cowork"),
   // Feature configuration: JSON object for widget/tool overrides
   // { widgets?: { [widgetId]: boolean }, tools?: { [toolId]: boolean } }
   featureConfig: text("feature_config"),
   // Custom project icon (absolute path to local image file)
   iconPath: text("icon_path"),
+  // Whether this is the special playground project for chat mode
+  // Playground chats run in {User}/.hong/.playground and don't appear in workspaces
+  isPlayground: integer("is_playground", { mode: "boolean" }).default(false),
 })
 
 export const projectsRelations = relations(projects, ({ many }) => ({

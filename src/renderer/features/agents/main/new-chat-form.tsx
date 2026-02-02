@@ -72,6 +72,7 @@ import {
 // Desktop uses real tRPC
 import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
+import { api } from "../../../lib/mock-api"
 import {
   AgentsSlashCommand,
   COMMAND_PROMPTS,
@@ -106,7 +107,8 @@ import {
   PromptInputActions,
   PromptInputContextItems,
 } from "../../../components/ui/prompt-input"
-import { agentsSidebarOpenAtom, agentsUnseenChangesAtom } from "../atoms"
+import { agentsSidebarOpenAtom, agentsUnseenChangesAtom, agentsSubChatsSidebarModeAtom } from "../atoms"
+import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentSendButton } from "../components/agent-send-button"
 import { formatTimeAgo } from "../utils/format-time-ago"
 import { handlePasteEvent } from "../utils/paste-text"
@@ -245,9 +247,44 @@ export function NewChatForm({
   // This ensures the mode toggle reflects the project's actual mode
   useEffect(() => {
     if (validatedProject?.mode) {
-      setCurrentProjectMode(validatedProject.mode as "cowork" | "coding")
+      setCurrentProjectMode(validatedProject.mode as "chat" | "cowork" | "coding")
     }
   }, [validatedProject?.mode, setCurrentProjectMode])
+
+  // Auto-initialize playground when in chat mode without a project
+  // This runs on mount and when mode changes to chat
+  const getOrCreatePlaygroundMutation = trpc.projects.getOrCreatePlayground.useMutation()
+  const hasInitializedPlayground = useRef(false)
+
+  useEffect(() => {
+    // Only auto-init if:
+    // 1. In chat mode
+    // 2. No project selected
+    // 3. Haven't already initialized
+    // 4. Not currently loading projects
+    if (
+      currentProjectMode === "chat" &&
+      !selectedProject &&
+      !hasInitializedPlayground.current &&
+      !isLoadingProjects
+    ) {
+      hasInitializedPlayground.current = true
+      getOrCreatePlaygroundMutation.mutateAsync().then((playground) => {
+        if (playground) {
+          setSelectedProject({
+            id: playground.id,
+            name: playground.name,
+            path: playground.path,
+            mode: "chat",
+            isPlayground: true,
+          })
+        }
+      }).catch((error) => {
+        console.error("Failed to initialize playground:", error)
+        hasInitializedPlayground.current = false // Allow retry
+      })
+    }
+  }, [currentProjectMode, selectedProject, isLoadingProjects, getOrCreatePlaygroundMutation, setSelectedProject])
 
   // File reference from file tree panel
   const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
@@ -943,6 +980,7 @@ export function NewChatForm({
 
   // Create chat mutation (real tRPC)
   const utils = trpc.useUtils()
+  const apiUtils = api.useUtils()
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
       // Clear editor, images, files, pasted texts, file contents cache, and custom branch name only on success
@@ -970,6 +1008,13 @@ export function NewChatForm({
       toast.error(error.message)
     },
   })
+
+  // Get or create playground chat mutation (for Chat mode)
+  const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
+
+  // Create subchat mutation (for Chat mode - creates subchat under existing playground chat)
+  // Note: We use mutateAsync in handleSend, so onSuccess/onError are handled there
+  const createSubChatMutation = trpc.chats.createSubChat.useMutation()
 
   // Open folder mutation for selecting a project
   const openFolder = trpc.projects.openFolder.useMutation({
@@ -1016,11 +1061,44 @@ export function NewChatForm({
     await openFolder.mutateAsync()
   }
 
-  // Handle project mode change (Cowork/Coding)
+  // Handle project mode change (Chat/Cowork/Coding)
   const updateModeMutation = trpc.projects.updateMode.useMutation()
 
-  const handleModeChange = useCallback(async (newMode: "cowork" | "coding") => {
-    if (!validatedProject?.id) return
+  const handleModeChange = useCallback(async (newMode: "chat" | "cowork" | "coding") => {
+    // If switching to chat mode, auto-select playground
+    if (newMode === "chat") {
+      try {
+        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
+        if (playground) {
+          setSelectedProject({
+            id: playground.id,
+            name: playground.name,
+            path: playground.path,
+            mode: "chat",
+            isPlayground: true,
+          })
+          setCurrentProjectMode("chat")
+        }
+      } catch (error) {
+        console.error("Failed to switch to chat mode:", error)
+        toast.error("Failed to switch to chat mode")
+      }
+      return
+    }
+
+    // If switching FROM chat mode to cowork/coding, clear selection (user needs to pick a project)
+    if (validatedProject?.isPlayground) {
+      setSelectedProject(null)
+      setCurrentProjectMode(newMode)
+      return
+    }
+
+    // For non-playground projects, update the mode
+    if (!validatedProject?.id) {
+      // No project selected, just update the mode atom
+      setCurrentProjectMode(newMode)
+      return
+    }
 
     try {
       const updatedProject = await updateModeMutation.mutateAsync({
@@ -1034,12 +1112,13 @@ export function NewChatForm({
           ...validatedProject,
           mode: newMode,
         })
+        setCurrentProjectMode(newMode)
       }
     } catch (error) {
       console.error("Failed to update project mode:", error)
       toast.error("Failed to update project mode")
     }
-  }, [validatedProject, updateModeMutation, setSelectedProject])
+  }, [validatedProject, updateModeMutation, setSelectedProject, getOrCreatePlaygroundMutation, setCurrentProjectMode])
 
   const getAgentIcon = (agentId: string, className?: string) => {
     switch (agentId) {
@@ -1066,7 +1145,33 @@ export function NewChatForm({
     const hasFiles = files.filter((f) => !f.isLoading).length > 0
     const hasPastedTexts = pastedTexts.length > 0
 
-    if ((!hasText && !hasImages && !hasFiles && !hasPastedTexts) || !selectedProject) {
+    if (!hasText && !hasImages && !hasFiles && !hasPastedTexts) {
+      return
+    }
+
+    // For Chat mode, ensure playground is initialized
+    let projectToUse = selectedProject
+    if (currentProjectMode === "chat" && !selectedProject) {
+      try {
+        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
+        if (playground) {
+          projectToUse = {
+            id: playground.id,
+            name: playground.name,
+            path: playground.path,
+            mode: "chat",
+            isPlayground: true,
+          }
+          setSelectedProject(projectToUse)
+        }
+      } catch (error) {
+        console.error("Failed to initialize playground:", error)
+        toast.error("Failed to initialize chat mode")
+        return
+      }
+    }
+
+    if (!projectToUse) {
       return
     }
 
@@ -1170,7 +1275,69 @@ export function NewChatForm({
       }
     }
 
-    // Pull latest changes before creating worktree
+    // Chat mode: create subchat under existing playground chat
+    if (currentProjectMode === "chat") {
+      try {
+        // Get or create the single playground chat
+        const playgroundChat = await getOrCreatePlaygroundChatMutation.mutateAsync()
+
+        // Create a new subchat with the message
+        const newSubChat = await createSubChatMutation.mutateAsync({
+          chatId: playgroundChat.id,
+          name: message.trim().slice(0, 50),
+          mode: agentMode,
+          initialMessageParts: parts.length > 0 ? parts : undefined,
+        })
+
+        // Clear editor, images, files, pasted texts, file contents cache
+        editorRef.current?.clear()
+        clearImages()
+        clearFiles()
+        clearPastedTexts()
+        fileContentsRef.current.clear()
+        clearCurrentDraft()
+
+        // Select the playground chat (this triggers ChatView to render)
+        setSelectedChatId(playgroundChat.id)
+        setSelectedChatIsRemote(false)
+        setChatSourceMode("local")
+
+        // Invalidate sidebar list
+        utils.chats.listPlayground.invalidate()
+
+        // CRITICAL: Refetch the chat data FIRST to ensure agentSubChats has the new subchat with messages
+        // Must complete before setActiveSubChat, otherwise getOrCreateChat() will see empty messages
+        await apiUtils.agents.getAgentChat.fetch({ chatId: playgroundChat.id })
+
+        // Now set up the subchat store - at this point the query cache is already updated
+        const store = useAgentSubChatStore.getState()
+        // Ensure the chat is set correctly
+        if (store.chatId !== playgroundChat.id) {
+          store.setChatId(playgroundChat.id)
+        }
+        // Add to all subchats list (for sidebar display)
+        store.addToAllSubChats({
+          id: newSubChat.id,
+          name: newSubChat.name,
+          mode: newSubChat.mode as "plan" | "agent",
+          created_at: newSubChat.createdAt?.toISOString() ?? new Date().toISOString(),
+          updated_at: newSubChat.updatedAt?.toISOString() ?? new Date().toISOString(),
+        })
+        store.addToOpenSubChats(newSubChat.id)
+        // Set active subchat LAST - this triggers ChatView to create the Chat object
+        // By this point, agentSubChats in the query cache already contains the new subchat's messages
+        store.setActiveSubChat(newSubChat.id)
+
+        // Track as just created for typewriter effect
+        setJustCreatedIds((prev) => new Set([...prev, newSubChat.id]))
+      } catch (error) {
+        console.error("Failed to create chat:", error)
+        toast.error("Failed to create chat")
+      }
+      return
+    }
+
+    // Pull latest changes before creating worktree (cowork/coding modes only)
     if (workMode === "worktree" && selectedBranch && validatedProject?.path) {
       setPullStatus("Pulling latest changes...")
 
@@ -1200,9 +1367,9 @@ export function NewChatForm({
       setPullStatus(null)
     }
 
-    // Create chat with selected project, branch, and initial message
+    // Create chat with selected project, branch, and initial message (cowork/coding modes)
     createChatMutation.mutate({
-      projectId: selectedProject.id,
+      projectId: projectToUse.id,
       name: message.trim().slice(0, 50), // Use first 50 chars as chat name
       initialMessageParts: parts.length > 0 ? parts : undefined,
       baseBranch:
@@ -1221,6 +1388,8 @@ export function NewChatForm({
     selectedProject,
     validatedProject?.path,
     createChatMutation,
+    createSubChatMutation,
+    getOrCreatePlaygroundChatMutation,
     pullBranchMutation,
     hasContent,
     selectedBranch,
@@ -1233,6 +1402,15 @@ export function NewChatForm({
     pastedTexts,
     agentMode,
     trpcUtils,
+    currentProjectMode,
+    getOrCreatePlaygroundMutation,
+    setSelectedProject,
+    setSelectedChatId,
+    setSelectedChatIsRemote,
+    setChatSourceMode,
+    setJustCreatedIds,
+    utils,
+    // Note: clearImages, clearFiles, clearPastedTexts, clearCurrentDraft are stable refs from hooks
   ])
 
   const handleMentionSelect = useCallback((mention: FileMentionOption) => {
@@ -1650,7 +1828,8 @@ export function NewChatForm({
           </div>
 
           {/* Input Area - shown for both states */}
-          {!validatedProject ? (
+          {/* Chat mode: skip folder selection, show input directly (playground initializes async) */}
+          {!validatedProject && currentProjectMode !== "chat" ? (
             // No project selected - show disabled input with folder selector
             <div className="relative w-full">
               <div
@@ -2031,7 +2210,7 @@ export function NewChatForm({
                             createChatMutation.isPending || isUploading || pullStatus !== null
                           }
                           disabled={Boolean(
-                            !hasContent || !selectedProject || isUploading || pullStatus !== null,
+                            !hasContent || (!selectedProject && currentProjectMode !== "chat") || isUploading || pullStatus !== null,
                           )}
                           onClick={handleSend}
                           mode={agentMode}
@@ -2048,35 +2227,37 @@ export function NewChatForm({
                   </PromptInputActions>
                 </PromptInput>
 
-                {/* Project and Branch Mode selectors - directly under input */}
-                <div className="mt-1.5 md:mt-2 ml-[5px] flex items-center gap-2">
-                  <ProjectSelector />
+                {/* Project and Branch Mode selectors - directly under input (hidden in chat mode) */}
+                {currentProjectMode !== "chat" && (
+                  <div className="mt-1.5 md:mt-2 ml-[5px] flex items-center gap-2">
+                    <ProjectSelector />
 
-                  {/* Combined branch mode selector (only in coding mode) */}
-                  {validatedProject && currentProjectMode === "coding" && (
-                    <BranchModeSelector
-                      workMode={workMode}
-                      onWorkModeChange={setWorkMode}
-                      selectedBranch={selectedBranch}
-                      selectedBranchType={selectedBranchType}
-                      onBranchChange={setSelectedBranch}
-                      customBranchName={customBranchName}
-                      onCustomBranchNameChange={handleCustomBranchNameChange}
-                      branchNameError={branchNameError}
-                      branches={branches}
-                      defaultBranch={branchesQuery.data?.defaultBranch || "main"}
-                      isLoading={branchesQuery.isLoading}
-                      disabled={createChatMutation.isPending || pullStatus !== null}
-                    />
-                  )}
+                    {/* Combined branch mode selector (only in coding mode) */}
+                    {validatedProject && currentProjectMode === "coding" && (
+                      <BranchModeSelector
+                        workMode={workMode}
+                        onWorkModeChange={setWorkMode}
+                        selectedBranch={selectedBranch}
+                        selectedBranchType={selectedBranchType}
+                        onBranchChange={setSelectedBranch}
+                        customBranchName={customBranchName}
+                        onCustomBranchNameChange={handleCustomBranchNameChange}
+                        branchNameError={branchNameError}
+                        branches={branches}
+                        defaultBranch={branchesQuery.data?.defaultBranch || "main"}
+                        isLoading={branchesQuery.isLoading}
+                        disabled={createChatMutation.isPending || pullStatus !== null}
+                      />
+                    )}
 
-                  {/* Pull status indicator */}
-                  {pullStatus && (
-                    <span className="text-sm text-muted-foreground animate-[pulse_1.5s_ease-in-out_infinite]">
-                      {pullStatus}
-                    </span>
-                  )}
-                </div>
+                    {/* Pull status indicator */}
+                    {pullStatus && (
+                      <span className="text-sm text-muted-foreground animate-[pulse_1.5s_ease-in-out_infinite]">
+                        {pullStatus}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Worktree config banner - moved to corner banner below */}
 

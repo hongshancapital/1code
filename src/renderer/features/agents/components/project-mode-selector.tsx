@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { Sparkles, Code } from "lucide-react"
+import { Sparkles, Code, MessageCircle } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import type { ProjectMode } from "../atoms"
 
@@ -39,6 +39,14 @@ interface ModeOption {
 // ============================================================================
 // Streaming Slogan Hook
 // ============================================================================
+
+const CHAT_SLOGANS = [
+  "Just chat, no project needed",
+  "Your AI conversation partner",
+  "Ideas flow freely here",
+  "Simple, focused conversations",
+  "Chat first, code later",
+]
 
 const COWORK_SLOGANS = [
   "AI as your collaboration partner",
@@ -79,7 +87,11 @@ function useStreamingSlogan({
   const lastModeRef = useRef<ProjectMode | null>(null)
 
   const selectRandomSlogan = useCallback((targetMode: ProjectMode) => {
-    const slogans = targetMode === "cowork" ? COWORK_SLOGANS : CODING_SLOGANS
+    const slogans = targetMode === "chat"
+      ? CHAT_SLOGANS
+      : targetMode === "cowork"
+        ? COWORK_SLOGANS
+        : CODING_SLOGANS
     const randomIndex = Math.floor(Math.random() * slogans.length)
     return slogans[randomIndex]
   }, [])
@@ -151,6 +163,11 @@ interface ModeIconProps {
   className?: string
 }
 
+/** Chat mode icon - MessageCircle representing pure conversation */
+export function ChatModeIcon({ className = "w-4 h-4" }: ModeIconProps) {
+  return <MessageCircle className={className} />
+}
+
 /** Cowork mode icon - Sparkles representing AI-powered collaboration */
 export function CoworkModeIcon({ className = "w-4 h-4" }: ModeIconProps) {
   return <Sparkles className={className} />
@@ -163,9 +180,14 @@ export function CodingModeIcon({ className = "w-4 h-4" }: ModeIconProps) {
 
 /** Get the appropriate icon component for a project mode */
 export function ProjectModeIcon({ mode, className }: { mode: ProjectMode; className?: string }) {
-  return mode === "cowork"
-    ? <CoworkModeIcon className={className} />
-    : <CodingModeIcon className={className} />
+  switch (mode) {
+    case "chat":
+      return <ChatModeIcon className={className} />
+    case "cowork":
+      return <CoworkModeIcon className={className} />
+    case "coding":
+      return <CodingModeIcon className={className} />
+  }
 }
 
 // ============================================================================
@@ -173,6 +195,17 @@ export function ProjectModeIcon({ mode, className }: { mode: ProjectMode; classN
 // ============================================================================
 
 const MODE_OPTIONS: ModeOption[] = [
+  {
+    id: "chat",
+    title: "Chat",
+    subtitle: "纯对话模式",
+    icon: <ChatModeIcon />,
+    features: [
+      "无需选择项目",
+      "纯粹的 AI 对话",
+      "随时转为项目",
+    ],
+  },
   {
     id: "cowork",
     title: "Cowork",

@@ -79,7 +79,7 @@ const useRenameRemoteChat = () => ({
   mutateAsync: async (_data: { chatId: string; name: string }) => {}
 })
 import { ArchivePopover } from "../agents/ui/archive-popover"
-import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight } from "lucide-react"
+import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight, MessageCircle } from "lucide-react"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
 import { useQuery } from "@tanstack/react-query"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
@@ -157,6 +157,8 @@ import {
   undoStackAtom,
   pendingUserQuestionsAtom,
   desktopViewAtom,
+  currentProjectModeAtom,
+  agentsSubChatsSidebarModeAtom,
   type UndoItem,
 } from "../agents/atoms"
 import { NetworkStatus } from "../../components/ui/network-status"
@@ -1252,6 +1254,38 @@ const InboxButton = memo(function InboxButton() {
   )
 })
 
+// Playground Chats Button - click to enter chat mode with playground
+const ChatsButton = memo(function ChatsButton({
+  count,
+  onClick,
+  isActive,
+}: {
+  count: number
+  onClick: () => void
+  isActive: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150",
+        isActive
+          ? "bg-foreground/5 text-foreground"
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+      )}
+    >
+      <MessageCircle className="h-4 w-4" />
+      <span className="flex-1 text-left">Chats</span>
+      {count > 0 && (
+        <span className="text-xs text-muted-foreground">
+          ({count})
+        </span>
+      )}
+    </button>
+  )
+})
+
 // Isolated Automations Button - full-width navigation link matching web layout
 const AutomationsButton = memo(function AutomationsButton() {
   const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
@@ -1822,11 +1856,17 @@ export function AgentsSidebar({
   const showWorkspaceIcon = useAtomValue(showWorkspaceIconAtom)
 
   // Desktop: use selectedProject instead of teams
-  const [selectedProject] = useAtom(selectedProjectAtom)
+  const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
+
+  // Current project mode (chat/cowork/coding)
+  const [currentProjectMode, setCurrentProjectMode] = useAtom(currentProjectModeAtom)
 
   // Keep chatSourceModeAtom for backwards compatibility (used in other places)
   const [chatSourceMode, setChatSourceMode] = useAtom(chatSourceModeAtom)
   const teamId = useAtomValue(selectedTeamIdAtom)
+
+  // Subchat sidebar mode - need to set to "sidebar" when clicking Chats
+  const setSubChatsSidebarMode = useSetAtom(agentsSubChatsSidebarModeAtom)
 
   // Sync chatSourceMode with selectedChatIsRemote on startup
   // This fixes the race condition where atoms load independently from localStorage
@@ -1841,8 +1881,52 @@ export function AgentsSidebar({
     }
   }, [])
 
-  // Fetch all local chats (no project filter)
-  const { data: localChats } = trpc.chats.list.useQuery({})
+  // Fetch all local chats (no project filter, excludes playground chats)
+  const { data: localChats } = trpc.chats.list.useQuery({ includePlayground: false })
+
+  // Fetch playground subchats (for chat mode - these are subchats under the single playground chat)
+  const { data: playgroundSubChats } = trpc.chats.listPlayground.useQuery()
+
+  // Mutation to get or create playground project
+  const getOrCreatePlaygroundMutation = trpc.projects.getOrCreatePlayground.useMutation()
+
+  // Mutation to get or create the single playground chat
+  const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
+
+  const trpcUtils = trpc.useUtils()
+
+  // Handle clicking the Chats button - enter chat mode with playground project
+  const handleChatsClick = useCallback(async () => {
+    try {
+      // 1. Get or create playground project
+      const playground = await getOrCreatePlaygroundMutation.mutateAsync()
+
+      // 2. Get or create the single playground chat
+      const playgroundChat = await getOrCreatePlaygroundChatMutation.mutateAsync()
+
+      // 3. Set to chat mode and select playground project
+      setCurrentProjectMode("chat")
+      setSelectedProject({
+        id: playground.id,
+        name: playground.name,
+        path: playground.path,
+        mode: "chat",
+        isPlayground: true,
+      })
+
+      // 4. Select the playground chat and open subchat sidebar
+      setSelectedChatId(playgroundChat.id)
+      setSubChatsSidebarMode("sidebar")  // Open subchat sidebar
+      setShowNewChatForm(false)
+      setDesktopView(null)  // Clear any special view (settings, etc.) to allow sidebar to show
+      setSelectedDraftId(null)
+    } catch (error) {
+      console.error("Failed to enter chat mode:", error)
+    }
+  }, [getOrCreatePlaygroundMutation, getOrCreatePlaygroundChatMutation, setCurrentProjectMode, setSelectedProject, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setSubChatsSidebarMode, setDesktopView])
+
+  // Check if currently in chat mode with playground selected
+  const isChatsActive = currentProjectMode === "chat" && selectedProject?.isPlayground === true
 
   // Fetch user's teams (same as web) - always enabled to allow merged list
   const { data: teams, isLoading: isTeamsLoading, isError: isTeamsError } = useUserTeams(true)
@@ -3246,8 +3330,15 @@ export function AgentsSidebar({
         </div>
       </div>
 
-      {/* Navigation Links - Inbox & Automations */}
+      {/* Navigation Links - Chats, Inbox & Automations */}
       <div className="px-2 pb-3 flex-shrink-0 space-y-0.5 -mx-1">
+        {playgroundSubChats && playgroundSubChats.length > 0 && (
+          <ChatsButton
+            count={playgroundSubChats.length}
+            onClick={handleChatsClick}
+            isActive={isChatsActive}
+          />
+        )}
         <InboxButton />
         <AutomationsButton />
       </div>
@@ -3299,7 +3390,7 @@ export function AgentsSidebar({
             </div>
           )}
 
-          {/* Chats Section */}
+          {/* Workspaces Section */}
           {filteredChats.length > 0 ? (
             <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
               {/* Pinned section */}

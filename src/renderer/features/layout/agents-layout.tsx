@@ -108,8 +108,11 @@ export function AgentsLayout() {
 
   // Validated project - only valid if exists in DB
   // While loading, trust localStorage value to prevent clearing on app restart
+  // Playground projects are always trusted (they're not in the regular list)
   const validatedProject = useMemo(() => {
     if (!selectedProject) return null
+    // Playground projects are always valid (they're managed separately)
+    if (selectedProject.isPlayground) return selectedProject
     // While loading, trust localStorage value to prevent flicker and clearing
     if (isLoadingProjects) return selectedProject
     // After loading, validate against DB
@@ -119,9 +122,11 @@ export function AgentsLayout() {
   }, [selectedProject, projects, isLoadingProjects])
 
   // Clear invalid project from storage (only after loading completes)
+  // Skip clearing for playground projects (they're managed separately)
   useEffect(() => {
     if (
       selectedProject &&
+      !selectedProject.isPlayground &&
       projects &&
       !isLoadingProjects &&
       !validatedProject
@@ -191,24 +196,41 @@ export function AgentsLayout() {
   // Track if this is the initial load - skip auto-open on first load to respect saved state
   const isInitialLoadRef = useRef(true)
 
+  // Get current project mode
+  const currentProjectMode = useAtomValue(currentProjectModeAtom)
+
   // Auto-open sidebar when project is selected, close when no project
+  // Only react to validatedProject changes, not mode changes
   // Skip on initial load to preserve user's saved sidebar preference
+  const prevProjectRef = useRef<typeof validatedProject>(undefined)
   useEffect(() => {
     if (!projects) return // Don't change sidebar state while loading
 
     // On initial load, just mark as loaded and don't change sidebar state
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false
+      prevProjectRef.current = validatedProject
       return
     }
 
-    // After initial load, react to project changes
+    // Only react when validatedProject actually changes (not on mode change)
+    if (prevProjectRef.current === validatedProject) {
+      return
+    }
+    prevProjectRef.current = validatedProject
+
+    // Chat mode: don't auto-control sidebar based on project state
+    if (currentProjectMode === "chat") {
+      return
+    }
+
+    // After initial load, react to project changes (cowork/coding only)
     if (validatedProject) {
       setSidebarOpen(true)
     } else {
       setSidebarOpen(false)
     }
-  }, [validatedProject, projects, setSidebarOpen])
+  }, [validatedProject, projects, setSidebarOpen, currentProjectMode])
 
   // Handle sign out
   const handleSignOut = useCallback(async () => {
@@ -269,9 +291,10 @@ export function AgentsLayout() {
 
   // Sync currentProjectModeAtom when validatedProject changes
   // This handles app startup (localStorage restore) and other project setters
+  // Don't override mode if no project is selected (keep default "chat" mode)
   useEffect(() => {
     if (validatedProject?.mode) {
-      setCurrentProjectMode(validatedProject.mode as "cowork" | "coding")
+      setCurrentProjectMode(validatedProject.mode as "chat" | "cowork" | "coding")
     }
   }, [validatedProject?.mode, setCurrentProjectMode])
 
