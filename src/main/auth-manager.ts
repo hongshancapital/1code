@@ -15,6 +15,17 @@ function getApiBaseUrl(): string {
 }
 
 /**
+ * Get additional headers for Azure AD authentication
+ * Returns the New-Authorizer header if current provider is Azure
+ */
+export function getAzureAuthHeaders(): Record<string, string> {
+  if (getEffectiveAuthProvider() === "azure") {
+    return { "New-Authorizer": "MSAL-CN" }
+  }
+  return {}
+}
+
+/**
  * API response type
  */
 interface ApiResponse<T> {
@@ -53,6 +64,7 @@ async function fetchApi<T = unknown>(
     "sec-fetch-mode": "cors",
     "sec-fetch-site": "same-site",
     ...(options?.body ? { "Content-Type": "application/json" } : {}),
+    ...getAzureAuthHeaders(),
     ...options?.headers,
   }
 
@@ -492,6 +504,7 @@ export class AuthManager {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Desktop-Token": token, // Keep for backwards compatibility
+          ...getAzureAuthHeaders(),
         },
       })
 
