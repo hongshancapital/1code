@@ -1258,6 +1258,15 @@ if (gotTheLock) {
       console.error("[App] Failed to initialize database:", error)
     }
 
+    // Sync builtin skills to user directory (for Claude SDK discovery)
+    try {
+      const { syncBuiltinSkillsToUserDir } = await import("./lib/trpc/routers/skills")
+      await syncBuiltinSkillsToUserDir()
+      console.log("[App] Builtin skills synced")
+    } catch (error) {
+      console.warn("[App] Failed to sync builtin skills:", error)
+    }
+
     // Create main window
     createMainWindow()
 

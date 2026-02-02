@@ -14,6 +14,7 @@ import { Button } from "../../ui/button"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { ChatMarkdownRenderer } from "../../chat-markdown-renderer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
+import { Switch } from "../../ui/switch"
 import { toast } from "sonner"
 
 // --- Detail Panel (Editable) ---
@@ -301,8 +302,30 @@ export function AgentsSkillsTab() {
     selectedProject?.path ? { cwd: selectedProject.path } : undefined,
   )
 
+  const { data: enabledSkills = {} } = trpc.claudeSettings.getEnabledSkills.useQuery(
+    selectedProject?.path ? { cwd: selectedProject.path } : undefined,
+  )
+
   const updateMutation = trpc.skills.update.useMutation()
   const createMutation = trpc.skills.create.useMutation()
+  const setSkillEnabledMutation = trpc.claudeSettings.setSkillEnabled.useMutation()
+
+  const trpcUtils = trpc.useUtils()
+
+  const handleToggleSkillEnabled = useCallback(async (skillName: string, enabled: boolean) => {
+    try {
+      await setSkillEnabledMutation.mutateAsync({ skillName, enabled })
+      await trpcUtils.claudeSettings.getEnabledSkills.invalidate()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update"
+      toast.error("Failed to update skill", { description: message })
+    }
+  }, [setSkillEnabledMutation, trpcUtils])
+
+  const isSkillEnabled = useCallback((skillName: string) => {
+    // Default to enabled if not explicitly set
+    return enabledSkills[skillName] !== false
+  }, [enabledSkills])
 
   const handleCreate = useCallback(async (data: {
     name: string; description: string; content: string; source: "user" | "project"
@@ -451,8 +474,9 @@ export function AgentsSkillsTab() {
                     <div className="space-y-0.5">
                       {userSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
+                        const enabled = isSkillEnabled(skill.name)
                         return (
-                          <button
+                          <div
                             key={skill.name}
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
@@ -460,18 +484,25 @@ export function AgentsSkillsTab() {
                               "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
-                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                              !enabled && "opacity-50"
                             )}
                           >
-                            <div className="text-sm truncate">
-                              {skill.name}
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              <Switch
+                                checked={enabled}
+                                onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="scale-75"
+                              />
                             </div>
                             {skill.description && (
                               <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                 {skill.description}
                               </div>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
@@ -487,8 +518,9 @@ export function AgentsSkillsTab() {
                     <div className="space-y-0.5">
                       {projectSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
+                        const enabled = isSkillEnabled(skill.name)
                         return (
-                          <button
+                          <div
                             key={skill.name}
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
@@ -496,18 +528,25 @@ export function AgentsSkillsTab() {
                               "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
-                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                              !enabled && "opacity-50"
                             )}
                           >
-                            <div className="text-sm truncate">
-                              {skill.name}
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              <Switch
+                                checked={enabled}
+                                onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="scale-75"
+                              />
                             </div>
                             {skill.description && (
                               <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                 {skill.description}
                               </div>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
@@ -523,8 +562,9 @@ export function AgentsSkillsTab() {
                     <div className="space-y-0.5">
                       {pluginSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
+                        const enabled = isSkillEnabled(skill.name)
                         return (
-                          <button
+                          <div
                             key={skill.name}
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
@@ -532,18 +572,25 @@ export function AgentsSkillsTab() {
                               "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
-                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                              !enabled && "opacity-50"
                             )}
                           >
-                            <div className="text-sm truncate">
-                              {skill.name}
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              <Switch
+                                checked={enabled}
+                                onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="scale-75"
+                              />
                             </div>
                             {skill.description && (
                               <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                 {skill.description}
                               </div>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
@@ -559,8 +606,9 @@ export function AgentsSkillsTab() {
                     <div className="space-y-0.5">
                       {builtinSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
+                        const enabled = isSkillEnabled(skill.name)
                         return (
-                          <button
+                          <div
                             key={skill.name}
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
@@ -568,21 +616,28 @@ export function AgentsSkillsTab() {
                               "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
-                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                              !enabled && "opacity-50"
                             )}
                           >
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm truncate">{skill.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
                               <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
                                 BUILT-IN
                               </span>
+                              <Switch
+                                checked={enabled}
+                                onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="scale-75"
+                              />
                             </div>
                             {skill.description && (
                               <div className="text-[11px] text-muted-foreground truncate mt-0.5">
                                 {skill.description}
                               </div>
                             )}
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
