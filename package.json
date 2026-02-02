@@ -16,15 +16,16 @@
     "preview": "electron-vite preview",
     "package": "electron-builder --dir",
     "package:mac": "electron-builder --mac",
+    "package:mac:dev": "electron-builder --mac --config electron-builder.dev.yml",
     "package:win": "electron-builder --win",
     "package:linux": "electron-builder --linux",
     "dist": "electron-builder",
     "dist:manifest": "node scripts/generate-update-manifest.mjs",
     "dist:upload": "node scripts/upload-release.mjs",
-    "claude:download": "node scripts/download-claude-binary.mjs --version=2.1.22",
-    "claude:download:all": "node scripts/download-claude-binary.mjs --version=2.1.22 --all",
+    "claude:download": "node scripts/download-claude-binary.mjs --version=2.1.29",
+    "claude:download:all": "node scripts/download-claude-binary.mjs --version=2.1.29 --all",
     "release": "rm -rf release && bun i && bun run claude:download && bun run build:prod && bun run package:mac && bun run dist:manifest && ./scripts/upload-release-wrangler.sh",
-    "release:dev": "rm -rf release && bun run claude:download && bun run build && bun run package:mac && rm -rf node_modules && bun i",
+    "release:dev": "rm -rf release && bun i && bun run claude:download && NODE_ENV=development bun run build && bun run package:mac:dev",
     "sync:public": "./scripts/sync-to-public.sh",
     "icon:generate": "node scripts/generate-icon.mjs",
     "db:generate": "drizzle-kit generate",
@@ -173,6 +174,13 @@
       {
         "from": "resources/bin/VERSION",
         "to": "bin/VERSION"
+      },
+      {
+        "from": "resources/skills",
+        "to": "skills",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asar": true,
