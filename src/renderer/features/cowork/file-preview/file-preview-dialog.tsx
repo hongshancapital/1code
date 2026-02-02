@@ -1,5 +1,5 @@
-import { useAtom, useSetAtom } from "jotai"
-import { useCallback, useState } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useCallback, useEffect, useState } from "react"
 import { X, ExternalLink, Maximize2, Minimize2, Pencil, Save, Eye } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { isMacOS } from "../../../lib/utils/platform"
@@ -29,6 +29,7 @@ import {
   editorDirtyAtom,
   resetEditorStateAtom,
 } from "../atoms"
+import { isDesktopAtom, isFullscreenAtom } from "../../../lib/atoms"
 
 // File types that support editing
 const EDITABLE_EXTENSIONS = new Set([
@@ -70,9 +71,20 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   const [editorMode, setEditorMode] = useAtom(editorModeAtom)
   const [isDirty, setIsDirty] = useAtom(editorDirtyAtom)
   const resetEditorState = useSetAtom(resetEditorStateAtom)
+  const isDesktop = useAtomValue(isDesktopAtom)
+  const isFullscreen = useAtomValue(isFullscreenAtom)
 
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null)
+
+  // Hide/show traffic lights based on full-page mode
+  useEffect(() => {
+    if (!isDesktop || isFullscreen) return
+    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
+
+    const isFullPagePreview = open && displayMode === "full-page"
+    window.desktopApi.setTrafficLightVisibility(!isFullPagePreview)
+  }, [open, displayMode, isDesktop, isFullscreen])
 
   // Use cross-platform path split
   const pathParts = filePath?.split(/[\\/]/) || []

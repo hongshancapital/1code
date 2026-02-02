@@ -17,6 +17,8 @@ interface ProjectModeSelectorProps {
   /** Compact mode - smaller buttons without descriptions */
   compact?: boolean
   className?: string
+  /** Modes to exclude from the selector (e.g., ["chat"] for project settings) */
+  excludeModes?: ProjectMode[]
 }
 
 interface ProjectModeToggleWithSloganProps {
@@ -232,11 +234,17 @@ export function ProjectModeSelector({
   disabled = false,
   compact = false,
   className,
+  excludeModes = [],
 }: ProjectModeSelectorProps) {
+  // Filter out excluded modes
+  const filteredOptions = MODE_OPTIONS.filter(
+    (option) => !excludeModes.includes(option.id)
+  )
+
   if (compact) {
     return (
       <div className={cn("inline-flex items-center gap-1 p-0.5 bg-muted rounded-lg", className)}>
-        {MODE_OPTIONS.map((option) => (
+        {filteredOptions.map((option) => (
           <button
             key={option.id}
             onClick={() => !disabled && onChange(option.id)}
@@ -273,7 +281,7 @@ export function ProjectModeSelector({
 
   return (
     <div className={cn("flex gap-3", className)}>
-      {MODE_OPTIONS.map((option) => {
+      {filteredOptions.map((option) => {
         const isSelected = value === option.id
 
         return (
