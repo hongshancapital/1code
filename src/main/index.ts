@@ -5,7 +5,7 @@ import { app, BrowserWindow, Menu, protocol, session } from "electron"
 // Validate environment variables early (before app logic starts)
 // This will throw if required env vars are missing
 validateEnv()
-import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
+import { appendFileSync, createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { createServer } from "http"
 import { join } from "path"
 import { Readable } from "stream"
@@ -93,13 +93,27 @@ export function getAuthManager(): AuthManager {
   return getAuthManagerFromModule() || authManager
 }
 
+// DEBUG: Log to file for production debugging (temporary - remove after debugging)
+function logAuthDebug(message: string): void {
+  try {
+    const logPath = join(app.getPath("userData"), "auth-debug.log")
+    const timestamp = new Date().toISOString()
+    appendFileSync(logPath, `[${timestamp}] ${message}\n`)
+  } catch {
+    // Ignore logging errors
+  }
+}
+
 // Handle auth code from deep link (exported for IPC handlers)
 export async function handleAuthCode(code: string): Promise<void> {
   console.log("[Auth] Handling auth code:", code.slice(0, 8) + "...")
+  logAuthDebug(`Handling auth code: ${code.slice(0, 8)}...`)
+  logAuthDebug(`PKCE state provider: ${authManager.getPkceState()?.provider || "none"}`)
 
   try {
     const authData = await authManager.exchangeCode(code)
     console.log("[Auth] Success for user:", authData.user.email)
+    logAuthDebug(`Success for user: ${authData.user.email}`)
 
     // Track successful authentication
     trackAuthCompleted(authData.user.id, authData.user.email)
@@ -166,6 +180,9 @@ export async function handleAuthCode(code: string): Promise<void> {
     windows[0]?.focus()
   } catch (error) {
     console.error("[Auth] Exchange failed:", error)
+    logAuthDebug(`Exchange failed: ${(error as Error).message}`)
+    logAuthDebug(`Error stack: ${(error as Error).stack}`)
+
     // Broadcast auth error to all windows (not just focused)
     for (const win of getAllWindows()) {
       try {
