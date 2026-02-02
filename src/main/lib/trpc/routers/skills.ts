@@ -4,13 +4,14 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
+import { app } from "electron"
 import { getMergedSettings, getEnabledPlugins } from "./claude-settings"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
 
 export interface FileSkill {
   name: string
   description: string
-  source: "user" | "project" | "plugin"
+  source: "user" | "project" | "plugin" | "builtin"
   pluginName?: string
   path: string
   content: string
@@ -34,11 +35,24 @@ function parseSkillMd(rawContent: string): { name?: string; description?: string
 }
 
 /**
+ * Get the builtin skills directory path
+ * Handles both development and production (packaged) environments
+ */
+function getBuiltinSkillsPath(): string {
+  if (app.isPackaged) {
+    // Production: skills bundled in resources
+    return path.join(process.resourcesPath, "skills")
+  }
+  // Development: __dirname is out/main, go up 2 levels to project root
+  return path.join(__dirname, "../../resources/skills")
+}
+
+/**
  * Scan a directory for SKILL.md files
  */
 async function scanSkillsDirectory(
   dir: string,
-  source: "user" | "project" | "plugin",
+  source: "user" | "project" | "plugin" | "builtin",
   basePath?: string, // For project skills, the cwd to make paths relative to
 ): Promise<FileSkill[]> {
   const skills: FileSkill[] = []
@@ -124,6 +138,10 @@ const listSkillsProcedure = publicProcedure
     const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
     const userSkillsPromise = scanSkillsDirectory(userSkillsDir, "user")
 
+    // Builtin skills from app resources
+    const builtinSkillsDir = getBuiltinSkillsPath()
+    const builtinSkillsPromise = scanSkillsDirectory(builtinSkillsDir, "builtin")
+
     let projectSkillsPromise = Promise.resolve<FileSkill[]>([])
     if (input?.cwd) {
       const projectSkillsDir = path.join(input.cwd, ".claude", "skills")
@@ -149,15 +167,17 @@ const listSkillsProcedure = publicProcedure
     })
 
     // Scan all directories in parallel
-    const [userSkills, projectSkills, ...pluginSkillsArrays] =
+    const [userSkills, projectSkills, builtinSkills, ...pluginSkillsArrays] =
       await Promise.all([
         userSkillsPromise,
         projectSkillsPromise,
+        builtinSkillsPromise,
         ...pluginSkillsPromises,
       ])
     const pluginSkills = pluginSkillsArrays.flat()
 
-    return [...projectSkills, ...userSkills, ...pluginSkills]
+    // Priority: project > user > plugin > builtin (later sources can be overridden by earlier ones)
+    return [...projectSkills, ...userSkills, ...pluginSkills, ...builtinSkills]
   })
 
 // Procedure for listing enabled skills (filtered by enabledPlugins)
@@ -173,20 +193,26 @@ const listEnabledProcedure = publicProcedure
     const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
     const userSkillsPromise = scanSkillsDirectory(userSkillsDir, "user")
 
+    // Builtin skills from app resources
+    const builtinSkillsDir = getBuiltinSkillsPath()
+    const builtinSkillsPromise = scanSkillsDirectory(builtinSkillsDir, "builtin")
+
     let projectSkillsPromise = Promise.resolve<FileSkill[]>([])
     if (input?.cwd) {
       const projectSkillsDir = path.join(input.cwd, ".claude", "skills")
       projectSkillsPromise = scanSkillsDirectory(projectSkillsDir, "project", input.cwd)
     }
 
-    // Scan both directories in parallel and get settings
-    const [userSkills, projectSkills, mergedSettings] = await Promise.all([
+    // Scan all directories in parallel and get settings
+    const [userSkills, projectSkills, builtinSkills, mergedSettings] = await Promise.all([
       userSkillsPromise,
       projectSkillsPromise,
+      builtinSkillsPromise,
       getMergedSettings(input?.cwd),
     ])
 
-    const allSkills = [...projectSkills, ...userSkills]
+    // Priority: project > user > builtin
+    const allSkills = [...projectSkills, ...userSkills, ...builtinSkills]
     const enabledPlugins = mergedSettings.enabledPlugins || {}
 
     // If no enabledPlugins configured, return all skills

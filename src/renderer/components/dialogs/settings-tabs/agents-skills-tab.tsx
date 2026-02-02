@@ -22,13 +22,15 @@ function SkillDetail({
   onSave,
   isSaving,
 }: {
-  skill: { name: string; description: string; source: "user" | "project"; path: string; content: string }
+  skill: { name: string; description: string; source: "user" | "project" | "plugin" | "builtin"; path: string; content: string }
   onSave: (data: { description: string; content: string }) => void
   isSaving: boolean
 }) {
   const [description, setDescription] = useState(skill.description)
   const [content, setContent] = useState(skill.content)
   const [viewMode, setViewMode] = useState<"rendered" | "editor">("rendered")
+
+  const isReadOnly = skill.source === "builtin" || skill.source === "plugin"
 
   // Reset local state when skill changes
   useEffect(() => {
@@ -48,12 +50,14 @@ function SkillDetail({
   }, [description, content, skill.description, skill.content, onSave])
 
   const handleBlur = useCallback(() => {
+    if (isReadOnly) return
     if (description !== skill.description || content !== skill.content) {
       onSave({ description, content })
     }
-  }, [description, content, skill.description, skill.content, onSave])
+  }, [isReadOnly, description, content, skill.description, skill.content, onSave])
 
   const handleToggleViewMode = useCallback(() => {
+    if (isReadOnly) return // Read-only skills stay in rendered mode
     setViewMode((prev) => {
       if (prev === "editor") {
         // Switching from editor to preview — auto-save
@@ -63,7 +67,7 @@ function SkillDetail({
       }
       return prev === "rendered" ? "editor" : "rendered"
     })
-  }, [description, content, skill.description, skill.content, onSave])
+  }, [isReadOnly, description, content, skill.description, skill.content, onSave])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -71,24 +75,45 @@ function SkillDetail({
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-foreground truncate">{skill.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground truncate">{skill.name}</h3>
+              {skill.source === "builtin" && (
+                <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
+                  BUILT-IN
+                </span>
+              )}
+              {skill.source === "plugin" && (
+                <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500 font-medium">
+                  PLUGIN
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">{skill.path}</p>
           </div>
-          {hasChanges && (
+          {hasChanges && !isReadOnly && (
             <Button size="sm" onClick={handleSave} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save"}
             </Button>
           )}
         </div>
 
+        {/* Read-only notice */}
+        {isReadOnly && (
+          <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg">
+            {skill.source === "builtin" ? "Built-in skills are read-only" : "Plugin skills are read-only"}
+          </div>
+        )}
+
         {/* Description */}
         <div className="space-y-1.5">
           <Label>Description</Label>
           <Input
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => !isReadOnly && setDescription(e.target.value)}
             onBlur={handleBlur}
             placeholder="Skill description..."
+            readOnly={isReadOnly}
+            className={isReadOnly ? "bg-muted/30 cursor-default" : ""}
           />
         </div>
 
@@ -104,41 +129,46 @@ function SkillDetail({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label>Instructions</Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleToggleViewMode}
-                  className="h-6 w-6 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground"
-                  aria-label={viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
-                >
-                  <div className="relative w-4 h-4">
-                    <MarkdownIcon
-                      className={cn(
-                        "absolute inset-0 w-4 h-4 transition-[opacity,transform] duration-200 ease-out",
-                        viewMode === "rendered" ? "opacity-100 scale-100" : "opacity-0 scale-75",
-                      )}
-                    />
-                    <CodeIcon
-                      className={cn(
-                        "absolute inset-0 w-4 h-4 transition-[opacity,transform] duration-200 ease-out",
-                        viewMode === "editor" ? "opacity-100 scale-100" : "opacity-0 scale-75",
-                      )}
-                    />
-                  </div>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
-              </TooltipContent>
-            </Tooltip>
+            {!isReadOnly && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleToggleViewMode}
+                    className="h-6 w-6 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground"
+                    aria-label={viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
+                  >
+                    <div className="relative w-4 h-4">
+                      <MarkdownIcon
+                        className={cn(
+                          "absolute inset-0 w-4 h-4 transition-[opacity,transform] duration-200 ease-out",
+                          viewMode === "rendered" ? "opacity-100 scale-100" : "opacity-0 scale-75",
+                        )}
+                      />
+                      <CodeIcon
+                        className={cn(
+                          "absolute inset-0 w-4 h-4 transition-[opacity,transform] duration-200 ease-out",
+                          viewMode === "editor" ? "opacity-100 scale-100" : "opacity-0 scale-75",
+                        )}
+                      />
+                    </div>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
-          {viewMode === "rendered" ? (
+          {viewMode === "rendered" || isReadOnly ? (
             <div
-              className="rounded-lg border border-border bg-background overflow-hidden px-4 py-3 min-h-[120px] cursor-pointer hover:border-foreground/20 transition-colors"
-              onClick={handleToggleViewMode}
+              className={cn(
+                "rounded-lg border border-border bg-background overflow-hidden px-4 py-3 min-h-[120px] transition-colors",
+                !isReadOnly && "cursor-pointer hover:border-foreground/20"
+              )}
+              onClick={!isReadOnly ? handleToggleViewMode : undefined}
             >
               {content ? (
                 <ChatMarkdownRenderer content={content} size="sm" />
@@ -305,10 +335,12 @@ export function AgentsSkillsTab() {
 
   const userSkills = filteredSkills.filter((s) => s.source === "user")
   const projectSkills = filteredSkills.filter((s) => s.source === "project")
+  const pluginSkills = filteredSkills.filter((s) => s.source === "plugin")
+  const builtinSkills = filteredSkills.filter((s) => s.source === "builtin")
 
   const allSkillNames = useMemo(
-    () => [...userSkills, ...projectSkills].map((s) => s.name),
-    [userSkills, projectSkills]
+    () => [...userSkills, ...projectSkills, ...pluginSkills, ...builtinSkills].map((s) => s.name),
+    [userSkills, projectSkills, pluginSkills, builtinSkills]
   )
 
   const { containerRef: listRef, onKeyDown: listKeyDown } = useListKeyboardNav({
@@ -326,9 +358,14 @@ export function AgentsSkillsTab() {
   }, [skills, selectedSkillName, isLoading])
 
   const handleSave = useCallback(async (
-    skill: { name: string; path: string },
+    skill: { name: string; path: string; source: "user" | "project" | "plugin" | "builtin" },
     data: { description: string; content: string },
   ) => {
+    // Plugin and builtin skills are read-only
+    if (skill.source === "plugin" || skill.source === "builtin") {
+      toast.error("Cannot modify this skill", { description: `${skill.source === "builtin" ? "Built-in" : "Plugin"} skills are read-only` })
+      return
+    }
     try {
       await updateMutation.mutateAsync({
         path: skill.path,
@@ -464,6 +501,81 @@ export function AgentsSkillsTab() {
                           >
                             <div className="text-sm truncate">
                               {skill.name}
+                            </div>
+                            {skill.description && (
+                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {skill.description}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Plugin Skills */}
+                {pluginSkills.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                      Plugin
+                    </p>
+                    <div className="space-y-0.5">
+                      {pluginSkills.map((skill) => {
+                        const isSelected = selectedSkillName === skill.name
+                        return (
+                          <button
+                            key={skill.name}
+                            data-item-id={skill.name}
+                            onClick={() => setSelectedSkillName(skill.name)}
+                            className={cn(
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              isSelected
+                                ? "bg-foreground/5 text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                            )}
+                          >
+                            <div className="text-sm truncate">
+                              {skill.name}
+                            </div>
+                            {skill.description && (
+                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {skill.description}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Built-in Skills */}
+                {builtinSkills.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                      Built-in
+                    </p>
+                    <div className="space-y-0.5">
+                      {builtinSkills.map((skill) => {
+                        const isSelected = selectedSkillName === skill.name
+                        return (
+                          <button
+                            key={skill.name}
+                            data-item-id={skill.name}
+                            onClick={() => setSelectedSkillName(skill.name)}
+                            className={cn(
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              isSelected
+                                ? "bg-foreground/5 text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm truncate">{skill.name}</span>
+                              <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
+                                BUILT-IN
+                              </span>
                             </div>
                             {skill.description && (
                               <div className="text-[11px] text-muted-foreground truncate mt-0.5">
