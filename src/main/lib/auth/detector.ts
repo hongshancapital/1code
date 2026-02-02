@@ -28,9 +28,9 @@ export function detectAuthProvider(): AuthProviderType {
   console.log("[Auth Detector] Windows detected")
   console.log("[Auth Detector] USERDNSDOMAIN:", userDnsDomain || "(not set)")
 
-  // Check if USERDNSDOMAIN ends with hongshan.cn
-  if (userDnsDomain.endsWith("hongshan.cn")) {
-    console.log("[Auth Detector] USERDNSDOMAIN ends with hongshan.cn, using Azure AD")
+  // Check if USERDNSDOMAIN ends with hongshancap.cn
+  if (userDnsDomain.endsWith("hongshancap.cn")) {
+    console.log("[Auth Detector] USERDNSDOMAIN ends with hongshancap.cn, using Azure AD")
     return "azure"
   }
 
