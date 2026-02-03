@@ -378,7 +378,7 @@ export function AgentsAppearanceTab() {
   }
 
   return (
-    <div className="p-6 gap-6 flex flex-col-1 overflow-y-auto">
+    <div className="p-6 gap-6 flex flex-col flex-1 overflow-y-auto">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div className="flex flex-col gap-1.5 text-center sm:text-left">

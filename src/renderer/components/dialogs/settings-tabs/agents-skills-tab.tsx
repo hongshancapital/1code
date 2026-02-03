@@ -569,7 +569,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -613,7 +613,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",

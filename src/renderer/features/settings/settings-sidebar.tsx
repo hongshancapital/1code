@@ -200,7 +200,7 @@ export function SettingsSidebar() {
       </div>
 
       {/* Tab list */}
-      <div className="flex flex-col-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent px-2 pb-4 gap-4">
+      <div className="flex flex-col flex-1 overflow-y-auto px-2 pb-4 gap-4">
         {/* Main Tabs */}
         <div className="flex flex-col gap-1">
           {mainTabs.map((tab) => (

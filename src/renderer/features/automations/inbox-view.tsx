@@ -487,7 +487,7 @@ export function InboxView() {
           </div>
 
           {/* Chat list */}
-          <div className="flex-1 overflow-y-auto px-2 scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto px-2">
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
                 <IconSpinner className="h-5 w-5" />

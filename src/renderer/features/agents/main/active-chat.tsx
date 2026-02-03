@@ -1255,7 +1255,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
 
     // Vertical layout: ChangesPanel on top, diff/file list below
     return (
-      <div className="flex flex-col-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Top: ChangesPanel (file list + commit) */}
         {worktreePath && (
           <div className={cn(
@@ -4253,7 +4253,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
   return (
     <SearchHighlightProvider>
-      <div className="flex flex-col-1 min-h-0 relative">
+      <div className="flex flex-col flex-1 min-h-0 relative">
         {/* Text selection popover for adding text to context */}
         <TextSelectionPopover
           onAddToContext={addTextContext}

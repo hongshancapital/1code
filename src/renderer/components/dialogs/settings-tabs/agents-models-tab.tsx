@@ -996,7 +996,7 @@ export function AgentsModelsTab() {
                   Available models from LiteLLM proxy
                 </p>
               </div>
-              <div className="flex-shrink-0 w-80">
+              <div className="shrink-0 w-80">
                 {isLoadingModels ? (
                   <div className="flex items-center justify-center h-9 text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -1006,7 +1006,7 @@ export function AgentsModelsTab() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm focus:outline-hidden focus:ring-1 focus:ring-ring"
                       >
                         <span className={cn(!litellmSelectedModel && "text-muted-foreground")}>
                           {litellmSelectedModel || "Select a model..."}
@@ -1054,7 +1054,7 @@ export function AgentsModelsTab() {
                   API endpoint address
                 </p>
               </div>
-              <div className="flex-shrink-0 w-80">
+              <div className="shrink-0 w-80">
                 <Input
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
@@ -1072,7 +1072,7 @@ export function AgentsModelsTab() {
                   Authentication token
                 </p>
               </div>
-              <div className="flex-shrink-0 w-80">
+              <div className="shrink-0 w-80">
                 <Input
                   type="password"
                   value={token}
@@ -1091,7 +1091,7 @@ export function AgentsModelsTab() {
                   Model identifier
                 </p>
               </div>
-              <div className="flex-shrink-0 w-80">
+              <div className="shrink-0 w-80">
                 <Input
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
@@ -1146,7 +1146,7 @@ export function AgentsModelsTab() {
                 Required for voice transcription (Whisper API). Free users need their own key.
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 type="password"
                 value={openaiKey}
