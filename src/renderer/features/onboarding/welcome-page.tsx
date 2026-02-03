@@ -61,9 +61,9 @@ export function WelcomePage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
-      <div className="w-full max-w-[440px] space-y-8 px-4">
+      <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Brand Header */}
-        <div className="text-center space-y-4">
+        <div className="text-center flex flex-col gap-4">
           <div className="flex items-center justify-center">
             <img
               src="icon.png"
@@ -71,7 +71,7 @@ export function WelcomePage() {
               className="w-64 h-64 rounded-2xl -mb-20"
             />
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <h1 className="text-2xl font-bold tracking-tight">
               Welcome to Hóng
             </h1>
@@ -89,7 +89,7 @@ export function WelcomePage() {
         </div>
 
         {/* Billing Options */}
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {billingOptions.map((option) => (
             <button
               key={option.id}

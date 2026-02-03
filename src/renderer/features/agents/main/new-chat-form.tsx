@@ -1786,7 +1786,7 @@ export function NewChatForm({
   return (
     <div className="flex h-full flex-col relative">
       {/* Header - Simple burger on mobile, AgentsHeaderControls on desktop */}
-      <div className="flex-shrink-0 flex items-center justify-between bg-background p-1.5">
+      <div className="shrink-0 flex items-center justify-between bg-background p-1.5">
         <div className="flex-1 min-w-0 flex items-center gap-2">
           {isMobileFullscreen ? (
             // Simple burger button for mobile - just opens chats list
@@ -1794,7 +1794,7 @@ export function NewChatForm({
               variant="ghost"
               size="icon"
               onClick={onBackToChats}
-              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
+              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
               aria-label="All projects"
             >
               <AlignJustify className="h-4 w-4" />
@@ -1810,7 +1810,7 @@ export function NewChatForm({
       </div>
 
       <div className="flex flex-1 items-center justify-center overflow-y-auto relative">
-        <div className="w-full max-w-2xl space-y-6 md:space-y-8 relative z-10 px-4">
+        <div className="w-full max-w-2xl flex flex-col gap-6 md:gap-8 relative z-10 px-4">
           {/* Title */}
           <div className="text-center mb-2">
             <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
@@ -1819,7 +1819,7 @@ export function NewChatForm({
           </div>
 
           {/* Mode Toggle - Cowork/Coding with slogan (left-aligned, above input) */}
-          <div className="flex justify-start !-mb-4">
+          <div className="flex justify-start -mb-4!">
             <ProjectModeToggleWithSlogan
               value={currentProjectMode}
               onChange={handleModeChange}
@@ -1847,7 +1847,7 @@ export function NewChatForm({
                         handleOpenFolder()
                       }}
                       disabled={openFolder.isPending}
-                      className="flex items-center gap-1.5 px-2 py-1 text-sm text-primary hover:text-primary/80 transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-primary/10 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                      className="flex items-center gap-1.5 px-2 py-1 text-sm text-primary hover:text-primary/80 transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-primary/10 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       <span>{openFolder.isPending ? "Opening..." : "Select Folder"}</span>
@@ -1917,7 +1917,7 @@ export function NewChatForm({
                           }
                         }}
                       >
-                        <DropdownMenuTrigger className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70">
+                        <DropdownMenuTrigger className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70">
                           {agentMode === "plan" ? (
                             <PlanIcon className="h-3.5 w-3.5" />
                           ) : (
@@ -1929,7 +1929,7 @@ export function NewChatForm({
                         <DropdownMenuContent
                           align="start"
                           sideOffset={6}
-                          className="!min-w-[116px] !w-[116px]"
+                          className="min-w-[116px]! w-[116px]!"
                           onCloseAutoFocus={(e) => e.preventDefault()}
                         >
                           <DropdownMenuItem
@@ -2047,7 +2047,7 @@ export function NewChatForm({
                         {modeTooltip?.visible &&
                           createPortal(
                             <div
-                              className="fixed z-[100000]"
+                              className="fixed z-100000"
                               style={{
                                 top: modeTooltip.position.top + 14,
                                 left: modeTooltip.position.left,
@@ -2078,7 +2078,7 @@ export function NewChatForm({
                         >
                           <DropdownMenuTrigger asChild>
                             <button
-                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 border border-border"
+                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 border border-border"
                             >
                               <Zap className="h-4 w-4" />
                               <span>{currentOllamaModel || "Select model"}</span>
@@ -2126,7 +2126,7 @@ export function NewChatForm({
                             <button
                               disabled={hasCustomClaudeConfig}
                               className={cn(
-                                "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-[background-color,color] duration-150 ease-out rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+                                "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-[background-color,color] duration-150 ease-out rounded-md outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
                                 hasCustomClaudeConfig
                                   ? "opacity-70 cursor-not-allowed"
                                   : "hover:text-foreground hover:bg-muted/50",
@@ -2176,7 +2176,7 @@ export function NewChatForm({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
+                    <div className="flex items-center gap-0.5 ml-auto shrink-0">
                       {/* Hidden file input */}
                       <input
                         type="file"
@@ -2196,7 +2196,7 @@ export function NewChatForm({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                          className="h-7 w-7 rounded-sm outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={images.length >= 5 && files.length >= 10}
                         >

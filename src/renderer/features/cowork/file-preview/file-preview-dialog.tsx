@@ -281,7 +281,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
             "flex items-center gap-2 min-w-0",
             isMac && "flex-1 justify-center"
           )}>
-            {FileIcon && <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+            {FileIcon && <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />}
             <span className="text-sm font-medium truncate">{fileName}</span>
             {dirPath && (
               <span className="text-xs text-muted-foreground truncate hidden sm:block">
@@ -351,7 +351,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
           </VisuallyHidden>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 shrink-0">
             {/* macOS: Left side has close + fullscreen buttons */}
             {isMac && (
               <div className="flex items-center gap-1">
@@ -370,7 +370,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
               "flex items-center gap-2 min-w-0",
               isMac && "flex-1 justify-center"
             )}>
-              {FileIcon && <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+              {FileIcon && <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />}
               <span className="text-sm font-medium truncate">{fileName}</span>
               {dirPath && (
                 <span className="text-xs text-muted-foreground truncate hidden sm:block">

@@ -95,14 +95,14 @@ export function AgentsOnboardingDialog() {
               pointerEvents: "none" as const,
               transition: { duration: 0.15, ease: EASING_CURVE },
             }}
-            className="fixed inset-0 z-[45] bg-black/40"
+            className="fixed inset-0 z-45 bg-black/40"
             onClick={handleClose}
             style={{ pointerEvents: "auto" }}
             data-modal="agents-onboarding"
           />
 
           {/* Main Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-[46] pointer-events-none">
+          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-46 pointer-events-none">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -116,7 +116,7 @@ export function AgentsOnboardingDialog() {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="absolute appearance-none outline-none select-none top-4 right-4 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-8 w-8 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-[60] focus:outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                  className="absolute appearance-none outline-hidden select-none top-4 right-4 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-8 w-8 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-60 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
                 >
                   <X className="h-4 w-4" />
                   <span className="sr-only">Close</span>
@@ -152,7 +152,7 @@ export function AgentsOnboardingDialog() {
                     </div>
 
                     {/* Content */}
-                    <div className="p-5 space-y-2">
+                    <div className="p-5 flex flex-col gap-2">
                       <h2 className="text-base font-semibold">
                         Welcome to Agents
                       </h2>

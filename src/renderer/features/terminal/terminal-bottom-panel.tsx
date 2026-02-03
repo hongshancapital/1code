@@ -463,18 +463,18 @@ export function TerminalBottomPanel({
       <div className="flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header with tabs */}
         <div
-          className="flex items-center gap-1 pl-1 pr-2 py-1.5 flex-shrink-0"
+          className="flex items-center gap-1 pl-1 pr-2 py-1.5 shrink-0"
           style={{ backgroundColor: terminalBg }}
         >
           {/* Close button - on the left */}
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={closePanel}
-                  className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex-shrink-0 rounded-md"
+                  className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
                   aria-label="Close terminal"
                 >
                   <IconDoubleChevronDown className="h-4 w-4" />

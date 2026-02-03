@@ -63,7 +63,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       <div className="flex items-center gap-2 px-2 py-2 mb-2">
         <span
           className={cn(
-            "w-2 h-2 rounded-full flex-shrink-0",
+            "w-2 h-2 rounded-full shrink-0",
             STATUS_COLORS[status]
           )}
         />
@@ -74,7 +74,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       </div>
 
       {/* Cards container with scroll */}
-      <div className="flex-1 overflow-y-auto px-1 pb-4 space-y-2">
+      <div className="flex flex-col flex-1 overflow-y-auto px-1 pb-4 gap-2">
         {sortedCards.length === 0 ? (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground/60">
             No workspaces

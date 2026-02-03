@@ -208,11 +208,11 @@ const GitHubAvatar = React.memo(function GitHubAvatar({
   const handleError = useCallback(() => setHasError(true), [])
 
   if (hasError) {
-    return <GitHubLogo className={cn(className, "text-muted-foreground flex-shrink-0")} />
+    return <GitHubLogo className={cn(className, "text-muted-foreground shrink-0")} />
   }
 
   return (
-    <div className={cn(className, "relative flex-shrink-0")}>
+    <div className={cn(className, "relative shrink-0")}>
       {/* Placeholder background while loading */}
       {!isLoaded && (
         <div className="absolute inset-0 rounded-sm bg-muted" />
@@ -220,7 +220,7 @@ const GitHubAvatar = React.memo(function GitHubAvatar({
       <img
         src={`https://github.com/${gitOwner}.png?size=64`}
         alt={gitOwner}
-        className={cn(className, "rounded-sm flex-shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
+        className={cn(className, "rounded-sm shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
         onLoad={handleLoad}
         onError={handleError}
       />
@@ -262,7 +262,7 @@ const ChatIcon = React.memo(function ChatIcon({
     return (
       <GitHubLogo
         className={cn(
-          "h-4 w-4 flex-shrink-0 transition-colors",
+          "h-4 w-4 shrink-0 transition-colors",
           isSelected ? "text-foreground" : "text-muted-foreground",
         )}
       />
@@ -276,7 +276,7 @@ const ChatIcon = React.memo(function ChatIcon({
   }
 
   return (
-    <div className="relative flex-shrink-0 w-4 h-4">
+    <div className="relative shrink-0 w-4 h-4">
       {/* Checkbox slides in from left, icon slides out */}
       <div
         className={cn(
@@ -418,11 +418,11 @@ const DraftItem = React.memo(function DraftItem({
       <div className="flex items-start gap-2.5">
         {showIcon && (
           <div className="pt-0.5">
-            <div className="relative flex-shrink-0 w-4 h-4">
+            <div className="relative shrink-0 w-4 h-4">
               {projectGitOwner && projectGitProvider === "github" ? (
                 <GitHubAvatar gitOwner={projectGitOwner} />
               ) : (
-                <GitHubLogo className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <GitHubLogo className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
             </div>
           </div>
@@ -441,7 +441,7 @@ const DraftItem = React.memo(function DraftItem({
                   onDelete(draftId)
                 }}
                 tabIndex={-1}
-                className="flex-shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
+                className="shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
                 aria-label="Delete draft"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
@@ -457,7 +457,7 @@ const DraftItem = React.memo(function DraftItem({
                   ? ` • ${projectName}`
                   : ""}
             </span>
-            <span className="text-[11px] text-muted-foreground/60 flex-shrink-0">
+            <span className="text-[11px] text-muted-foreground/60 shrink-0">
               {formatTime(new Date(draftUpdatedAt).toISOString())}
             </span>
           </div>
@@ -656,7 +656,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 </span>
                 {/* Archive button or inline loader/status when icon is hidden */}
                 {!isMultiSelectMode && !isMobileFullscreen && (
-                  <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
+                  <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
                     {/* Inline loader/status when icon is hidden - always visible, hides on hover */}
                     {!showIcon && (hasPendingQuestion || isLoading || hasUnseenChanges || hasPendingPlan) && (
                       <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0">
@@ -722,15 +722,15 @@ const AgentChatItem = React.memo(function AgentChatItem({
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
                 {/* Cloud icon for remote chats */}
                 {isRemote && (
-                  <CloudIcon className="h-2.5 w-2.5 flex-shrink-0" />
+                  <CloudIcon className="h-2.5 w-2.5 shrink-0" />
                 )}
                 {/* Project mode icon */}
                 <ProjectModeIcon
                   mode={(projectMode as "cowork" | "coding") || "cowork"}
-                  className="h-3 w-3 flex-shrink-0"
+                  className="h-3 w-3 shrink-0"
                 />
                 <span className="truncate flex-1 min-w-0">{displayText}</span>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {/* Only show line stats in Coding mode */}
                   {projectMode === "coding" && stats && (stats.additions > 0 || stats.deletions > 0) && (
                     <>
@@ -1396,7 +1396,7 @@ const SidebarHeader = memo(function SidebarHeader({
 
   return (
     <div
-      className="relative flex-shrink-0"
+      className="relative shrink-0"
       onMouseEnter={handleSidebarMouseEnter}
       onMouseLeave={handleSidebarMouseLeave}
     >
@@ -1438,7 +1438,7 @@ const SidebarHeader = memo(function SidebarHeader({
                 size="icon"
                 onClick={onToggleSidebar}
                 tabIndex={-1}
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex-shrink-0 rounded-md"
+                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
                 aria-label="Close sidebar"
               >
                 <IconDoubleChevronLeft className="h-4 w-4" />
@@ -1476,13 +1476,13 @@ const SidebarHeader = memo(function SidebarHeader({
                       </div>
                     </div>
                     {showOfflineFeatures && (
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <NetworkStatus />
                       </div>
                     )}
                     <ChevronDown
                       className={cn(
-                        "h-3 text-muted-foreground flex-shrink-0 overflow-hidden",
+                        "h-3 text-muted-foreground shrink-0 overflow-hidden",
                         isDropdownOpen
                           ? "opacity-100 w-3"
                           : "opacity-0 w-0 group-hover/team-button:opacity-100 group-hover/team-button:w-3",
@@ -1503,7 +1503,7 @@ const SidebarHeader = memo(function SidebarHeader({
                       <div className="absolute inset-0 bg-popover brightness-110" />
                       <div className="relative pl-2 pt-1.5 pb-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-8 h-8 rounded flex items-center justify-center bg-background flex-shrink-0 overflow-hidden">
+                          <div className="w-8 h-8 rounded flex items-center justify-center bg-background shrink-0 overflow-hidden">
                             {desktopUser?.imageUrl ? (
                               <img
                                 src={desktopUser.imageUrl}
@@ -1537,14 +1537,14 @@ const SidebarHeader = memo(function SidebarHeader({
                         setSettingsDialogOpen(true)
                       }}
                     >
-                      <SettingsIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <SettingsIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       Settings
                     </DropdownMenuItem>
 
                     {/* Help Submenu */}
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="gap-2">
-                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <span className="flex-1">Help</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
@@ -1587,7 +1587,7 @@ const SidebarHeader = memo(function SidebarHeader({
                         onSelect={() => onSignOut()}
                       >
                         <svg
-                          className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0"
+                          className="h-3.5 w-3.5 text-muted-foreground shrink-0"
                           viewBox="0 0 24 24"
                           fill="none"
                           xmlns="http://www.w3.org/2000/svg"
@@ -1632,7 +1632,7 @@ const SidebarHeader = memo(function SidebarHeader({
                           setShowAuthDialog(true)
                         }}
                       >
-                        <ProfileIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <ProfileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         Login
                       </DropdownMenuItem>
                     </div>
@@ -1642,7 +1642,7 @@ const SidebarHeader = memo(function SidebarHeader({
                     {/* Help Submenu */}
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="gap-2">
-                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <QuestionCircleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <span className="flex-1">Help</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
@@ -3244,7 +3244,7 @@ export function AgentsSidebar({
       />
 
       {/* Search and New Workspace */}
-      <div className="px-2 pb-3 flex-shrink-0">
+      <div className="px-2 pb-3 shrink-0">
         <div className="space-y-2">
           {/* Search Input */}
           <div className="relative">
@@ -3332,7 +3332,7 @@ export function AgentsSidebar({
       </div>
 
       {/* Navigation Links - Chats, Inbox & Automations */}
-      <div className="px-2 pb-3 flex-shrink-0 space-y-0.5 -mx-1">
+      <div className="px-2 pb-3 shrink-0 space-y-0.5 -mx-1">
         {playgroundSubChats && playgroundSubChats.length > 0 && (
           <ChatsButton
             count={playgroundSubChats.length}
@@ -3350,7 +3350,7 @@ export function AgentsSidebar({
           ref={scrollContainerRef}
           onScroll={handleAgentsScroll}
           className={cn(
-            "h-full overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent",
+            "h-full overflow-y-auto",
             isMultiSelectMode ? "px-0" : "px-2",
           )}
         >

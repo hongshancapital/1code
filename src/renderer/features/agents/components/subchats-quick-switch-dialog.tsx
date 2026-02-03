@@ -63,7 +63,7 @@ function SubChatCard({
     >
       <div className="flex items-start gap-2.5">
         {/* Mode icon with badge */}
-        <div className="pt-0.5 relative flex-shrink-0 h-4 w-4">
+        <div className="pt-0.5 relative shrink-0 h-4 w-4">
           {mode === "plan" ? (
             <PlanIcon
               className={cn(
@@ -204,10 +204,10 @@ export function SubChatsQuickSwitchDialog({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-[10000]" />
+          <div className="fixed inset-0 z-10000" />
 
           {/* Dialog */}
-          <div className="fixed inset-0 flex items-center justify-center z-[10001] p-4 pointer-events-none">
+          <div className="fixed inset-0 flex items-center justify-center z-10001 p-4 pointer-events-none">
             <div className="pointer-events-auto">
               <div className="max-w-5xl mx-auto">
                 {/* Sub-chat List or Empty State */}

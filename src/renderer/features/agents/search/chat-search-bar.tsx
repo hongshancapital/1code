@@ -158,7 +158,7 @@ export function ChatSearchBar({ messages, className, topOffset }: ChatSearchBarP
         placeholder="Search..."
         className={cn(
           "flex-1 min-w-[80px] h-7 px-2 text-sm bg-transparent",
-          "border-none outline-none",
+          "border-none outline-hidden",
           "placeholder:text-muted-foreground/60"
         )}
         autoComplete="off"

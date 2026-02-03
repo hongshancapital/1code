@@ -147,7 +147,7 @@ export function ExpandedWidgetSidebar({
     >
       <div className="flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pl-3 pr-1.5 h-10 bg-tl-background flex-shrink-0 border-b border-border/50">
+        <div className="flex items-center justify-between pl-3 pr-1.5 h-10 bg-tl-background shrink-0 border-b border-border/50">
           <div className="flex items-center gap-2">
             {widgetConfig && (
               <>
@@ -162,7 +162,7 @@ export function ExpandedWidgetSidebar({
                 variant="ghost"
                 size="icon"
                 onClick={closeSidebar}
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-muted-foreground hover:text-foreground flex-shrink-0 rounded-md"
+                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-muted-foreground hover:text-foreground shrink-0 rounded-md"
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />

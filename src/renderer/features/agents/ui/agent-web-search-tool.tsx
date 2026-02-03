@@ -76,7 +76,7 @@ export const AgentWebSearchTool = memo(function AgentWebSearchTool({
         )}
       >
         <div className="flex items-center gap-1.5 text-xs truncate flex-1 min-w-0">
-          <SearchIcon className="w-3 h-3 flex-shrink-0 text-muted-foreground" />
+          <SearchIcon className="w-3 h-3 shrink-0 text-muted-foreground" />
           
           {isPending ? (
             <TextShimmer
@@ -96,7 +96,7 @@ export const AgentWebSearchTool = memo(function AgentWebSearchTool({
         </div>
 
         {/* Status and expand button */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+        <div className="flex items-center gap-2 shrink-0 ml-2">
           <div className="flex items-center gap-1.5 text-xs">
             {isPending ? (
               <IconSpinner className="w-3 h-3" />
@@ -140,7 +140,7 @@ export const AgentWebSearchTool = memo(function AgentWebSearchTool({
               rel="noopener noreferrer"
               className="flex items-start gap-2 px-2.5 py-1.5 hover:bg-muted/50 transition-colors group"
             >
-              <ExternalLinkIcon className="w-3 h-3 mt-0.5 flex-shrink-0 text-muted-foreground group-hover:text-foreground" />
+              <ExternalLinkIcon className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground group-hover:text-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-foreground truncate">
                   {result.title}

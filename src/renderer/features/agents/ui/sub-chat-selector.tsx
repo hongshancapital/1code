@@ -102,7 +102,7 @@ const SearchHistoryPopover = memo(forwardRef<SearchHistoryPopoverRef, SearchHist
 
     return (
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center relative">
+        <div className="shrink-0 w-4 h-4 flex items-center justify-center relative">
           {hasPendingQuestion ? (
             <QuestionIcon className="w-4 h-4 text-blue-500" />
           ) : isLoading ? (
@@ -148,7 +148,7 @@ const SearchHistoryPopover = memo(forwardRef<SearchHistoryPopoverRef, SearchHist
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md flex items-center justify-center"
+                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md flex items-center justify-center"
                 disabled={allSubChatsLength === 0}
               >
                 <ClockIcon className="h-4 w-4" />
@@ -599,7 +599,7 @@ export function SubChatSelector({
           variant="ghost"
           size="icon"
           onClick={onBackToChats}
-          className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0"
+          className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0"
           aria-label="Back to chats"
           style={{
             WebkitAppRegion: "no-drag",
@@ -618,7 +618,7 @@ export function SubChatSelector({
               variant="ghost"
               size="icon"
               onClick={() => setSubChatsSidebarMode("sidebar")}
-              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md flex items-center justify-center"
+              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md flex items-center justify-center"
               style={{
                 WebkitAppRegion: "no-drag",
               }}
@@ -639,7 +639,7 @@ export function SubChatSelector({
         {/* Left gradient - visibility controlled via ref */}
         <div
           ref={leftGradientRef}
-          className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent pointer-events-none z-30"
+          className="absolute left-0 top-0 bottom-0 w-8 bg-linear-to-r from-background to-transparent pointer-events-none z-30"
           style={{ display: "none" }}
         />
 
@@ -725,8 +725,8 @@ export function SubChatSelector({
                           }
                         }}
                         className={cn(
-                          "group relative flex items-center text-sm rounded-md transition-colors duration-75 cursor-pointer h-6 flex-shrink-0",
-                          "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+                          "group relative flex items-center text-sm rounded-md transition-colors duration-75 cursor-pointer h-6 shrink-0",
+                          "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
                           editingSubChatId === subChat.id
                             ? "overflow-visible px-0"
                             : "overflow-hidden px-1.5 py-0.5 whitespace-nowrap min-w-[50px] gap-1.5",
@@ -737,7 +737,7 @@ export function SubChatSelector({
                       >
                         {/* Icon: question icon (priority) OR loading spinner OR mode icon with badge (hide when editing) */}
                         {editingSubChatId !== subChat.id && (
-                          <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
+                          <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
                             {hasPendingQuestion ? (
                               // Waiting for user answer: show question icon (highest priority)
                               <QuestionIcon className="w-3.5 h-3.5 text-blue-500" />
@@ -782,7 +782,7 @@ export function SubChatSelector({
                             onCancel={() => handleEditCancel(subChat)}
                             isEditing={true}
                             disabled={editLoading}
-                            className="text-sm !px-1 !py-0 !h-6 min-w-[100px] border border-input rounded-md !ring-0 !shadow-none focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:!border-input"
+                            className="text-sm px-1! py-0! h-6! min-w-[100px] border border-input rounded-md ring-0! shadow-none! focus-visible:ring-0! focus-visible:ring-offset-0! focus-visible:border-input!"
                           />
                         ) : (
                           <span
@@ -804,10 +804,10 @@ export function SubChatSelector({
                           <div
                             data-truncate-gradient
                             className={cn(
-                              "absolute right-0 top-0 bottom-0 w-6 pointer-events-none z-[1] rounded-r-md opacity-100 group-hover:opacity-0 transition-opacity duration-200",
+                              "absolute right-0 top-0 bottom-0 w-6 pointer-events-none z-1 rounded-r-md opacity-100 group-hover:opacity-0 transition-opacity duration-200",
                               isActive
-                                ? "bg-gradient-to-l from-muted to-transparent"
-                                : "bg-gradient-to-l from-background to-transparent",
+                                ? "bg-linear-to-l from-muted to-transparent"
+                                : "bg-linear-to-l from-background to-transparent",
                             )}
                             style={{ display: truncatedTabsRef.current.has(subChat.id) ? "block" : "none" }}
                           />
@@ -872,7 +872,7 @@ export function SubChatSelector({
         {(isMobile || (!isMobile && subChatsSidebarMode === "tabs")) && (
           <div className="absolute right-0 top-0 bottom-0 flex items-center z-20">
             {/* Gradient to cover content peeking from the left */}
-            <div className="w-6 h-full bg-gradient-to-r from-transparent to-background" />
+            <div className="w-6 h-full bg-linear-to-r from-transparent to-background" />
             <div className="h-full flex items-center bg-background pr-1">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -931,7 +931,7 @@ export function SubChatSelector({
                 variant="ghost"
                 size="icon"
                 onClick={() => onOpenDiff?.()}
-                className="h-6 w-6 p-0 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md flex items-center justify-center hover:bg-foreground/10"
+                className="h-6 w-6 p-0 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md flex items-center justify-center hover:bg-foreground/10"
               >
                 <DiffIcon className="h-4 w-4" />
                 <span className="sr-only">Open diff</span>
@@ -959,7 +959,7 @@ export function SubChatSelector({
                 variant="ghost"
                 size="icon"
                 onClick={() => onOpenTerminal?.()}
-                className="h-6 w-6 p-0 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md flex items-center justify-center hover:bg-foreground/10"
+                className="h-6 w-6 p-0 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md flex items-center justify-center hover:bg-foreground/10"
               >
                 <TerminalSquare className="h-4 w-4" />
                 <span className="sr-only">Open terminal</span>
@@ -985,7 +985,7 @@ export function SubChatSelector({
             variant="ghost"
             size="icon"
             onClick={onOpenDiff}
-            className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 flex items-center justify-center"
+            className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 flex items-center justify-center"
           >
             <DiffIcon className="h-4 w-4" />
             <span className="sr-only">Open diff</span>
@@ -1005,7 +1005,7 @@ export function SubChatSelector({
             variant="ghost"
             size="icon"
             onClick={onOpenPreview}
-            className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 flex items-center justify-center"
+            className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 flex items-center justify-center"
           >
             <Play className="h-4 w-4" />
             <span className="sr-only">Open preview</span>

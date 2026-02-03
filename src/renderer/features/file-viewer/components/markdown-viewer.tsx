@@ -240,13 +240,13 @@ function Header({
   }, [filePath, preferredEditor, openInAppMutation])
 
   return (
-    <div className="flex items-center justify-between px-2 h-10 border-b border-border/50 bg-background flex-shrink-0">
+    <div className="flex items-center justify-between px-2 h-10 border-b border-border/50 bg-background shrink-0">
       {/* Left side: Close + mode switcher + file info */}
       <div className="flex items-center gap-1 min-w-0 flex-1">
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+          className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
           onClick={onClose}
         >
           {displayMode === "side-peek" ? (
@@ -261,7 +261,7 @@ function Header({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+              className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
             >
               {(() => {
                 const CurrentIcon = FILE_VIEWER_MODES.find((m) => m.value === displayMode)?.Icon ?? IconSidePeek
@@ -286,12 +286,12 @@ function Header({
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex items-center gap-2 min-w-0 flex-1 ml-1">
-          {Icon && <Icon className="h-3.5 w-3.5 flex-shrink-0" />}
+          {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
           <span className="text-sm font-medium truncate">{fileName}</span>
         </div>
       </div>
       {/* Right side: Actions */}
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         {/* Open in editor */}
         <Tooltip delayDuration={500}>
           <TooltipTrigger asChild>
@@ -304,7 +304,7 @@ function Header({
                 <img
                   src={EDITOR_ICONS[preferredEditor]}
                   alt=""
-                  className="h-3.5 w-3.5 flex-shrink-0"
+                  className="h-3.5 w-3.5 shrink-0"
                 />
               )}
               <span>Open in {editorMeta.label}</span>

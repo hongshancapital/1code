@@ -175,7 +175,7 @@ export function DocumentCommentInput({
             onKeyDown={handleKeyDown}
             placeholder="Add your comment..."
             rows={3}
-            className="w-full text-xs bg-transparent outline-none text-foreground placeholder:text-muted-foreground resize-none"
+            className="w-full text-xs bg-transparent outline-hidden text-foreground placeholder:text-muted-foreground resize-none"
           />
         </div>
 

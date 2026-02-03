@@ -143,7 +143,7 @@ export const TERMINAL_OPTIONS: ITerminalOptions = {
   scrollback: 10000,
   macOptionIsMeta: true,
   cursorStyle: "block",
-  cursorInactiveStyle: "outline",
+  cursorInactiveStyle: "outline-solid",
   fastScrollModifier: "alt",
   fastScrollSensitivity: 5,
   // Better letter spacing for code readability

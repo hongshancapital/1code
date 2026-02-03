@@ -156,7 +156,7 @@ function SkillDetail({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-5">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         {/* Header */}
         <div className="flex items-center gap-3">
           {/* Skill Icon */}
@@ -201,7 +201,7 @@ function SkillDetail({
         )}
 
         {/* Description */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Description</Label>
           <Input
             value={description}
@@ -214,7 +214,7 @@ function SkillDetail({
         </div>
 
         {/* Usage */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Usage</Label>
           <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg">
             <code className="text-xs text-foreground">@{skill.name}</code>
@@ -222,7 +222,7 @@ function SkillDetail({
         </div>
 
         {/* Instructions */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <Label>Instructions</Label>
             {!isReadOnly && (
@@ -371,7 +371,7 @@ function CreateSkillForm({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-5">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">New Skill</h3>
           <div className="flex items-center gap-2">
@@ -382,7 +382,7 @@ function CreateSkillForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Name</Label>
           <Input
             value={name}
@@ -393,7 +393,7 @@ function CreateSkillForm({
           <p className="text-[11px] text-muted-foreground">Lowercase letters, numbers, and hyphens</p>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Description</Label>
           <Input
             value={description}
@@ -403,7 +403,7 @@ function CreateSkillForm({
         </div>
 
         {hasProject && (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Scope</Label>
             <Select value={source} onValueChange={(v) => setSource(v as "user" | "project")}>
               <SelectTrigger>
@@ -417,7 +417,7 @@ function CreateSkillForm({
           </div>
         )}
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Instructions</Label>
           <Textarea
             value={content}
@@ -578,14 +578,14 @@ export function AgentsSkillsTab() {
       >
         <div className="flex flex-col h-full bg-background border-r overflow-hidden" style={{ borderRightWidth: "0.5px" }}>
           {/* Search + Add */}
-          <div className="px-2 pt-2 flex-shrink-0 flex items-center gap-1.5">
+          <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
               placeholder="Search skills..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
-              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-none"
+              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
             />
             <button
               onClick={() => { setShowAddForm(true); setSelectedSkillName(null) }}
@@ -596,7 +596,7 @@ export function AgentsSkillsTab() {
             </button>
           </div>
           {/* Skill list */}
-          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-none">
+          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-xs text-muted-foreground">Loading...</p>
@@ -620,14 +620,14 @@ export function AgentsSkillsTab() {
                 <p className="text-xs text-muted-foreground">No results found</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 {/* User Skills */}
                 {userSkills.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
                       User
                     </p>
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       {userSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
@@ -638,7 +638,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -680,7 +680,7 @@ export function AgentsSkillsTab() {
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
                       Project
                     </p>
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       {projectSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
@@ -691,7 +691,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -744,7 +744,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -797,7 +797,7 @@ export function AgentsSkillsTab() {
                             data-item-id={skill.name}
                             onClick={() => setSelectedSkillName(skill.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",

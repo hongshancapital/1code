@@ -44,10 +44,10 @@ export function AgentsQuickSwitchDialog({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-[10000]" />
+          <div className="fixed inset-0 z-10000" />
 
           {/* Dialog */}
-          <div className="fixed inset-0 flex items-center justify-center z-[10001] p-4 pointer-events-none">
+          <div className="fixed inset-0 flex items-center justify-center z-10001 p-4 pointer-events-none">
             <div className="pointer-events-auto">
               <div className="max-w-5xl mx-auto">
                 {/* Chat List or Empty State */}

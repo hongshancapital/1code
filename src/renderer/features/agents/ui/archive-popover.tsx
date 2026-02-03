@@ -56,11 +56,11 @@ function GitHubAvatar({
   const handleError = useCallback(() => setHasError(true), [])
 
   if (hasError) {
-    return <GitHubLogo className={cn(className, "text-muted-foreground flex-shrink-0")} />
+    return <GitHubLogo className={cn(className, "text-muted-foreground shrink-0")} />
   }
 
   return (
-    <div className={cn(className, "relative flex-shrink-0")}>
+    <div className={cn(className, "relative shrink-0")}>
       {/* Placeholder background while loading */}
       {!isLoaded && (
         <div className="absolute inset-0 rounded-sm bg-muted" />
@@ -68,7 +68,7 @@ function GitHubAvatar({
       <img
         src={`https://github.com/${gitOwner}.png?size=64`}
         alt={gitOwner}
-        className={cn(className, "rounded-sm flex-shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
+        className={cn(className, "rounded-sm shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
         onLoad={handleLoad}
         onError={handleError}
       />
@@ -168,7 +168,7 @@ const ArchiveChatItem = memo(function ArchiveChatItem({
       onClick={handleClick}
       className={cn(
         "w-[calc(100%-8px)] mx-1 text-left min-h-[32px] py-[5px] px-1.5 rounded-md transition-colors duration-75 cursor-pointer group relative",
-        "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+        "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
         isSelected || isCurrentChat
           ? "dark:bg-neutral-800 bg-accent text-foreground"
           : "text-muted-foreground dark:hover:bg-neutral-800 hover:bg-accent hover:text-foreground",
@@ -182,7 +182,7 @@ const ArchiveChatItem = memo(function ArchiveChatItem({
             ) : (
               <GitHubLogo
                 className={cn(
-                  "h-4 w-4 flex-shrink-0 transition-colors duration-75",
+                  "h-4 w-4 shrink-0 transition-colors duration-75",
                   isSelected
                     ? "text-foreground"
                     : "text-muted-foreground",
@@ -202,7 +202,7 @@ const ArchiveChatItem = memo(function ArchiveChatItem({
             </span>
             <button
               onClick={handleRestore}
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[color,transform] duration-150 ease-out active:scale-[0.97]"
+              className="shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[color,transform] duration-150 ease-out active:scale-[0.97]"
               aria-label="Restore chat"
             >
               <IconTextUndo className="h-3 w-3" />
@@ -212,11 +212,11 @@ const ArchiveChatItem = memo(function ArchiveChatItem({
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 truncate min-w-0">
               {/* Cloud icon for remote chats */}
               {chat.isRemote && (
-                <CloudIcon className="h-2.5 w-2.5 flex-shrink-0" />
+                <CloudIcon className="h-2.5 w-2.5 shrink-0" />
               )}
               <span className="truncate">{displayText}</span>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px]">
+            <div className="flex items-center gap-1.5 shrink-0 text-[11px]">
               {stats && (stats.additions > 0 || stats.deletions > 0) && (
                 <>
                   <span className="text-green-600 dark:text-green-400">+{stats.additions}</span>

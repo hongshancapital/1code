@@ -190,7 +190,7 @@ export function AgentsDebugTab() {
   const isLoading = isLoadingSystem || isLoadingDb
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div>
@@ -202,7 +202,7 @@ export function AgentsDebugTab() {
       )}
 
       {/* System Info */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
           System Info
         </h4>
@@ -249,7 +249,7 @@ export function AgentsDebugTab() {
       </div>
 
       {/* DB Stats */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
           Database
         </h4>
@@ -262,7 +262,7 @@ export function AgentsDebugTab() {
 
       {/* Developer Tools (dev mode only) */}
       {isDev && (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
             Developer Tools
           </h4>
@@ -321,7 +321,7 @@ export function AgentsDebugTab() {
       )}
 
       {/* Quick Actions */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
           Quick Actions
         </h4>
@@ -364,7 +364,7 @@ export function AgentsDebugTab() {
       </div>
 
       {/* Toast Testing */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
           Toast Testing
         </h4>
@@ -431,7 +431,7 @@ export function AgentsDebugTab() {
       </div>
 
       {/* Data Management */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
           Data Management
         </h4>

@@ -115,7 +115,7 @@ export const ExplorerPanel = memo(function ExplorerPanel({
             // Dialog/Fullscreen: file tree + inline preview
             <div className="flex-1 flex min-h-0">
               {/* File tree panel - left side */}
-              <div className="w-[280px] border-r flex-shrink-0 overflow-hidden">
+              <div className="w-[280px] border-r shrink-0 overflow-hidden">
                 <FileTreePanel
                   projectPath={worktreePath}
                   onFileSelect={handleFileSelect}

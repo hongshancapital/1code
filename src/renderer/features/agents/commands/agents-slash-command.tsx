@@ -340,7 +340,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
   return createPortal(
     <div
       ref={dropdownRef}
-      className="fixed z-[99999] overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
+      className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
       style={{
         top: finalTop,
         left: finalLeft,
@@ -370,7 +370,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={cn(
-                  "group inline-flex w-[calc(100%-8px)] mx-1 items-center whitespace-nowrap outline-none",
+                  "group inline-flex w-[calc(100%-8px)] mx-1 items-center whitespace-nowrap outline-hidden",
                   "h-7 px-1.5 justify-start text-xs rounded-md",
                   "transition-colors cursor-pointer select-none",
                   isSelected

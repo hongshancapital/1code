@@ -64,7 +64,7 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
@@ -208,7 +208,7 @@ function CreateMcpServerForm({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-5">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">New MCP Server</h3>
           <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ function CreateMcpServerForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Name</Label>
           <Input
             value={name}
@@ -229,7 +229,7 @@ function CreateMcpServerForm({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Transport</Label>
           <Select value={type} onValueChange={(v) => setType(v as "stdio" | "http")}>
             <SelectTrigger>
@@ -244,7 +244,7 @@ function CreateMcpServerForm({
 
         {type === "stdio" ? (
           <>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <Label>Command</Label>
               <Input
                 value={command}
@@ -253,7 +253,7 @@ function CreateMcpServerForm({
                 className="font-mono"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <Label>Arguments</Label>
               <Input
                 value={args}
@@ -265,7 +265,7 @@ function CreateMcpServerForm({
             </div>
           </>
         ) : (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>URL</Label>
             <Input
               value={url}
@@ -277,7 +277,7 @@ function CreateMcpServerForm({
         )}
 
         {hasProject && (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Scope</Label>
             <Select value={scope} onValueChange={(v) => setScope(v as "global" | "project")}>
               <SelectTrigger>
@@ -527,14 +527,14 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
       >
         <div className="flex flex-col h-full bg-background border-r overflow-hidden" style={{ borderRightWidth: "0.5px" }}>
           {/* Search + Add */}
-          <div className="px-2 pt-2 flex-shrink-0 flex items-center gap-1.5">
+          <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
               placeholder="Search servers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
-              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-none"
+              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
             />
             <button
               onClick={() => { setShowAddForm(true); setSelectedServerKey(null) }}
@@ -545,7 +545,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
             </button>
           </div>
           {/* Server list */}
-          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-none">
+          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoadingConfig ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
@@ -569,9 +569,9 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                 <p className="text-xs text-muted-foreground">No results found</p>
               </div>
             ) : (
-              <div className="space-y-0.5">
+              <div className="flex flex-col gap-0.5">
                 {filteredGroups.map((group) => (
-                  <div key={group.groupName} className="space-y-0.5">
+                  <div key={group.groupName} className="flex flex-col gap-0.5">
                     {group.mcpServers.map((server) => {
                       const key = `${group.groupName}-${server.name}`
                       const isSelected = selectedServerKey === key
@@ -583,7 +583,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                           className={cn(
                             "w-full text-left py-1.5 pl-2 pr-2 rounded-md cursor-pointer group relative",
                             "transition-colors duration-75",
-                            "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+                            "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
                             isSelected
                               ? "bg-foreground/5 text-foreground"
                               : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
@@ -595,7 +595,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                                 <span className="truncate block text-sm leading-tight flex-1">
                                   {server.name}
                                 </span>
-                                <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+                                <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
                                   <McpStatusDot status={server.status} />
                                 </div>
                               </div>
@@ -604,7 +604,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                                   {group.groupName}
                                 </span>
                                 {server.status !== "pending" && (
-                                  <span className="flex-shrink-0">
+                                  <span className="shrink-0">
                                     {server.status === "connected"
                                       ? `${server.tools.length} tool${server.tools.length !== 1 ? "s" : ""}`
                                       : getStatusText(server.status)}

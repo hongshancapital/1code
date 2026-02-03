@@ -367,7 +367,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
             <button
               onClick={handlePrevious}
               disabled={currentQuestionIndex === 0}
-              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed outline-none"
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed outline-hidden"
             >
               <ChevronUp className="w-4 h-4 text-muted-foreground" />
             </button>
@@ -377,7 +377,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
             <button
               onClick={handleNext}
               disabled={currentQuestionIndex === questions.length - 1}
-              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed outline-none"
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed outline-hidden"
             >
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
             </button>
@@ -397,7 +397,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
         </div>
 
         {/* Options */}
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           {currentOptions.map((option, optIndex) => {
             const isSelected = isOptionSelected(
               currentQuestion.question,
@@ -420,14 +420,14 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
                 }}
                 disabled={isSubmitting}
                 className={cn(
-                  "w-full flex items-start gap-3 p-2 text-[13px] text-foreground rounded-md text-left transition-colors outline-none",
+                  "w-full flex items-start gap-3 p-2 text-[13px] text-foreground rounded-md text-left transition-colors outline-hidden",
                   isFocused ? "bg-muted/70" : "hover:bg-muted/50",
                   isSubmitting && "opacity-50 cursor-not-allowed",
                 )}
               >
                 <div
                   className={cn(
-                    "flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-[10px] font-medium transition-colors mt-0.5",
+                    "shrink-0 w-5 h-5 rounded flex items-center justify-center text-[10px] font-medium transition-colors mt-0.5",
                     isSelected
                       ? "bg-foreground text-background"
                       : "bg-muted text-muted-foreground",
@@ -467,7 +467,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
             className={cn(
               "w-full px-3 py-2 text-[13px] border border-border rounded-md bg-background",
               "placeholder:text-muted-foreground/60",
-              "focus:outline-none focus:ring-1 focus:ring-ring",
+              "focus:outline-hidden focus:ring-1 focus:ring-ring",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           />

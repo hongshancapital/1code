@@ -633,7 +633,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   window.on("focus", () => {
     window.webContents.send("window:focus-change", true)
   })
-  window.on("blur", () => {
+  window.on("blur-sm", () => {
     window.webContents.send("window:focus-change", false)
   })
 

@@ -318,7 +318,7 @@ export function AgentPreview({
       {/* Mobile Header */}
       {isMobile && !hideHeader && (
         <div
-          className="flex-shrink-0 bg-background/95 backdrop-blur border-b h-11 min-h-[44px] max-h-[44px]"
+          className="shrink-0 bg-background/95 backdrop-blur-sm border-b h-11 min-h-[44px] max-h-[44px]"
           data-mobile-preview-header
           style={{
             WebkitAppRegion: "drag",
@@ -335,7 +335,7 @@ export function AgentPreview({
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
+              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
             >
               <IconChatBubble className="h-4 w-4" />
               <span className="sr-only">Back to chat</span>
@@ -347,7 +347,7 @@ export function AgentPreview({
               size="icon"
               onClick={handleReload}
               disabled={isRefreshing}
-              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
+              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
             >
               <RotateCw
                 className={cn("h-4 w-4", isRefreshing && "animate-spin")}
@@ -377,7 +377,7 @@ export function AgentPreview({
 
       {/* Desktop Header */}
       {!isMobile && !hideHeader && (
-        <div className="flex items-center justify-between px-3 h-10 bg-tl-background flex-shrink-0">
+        <div className="flex items-center justify-between px-3 h-10 bg-tl-background shrink-0">
           {/* Left: Refresh + Viewport Toggle + Scale */}
           <div className="flex items-center gap-1 flex-1">
             <Button
@@ -454,7 +454,7 @@ export function AgentPreview({
       >
         {isMobile ? (
           // Mobile: Fullscreen iframe with scale support
-          <div className="relative overflow-hidden w-full h-full flex-shrink-0 bg-background">
+          <div className="relative overflow-hidden w-full h-full shrink-0 bg-background">
             <div
               className="w-full h-full"
               style={
@@ -505,7 +505,7 @@ export function AgentPreview({
             <div
               ref={frameRef}
               className={cn(
-                "relative overflow-hidden flex-shrink-0 bg-background",
+                "relative overflow-hidden shrink-0 bg-background",
                 !isResizing &&
                   "transition-[width,height,margin] duration-300 ease-in-out",
                 viewportMode === "desktop"

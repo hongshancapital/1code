@@ -82,7 +82,7 @@ export function DevicePresetsBar({
           <SelectTrigger className="h-7 text-xs px-2 w-auto">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="!w-36">
+          <SelectContent className="w-36!">
             {DEVICE_PRESETS.map((preset) => (
               <SelectItem
                 key={preset.name}

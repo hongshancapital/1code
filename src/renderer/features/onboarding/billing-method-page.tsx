@@ -61,9 +61,9 @@ export function BillingMethodPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
-      <div className="w-full max-w-[440px] space-y-8 px-4">
+      <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header */}
-        <div className="text-center space-y-1">
+        <div className="text-center flex flex-col gap-1">
           <h1 className="text-base font-semibold tracking-tight">
             Connect to Claude
           </h1>
@@ -73,7 +73,7 @@ export function BillingMethodPage() {
         </div>
 
         {/* Billing Options */}
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {billingOptions.map((option) => (
             <button
               key={option.id}

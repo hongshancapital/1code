@@ -295,14 +295,14 @@ const FileSearchItem = memo(function FileSearchItem({
       onClick={onSelect}
       className={cn(
         "flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)]",
-        "rounded-md text-sm cursor-default select-none outline-none",
+        "rounded-md text-sm cursor-default select-none outline-hidden",
         "transition-colors group",
         isSelected
           ? "dark:bg-neutral-800 bg-accent text-foreground"
           : "text-muted-foreground dark:hover:bg-neutral-800 hover:bg-accent hover:text-foreground",
       )}
     >
-      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
       <span className="flex items-center gap-1.5 w-full min-w-0">
         <span className="shrink-0 whitespace-nowrap">
           {label}

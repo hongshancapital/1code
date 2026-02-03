@@ -415,7 +415,7 @@ export function KanbanView() {
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* Header with sidebar toggle */}
-      <div className="flex-shrink-0 flex items-center p-1.5">
+      <div className="shrink-0 flex items-center p-1.5">
         <AgentsHeaderControls
           isSidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}

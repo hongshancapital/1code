@@ -52,7 +52,7 @@ export function WorkModeSelector({
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+            "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
             disabled && "opacity-50 pointer-events-none",
           )}
           disabled={disabled}
@@ -78,7 +78,7 @@ export function WorkModeSelector({
               }}
               disabled={isDisabled}
               className={cn(
-                "flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] text-sm text-left rounded-md cursor-default select-none outline-none transition-colors",
+                "flex items-center gap-1.5 min-h-[32px] py-[5px] px-1.5 mx-1 w-[calc(100%-8px)] text-sm text-left rounded-md cursor-default select-none outline-hidden transition-colors",
                 isDisabled
                   ? "opacity-50 cursor-not-allowed"
                   : isSelected

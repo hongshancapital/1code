@@ -204,7 +204,7 @@ export const ChangesWidget = memo(function ChangesWidget({
         {/* Widget Header with stats - fixed height h-8 for consistency */}
         <div className="flex items-center gap-2 px-2 h-8 select-none group bg-muted/30">
           {/* Icon */}
-          <DiffIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <DiffIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
           {/* Title */}
           <span className="text-xs font-medium text-foreground">Changes</span>
@@ -229,7 +229,7 @@ export const ChangesWidget = memo(function ChangesWidget({
                   variant="ghost"
                   size="icon"
                   onClick={onExpand}
-                  className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0"
+                  className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity,transform] duration-150 ease-out active:scale-[0.97] shrink-0"
                   aria-label="Expand changes"
                 >
                   <ArrowUpRight className="h-3 w-3" />

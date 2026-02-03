@@ -351,11 +351,11 @@ function MentionChip({ mention }: { mention: ParsedMention }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-[6px] rounded-[6px] text-sm align-middle bg-black/[0.04] dark:bg-white/[0.08] text-foreground/80 select-none${isClickable ? " cursor-pointer hover:bg-black/[0.08] dark:hover:bg-white/[0.12] transition-colors" : ""}`}
+      className={`inline-flex items-center gap-1 px-[6px] rounded-[6px] text-sm align-middle bg-black/4 dark:bg-white/8 text-foreground/80 select-none${isClickable ? " cursor-pointer hover:bg-black/8 dark:hover:bg-white/12 transition-colors" : ""}`}
       title={title}
       onClick={isClickable ? () => onOpenFile(mention.path) : undefined}
     >
-      <Icon className={mention.type === "tool" ? "h-3.5 w-3.5 text-muted-foreground flex-shrink-0" : "h-3 w-3 text-muted-foreground flex-shrink-0"} />
+      <Icon className={mention.type === "tool" ? "h-3.5 w-3.5 text-muted-foreground shrink-0" : "h-3 w-3 text-muted-foreground shrink-0"} />
       <span>{mention.label}</span>
     </span>
   )
@@ -593,7 +593,7 @@ export function TextMentionBlock({ mention }: { mention: ParsedMention }) {
                   : `${mention.path}${mention.lineNumber ? `:${mention.lineNumber}` : ""}`}
             </span>
           </div>
-          <pre className="text-sm whitespace-pre-wrap break-words font-mono">
+          <pre className="text-sm whitespace-pre-wrap wrap-break-word font-mono">
             {mention.fullText || mention.label}
           </pre>
         </div>

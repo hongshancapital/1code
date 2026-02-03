@@ -283,9 +283,9 @@ export function ClaudeLoginModal() {
           <span className="sr-only">Close</span>
         </AlertDialogCancel>
 
-        <div className="space-y-8">
+        <div className="flex flex-col gap-8">
           {/* Header with dual icons */}
-          <div className="text-center space-y-4">
+          <div className="text-center flex flex-col gap-4">
             <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <Logo className="w-5 h-5" fill="white" />
@@ -294,7 +294,7 @@ export function ClaudeLoginModal() {
                 <ClaudeCodeIcon className="w-6 h-6 text-white" />
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               <h1 className="text-base font-semibold tracking-tight">
                 Claude Code
               </h1>
@@ -305,7 +305,7 @@ export function ClaudeLoginModal() {
           </div>
 
           {/* Content */}
-          <div className="space-y-6">
+          <div className="flex flex-col gap-6">
             {/* Connect Button - shows loader only if user clicked AND loading */}
             {!urlOpened && flowState.step !== "has_url" && flowState.step !== "error" && (
               <Button
@@ -325,7 +325,7 @@ export function ClaudeLoginModal() {
             {(urlOpened ||
               flowState.step === "has_url" ||
               flowState.step === "submitting") && (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
                 <Input
                   value={authCode}
                   onChange={handleCodeChange}
@@ -361,7 +361,7 @@ export function ClaudeLoginModal() {
 
             {/* Error State */}
             {flowState.step === "error" && (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
                 <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <p className="text-sm text-destructive">{flowState.message}</p>
                 </div>
@@ -375,7 +375,7 @@ export function ClaudeLoginModal() {
               </div>
             )}
 
-            <div className="text-center !mt-2">
+            <div className="text-center mt-2!">
               <button
                 type="button"
                 onClick={handleOpenModelsSettings}

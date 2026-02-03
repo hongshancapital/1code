@@ -54,11 +54,11 @@ const IndicatorLine = memo(function IndicatorLine({
         align="center"
         sideOffset={8}
         className={cn(
-          "w-64 p-2 z-[100]",
+          "w-64 p-2 z-100",
           isPlan && "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800"
         )}
       >
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <p className="text-sm line-clamp-2">{input.content || "..."}</p>
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <div className="flex items-center gap-2">

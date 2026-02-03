@@ -26,11 +26,11 @@ function GitHubAvatar({
   const handleError = useCallback(() => setHasError(true), [])
 
   if (hasError) {
-    return <GitHubLogo className={cn(className, "text-muted-foreground flex-shrink-0")} />
+    return <GitHubLogo className={cn(className, "text-muted-foreground shrink-0")} />
   }
 
   return (
-    <div className={cn(className, "relative flex-shrink-0")}>
+    <div className={cn(className, "relative shrink-0")}>
       {/* Placeholder background while loading */}
       {!isLoaded && (
         <div className="absolute inset-0 rounded-sm bg-muted" />
@@ -38,7 +38,7 @@ function GitHubAvatar({
       <img
         src={`https://github.com/${gitOwner}.png?size=64`}
         alt={gitOwner}
-        className={cn(className, "rounded-sm flex-shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
+        className={cn(className, "rounded-sm shrink-0", isLoaded ? 'opacity-100' : 'opacity-0')}
         onLoad={handleLoad}
         onError={handleError}
       />
@@ -88,12 +88,12 @@ function ChatIconWithBadge({
     }
 
     return (
-      <GitHubLogo className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+      <GitHubLogo className="h-4 w-4 shrink-0 text-muted-foreground" />
     )
   }
 
   return (
-    <div className="relative flex-shrink-0 h-4 w-4">
+    <div className="relative shrink-0 h-4 w-4">
       {renderMainIcon()}
       {/* Badge in bottom-right corner */}
       <div
@@ -212,7 +212,7 @@ export function AgentChatCard({
       onClick={onClick}
       className={cn(
         "w-full text-left pl-2 pr-2 py-1.5 rounded-md transition-colors duration-150 cursor-pointer group relative",
-        "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+        "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
         isSelected
           ? "bg-foreground/5 text-foreground"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",

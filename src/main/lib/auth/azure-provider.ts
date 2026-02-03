@@ -1,14 +1,11 @@
 /**
- * Azure AD OAuth Provider for SPA-configured redirect URIs
+ * Azure AD OAuth Provider using MSAL Node
  *
- * Uses a hidden BrowserWindow to perform token exchange via cross-origin request,
- * which is required when Azure Portal is configured with SPA redirect URI type.
- *
- * The SPA configuration requires tokens to be redeemed via browser-based
- * cross-origin requests, not server-side HTTP requests.
+ * Uses @azure/msal-node for desktop application authentication.
+ * This approach works with SPA-configured redirect URIs in Azure Portal.
  */
 
-import { BrowserWindow } from "electron"
+import { PublicClientApplication, LogLevel } from "@azure/msal-node"
 import { randomBytes, createHash } from "crypto"
 import { shell } from "electron"
 import { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
@@ -35,7 +32,6 @@ function getAzureConfig() {
     tenantId,
     clientId,
     authority: `${loginUrl}/${tenantId}`,
-    tokenEndpoint: `${loginUrl}/${tenantId}/oauth2/v2.0/token`,
   }
 }
 
@@ -64,6 +60,44 @@ function parseIdToken(idToken: string): AuthUser {
   }
 }
 
+// Singleton MSAL instance
+let msalInstance: PublicClientApplication | null = null
+
+// Store PKCE verifier for token exchange
+let pendingPkceVerifier: string | null = null
+
+/**
+ * Get or create MSAL PublicClientApplication instance
+ */
+function getMsalInstance(): PublicClientApplication {
+  if (!msalInstance) {
+    const { clientId, authority } = getAzureConfig()
+
+    msalInstance = new PublicClientApplication({
+      auth: {
+        clientId,
+        authority,
+      },
+      system: {
+        loggerOptions: {
+          loggerCallback: (level, message) => {
+            if (level === LogLevel.Error) {
+              console.error("[MSAL]", message)
+            } else if (level === LogLevel.Warning) {
+              console.warn("[MSAL]", message)
+            } else {
+              console.log("[MSAL]", message)
+            }
+          },
+          piiLoggingEnabled: false,
+          logLevel: LogLevel.Warning,
+        },
+      },
+    })
+  }
+  return msalInstance
+}
+
 /**
  * Generate PKCE code verifier (synchronous)
  */
@@ -85,181 +119,6 @@ function generateState(): string {
   return randomBytes(16).toString("hex")
 }
 
-/**
- * Exchange authorization code for tokens using a hidden BrowserWindow.
- * This makes the request appear as a cross-origin browser request,
- * which is required for SPA-configured redirect URIs in Azure AD.
- */
-async function exchangeCodeViaBrowser(
-  code: string,
-  codeVerifier: string,
-  redirectUri: string,
-): Promise<TokenResponse> {
-  const { clientId, tokenEndpoint } = getAzureConfig()
-
-  console.log("[Azure] Exchanging code via browser window...")
-
-  return new Promise((resolve, reject) => {
-    // Create a hidden browser window for the token exchange
-    const tokenWindow = new BrowserWindow({
-      width: 400,
-      height: 300,
-      show: false, // Hidden window
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-      },
-    })
-
-    // Build the token request body
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      code,
-      code_verifier: codeVerifier,
-      scope: SCOPES.join(" "),
-    }).toString()
-
-    // JavaScript to execute the token exchange via fetch
-    const script = `
-      (async function() {
-        try {
-          const response = await fetch("${tokenEndpoint}", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "Accept": "application/json",
-            },
-            body: "${body}",
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            return { error: true, data };
-          }
-
-          return { error: false, data };
-        } catch (err) {
-          return { error: true, data: { error: err.message } };
-        }
-      })();
-    `
-
-    // Set timeout for the token exchange
-    const timeout = setTimeout(() => {
-      tokenWindow.destroy()
-      reject(new Error("Token exchange timed out"))
-    }, 30000)
-
-    // Load a minimal HTML page and execute the token exchange
-    tokenWindow.loadURL("data:text/html,<html><body></body></html>")
-
-    tokenWindow.webContents.on("did-finish-load", async () => {
-      try {
-        const result = await tokenWindow.webContents.executeJavaScript(script)
-
-        clearTimeout(timeout)
-        tokenWindow.destroy()
-
-        if (result.error) {
-          const errorData = result.data
-          const errorMsg = errorData.error_description || errorData.error || "Token exchange failed"
-          reject(new Error(errorMsg))
-        } else {
-          resolve(result.data as TokenResponse)
-        }
-      } catch (err) {
-        clearTimeout(timeout)
-        tokenWindow.destroy()
-        reject(err)
-      }
-    })
-  })
-}
-
-/**
- * Refresh token using a hidden BrowserWindow
- */
-async function refreshTokenViaBrowser(refreshToken: string): Promise<TokenResponse | null> {
-  const { clientId, tokenEndpoint } = getAzureConfig()
-
-  console.log("[Azure] Refreshing token via browser window...")
-
-  return new Promise((resolve) => {
-    const tokenWindow = new BrowserWindow({
-      width: 400,
-      height: 300,
-      show: false,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-      },
-    })
-
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      refresh_token: refreshToken,
-      scope: SCOPES.join(" "),
-    }).toString()
-
-    const script = `
-      (async function() {
-        try {
-          const response = await fetch("${tokenEndpoint}", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "Accept": "application/json",
-            },
-            body: "${body}",
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-            return { error: true, data };
-          }
-
-          return { error: false, data };
-        } catch (err) {
-          return { error: true, data: { error: err.message } };
-        }
-      })();
-    `
-
-    const timeout = setTimeout(() => {
-      tokenWindow.destroy()
-      resolve(null)
-    }, 30000)
-
-    tokenWindow.loadURL("data:text/html,<html><body></body></html>")
-
-    tokenWindow.webContents.on("did-finish-load", async () => {
-      try {
-        const result = await tokenWindow.webContents.executeJavaScript(script)
-
-        clearTimeout(timeout)
-        tokenWindow.destroy()
-
-        if (result.error) {
-          console.error("[Azure] Token refresh failed:", result.data)
-          resolve(null)
-        } else {
-          resolve(result.data as TokenResponse)
-        }
-      } catch (err) {
-        clearTimeout(timeout)
-        tokenWindow.destroy()
-        console.error("[Azure] Token refresh error:", err)
-        resolve(null)
-      }
-    })
-  })
-}
-
 export class AzureProvider implements AuthProvider {
   readonly name = "azure" as const
 
@@ -273,11 +132,12 @@ export class AzureProvider implements AuthProvider {
     // Generate PKCE codes (synchronous)
     const verifier = generateCodeVerifier()
     const challenge = generateCodeChallenge(verifier)
+    pendingPkceVerifier = verifier
 
     // Generate state for CSRF protection
     const state = generateState()
 
-    // Build authorization URL
+    // Build authorization URL manually (MSAL's getAuthCodeUrl is async)
     const authorizeUrl = new URL(`${authority}/oauth2/v2.0/authorize`)
     authorizeUrl.searchParams.set("client_id", clientId)
     authorizeUrl.searchParams.set("response_type", "code")
@@ -288,7 +148,7 @@ export class AzureProvider implements AuthProvider {
     authorizeUrl.searchParams.set("code_challenge_method", "S256")
     authorizeUrl.searchParams.set("response_mode", "query")
 
-    console.log("[Azure] Starting PKCE flow...")
+    console.log("[Azure] Starting MSAL PKCE flow...")
     console.log("[Azure] Redirect URI:", this.getRedirectUri())
 
     shell.openExternal(authorizeUrl.toString())
@@ -304,38 +164,87 @@ export class AzureProvider implements AuthProvider {
     tokenData: TokenResponse
     user: AuthUser
   }> {
-    console.log("[Azure] Exchanging authorization code...")
+    console.log("[Azure] Exchanging authorization code using MSAL...")
 
-    const { codeVerifier } = pkceState
+    const msal = getMsalInstance()
+    const codeVerifier = pkceState.codeVerifier || pendingPkceVerifier
 
     if (!codeVerifier) {
       throw new Error("No PKCE verifier found for token exchange")
     }
 
-    // Use browser-based token exchange for SPA redirect URIs
-    const tokenData = await exchangeCodeViaBrowser(code, codeVerifier, this.getRedirectUri())
+    try {
+      const result = await msal.acquireTokenByCode({
+        code,
+        scopes: SCOPES,
+        redirectUri: this.getRedirectUri(),
+        codeVerifier,
+      })
 
-    console.log("[Azure] Token exchange successful")
+      console.log("[Azure] Token exchange successful")
 
-    if (!tokenData.id_token) {
-      throw new Error("No id_token in response. Make sure 'openid' scope is requested.")
+      // Clear pending verifier
+      pendingPkceVerifier = null
+
+      // Build token response
+      const tokenData: TokenResponse = {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        expires_in: Math.floor((result.expiresOn!.getTime() - Date.now()) / 1000),
+        token_type: "Bearer",
+        // MSAL doesn't return refresh_token directly, it's cached internally
+        // We'll use the account for silent token renewal
+      }
+
+      // Parse user from id_token
+      const user = result.idToken ? parseIdToken(result.idToken) : {
+        id: result.account?.localAccountId || "",
+        email: result.account?.username || "",
+        name: result.account?.name || null,
+        imageUrl: null,
+        username: result.account?.username?.split("@")[0] || null,
+      }
+
+      return { tokenData, user }
+    } catch (error) {
+      console.error("[Azure] MSAL token exchange failed:", error)
+      throw error
     }
-
-    const user = parseIdToken(tokenData.id_token)
-
-    return { tokenData, user }
   }
 
   async refresh(refreshToken: string): Promise<TokenResponse | null> {
-    console.log("[Azure] Refreshing token...")
+    console.log("[Azure] Refreshing token using MSAL...")
 
-    const tokenData = await refreshTokenViaBrowser(refreshToken)
+    const msal = getMsalInstance()
 
-    if (tokenData) {
+    try {
+      // Get the cached account
+      const accounts = await msal.getTokenCache().getAllAccounts()
+      const account = accounts[0]
+
+      if (!account) {
+        console.warn("[Azure] No cached account found for silent refresh")
+        return null
+      }
+
+      const result = await msal.acquireTokenSilent({
+        account,
+        scopes: SCOPES,
+        forceRefresh: true,
+      })
+
       console.log("[Azure] Token refreshed successfully")
-    }
 
-    return tokenData
+      return {
+        access_token: result.accessToken,
+        id_token: result.idToken,
+        expires_in: Math.floor((result.expiresOn!.getTime() - Date.now()) / 1000),
+        token_type: "Bearer",
+      }
+    } catch (error) {
+      console.error("[Azure] MSAL refresh failed:", error)
+      return null
+    }
   }
 
   parseIdToken(idToken: string): AuthUser {

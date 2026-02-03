@@ -120,8 +120,8 @@ export function McpApprovalDialog() {
         </AlertDialogHeader>
 
         <AlertDialogBody>
-          <div className="space-y-3">
-            <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+          <div className="flex flex-col gap-3">
+            <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-col gap-2">
               <div className="flex gap-2">
                 <span className="text-xs text-muted-foreground w-14 shrink-0">
                   Plugin

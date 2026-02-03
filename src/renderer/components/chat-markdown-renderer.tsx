@@ -120,7 +120,7 @@ function CodeBlock({
           "overflow-x-auto",
           "whitespace-pre",
           // Force all nested elements to preserve whitespace and have no background
-          "[&_*]:whitespace-pre [&_*]:bg-transparent",
+          "**:whitespace-pre **:bg-transparent",
           "[&_pre]:m-0 [&_code]:m-0",
           "[&_pre]:p-0 [&_code]:p-0",
         )}
@@ -187,14 +187,14 @@ const sizeStyles: Record<
     ol: "list-decimal list-inside text-sm text-foreground/80 mb-px marker:text-foreground/60",
     li: "text-sm text-foreground/80 py-[3px]",
     inlineCode:
-      "bg-foreground/[0.06] dark:bg-foreground/[0.1] font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
+      "bg-foreground/6 dark:bg-foreground/10 font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
     blockquote:
       "border-l-2 border-foreground/20 pl-3 text-foreground/70 mb-px text-sm",
     hr: "mt-8 mb-4 border-t border-border",
     table: "w-full text-sm",
     thead: "border-b border-border",
     tbody: "",
-    tr: "[&:not(:last-child)]:border-b [&:not(:last-child)]:border-border",
+    tr: "not-last:border-b not-last:border-border",
     th: "text-left text-sm font-medium text-foreground px-3 py-2 bg-muted/50 border-r border-border last:border-r-0",
     td: "text-sm text-foreground/80 px-3 py-2 border-r border-border last:border-r-0",
   },
@@ -210,14 +210,14 @@ const sizeStyles: Record<
     ol: "list-decimal list-inside text-sm text-foreground/80 mb-px marker:text-foreground/60",
     li: "text-sm text-foreground/80 py-[3px]",
     inlineCode:
-      "bg-foreground/[0.06] dark:bg-foreground/[0.1] font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
+      "bg-foreground/6 dark:bg-foreground/10 font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
     blockquote:
       "border-l-2 border-foreground/20 pl-4 text-foreground/70 mb-px",
     hr: "mt-8 mb-4 border-t border-border",
     table: "w-full text-sm",
     thead: "border-b border-border",
     tbody: "",
-    tr: "[&:not(:last-child)]:border-b [&:not(:last-child)]:border-border",
+    tr: "not-last:border-b not-last:border-border",
     th: "text-left text-sm font-medium text-foreground px-3 py-2 bg-muted/50 border-r border-border last:border-r-0",
     td: "text-sm text-foreground/80 px-3 py-2 border-r border-border last:border-r-0",
   },
@@ -233,14 +233,14 @@ const sizeStyles: Record<
     ol: "list-decimal list-inside text-sm text-foreground/80 mb-px marker:text-foreground/60",
     li: "text-sm text-foreground/80 py-[3px]",
     inlineCode:
-      "bg-foreground/[0.06] dark:bg-foreground/[0.1] font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
+      "bg-foreground/6 dark:bg-foreground/10 font-mono text-[85%] rounded px-[0.4em] py-[0.2em] break-all",
     blockquote:
       "border-l-2 border-foreground/20 pl-4 text-foreground/70 mb-px",
     hr: "mt-8 mb-4 border-t border-border",
     table: "w-full text-sm",
     thead: "border-b border-border",
     tbody: "",
-    tr: "[&:not(:last-child)]:border-b [&:not(:last-child)]:border-border",
+    tr: "not-last:border-b not-last:border-border",
     th: "text-left text-sm font-medium text-foreground px-3 py-2 bg-muted/50 border-r border-border last:border-r-0",
     td: "text-sm text-foreground/80 px-3 py-2 border-r border-border last:border-r-0",
   },
@@ -356,7 +356,7 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
               window.desktopApi.openExternal(href)
             }
           }}
-          className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
+          className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
           {...props}
         >
           {children}
@@ -430,7 +430,7 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
         // Fix for p inside li - make it inline so numbered list items don't break
         "[&_li>p]:inline [&_li>p]:mb-0",
         // Prevent horizontal overflow on mobile
-        "overflow-hidden break-words",
+        "overflow-hidden wrap-break-word",
         // Global spacing: elements before hr get extra bottom margin (for spacing above divider)
         "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
         // Global spacing: elements after hr get extra top margin
@@ -620,7 +620,7 @@ const MemoizedMarkdownBlock = memo(
                 window.desktopApi.openExternal(href)
               }
             }}
-            className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
+            className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
             {...props}
           >
             {children}
@@ -738,7 +738,7 @@ export const MemoizedMarkdown = memo(
           "prose-hr:my-0",
           "prose-table:my-0",
           "[&_li>p]:inline [&_li>p]:mb-0",
-          "overflow-hidden break-words",
+          "overflow-hidden wrap-break-word",
           "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
           "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
           "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",

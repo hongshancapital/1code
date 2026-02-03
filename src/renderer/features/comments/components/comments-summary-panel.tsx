@@ -109,7 +109,7 @@ export const CommentsSummaryPanel = memo(function CommentsSummaryPanel({
         showCloseButton={false}
       >
         {/* Header */}
-        <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
+        <DialogHeader className="px-4 py-3 border-b shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-base">
               <MessageSquare className="h-4 w-4" />
@@ -143,12 +143,12 @@ export const CommentsSummaryPanel = memo(function CommentsSummaryPanel({
               </p>
             </div>
           ) : (
-            <div className="p-4 space-y-4">
+            <div className="p-4 flex flex-col gap-4">
               {Object.entries(groupedComments).map(([filePath, fileComments]) => {
                 const fileName = filePath.split("/").pop() || filePath
 
                 return (
-                  <div key={filePath} className="space-y-2">
+                  <div key={filePath} className="flex flex-col gap-2">
                     {/* File header */}
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -161,7 +161,7 @@ export const CommentsSummaryPanel = memo(function CommentsSummaryPanel({
                     </div>
 
                     {/* Comments for this file */}
-                    <div className="space-y-2 ml-6">
+                    <div className="flex flex-col gap-2 ml-6">
                       {fileComments
                         .sort((a, b) => a.lineRange.startLine - b.lineRange.startLine)
                         .map((comment) => {
@@ -200,7 +200,7 @@ export const CommentsSummaryPanel = memo(function CommentsSummaryPanel({
                               )}
 
                               {/* Comment body */}
-                              <p className="text-sm whitespace-pre-wrap break-words">
+                              <p className="text-sm whitespace-pre-wrap wrap-break-word">
                                 {comment.body}
                               </p>
 
@@ -229,7 +229,7 @@ export const CommentsSummaryPanel = memo(function CommentsSummaryPanel({
 
         {/* Footer */}
         {comments.length > 0 && (
-          <div className="flex-shrink-0 px-4 py-3 border-t bg-muted/30">
+          <div className="shrink-0 px-4 py-3 border-t bg-muted/30">
             {/* Warning if comments are too long */}
             {isTooLong && (
               <p className="text-xs text-yellow-600 dark:text-yellow-500 mb-2">

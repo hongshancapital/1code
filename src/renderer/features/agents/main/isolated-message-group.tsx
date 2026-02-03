@@ -162,12 +162,12 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
       {/* User message text - sticky (or attachment-only summary bubble) */}
       <div
         data-user-message-id={userMsgId}
-        className={`[&>div]:!mb-4 pointer-events-auto sticky z-10 ${stickyTopClass}`}
+        className={`[&>div]:mb-4! pointer-events-auto sticky z-10 ${stickyTopClass}`}
       >
         {/* Show "Using X" summary when no text but have attachments */}
         {isAttachmentOnlyMessage && !isImageOnlyMessage ? (
           <div className="flex justify-start drop-shadow-[0_10px_20px_hsl(var(--background))]" data-user-bubble>
-            <div className="space-y-2 w-full">
+            <div className="flex flex-col gap-2 w-full">
               <div className="bg-input-background border px-3 py-2 rounded-xl text-sm text-muted-foreground italic">
               {(() => {
                 const parts: string[] = []

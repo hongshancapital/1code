@@ -110,14 +110,14 @@ export function AgentSendButton({
       if (isRecording) {
         // Show stop icon during recording
         return (
-          <div className="w-2.5 h-2.5 bg-current rounded-[2px] flex-shrink-0 mx-auto" />
+          <div className="w-2.5 h-2.5 bg-current rounded-[2px] shrink-0 mx-auto" />
         )
       }
       return <MicrophoneIcon className="size-4" />
     }
     if (isStreaming && !hasContent) {
       return (
-        <div className="w-2.5 h-2.5 bg-current rounded-[2px] flex-shrink-0 mx-auto" />
+        <div className="w-2.5 h-2.5 bg-current rounded-[2px] shrink-0 mx-auto" />
       )
     }
     if (isSubmitting) {
@@ -219,8 +219,8 @@ export function AgentSendButton({
   // Mode-specific styling (agent=foreground, plan=orange)
   // Recording state uses same styling as normal mode (wave indicator shows recording state)
   const modeClass = mode === "plan"
-    ? "!bg-plan-mode hover:!bg-plan-mode/90 !text-background !shadow-none"
-    : "!bg-foreground hover:!bg-foreground/90 !text-background !shadow-none"
+    ? "bg-plan-mode! hover:bg-plan-mode/90! text-background! shadow-none!"
+    : "bg-foreground! hover:bg-foreground/90! text-background! shadow-none!"
 
   // Handle button interactions for voice mode
   // Supports both hold-to-talk AND click-to-toggle

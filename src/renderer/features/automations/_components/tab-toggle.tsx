@@ -31,7 +31,7 @@ export function TabToggle({ value, onChange }: TabToggleProps) {
       className="relative bg-muted rounded-lg h-7 p-0.5 flex w-fit shrink-0"
     >
       <div
-        className="absolute top-0.5 bottom-0.5 rounded-md bg-background shadow transition-all duration-200 ease-in-out"
+        className="absolute top-0.5 bottom-0.5 rounded-md bg-background shadow-xs transition-all duration-200 ease-in-out"
         style={{
           width: `${indicator.width}px`,
           transform: `translateX(${indicator.left - 2}px)`,
@@ -44,7 +44,7 @@ export function TabToggle({ value, onChange }: TabToggleProps) {
           data-tab-value={tab.value}
           onClick={() => onChange(tab.value as ViewTab)}
           className={cn(
-            "relative z-[2] px-3 flex items-center justify-center text-sm font-medium whitespace-nowrap transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+            "relative z-2 px-3 flex items-center justify-center text-sm font-medium whitespace-nowrap transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
             value === tab.value ? "text-foreground" : "text-muted-foreground"
           )}
         >

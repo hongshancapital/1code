@@ -42,7 +42,7 @@ export function PanelHeader({
   return (
     <div
       className={cn(
-        "relative flex items-center justify-between h-10 px-2 border-b border-border/50 bg-background flex-shrink-0",
+        "relative flex items-center justify-between h-10 px-2 border-b border-border/50 bg-background shrink-0",
         className
       )}
     >
@@ -58,7 +58,7 @@ export function PanelHeader({
 
       {/* Left side: Close button + Mode switcher + Left slot + Title */}
       <div
-        className="relative z-10 flex items-center gap-1 min-w-0 flex-shrink"
+        className="relative z-10 flex items-center gap-1 min-w-0 shrink"
         style={{
           WebkitAppRegion: "no-drag",
         }}
@@ -68,7 +68,7 @@ export function PanelHeader({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+            className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
             onClick={onClose}
           >
             {displayMode === "side-peek" ? (
@@ -96,7 +96,7 @@ export function PanelHeader({
 
       {/* Right side (custom actions) */}
       <div
-        className="relative z-10 flex items-center gap-1 flex-shrink-0"
+        className="relative z-10 flex items-center gap-1 shrink-0"
         style={{
           WebkitAppRegion: "no-drag",
         }}

@@ -321,7 +321,7 @@ export const McpServersIndicator = memo(function McpServersIndicator({
                 {isExpanded && hasTools && (
                   <div
                     id={`tools-${server.name}`}
-                    className="pl-8 pr-3 py-1 space-y-0.5"
+                    className="pl-8 pr-3 py-1 flex flex-col gap-0.5"
                     role="list"
                     aria-label={`Tools for ${server.name}`}
                   >

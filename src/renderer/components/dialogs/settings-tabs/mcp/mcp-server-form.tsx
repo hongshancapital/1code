@@ -126,9 +126,9 @@ export function McpServerForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* Server Name */}
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         <Label>Server Name</Label>
         <Input
           value={name}
@@ -146,7 +146,7 @@ export function McpServerForm({
       </div>
 
       {/* Scope */}
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         <Label>Scope</Label>
         <div className="flex gap-2">
           <button
@@ -178,7 +178,7 @@ export function McpServerForm({
 
       {/* Project Selector */}
       {scope === "project" && (
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Project</Label>
           <Select value={projectPath} onValueChange={setProjectPath}>
             <SelectTrigger>
@@ -196,7 +196,7 @@ export function McpServerForm({
       )}
 
       {/* Transport */}
-      <div className="space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         <Label>Transport</Label>
         <div className="flex gap-2">
           <button
@@ -229,7 +229,7 @@ export function McpServerForm({
       {/* Stdio fields */}
       {transport === "stdio" && (
         <>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Command</Label>
             <Input
               value={command}
@@ -238,27 +238,27 @@ export function McpServerForm({
               className="font-mono"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Arguments</Label>
             <textarea
               value={argsText}
               onChange={(e) => setArgsText(e.target.value)}
               placeholder={"One argument per line\n-m\nmcp_server\n--port\n3000"}
               rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground/40 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring resize-none"
             />
             <p className="text-[11px] text-muted-foreground">
               One argument per line
             </p>
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Environment Variables</Label>
             <textarea
               value={envText}
               onChange={(e) => setEnvText(e.target.value)}
               placeholder={"KEY=value\nAPI_KEY=sk-..."}
               rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground/40 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring resize-none"
             />
             <p className="text-[11px] text-muted-foreground">
               KEY=value format, one per line
@@ -270,7 +270,7 @@ export function McpServerForm({
       {/* HTTP fields */}
       {transport === "http" && (
         <>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>URL</Label>
             <Input
               value={url}
@@ -280,7 +280,7 @@ export function McpServerForm({
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Authentication</Label>
             <div className="flex gap-2">
               {(["none", "oauth", "bearer"] as AuthType[]).map((type) => (
@@ -302,7 +302,7 @@ export function McpServerForm({
           </div>
 
           {authType === "bearer" && (
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <Label>Bearer Token</Label>
               <div className="relative">
                 <Input

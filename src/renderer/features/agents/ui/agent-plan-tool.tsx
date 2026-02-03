@@ -52,7 +52,7 @@ const StepStatusIcon = ({ status, isPending }: { status: PlanStep["status"]; isP
   if (isPending && status === "in_progress") {
     return (
       <div 
-        className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+        className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
         style={{ border: '0.5px solid hsl(var(--muted-foreground) / 0.3)' }}
       >
         <IconSpinner className="w-2.5 h-2.5" />
@@ -64,7 +64,7 @@ const StepStatusIcon = ({ status, isPending }: { status: PlanStep["status"]; isP
     case "completed":
       return (
         <div 
-          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0"
           style={{ border: '0.5px solid hsl(var(--border))' }}
         >
           <CheckIcon className="w-2 h-2 text-muted-foreground" />
@@ -73,7 +73,7 @@ const StepStatusIcon = ({ status, isPending }: { status: PlanStep["status"]; isP
     case "in_progress":
       return (
         <div 
-          className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
           style={{ border: '0.5px solid hsl(var(--muted-foreground) / 0.3)' }}
         >
           <IconSpinner className="w-2.5 h-2.5" />
@@ -82,7 +82,7 @@ const StepStatusIcon = ({ status, isPending }: { status: PlanStep["status"]; isP
     case "skipped":
       return (
         <div 
-          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0"
           style={{ border: '0.5px solid hsl(var(--border))' }}
         >
           <SkipForward className="w-2 h-2 text-muted-foreground" />
@@ -91,7 +91,7 @@ const StepStatusIcon = ({ status, isPending }: { status: PlanStep["status"]; isP
     default:
       return (
         <div 
-          className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
           style={{ border: '0.5px solid hsl(var(--muted-foreground) / 0.3)' }}
         />
       )
@@ -185,7 +185,7 @@ export const AgentPlanTool = memo(function AgentPlanTool({
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+        <div className="flex items-center gap-2 shrink-0 ml-2">
           {isPending && <IconSpinner className="w-3 h-3" />}
           
           {/* Progress indicator */}

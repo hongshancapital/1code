@@ -51,7 +51,7 @@ export function DiffViewModeSwitcher({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+          className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
         >
           <CurrentIcon className="size-4 text-muted-foreground" />
         </Button>

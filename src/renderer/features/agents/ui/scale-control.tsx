@@ -108,13 +108,13 @@ export function ScaleControl({
               }
             }}
             onKeyDown={handleKeyDown}
-            className="w-[3ch] text-xs text-muted-foreground bg-transparent border-none outline-none text-right tabular-nums"
+            className="w-[3ch] text-xs text-muted-foreground bg-transparent border-none outline-hidden text-right tabular-nums"
           />
           <span className="text-xs text-muted-foreground">%</span>
         </div>
       </PopoverAnchor>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] min-w-[60px] p-0"
+        className="w-(--radix-popover-trigger-width) min-w-[60px] p-0"
         align="start"
         side="bottom"
         sideOffset={4}

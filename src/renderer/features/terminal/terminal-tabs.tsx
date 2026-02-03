@@ -157,10 +157,10 @@ const TerminalTab = memo(
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             className={cn(
-              "group relative flex items-center rounded-md transition-colors h-6 flex-shrink-0 select-none",
+              "group relative flex items-center rounded-md transition-colors h-6 shrink-0 select-none",
               small ? "text-xs" : "text-sm",
               !isOnly ? "cursor-pointer" : "cursor-default",
-              "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+              "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
               "overflow-hidden px-1.5 py-0.5 whitespace-nowrap min-w-[50px] gap-1.5",
               isActive
                 ? "bg-muted text-foreground max-w-[180px]"
@@ -168,7 +168,7 @@ const TerminalTab = memo(
             )}
           >
             {/* Terminal icon */}
-            <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+            <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
               <CustomTerminalIcon className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
 
@@ -183,7 +183,7 @@ const TerminalTab = memo(
                 onBlur={handleBlur}
                 onClick={(e) => e.stopPropagation()}
                 className={cn(
-                  "relative z-0 text-left flex-1 min-w-0 pr-1 bg-transparent outline-none border-none",
+                  "relative z-0 text-left flex-1 min-w-0 pr-1 bg-transparent outline-hidden border-none",
                   small ? "text-xs" : "text-sm",
                 )}
               />
@@ -203,10 +203,10 @@ const TerminalTab = memo(
             {isTruncated && !isEditing && (
               <div
                 className={cn(
-                  "absolute right-0 top-0 bottom-0 w-6 pointer-events-none z-[1] rounded-r-md opacity-100 group-hover:opacity-0 transition-opacity duration-200",
+                  "absolute right-0 top-0 bottom-0 w-6 pointer-events-none z-1 rounded-r-md opacity-100 group-hover:opacity-0 transition-opacity duration-200",
                   isActive
-                    ? "bg-gradient-to-l from-muted to-transparent"
-                    : "bg-gradient-to-l from-background to-transparent",
+                    ? "bg-linear-to-l from-muted to-transparent"
+                    : "bg-linear-to-l from-background to-transparent",
                 )}
               />
             )}

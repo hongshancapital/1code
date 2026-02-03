@@ -121,7 +121,7 @@ export function MobileChatHeader({
           variant="ghost"
           size="icon"
           onClick={onBackToChats}
-          className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
+          className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
           aria-label="All projects"
           style={{
             WebkitAppRegion: "no-drag",
@@ -172,7 +172,7 @@ export function MobileChatHeader({
               className={cn(
                 "flex items-center gap-1.5 h-7 px-2 rounded-md text-sm",
                 "bg-muted/50 hover:bg-muted transition-colors",
-                "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+                "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
                 "min-w-0 max-w-[50vw] shrink",
               )}
               style={{
@@ -180,7 +180,7 @@ export function MobileChatHeader({
               }}
             >
               {/* Icon */}
-              <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+              <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
                 {isLoading ? (
                   <IconSpinner className="w-3.5 h-3.5 text-muted-foreground" />
                 ) : mode === "plan" ? (
@@ -196,7 +196,7 @@ export function MobileChatHeader({
               </span>
 
               {/* Chevron */}
-              <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
             </button>
           </PopoverTrigger>
         }
@@ -207,7 +207,7 @@ export function MobileChatHeader({
 
       {/* Action buttons - always on the right */}
       <div
-        className="flex items-center gap-1 flex-shrink-0"
+        className="flex items-center gap-1 shrink-0"
         style={{
           WebkitAppRegion: "no-drag",
         }}

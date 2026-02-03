@@ -124,9 +124,9 @@ export function CreateBranchDialog({
           <DialogTitle>Create a Branch</DialogTitle>
         </CanvasDialogHeader>
 
-        <CanvasDialogBody className="space-y-4">
+        <CanvasDialogBody className="flex flex-col gap-4">
           {/* Branch Name Input */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="branch-name" className="text-sm">
               Name
             </Label>
@@ -152,7 +152,7 @@ export function CreateBranchDialog({
           </div>
 
           {/* Base Branch Selection with Search */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label className="text-sm">Create branch based on...</Label>
             {/* Using Popover WITHOUT Portal so it renders inside Dialog's DOM tree */}
             <PopoverPrimitive.Root
@@ -163,9 +163,9 @@ export function CreateBranchDialog({
                 <button
                   type="button"
                   className={cn(
-                    "flex h-9 w-full items-center justify-between gap-2 rounded-[10px] border border-input bg-background px-3 py-2 text-sm shadow-sm",
+                    "flex h-9 w-full items-center justify-between gap-2 rounded-[10px] border border-input bg-background px-3 py-2 text-sm shadow-xs",
                     "hover:bg-accent hover:text-accent-foreground",
-                    "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+                    "focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                   )}
                   disabled={createBranchMutation.isPending}
@@ -176,7 +176,7 @@ export function CreateBranchDialog({
               </PopoverPrimitive.Trigger>
               {/* NO Portal wrapper - content renders inside Dialog */}
               <PopoverPrimitive.Content
-                className="z-50 w-full rounded-[10px] bg-popover p-0 text-sm text-popover-foreground shadow-lg border border-border outline-none dark data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+                className="z-50 w-full rounded-[10px] bg-popover p-0 text-sm text-popover-foreground shadow-lg border border-border outline-hidden dark data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
                 align="start"
                 sideOffset={4}
                 style={{ width: "var(--radix-popover-trigger-width)" }}

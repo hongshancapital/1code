@@ -134,9 +134,9 @@ export function AgentsEditorTab() {
   const installedEditors = editors?.filter((e) => e.installed) ?? []
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <GenericEditorIcon className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">
@@ -149,7 +149,7 @@ export function AgentsEditorTab() {
       </div>
 
       {/* Editor Sections */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         {/* Default Editor Selection */}
         <RuntimeSection
           id="editor-selection"
@@ -158,9 +158,9 @@ export function AgentsEditorTab() {
           description="Choose which editor to use when opening files"
           defaultOpen={true}
         >
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             {/* Quick Select Dropdown */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium">Default Editor</Label>
               <Select
                 value={config.defaultEditor ?? "auto"}
@@ -189,7 +189,7 @@ export function AgentsEditorTab() {
             </div>
 
             {/* Custom Arguments */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium">Custom Arguments</Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -222,7 +222,7 @@ export function AgentsEditorTab() {
           description="Editors found on your system"
           defaultOpen={true}
         >
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             {/* Refresh button */}
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">

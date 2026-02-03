@@ -39,19 +39,19 @@ function TodoStatusIcon({ status }: { status: TodoItem["status"] }) {
   switch (status) {
     case "completed":
       return (
-        <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+        <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
           <CheckIcon className="w-2.5 h-2.5 text-primary" />
         </div>
       )
     case "in_progress":
       return (
-        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+        <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center shrink-0">
           <IconArrowRight className="w-2.5 h-2.5 text-primary-foreground" />
         </div>
       )
     default:
       return (
-        <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 border border-muted-foreground/30" />
+        <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 border border-muted-foreground/30" />
       )
   }
 }
@@ -188,7 +188,7 @@ export function TaskPanelContent() {
       )}
 
       {/* Task List */}
-      <div className="p-2 space-y-0.5">
+      <div className="p-2 flex flex-col gap-0.5">
         {todos.map((todo, index) => (
           <TaskItem
             key={`${todo.content}-${index}`}
@@ -225,7 +225,7 @@ export function TaskPanel({ onClose, showHeader = true }: TaskPanelProps) {
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       {showHeader && (
-        <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
+        <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
           <div className="flex items-center gap-2">
             <ListTodo className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium">Tasks</span>

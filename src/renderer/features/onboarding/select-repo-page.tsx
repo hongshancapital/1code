@@ -123,9 +123,9 @@ export function SelectRepoPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <div className="w-full max-w-[440px] space-y-8 px-4">
+        <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
           {/* Header with dual icons */}
-          <div className="text-center space-y-4">
+          <div className="text-center flex flex-col gap-4">
             <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <Logo className="w-5 h-5" fill="white" />
@@ -134,7 +134,7 @@ export function SelectRepoPage() {
                 <GitHubIcon className="w-5 h-5 text-background" />
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               <h1 className="text-base font-semibold tracking-tight">
                 Clone from GitHub
               </h1>
@@ -145,7 +145,7 @@ export function SelectRepoPage() {
           </div>
 
           {/* Input */}
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <div className="relative">
               <Input
                 value={githubUrl}
@@ -184,15 +184,15 @@ export function SelectRepoPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
-      <div className="w-full max-w-[440px] space-y-8 px-4">
+      <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header */}
-        <div className="text-center space-y-4">
+        <div className="text-center flex flex-col gap-4">
           <div className="flex items-center justify-center mx-auto w-max">
             <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
               <Logo className="w-6 h-6" fill="white" />
             </div>
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
               Select a repository
             </h1>
@@ -203,7 +203,7 @@ export function SelectRepoPage() {
         </div>
 
         {/* Content */}
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           <button
             onClick={handleOpenFolder}
             disabled={openFolder.isPending}

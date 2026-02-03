@@ -104,7 +104,7 @@ function createMentionNode(option: FileMentionOption): HTMLSpanElement {
   span.setAttribute("data-mention-id", option.id)
   span.setAttribute("data-mention-type", option.type || "file")
   span.className =
-    "inline-flex items-center gap-1 px-[6px] py-[1px] rounded-[4px] text-sm align-middle bg-black/[0.04] dark:bg-white/[0.08] text-foreground/80 [&.mention-selected]:bg-primary/70 [&.mention-selected]:text-primary-foreground"
+    "inline-flex items-center gap-1 px-[6px] py-px rounded-[4px] text-sm align-middle bg-black/4 dark:bg-white/8 text-foreground/80 [&.mention-selected]:bg-primary/70 [&.mention-selected]:text-primary-foreground"
 
   // Create icon element (pass type for folder icon)
   const iconElement = createFileIconElement(option.label, option.type)
@@ -1634,7 +1634,7 @@ export const AgentsMentionsEditor = memo(
             onFocus={onFocus}
             onBlur={onBlur}
             className={cn(
-              "min-h-[24px] outline-none whitespace-pre-wrap break-words text-sm relative",
+              "min-h-[24px] outline-hidden whitespace-pre-wrap wrap-break-word text-sm relative",
               disabled && "opacity-50 cursor-not-allowed",
               className,
             )}

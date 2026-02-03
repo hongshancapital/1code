@@ -40,7 +40,7 @@ export function CollapsedCommitBar({
 	};
 
 	return (
-		<div className="flex flex-col border-t border-border/50 bg-background flex-shrink-0">
+		<div className="flex flex-col border-t border-border/50 bg-background shrink-0">
 			{/* Header trigger row - click to expand/collapse */}
 			<button
 				type="button"
@@ -51,7 +51,7 @@ export function CollapsedCommitBar({
 					"text-left"
 				)}
 			>
-				<ChevronUp className="size-3.5 text-muted-foreground flex-shrink-0" />
+				<ChevronUp className="size-3.5 text-muted-foreground shrink-0" />
 				<span className="text-xs font-medium">Changes</span>
 				<span className="text-xs text-muted-foreground">
 					({fileCount} file{fileCount !== 1 ? "s" : ""})
