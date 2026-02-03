@@ -37,6 +37,7 @@
   "dependencies": {
     "@ai-sdk/react": "^3.0.14",
     "@anthropic-ai/claude-agent-sdk": "0.2.25",
+    "@azure/msal-node": "^5.0.3",
     "@git-diff-view/react": "^0.0.35",
     "@git-diff-view/shiki": "^0.0.36",
     "@modelcontextprotocol/sdk": "^1.25.3",
