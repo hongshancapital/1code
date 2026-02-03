@@ -23,6 +23,7 @@ import {
   OriginalMCPIcon,
   PluginFilledIcon,
   SkillIconFilled,
+  TerminalFilledIcon,
 } from "../../components/ui/icons"
 import { desktopViewAtom } from "../agents/atoms"
 
@@ -92,6 +93,11 @@ const ADVANCED_TABS_BASE = [
     id: "plugins" as SettingsTab,
     label: "Plugins",
     icon: PluginFilledIcon,
+  },
+  {
+    id: "runtime" as SettingsTab,
+    label: "Runtime",
+    icon: TerminalFilledIcon,
   },
 ]
 

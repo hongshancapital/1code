@@ -4,7 +4,7 @@ import { useAtomValue } from "jotai"
 import { selectedProjectAtom, settingsSkillsSidebarWidthAtom } from "../../../features/agents/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { Plus } from "lucide-react"
+import { Plus, FileText, Image, FileCode, File, X } from "lucide-react"
 import { SkillIcon, MarkdownIcon, CodeIcon } from "../../ui/icons"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
@@ -16,28 +16,112 @@ import { ChatMarkdownRenderer } from "../../chat-markdown-renderer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
 import { Switch } from "../../ui/switch"
 import { toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../../ui/dialog"
+
+// Types for skill contents
+interface SkillFile {
+  name: string
+  path: string
+  type: "markdown" | "image" | "code" | "yaml" | "other"
+  size: string
+}
+
+interface SkillDirectory {
+  name: string
+  files: SkillFile[]
+}
+
+interface SkillInterfaceConfig {
+  display_name?: string
+  short_description?: string
+  icon_small?: string
+  icon_large?: string
+  default_prompt?: string
+}
+
+// File type icon component
+function FileTypeIcon({ type, className }: { type: SkillFile["type"]; className?: string }) {
+  switch (type) {
+    case "markdown":
+      return <FileText className={className} />
+    case "image":
+      return <Image className={className} />
+    case "code":
+    case "yaml":
+      return <FileCode className={className} />
+    default:
+      return <File className={className} />
+  }
+}
+
+// Skill icon image component
+function SkillIconImage({
+  skillName,
+  iconType,
+  className,
+  cwd,
+}: {
+  skillName: string
+  iconType: "small" | "large"
+  className?: string
+  cwd?: string
+}) {
+  const { data: iconData } = trpc.skills.getIcon.useQuery(
+    { skillName, iconType, cwd },
+    { staleTime: 1000 * 60 * 5 } // Cache for 5 minutes
+  )
+
+  if (!iconData) return null
+
+  return <img src={iconData} className={className} alt="" />
+}
 
 // --- Detail Panel (Editable) ---
 function SkillDetail({
   skill,
   onSave,
   isSaving,
+  cwd,
 }: {
-  skill: { name: string; description: string; source: "user" | "project" | "plugin" | "builtin"; path: string; content: string }
+  skill: {
+    name: string
+    description: string
+    source: "user" | "project" | "plugin" | "builtin"
+    path: string
+    content: string
+    interface?: SkillInterfaceConfig
+    iconSmallPath?: string
+    iconLargePath?: string
+    contents?: SkillDirectory[]
+  }
   onSave: (data: { description: string; content: string }) => void
   isSaving: boolean
+  cwd?: string
 }) {
   const [description, setDescription] = useState(skill.description)
   const [content, setContent] = useState(skill.content)
   const [viewMode, setViewMode] = useState<"rendered" | "editor">("rendered")
+  const [previewFile, setPreviewFile] = useState<SkillFile | null>(null)
 
   const isReadOnly = skill.source === "builtin" || skill.source === "plugin"
+
+  // Fetch file content for preview
+  const { data: fileContent } = trpc.skills.getFileContent.useQuery(
+    { skillName: skill.name, filePath: previewFile?.path || "", cwd },
+    { enabled: !!previewFile }
+  )
 
   // Reset local state when skill changes
   useEffect(() => {
     setDescription(skill.description)
     setContent(skill.content)
     setViewMode("rendered")
+    setPreviewFile(null)
   }, [skill.name, skill.description, skill.content])
 
   const hasChanges =
@@ -75,9 +159,20 @@ function SkillDetail({
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         {/* Header */}
         <div className="flex items-center gap-3">
+          {/* Skill Icon */}
+          {skill.iconLargePath && (
+            <SkillIconImage
+              skillName={skill.name}
+              iconType="large"
+              className="h-12 w-12 rounded-lg shrink-0 object-cover"
+              cwd={cwd}
+            />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground truncate">{skill.name}</h3>
+              <h3 className="text-sm font-semibold text-foreground truncate">
+                {skill.interface?.display_name || skill.name}
+              </h3>
               {skill.source === "builtin" && (
                 <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
                   BUILT-IN
@@ -189,7 +284,68 @@ function SkillDetail({
             />
           )}
         </div>
+
+        {/* Default Prompt (if available) */}
+        {skill.interface?.default_prompt && (
+          <div className="space-y-1.5">
+            <Label>Default Prompt</Label>
+            <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg text-muted-foreground">
+              {skill.interface.default_prompt}
+            </div>
+          </div>
+        )}
+
+        {/* Skill Contents - Sub-directories */}
+        {skill.contents && skill.contents.length > 0 && (
+          <div className="space-y-3">
+            <Label>Contents</Label>
+            {skill.contents.map((dir) => (
+              <div key={dir.name} className="space-y-1.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {dir.name}/
+                </p>
+                <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
+                  {dir.files.map((file) => (
+                    <div
+                      key={file.path}
+                      onClick={() => setPreviewFile(file)}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <FileTypeIcon type={file.type} className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm flex-1 truncate">{file.name}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{file.size}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* File Preview Dialog */}
+      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-sm font-medium">{previewFile?.name}</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto min-h-0">
+            {fileContent && "error" in fileContent ? (
+              <p className="text-sm text-muted-foreground">{fileContent.error}</p>
+            ) : fileContent?.type === "image" ? (
+              <img src={fileContent.dataUrl} className="max-w-full rounded" alt={previewFile?.name} />
+            ) : fileContent?.type === "markdown" ? (
+              <ChatMarkdownRenderer content={fileContent.content || ""} size="sm" />
+            ) : (
+              <pre className="text-xs font-mono whitespace-pre-wrap p-3 bg-muted/30 rounded-lg overflow-auto">
+                {fileContent?.content || ""}
+              </pre>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -475,6 +631,7 @@ export function AgentsSkillsTab() {
                       {userSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
+                        const displayName = skill.interface?.display_name || skill.name
                         return (
                           <div
                             key={skill.name}
@@ -489,7 +646,15 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              {skill.iconSmallPath && (
+                                <SkillIconImage
+                                  skillName={skill.name}
+                                  iconType="small"
+                                  className="h-4 w-4 rounded shrink-0"
+                                  cwd={selectedProject?.path}
+                                />
+                              )}
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
                                 onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
@@ -519,6 +684,7 @@ export function AgentsSkillsTab() {
                       {projectSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
+                        const displayName = skill.interface?.display_name || skill.name
                         return (
                           <div
                             key={skill.name}
@@ -533,7 +699,15 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              {skill.iconSmallPath && (
+                                <SkillIconImage
+                                  skillName={skill.name}
+                                  iconType="small"
+                                  className="h-4 w-4 rounded shrink-0"
+                                  cwd={selectedProject?.path}
+                                />
+                              )}
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
                                 onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
@@ -563,6 +737,7 @@ export function AgentsSkillsTab() {
                       {pluginSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
+                        const displayName = skill.interface?.display_name || skill.name
                         return (
                           <div
                             key={skill.name}
@@ -577,7 +752,15 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              {skill.iconSmallPath && (
+                                <SkillIconImage
+                                  skillName={skill.name}
+                                  iconType="small"
+                                  className="h-4 w-4 rounded shrink-0"
+                                  cwd={selectedProject?.path}
+                                />
+                              )}
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
                                 onCheckedChange={(checked) => handleToggleSkillEnabled(skill.name, checked)}
@@ -607,6 +790,7 @@ export function AgentsSkillsTab() {
                       {builtinSkills.map((skill) => {
                         const isSelected = selectedSkillName === skill.name
                         const enabled = isSkillEnabled(skill.name)
+                        const displayName = skill.interface?.display_name || skill.name
                         return (
                           <div
                             key={skill.name}
@@ -621,7 +805,15 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{skill.name}</span>
+                              {skill.iconSmallPath && (
+                                <SkillIconImage
+                                  skillName={skill.name}
+                                  iconType="small"
+                                  className="h-4 w-4 rounded shrink-0"
+                                  cwd={selectedProject?.path}
+                                />
+                              )}
+                              <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
                                 BUILT-IN
                               </span>
@@ -664,6 +856,7 @@ export function AgentsSkillsTab() {
             skill={selectedSkill}
             onSave={(data) => handleSave(selectedSkill, data)}
             isSaving={updateMutation.isPending}
+            cwd={selectedProject?.path}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
