@@ -4,9 +4,33 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
+import YAML from "yaml"
 import { app } from "electron"
 import { getMergedSettings, getEnabledPlugins } from "./claude-settings"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
+
+// Interface configuration from hong.yaml
+export interface SkillInterfaceConfig {
+  display_name?: string
+  short_description?: string
+  icon_small?: string    // Relative path, e.g., "./assets/icon-small.svg"
+  icon_large?: string
+  default_prompt?: string
+}
+
+// File info for skill contents
+export interface SkillFile {
+  name: string
+  path: string           // Relative to skill directory
+  type: "markdown" | "image" | "code" | "yaml" | "other"
+  size: string           // Formatted file size
+}
+
+// Directory containing files
+export interface SkillDirectory {
+  name: string           // Directory name, e.g., "guides", "assets"
+  files: SkillFile[]
+}
 
 export interface FileSkill {
   name: string
@@ -15,6 +39,12 @@ export interface FileSkill {
   pluginName?: string
   path: string
   content: string
+  // New fields from hong.yaml
+  interface?: SkillInterfaceConfig
+  iconSmallPath?: string   // Resolved absolute path
+  iconLargePath?: string
+  skillDir?: string        // Absolute path to skill directory (for file operations)
+  contents?: SkillDirectory[]  // Sub-directory contents
 }
 
 /**
@@ -32,6 +62,102 @@ function parseSkillMd(rawContent: string): { name?: string; description?: string
     console.error("[skills] Failed to parse frontmatter:", err)
     return { content: rawContent.trim() }
   }
+}
+
+/**
+ * Parse hong.yaml to extract interface configuration
+ */
+async function parseHongYaml(skillDir: string): Promise<SkillInterfaceConfig | undefined> {
+  const hongYamlPath = path.join(skillDir, "agents", "hong.yaml")
+  try {
+    const content = await fs.readFile(hongYamlPath, "utf-8")
+    const parsed = YAML.parse(content)
+    return parsed?.interface as SkillInterfaceConfig | undefined
+  } catch {
+    // hong.yaml doesn't exist or parse failed - ignore
+    return undefined
+  }
+}
+
+/**
+ * Format file size for display
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/**
+ * Determine file type from extension
+ */
+function getFileType(filename: string): SkillFile["type"] {
+  const ext = path.extname(filename).toLowerCase()
+  const imageExts = [".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico"]
+  const codeExts = [".js", ".ts", ".py", ".sh", ".bash", ".json", ".tsx", ".jsx", ".css", ".html"]
+  const yamlExts = [".yaml", ".yml"]
+
+  if (ext === ".md" || ext === ".markdown") return "markdown"
+  if (imageExts.includes(ext)) return "image"
+  if (codeExts.includes(ext)) return "code"
+  if (yamlExts.includes(ext)) return "yaml"
+  return "other"
+}
+
+/**
+ * Scan skill directory for sub-directories and their files
+ * Excludes SKILL.md and agents/ directory (handled separately)
+ */
+async function scanSkillContents(skillDir: string): Promise<SkillDirectory[]> {
+  const directories: SkillDirectory[] = []
+
+  try {
+    const entries = await fs.readdir(skillDir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      // Skip non-directories, agents/ (handled separately), and hidden files
+      if (!entry.isDirectory()) continue
+      if (entry.name === "agents" || entry.name.startsWith(".")) continue
+
+      const dirPath = path.join(skillDir, entry.name)
+      const files: SkillFile[] = []
+
+      try {
+        const fileEntries = await fs.readdir(dirPath, { withFileTypes: true })
+
+        for (const fileEntry of fileEntries) {
+          if (!fileEntry.isFile()) continue
+          if (fileEntry.name.startsWith(".")) continue
+
+          const filePath = path.join(dirPath, fileEntry.name)
+          try {
+            const stat = await fs.stat(filePath)
+            files.push({
+              name: fileEntry.name,
+              path: path.join(entry.name, fileEntry.name),
+              type: getFileType(fileEntry.name),
+              size: formatFileSize(stat.size),
+            })
+          } catch {
+            // Skip files we can't stat
+          }
+        }
+      } catch {
+        // Skip directories we can't read
+      }
+
+      if (files.length > 0) {
+        directories.push({
+          name: entry.name,
+          files: files.sort((a, b) => a.name.localeCompare(b.name)),
+        })
+      }
+    }
+  } catch {
+    // Return empty if we can't read the directory
+  }
+
+  return directories.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -214,6 +340,22 @@ async function scanSkillsDirectory(
         const content = await fs.readFile(skillMdPath, "utf-8")
         const parsed = parseSkillMd(content)
 
+        // Parse hong.yaml for interface configuration
+        const interfaceConfig = await parseHongYaml(skillDir)
+
+        // Resolve icon paths
+        let iconSmallPath: string | undefined
+        let iconLargePath: string | undefined
+        if (interfaceConfig?.icon_small) {
+          iconSmallPath = path.resolve(skillDir, interfaceConfig.icon_small)
+        }
+        if (interfaceConfig?.icon_large) {
+          iconLargePath = path.resolve(skillDir, interfaceConfig.icon_large)
+        }
+
+        // Scan sub-directories for contents
+        const contents = await scanSkillContents(skillDir)
+
         // For project skills, show relative path; for user skills, show ~/.claude/... path
         let displayPath: string
         if (source === "project" && basePath) {
@@ -231,12 +373,20 @@ async function scanSkillsDirectory(
           ? `builtin-${parsed.name || entry.name}`
           : (parsed.name || entry.name)
 
+        // Use interface short_description if available, fall back to SKILL.md description
+        const description = interfaceConfig?.short_description || parsed.description || ""
+
         skills.push({
           name: skillName,
-          description: parsed.description || "",
+          description,
           source,
           path: displayPath,
           content: parsed.content,
+          interface: interfaceConfig,
+          iconSmallPath,
+          iconLargePath,
+          skillDir,
+          contents,
         })
       } catch (err) {
         // Skill directory doesn't have SKILL.md or read failed - skip it
@@ -477,5 +627,167 @@ export const skillsRouter = router({
       await fs.writeFile(absolutePath, fileContent, "utf-8")
 
       return { success: true }
+    }),
+
+  /**
+   * Get skill icon as data URL
+   */
+  getIcon: publicProcedure
+    .input(
+      z.object({
+        skillName: z.string(),
+        iconType: z.enum(["small", "large"]),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      // Find the skill to get its icon path
+      const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
+      const builtinSkillsDir = getBuiltinSkillsPath()
+
+      const allSkillDirs: { dir: string; source: "user" | "builtin" | "project" }[] = [
+        { dir: userSkillsDir, source: "user" },
+        { dir: builtinSkillsDir, source: "builtin" },
+      ]
+
+      if (input.cwd) {
+        allSkillDirs.unshift({ dir: path.join(input.cwd, ".claude", "skills"), source: "project" })
+      }
+
+      for (const { dir, source } of allSkillDirs) {
+        // For builtin skills, strip the "builtin-" prefix
+        const dirName = source === "builtin" && input.skillName.startsWith("builtin-")
+          ? input.skillName.replace("builtin-", "")
+          : input.skillName
+
+        const skillDir = path.join(dir, dirName)
+        const interfaceConfig = await parseHongYaml(skillDir)
+
+        const iconPath = input.iconType === "small"
+          ? interfaceConfig?.icon_small
+          : interfaceConfig?.icon_large
+
+        if (!iconPath) continue
+
+        const absoluteIconPath = path.resolve(skillDir, iconPath)
+
+        try {
+          await fs.access(absoluteIconPath)
+          const ext = path.extname(absoluteIconPath).toLowerCase()
+          const content = await fs.readFile(absoluteIconPath)
+
+          // Determine MIME type
+          let mimeType: string
+          if (ext === ".svg") {
+            mimeType = "image/svg+xml"
+          } else if (ext === ".png") {
+            mimeType = "image/png"
+          } else if (ext === ".jpg" || ext === ".jpeg") {
+            mimeType = "image/jpeg"
+          } else if (ext === ".gif") {
+            mimeType = "image/gif"
+          } else if (ext === ".webp") {
+            mimeType = "image/webp"
+          } else {
+            mimeType = "application/octet-stream"
+          }
+
+          // Return as data URL
+          const base64 = content.toString("base64")
+          return `data:${mimeType};base64,${base64}`
+        } catch {
+          continue
+        }
+      }
+
+      return null
+    }),
+
+  /**
+   * Get file content from a skill's sub-directory
+   */
+  getFileContent: publicProcedure
+    .input(
+      z.object({
+        skillName: z.string(),
+        filePath: z.string(),  // Relative to skill directory
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      // Security: validate filePath doesn't escape skill directory
+      if (input.filePath.includes("..") || path.isAbsolute(input.filePath)) {
+        throw new Error("Invalid file path")
+      }
+
+      // Find the skill directory
+      const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
+      const builtinSkillsDir = getBuiltinSkillsPath()
+
+      const allSkillDirs: { dir: string; source: "user" | "builtin" | "project" }[] = [
+        { dir: userSkillsDir, source: "user" },
+        { dir: builtinSkillsDir, source: "builtin" },
+      ]
+
+      if (input.cwd) {
+        allSkillDirs.unshift({ dir: path.join(input.cwd, ".claude", "skills"), source: "project" })
+      }
+
+      for (const { dir, source } of allSkillDirs) {
+        // For builtin skills, strip the "builtin-" prefix
+        const dirName = source === "builtin" && input.skillName.startsWith("builtin-")
+          ? input.skillName.replace("builtin-", "")
+          : input.skillName
+
+        const skillDir = path.join(dir, dirName)
+        const absoluteFilePath = path.join(skillDir, input.filePath)
+
+        // Verify the resolved path is still within skill directory
+        const resolvedPath = path.resolve(absoluteFilePath)
+        const resolvedSkillDir = path.resolve(skillDir)
+        if (!resolvedPath.startsWith(resolvedSkillDir)) {
+          throw new Error("Invalid file path")
+        }
+
+        try {
+          const stat = await fs.stat(absoluteFilePath)
+
+          // Limit file size to 1MB
+          if (stat.size > 1024 * 1024) {
+            return { error: "File too large to preview" }
+          }
+
+          const ext = path.extname(input.filePath).toLowerCase()
+          const fileType = getFileType(input.filePath)
+
+          if (fileType === "image") {
+            // Return as data URL for images
+            const content = await fs.readFile(absoluteFilePath)
+            let mimeType = "application/octet-stream"
+            if (ext === ".svg") mimeType = "image/svg+xml"
+            else if (ext === ".png") mimeType = "image/png"
+            else if (ext === ".jpg" || ext === ".jpeg") mimeType = "image/jpeg"
+            else if (ext === ".gif") mimeType = "image/gif"
+            else if (ext === ".webp") mimeType = "image/webp"
+
+            const base64 = content.toString("base64")
+            return {
+              type: "image" as const,
+              dataUrl: `data:${mimeType};base64,${base64}`,
+            }
+          } else {
+            // Return text content for other files
+            const content = await fs.readFile(absoluteFilePath, "utf-8")
+            return {
+              type: fileType,
+              content,
+            }
+          }
+        } catch {
+          continue
+        }
+      }
+
+      return { error: "File not found" }
     }),
 })
