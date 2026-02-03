@@ -18,6 +18,7 @@ import {
   undoStackAtom,
   subChatModeAtomFamily,
   suppressInputFocusAtom,
+  currentProjectModeAtom,
   type UndoItem,
 } from "../agents/atoms"
 import {
@@ -123,7 +124,7 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
 
     return (
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="shrink-0 w-4 h-4 flex items-center justify-center relative">
+        <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center relative">
           {hasPendingQuestion ? (
             <QuestionIcon className="w-4 h-4 text-blue-500" />
           ) : isLoading ? (
@@ -170,7 +171,7 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
+                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
                 disabled={allSubChatsLength === 0}
               >
                 <ClockIcon className="h-4 w-4" />
@@ -268,6 +269,8 @@ export function AgentsSubChatsSidebar({
   const [justCreatedIds, setJustCreatedIds] = useAtom(justCreatedIdsAtom)
   const pendingQuestionsMap = useAtomValue(pendingUserQuestionsAtom)
   const defaultAgentMode = useAtomValue(defaultAgentModeAtom)
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
 
   // Pending plan approvals from DB - only for open sub-chats
   const { data: pendingPlanApprovalsData } = trpc.chats.getPendingPlanApprovals.useQuery(
@@ -992,7 +995,7 @@ export function AgentsSubChatsSidebar({
             size="icon"
             onClick={onClose}
             tabIndex={-1}
-            className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
+            className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex-shrink-0 rounded-md"
             aria-label="Close sidebar"
           >
             <IconDoubleChevronLeft className="h-4 w-4" />
@@ -1036,8 +1039,8 @@ export function AgentsSubChatsSidebar({
       )}
 
       {/* Header */}
-      <div className="p-2 pb-3 shrink-0 relative z-10">
-        <div className="flex flex-col gap-2">
+      <div className="p-2 pb-3 flex-shrink-0 relative z-10">
+        <div className="space-y-2">
           {/* Top row - different layout based on agents sidebar state */}
           {isSidebarOpen ? (
             <div className="h-6" />
@@ -1051,7 +1054,7 @@ export function AgentsSubChatsSidebar({
                       size="icon"
                       onClick={onBackToChats}
                       tabIndex={-1}
-                      className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
+                      className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md"
                       aria-label="Toggle agents sidebar"
                       style={{
                         WebkitAppRegion: "no-drag",
@@ -1169,12 +1172,12 @@ export function AgentsSubChatsSidebar({
           <>
             {/* Top gradient */}
             {showTopGradient && (
-              <div className="absolute left-0 right-0 top-0 h-8 bg-linear-to-b from-background to-transparent pointer-events-none z-10" />
+              <div className="absolute left-0 right-0 top-0 h-8 bg-gradient-to-b from-background to-transparent pointer-events-none z-10" />
             )}
 
             {/* Bottom gradient */}
             {showBottomGradient && (
-              <div className="absolute left-0 right-0 bottom-0 h-8 bg-linear-to-t from-background to-transparent pointer-events-none z-10" />
+              <div className="absolute left-0 right-0 bottom-0 h-8 bg-gradient-to-t from-background to-transparent pointer-events-none z-10" />
             )}
 
             <div
@@ -1299,7 +1302,7 @@ export function AgentsSubChatsSidebar({
                                   }}
                                   className={cn(
                                     "w-full text-left py-1.5 transition-colors duration-75 cursor-pointer group relative",
-                                    "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
+                                    "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
                                     isMultiSelectMode ? "px-3" : "pl-2 pr-2",
                                     isMultiSelectMode ? "" : "rounded-md",
                                     isActive
@@ -1313,7 +1316,7 @@ export function AgentsSubChatsSidebar({
                                 >
                                   <div className="flex items-start gap-2.5">
                                     {/* Icon/Checkbox container */}
-                                    <div className="pt-0.5 shrink-0 w-4 h-4 flex items-center justify-center relative">
+                                    <div className="pt-0.5 flex-shrink-0 w-4 h-4 flex items-center justify-center relative">
                                       {/* Checkbox - shown in multi-select mode */}
                                       <div
                                         className={cn(
@@ -1398,7 +1401,7 @@ export function AgentsSubChatsSidebar({
                                               handleArchiveSubChat(subChat.id)
                                             }}
                                             tabIndex={-1}
-                                            className="shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
+                                            className="flex-shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
                                             aria-label="Archive agent"
                                           >
                                             <ArchiveIcon className="h-3.5 w-3.5" />
@@ -1423,8 +1426,9 @@ export function AgentsSubChatsSidebar({
                                             ) : null}
                                           </span>
                                         )}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          {!draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                          {/* Only show line stats in Coding mode */}
+                                          {isCodingMode && !draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
                                             <>
                                               <span className="text-green-600 dark:text-green-400">
                                                 +{stats.additions}
@@ -1599,7 +1603,7 @@ export function AgentsSubChatsSidebar({
                                   }}
                                   className={cn(
                                     "w-full text-left py-1.5 transition-colors duration-75 cursor-pointer group relative",
-                                    "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
+                                    "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
                                     isMultiSelectMode ? "px-3" : "pl-2 pr-2",
                                     isMultiSelectMode ? "" : "rounded-md",
                                     isActive
@@ -1613,7 +1617,7 @@ export function AgentsSubChatsSidebar({
                                 >
                                   <div className="flex items-start gap-2.5">
                                     {/* Icon/Checkbox container */}
-                                    <div className="pt-0.5 shrink-0 w-4 h-4 flex items-center justify-center relative">
+                                    <div className="pt-0.5 flex-shrink-0 w-4 h-4 flex items-center justify-center relative">
                                       {/* Checkbox - shown in multi-select mode */}
                                       <div
                                         className={cn(
@@ -1698,7 +1702,7 @@ export function AgentsSubChatsSidebar({
                                               handleArchiveSubChat(subChat.id)
                                             }}
                                             tabIndex={-1}
-                                            className="shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
+                                            className="flex-shrink-0 text-muted-foreground hover:text-foreground active:text-foreground transition-[opacity,transform,color] duration-150 ease-out opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto active:scale-[0.97]"
                                             aria-label="Archive agent"
                                           >
                                             <ArchiveIcon className="h-3.5 w-3.5" />
@@ -1723,8 +1727,9 @@ export function AgentsSubChatsSidebar({
                                             ) : null}
                                           </span>
                                         )}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          {!draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                          {/* Only show line stats in Coding mode */}
+                                          {isCodingMode && !draftText && stats && (stats.additions > 0 || stats.deletions > 0) && (
                                             <>
                                               <span className="text-green-600 dark:text-green-400">
                                                 +{stats.additions}
@@ -1814,7 +1819,7 @@ export function AgentsSubChatsSidebar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0 }}
-            className="flex flex-col-shrink-0 p-2 bg-background gap-2 relative z-10"
+            className="flex-shrink-0 p-2 bg-background space-y-2 relative z-10"
             style={{
               WebkitAppRegion: "no-drag",
             }}
@@ -1896,7 +1901,7 @@ export function AgentsSubChatsSidebar({
         createPortal(
           <div
             ref={tooltipRef}
-            className="fixed z-100000 max-w-xs px-2 py-1 text-xs bg-popover border border-border rounded-md shadow-lg pointer-events-none text-foreground/90 whitespace-nowrap"
+            className="fixed z-[100000] max-w-xs px-2 py-1 text-xs bg-popover border border-border rounded-md shadow-lg pointer-events-none text-foreground/90 whitespace-nowrap"
             style={{
               display: "none",
               transform: "translateY(-50%)",

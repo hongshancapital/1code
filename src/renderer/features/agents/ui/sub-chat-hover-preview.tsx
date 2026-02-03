@@ -1,4 +1,5 @@
 import { memo, useState } from "react"
+import { useAtomValue } from "jotai"
 import {
   HoverCard,
   HoverCardContent,
@@ -6,6 +7,7 @@ import {
 } from "../../../components/ui/hover-card"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
+import { currentProjectModeAtom } from "../atoms"
 
 interface UserInputSummary {
   messageId: string
@@ -35,6 +37,8 @@ interface InputItemProps {
 
 const InputItem = memo(function InputItem({ input, onClick }: InputItemProps) {
   const isPlan = input.mode === "plan"
+  const projectMode = useAtomValue(currentProjectModeAtom)
+  const isCodingMode = projectMode === "coding"
 
   return (
     <button
@@ -57,7 +61,8 @@ const InputItem = memo(function InputItem({ input, onClick }: InputItemProps) {
           {input.fileCount > 0 ? (
             <>
               <span>{input.fileCount} file{input.fileCount > 1 ? "s" : ""}</span>
-              {(input.additions > 0 || input.deletions > 0) && (
+              {/* Only show line stats in Coding mode */}
+              {isCodingMode && (input.additions > 0 || input.deletions > 0) && (
                 <>
                   <span className="text-green-600 dark:text-green-400">+{input.additions}</span>
                   <span className="text-red-600 dark:text-red-400">-{input.deletions}</span>
@@ -115,32 +120,31 @@ export function SubChatHoverPreview({
   return (
     <HoverCard openDelay={300} closeDelay={100} open={open} onOpenChange={setOpen}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent
-        side={side}
-        align={align}
-        sideOffset={8}
-        className="w-[280px] max-h-[240px] p-0 overflow-hidden"
-      >
-        {isLoading ? (
-          <div className="p-4 flex items-center justify-center">
-            <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-          </div>
-        ) : !data || data.inputs.length === 0 ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            No inputs yet
-          </div>
-        ) : (
-          <div className="overflow-y-auto max-h-[240px]">
-            {data.inputs.map((input) => (
-              <InputItem
-                key={input.messageId}
-                input={input}
-                onClick={() => handleInputClick(input.messageId)}
-              />
-            ))}
-          </div>
-        )}
-      </HoverCardContent>
+      {/* 只有在加载中或有内容时才显示弹出层 */}
+      {(isLoading || (data && data.inputs.length > 0)) && (
+        <HoverCardContent
+          side={side}
+          align={align}
+          sideOffset={8}
+          className="w-[280px] max-h-[240px] p-0 overflow-hidden"
+        >
+          {isLoading ? (
+            <div className="p-4 flex items-center justify-center">
+              <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="overflow-y-auto max-h-[240px]">
+              {data!.inputs.map((input) => (
+                <InputItem
+                  key={input.messageId}
+                  input={input}
+                  onClick={() => handleInputClick(input.messageId)}
+                />
+              ))}
+            </div>
+          )}
+        </HoverCardContent>
+      )}
     </HoverCard>
   )
 }

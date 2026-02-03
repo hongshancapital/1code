@@ -273,10 +273,10 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
         activeEl instanceof HTMLTextAreaElement ||
         activeEl?.getAttribute("contenteditable") === "true"
       ) {
-        // Only handle Enter in input to submit custom answer
-        if (e.key === "Enter" && activeEl === customInputRef.current) {
+        // Block all Enter in input, only Cmd/Ctrl+Enter submits
+        if (e.key === "Enter") {
           e.preventDefault()
-          if (currentQuestionHasAnswer) {
+          if ((e.metaKey || e.ctrlKey) && activeEl === customInputRef.current && allQuestionsAnswered) {
             handleContinue()
           }
         }
@@ -303,14 +303,19 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
         }
       } else if (e.key === "Enter") {
         e.preventDefault()
-        if (currentQuestionHasAnswer) {
+        // Cmd/Ctrl+Enter to submit final answer
+        if ((e.metaKey || e.ctrlKey) && allQuestionsAnswered) {
           handleContinue()
-        } else if (currentOptions[focusedOptionIndex]) {
+        } else if (!currentQuestionHasAnswer && currentOptions[focusedOptionIndex]) {
+          // Plain Enter only selects focused option when no answer yet
           handleOptionClick(
             currentQuestion.question,
             currentOptions[focusedOptionIndex].label,
             currentQuestionIndex,
           )
+        } else if (currentQuestionHasAnswer && !isLastQuestion) {
+          // Plain Enter advances to next question (not submit)
+          handleContinue()
         }
       } else if (e.key >= "1" && e.key <= "9") {
         const numberIndex = parseInt(e.key, 10) - 1
@@ -335,6 +340,8 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     focusedOptionIndex,
     handleOptionClick,
     currentQuestionHasAnswer,
+    allQuestionsAnswered,
+    isLastQuestion,
     handleContinue,
     questions,
     isSubmitting,

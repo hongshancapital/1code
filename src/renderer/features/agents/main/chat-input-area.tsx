@@ -50,6 +50,8 @@ import {
   normalizeCustomClaudeConfig,
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
+  overrideModelModeAtom,
+  litellmSelectedModelAtom,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
@@ -63,6 +65,7 @@ import {
   clearSubChatDraft,
   saveSubChatDraftWithAttachments,
 } from "../lib/drafts"
+import { useInputHistory } from "../hooks/use-input-history"
 import { CLAUDE_MODELS } from "../lib/models"
 import type { DiffTextContext, SelectedTextContext } from "../lib/queue-utils"
 import {
@@ -432,6 +435,10 @@ export const ChatInputArea = memo(function ChatInputArea({
     normalizeCustomClaudeConfig(customClaudeConfig)
   const hasCustomClaudeConfig = Boolean(normalizedCustomClaudeConfig)
 
+  // Override model mode (LiteLLM or Custom)
+  const overrideMode = useAtomValue(overrideModelModeAtom)
+  const litellmSelectedModel = useAtomValue(litellmSelectedModelAtom)
+
   // Determine current Ollama model (selected or recommended)
   const currentOllamaModel = selectedOllamaModel || availableModels.recommendedModel || availableModels.ollamaModels[0]
 
@@ -529,6 +536,9 @@ export const ChatInputArea = memo(function ChatInputArea({
   } = useVoiceRecording()
   const [isTranscribing, setIsTranscribing] = useState(false)
   const voiceMountedRef = useRef(true)
+
+  // Input history navigation (ArrowUp/ArrowDown like terminal)
+  const { getHistoryUp, getHistoryDown, resetHistory } = useInputHistory()
 
   useEffect(() => {
     voiceMountedRef.current = true
@@ -809,7 +819,9 @@ export const ChatInputArea = memo(function ChatInputArea({
     } else {
       onSend()
     }
-  }, [editorRef, images, files, textContexts, diffTextContexts, queueLength, onSendFromQueue, firstQueueItemId, onStop, onSend])
+    // Reset input history navigation after sending
+    resetHistory()
+  }, [editorRef, images, files, textContexts, diffTextContexts, queueLength, onSendFromQueue, firstQueueItemId, onStop, onSend, resetHistory])
 
   // Mention select handler
   const handleMentionSelect = useCallback((mention: FileMentionOption) => {
@@ -1169,24 +1181,12 @@ export const ChatInputArea = memo(function ChatInputArea({
                   onPaste={handlePaste}
                   onFocus={() => setIsFocused(true)}
                   onBlur={handleEditorBlur}
+                  onHistoryUp={getHistoryUp}
+                  onHistoryDown={getHistoryDown}
                 />
               </div>
               <PromptInputActions className="w-full">
                 <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                  {/* Custom model indicator - shown at far left when custom config is set */}
-                  {hasCustomClaudeConfig && normalizedCustomClaudeConfig && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center px-1.5 py-1 rounded-md bg-muted/50 mr-1">
-                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        {normalizedCustomClaudeConfig.model}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-
                   {/* Mode toggle (Agent/Plan) */}
                   <DropdownMenu
                     open={modeDropdownOpen}
@@ -1401,8 +1401,46 @@ export const ChatInputArea = memo(function ChatInputArea({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  ) : !hasCustomClaudeConfig ? (
-                    // Online mode: show Claude model selector (only when no custom config)
+                  ) : overrideMode === "litellm" ? (
+                    // LiteLLM mode: show LiteLLM indicator with tooltip
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                          onClick={() => {
+                            setSettingsTab("models")
+                            setSettingsOpen(true)
+                          }}
+                        >
+                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">LiteLLM</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">{litellmSelectedModel || "No model selected"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : overrideMode === "custom" && hasCustomClaudeConfig ? (
+                    // Custom mode: show Custom indicator with tooltip
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+                          onClick={() => {
+                            setSettingsTab("models")
+                            setSettingsOpen(true)
+                          }}
+                        >
+                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">Custom</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">{normalizedCustomClaudeConfig?.model || "No model configured"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    // Default: show Claude model selector
                     <DropdownMenu
                       open={isModelDropdownOpen}
                       onOpenChange={setIsModelDropdownOpen}
@@ -1461,7 +1499,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                         </div>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  ) : null}
+                  )}
 
                 </div>
 

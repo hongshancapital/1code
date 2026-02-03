@@ -195,7 +195,7 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
         }}
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? "Collapse" : "Expand"} status details`}
-        className="flex items-center justify-between pr-1 pl-3 h-8 cursor-pointer hover:bg-muted/50 transition-colors duration-150 focus:outline-hidden rounded-sm"
+        className="flex items-center justify-between pr-1 pl-3 h-8 cursor-pointer hover:bg-muted/50 transition-colors duration-150 focus:outline-none rounded-sm"
       >
         <div className="flex items-center gap-2 text-xs flex-1 min-w-0">
           {/* Expand/Collapse chevron - always show */}
@@ -217,7 +217,8 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
           {!isStreaming && (
             <span className="text-xs text-muted-foreground">
               {totals.fileCount} {totals.fileCount === 1 ? "file" : "files"}
-              {(totals.additions > 0 || totals.deletions > 0) && (
+              {/* Only show line stats in Coding mode */}
+              {isCodingMode && (totals.additions > 0 || totals.deletions > 0) && (
                 <>
                   {" "}
                   <span className="text-green-600 dark:text-green-400">
@@ -233,7 +234,7 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
         </div>
 
         {/* Right side: buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Stop button */}
           {isStreaming && onStop && (
             <Button
@@ -313,20 +314,25 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
                     onClick={handleFileClick}
                     onKeyDown={handleKeyDown}
                     aria-label={`View diff for ${file.displayPath}`}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors cursor-pointer focus:outline-hidden rounded-sm"
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors cursor-pointer focus:outline-none rounded-sm"
                   >
                     {FileIcon && (
-                      <FileIcon className="w-4 h-4 shrink-0 text-muted-foreground" />
+                      <FileIcon className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
                     )}
                     <span className="truncate flex-1 text-foreground">
                       {file.displayPath}
                     </span>
-                    <span className="shrink-0 text-green-600 dark:text-green-400">
-                      +{file.additions}
-                    </span>
-                    <span className="shrink-0 text-red-600 dark:text-red-400">
-                      -{file.deletions}
-                    </span>
+                    {/* Only show line stats in Coding mode */}
+                    {isCodingMode && (
+                      <>
+                        <span className="flex-shrink-0 text-green-600 dark:text-green-400">
+                          +{file.additions}
+                        </span>
+                        <span className="flex-shrink-0 text-red-600 dark:text-red-400">
+                          -{file.deletions}
+                        </span>
+                      </>
+                    )}
                   </div>
                 )
               })}

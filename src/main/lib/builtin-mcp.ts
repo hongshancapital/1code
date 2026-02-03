@@ -6,7 +6,7 @@
  * on each SDK call to ensure it's always fresh (auto-refreshed if needed).
  */
 
-import type { AuthManager } from "../auth-manager"
+import { type AuthManager, getAzureAuthHeaders } from "../auth-manager"
 import { getEnv, getApiOrigin } from "./env"
 
 // API base URL from validated environment
@@ -65,6 +65,8 @@ export async function getBuiltinMcpConfig(
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-site",
+      // Azure AD authentication header
+      ...getAzureAuthHeaders(),
     },
     _builtin: true,
   }

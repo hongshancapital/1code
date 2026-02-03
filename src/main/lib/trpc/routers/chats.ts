@@ -37,22 +37,128 @@ function getFallbackName(userMessage: string): string {
 export const chatsRouter = router({
   /**
    * List all non-archived chats (optionally filter by project)
+   * By default excludes playground chats - use includePlayground: true to include them
    */
   list: publicProcedure
-    .input(z.object({ projectId: z.string().optional() }))
+    .input(z.object({
+      projectId: z.string().optional(),
+      includePlayground: z.boolean().default(false),
+    }).optional())
     .query(({ input }) => {
       const db = getDatabase()
-      const conditions = [isNull(chats.archivedAt)]
-      if (input.projectId) {
-        conditions.push(eq(chats.projectId, input.projectId))
-      }
-      return db
-        .select()
+
+      // Get all chats with their project info
+      const allChats = db
+        .select({
+          chat: chats,
+          isPlayground: projects.isPlayground,
+        })
         .from(chats)
-        .where(and(...conditions))
+        .leftJoin(projects, eq(chats.projectId, projects.id))
+        .where(isNull(chats.archivedAt))
         .orderBy(desc(chats.updatedAt))
         .all()
+
+      // Filter by projectId if specified
+      let filtered = allChats
+      if (input?.projectId) {
+        filtered = filtered.filter((r) => r.chat.projectId === input.projectId)
+      }
+
+      // Exclude playground chats unless explicitly requested
+      if (!input?.includePlayground) {
+        filtered = filtered.filter((r) => !r.isPlayground)
+      }
+
+      return filtered.map((r) => r.chat)
     }),
+
+  /**
+   * List only playground (chat mode) sub-chats
+   * Returns sub-chats from the single playground chat
+   */
+  listPlayground: publicProcedure.query(() => {
+    const db = getDatabase()
+
+    // Get playground project first
+    const playground = db
+      .select()
+      .from(projects)
+      .where(eq(projects.isPlayground, true))
+      .get()
+
+    if (!playground) {
+      return []
+    }
+
+    // Get the single playground chat
+    const playgroundChat = db
+      .select()
+      .from(chats)
+      .where(and(
+        eq(chats.projectId, playground.id),
+        isNull(chats.archivedAt),
+      ))
+      .get()
+
+    if (!playgroundChat) {
+      return []
+    }
+
+    // Return sub-chats from the playground chat
+    return db
+      .select()
+      .from(subChats)
+      .where(eq(subChats.chatId, playgroundChat.id))
+      .orderBy(desc(subChats.updatedAt))
+      .all()
+  }),
+
+  /**
+   * Get or create the single playground chat for chat mode
+   * All chat mode conversations are sub-chats under this single chat
+   */
+  getOrCreatePlaygroundChat: publicProcedure.mutation(async () => {
+    const db = getDatabase()
+
+    // Get playground project first
+    const playground = db
+      .select()
+      .from(projects)
+      .where(eq(projects.isPlayground, true))
+      .get()
+
+    if (!playground) {
+      throw new Error("Playground project not found. Create it first with projects.getOrCreatePlayground")
+    }
+
+    // Check if playground chat already exists
+    const existingChat = db
+      .select()
+      .from(chats)
+      .where(and(
+        eq(chats.projectId, playground.id),
+        isNull(chats.archivedAt),
+      ))
+      .get()
+
+    if (existingChat) {
+      return existingChat
+    }
+
+    // Create the single playground chat
+    const playgroundChat = db
+      .insert(chats)
+      .values({
+        name: "Chat Playground",
+        projectId: playground.id,
+        worktreePath: playground.path,
+      })
+      .returning()
+      .get()
+
+    return playgroundChat
+  }),
 
   /**
    * List archived chats (optionally filter by project)
@@ -497,17 +603,51 @@ export const chatsRouter = router({
         chatId: z.string(),
         name: z.string().optional(),
         mode: z.enum(["plan", "agent"]).default("agent"),
+        initialMessageParts: z
+          .array(
+            z.union([
+              z.object({ type: z.literal("text"), text: z.string() }),
+              z.object({
+                type: z.literal("data-image"),
+                data: z.object({
+                  url: z.string(),
+                  mediaType: z.string().optional(),
+                  filename: z.string().optional(),
+                  base64Data: z.string().optional(),
+                }),
+              }),
+              z.object({
+                type: z.literal("file-content"),
+                filePath: z.string(),
+                content: z.string(),
+              }),
+            ]),
+          )
+          .optional(),
       }),
     )
     .mutation(({ input }) => {
       const db = getDatabase()
+
+      // Build initial messages if provided
+      let initialMessages = "[]"
+      if (input.initialMessageParts && input.initialMessageParts.length > 0) {
+        initialMessages = JSON.stringify([
+          {
+            id: `msg-${Date.now()}`,
+            role: "user",
+            parts: input.initialMessageParts,
+          },
+        ])
+      }
+
       return db
         .insert(subChats)
         .values({
           chatId: input.chatId,
           name: input.name,
           mode: input.mode,
-          messages: "[]",
+          messages: initialMessages,
         })
         .returning()
         .get()

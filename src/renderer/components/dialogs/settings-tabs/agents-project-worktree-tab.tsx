@@ -447,6 +447,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
               updateModeMutation.mutate({ id: projectId, mode: newMode })
             }}
             disabled={updateModeMutation.isPending}
+            excludeModes={["chat"]}
           />
         </div>
 

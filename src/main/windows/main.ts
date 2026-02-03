@@ -659,10 +659,20 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
     // windowManager handles cleanup via 'closed' event listener
   })
 
-  // Load the renderer - skip auth check for cowork mode
+  // Check authentication before loading
+  const authManager = getAuthManager()
+  const isAuthenticated = authManager?.isAuthenticated() ?? false
+
+  if (!isAuthenticated) {
+    console.log("[Main] Not authenticated, showing login page")
+    showLoginPageInWindow(window)
+    return window
+  }
+
+  // Load the renderer
   const devServerUrl = process.env.ELECTRON_RENDERER_URL
 
-  console.log("[Main] Loading app (auth check skipped)")
+  console.log("[Main] Authenticated, loading main app")
 
   // Get stable window ID from manager (assigned during register)
   // "main" for first window, "window-2", "window-3", etc. for additional windows

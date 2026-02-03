@@ -4,13 +4,14 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
+import { app } from "electron"
 import { getMergedSettings, getEnabledPlugins } from "./claude-settings"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
 
 export interface FileSkill {
   name: string
   description: string
-  source: "user" | "project" | "plugin"
+  source: "user" | "project" | "plugin" | "builtin"
   pluginName?: string
   path: string
   content: string
@@ -34,11 +35,129 @@ function parseSkillMd(rawContent: string): { name?: string; description?: string
 }
 
 /**
+ * Get the builtin skills directory path
+ * Handles both development and production (packaged) environments
+ */
+export function getBuiltinSkillsPath(): string {
+  if (app.isPackaged) {
+    // Production: skills bundled in resources
+    return path.join(process.resourcesPath, "skills")
+  }
+  // Development: __dirname is out/main, go up 2 levels to project root
+  return path.join(__dirname, "../../resources/skills")
+}
+
+/**
+ * Sync builtin skills to user's ~/.claude/skills directory
+ * This makes builtin skills available to the Claude SDK
+ * Skills are prefixed with "builtin-" to avoid conflicts
+ */
+export async function syncBuiltinSkillsToUserDir(): Promise<void> {
+  const builtinSkillsDir = getBuiltinSkillsPath()
+  const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
+
+  try {
+    // Check if builtin skills directory exists
+    await fs.access(builtinSkillsDir)
+  } catch {
+    console.log("[Skills] No builtin skills directory found")
+    return
+  }
+
+  // Ensure user skills directory exists
+  await fs.mkdir(userSkillsDir, { recursive: true })
+
+  // Read builtin skills
+  const entries = await fs.readdir(builtinSkillsDir, { withFileTypes: true })
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+
+    const skillName = entry.name
+    const sourceDir = path.join(builtinSkillsDir, skillName)
+    const targetDir = path.join(userSkillsDir, `builtin-${skillName}`)
+
+    try {
+      // Check if SKILL.md exists in source
+      const skillMdPath = path.join(sourceDir, "SKILL.md")
+      await fs.access(skillMdPath)
+
+      // Create target directory
+      await fs.mkdir(targetDir, { recursive: true })
+
+      // Copy SKILL.md (and any other files)
+      const files = await fs.readdir(sourceDir)
+      for (const file of files) {
+        const srcFile = path.join(sourceDir, file)
+        const dstFile = path.join(targetDir, file)
+        await fs.copyFile(srcFile, dstFile)
+      }
+
+      // Add .hong marker to identify builtin skills synced by Hong
+      await fs.writeFile(path.join(targetDir, ".hong"), "", "utf-8")
+
+      console.log(`[Skills] Synced builtin skill: ${skillName}`)
+    } catch (err) {
+      console.warn(`[Skills] Failed to sync builtin skill ${skillName}:`, err)
+    }
+  }
+}
+
+/**
+ * Sync a single builtin skill to user directory (enable) or remove it (disable)
+ * Called when user toggles skill enabled state in settings
+ */
+export async function syncBuiltinSkillEnabled(skillName: string, enabled: boolean): Promise<void> {
+  // Only handle builtin skills (prefixed with "builtin-")
+  if (!skillName.startsWith("builtin-")) {
+    return
+  }
+
+  const originalName = skillName.replace("builtin-", "")
+  const builtinSkillsDir = getBuiltinSkillsPath()
+  const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
+  const sourceDir = path.join(builtinSkillsDir, originalName)
+  const targetDir = path.join(userSkillsDir, skillName)
+
+  if (enabled) {
+    // Copy skill to user directory
+    try {
+      const skillMdPath = path.join(sourceDir, "SKILL.md")
+      await fs.access(skillMdPath)
+
+      await fs.mkdir(targetDir, { recursive: true })
+
+      const files = await fs.readdir(sourceDir)
+      for (const file of files) {
+        const srcFile = path.join(sourceDir, file)
+        const dstFile = path.join(targetDir, file)
+        await fs.copyFile(srcFile, dstFile)
+      }
+
+      // Add .hong marker to identify builtin skills synced by Hong
+      await fs.writeFile(path.join(targetDir, ".hong"), "", "utf-8")
+
+      console.log(`[Skills] Enabled builtin skill: ${skillName}`)
+    } catch (err) {
+      console.warn(`[Skills] Failed to enable builtin skill ${skillName}:`, err)
+    }
+  } else {
+    // Remove skill from user directory
+    try {
+      await fs.rm(targetDir, { recursive: true, force: true })
+      console.log(`[Skills] Disabled builtin skill: ${skillName}`)
+    } catch (err) {
+      console.warn(`[Skills] Failed to disable builtin skill ${skillName}:`, err)
+    }
+  }
+}
+
+/**
  * Scan a directory for SKILL.md files
  */
 async function scanSkillsDirectory(
   dir: string,
-  source: "user" | "project" | "plugin",
+  source: "user" | "project" | "plugin" | "builtin",
   basePath?: string, // For project skills, the cwd to make paths relative to
 ): Promise<FileSkill[]> {
   const skills: FileSkill[] = []
@@ -74,9 +193,23 @@ async function scanSkillsDirectory(
         continue
       }
 
-      const skillMdPath = path.join(dir, entry.name, "SKILL.md")
+      const skillDir = path.join(dir, entry.name)
+      const skillMdPath = path.join(skillDir, "SKILL.md")
 
       try {
+        // Skip directories with .hong marker when scanning user skills
+        // These are builtin skills synced by Hong, should be listed from builtin source instead
+        if (source === "user") {
+          const hongMarkerPath = path.join(skillDir, ".hong")
+          try {
+            await fs.access(hongMarkerPath)
+            // .hong marker exists, skip this skill
+            continue
+          } catch {
+            // .hong marker doesn't exist, proceed with scanning
+          }
+        }
+
         await fs.access(skillMdPath)
         const content = await fs.readFile(skillMdPath, "utf-8")
         const parsed = parseSkillMd(content)
@@ -93,8 +226,13 @@ async function scanSkillsDirectory(
             : skillMdPath
         }
 
+        // For builtin skills, prefix name with "builtin-" to match synced directory name
+        const skillName = source === "builtin"
+          ? `builtin-${parsed.name || entry.name}`
+          : (parsed.name || entry.name)
+
         skills.push({
-          name: parsed.name || entry.name,
+          name: skillName,
           description: parsed.description || "",
           source,
           path: displayPath,
@@ -124,6 +262,10 @@ const listSkillsProcedure = publicProcedure
     const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
     const userSkillsPromise = scanSkillsDirectory(userSkillsDir, "user")
 
+    // Builtin skills from app resources
+    const builtinSkillsDir = getBuiltinSkillsPath()
+    const builtinSkillsPromise = scanSkillsDirectory(builtinSkillsDir, "builtin")
+
     let projectSkillsPromise = Promise.resolve<FileSkill[]>([])
     if (input?.cwd) {
       const projectSkillsDir = path.join(input.cwd, ".claude", "skills")
@@ -149,18 +291,20 @@ const listSkillsProcedure = publicProcedure
     })
 
     // Scan all directories in parallel
-    const [userSkills, projectSkills, ...pluginSkillsArrays] =
+    const [userSkills, projectSkills, builtinSkills, ...pluginSkillsArrays] =
       await Promise.all([
         userSkillsPromise,
         projectSkillsPromise,
+        builtinSkillsPromise,
         ...pluginSkillsPromises,
       ])
     const pluginSkills = pluginSkillsArrays.flat()
 
-    return [...projectSkills, ...userSkills, ...pluginSkills]
+    // Priority: project > user > plugin > builtin (later sources can be overridden by earlier ones)
+    return [...projectSkills, ...userSkills, ...pluginSkills, ...builtinSkills]
   })
 
-// Procedure for listing enabled skills (filtered by enabledPlugins)
+// Procedure for listing enabled skills (filtered by enabledSkills)
 const listEnabledProcedure = publicProcedure
   .input(
     z
@@ -173,30 +317,36 @@ const listEnabledProcedure = publicProcedure
     const userSkillsDir = path.join(os.homedir(), ".claude", "skills")
     const userSkillsPromise = scanSkillsDirectory(userSkillsDir, "user")
 
+    // Builtin skills from app resources
+    const builtinSkillsDir = getBuiltinSkillsPath()
+    const builtinSkillsPromise = scanSkillsDirectory(builtinSkillsDir, "builtin")
+
     let projectSkillsPromise = Promise.resolve<FileSkill[]>([])
     if (input?.cwd) {
       const projectSkillsDir = path.join(input.cwd, ".claude", "skills")
       projectSkillsPromise = scanSkillsDirectory(projectSkillsDir, "project", input.cwd)
     }
 
-    // Scan both directories in parallel and get settings
-    const [userSkills, projectSkills, mergedSettings] = await Promise.all([
+    // Scan all directories in parallel and get settings
+    const [userSkills, projectSkills, builtinSkills, mergedSettings] = await Promise.all([
       userSkillsPromise,
       projectSkillsPromise,
+      builtinSkillsPromise,
       getMergedSettings(input?.cwd),
     ])
 
-    const allSkills = [...projectSkills, ...userSkills]
-    const enabledPlugins = mergedSettings.enabledPlugins || {}
+    // Priority: project > user > builtin
+    const allSkills = [...projectSkills, ...userSkills, ...builtinSkills]
+    const enabledSkills = mergedSettings.enabledSkills || {}
 
-    // If no enabledPlugins configured, return all skills
-    if (Object.keys(enabledPlugins).length === 0) {
+    // If no enabledSkills configured, return all skills (all enabled by default)
+    if (Object.keys(enabledSkills).length === 0) {
       return allSkills
     }
 
-    // Filter: only return skills marked as true in enabledPlugins
+    // Filter: exclude skills explicitly disabled (false), include all others
     return allSkills.filter((skill) => {
-      return enabledPlugins[skill.name] === true
+      return enabledSkills[skill.name] !== false
     })
   })
 

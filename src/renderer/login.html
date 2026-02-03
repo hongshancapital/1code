@@ -190,6 +190,29 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
+      .error-toast {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        background: rgba(220, 38, 38, 0.9);
+        color: #fff;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        max-width: 80%;
+        text-align: center;
+        -webkit-app-region: no-drag;
+      }
+      .error-toast.show {
+        opacity: 1;
+      }
     </style>
   </head>
   <body>
@@ -207,6 +230,7 @@
       <button class="login-btn" id="loginBtn">Meet Hóng</button>
     </div>
     <div class="version"><span id="version"></span><span class="badge">Inside</span></div>
+    <div class="error-toast" id="errorToast"></div>
     <script>
       // Display version
       if (window.desktopApi?.getVersion) {
@@ -216,7 +240,7 @@
       }
       // Typing animation
       const lines = [
-        { el: 'line1', text: 'Beyond Copilot.', highlight: false },
+        { el: 'line1', text: 'Beyond Copilot,', highlight: false },
         { el: 'line2', text: 'Meet Your AI Coworker.', highlight: true }
       ];
 
@@ -242,12 +266,30 @@
       console.log('Login page loaded');
       console.log('window.desktopApi:', window.desktopApi);
 
+      // Show error toast
+      function showError(message) {
+        const toast = document.getElementById('errorToast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(function() {
+          toast.classList.remove('show');
+        }, 5000);
+      }
+
       // Listen for auth success from main process (via deep link)
       // This ensures UI updates even if deep link arrives before click handler completes
       if (window.desktopApi && window.desktopApi.onAuthSuccess) {
         window.desktopApi.onAuthSuccess(function(user) {
           console.log('[Login] Auth success received:', user?.email);
           // Window will be reloaded by main process, no UI change needed
+        });
+      }
+
+      // Listen for auth error from main process
+      if (window.desktopApi && window.desktopApi.onAuthError) {
+        window.desktopApi.onAuthError(function(error) {
+          console.error('[Login] Auth error received:', error);
+          showError('Login failed: ' + (error || 'Unknown error'));
         });
       }
 

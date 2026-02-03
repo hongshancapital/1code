@@ -1,0 +1,61 @@
+# electron-builder config for DEV environment
+# Uses .env (dev API endpoints) and separate appId for coexistence with production
+
+appId: dev.hongshan.agents.dev
+productName: Hong Dev
+
+protocols:
+  - name: Hong Dev
+    schemes:
+      - twentyfirst-agents-dev
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**/*
+
+extraResources:
+  - from: drizzle
+    to: migrations
+  - from: resources/bin/${platform}-${arch}
+    to: bin
+    filter:
+      - "**/*"
+  - from: resources/bin/VERSION
+    to: bin/VERSION
+  - from: resources/skills
+    to: skills
+    filter:
+      - "**/*"
+
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+  - node_modules/node-pty/**/*
+  - node_modules/@anthropic-ai/claude-agent-sdk/**/*
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Hong needs microphone access for voice dictation
+  identity: ${env.APPLE_IDENTITY}
+  notarize:
+    teamId: ${env.APPLE_TEAM_ID}
+
+publish:
+  provider: generic
+  url: https://cowork.hongshan.com/releases/desktop-dev

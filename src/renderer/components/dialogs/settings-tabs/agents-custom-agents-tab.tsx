@@ -21,7 +21,7 @@ interface FileAgent {
   tools?: string[]
   disallowedTools?: string[]
   model?: "sonnet" | "opus" | "haiku" | "inherit"
-  source: "user" | "project"
+  source: "user" | "project" | "plugin"
   path: string
 }
 
@@ -372,6 +372,11 @@ export function AgentsCustomAgentsTab() {
     agent: FileAgent,
     data: { description: string; prompt: string; model?: FileAgent["model"] },
   ) => {
+    // Plugin agents are read-only
+    if (agent.source === "plugin") {
+      toast.error("Cannot modify plugin agent", { description: "Plugin agents are read-only" })
+      return
+    }
     try {
       await updateMutation.mutateAsync({
         originalName: agent.name,

@@ -1,21 +1,28 @@
-import { AuthStore, AuthData, AuthUser } from "./auth-store"
+import { AuthStore, AuthData, AuthUser, AuthProviderType } from "./auth-store"
 import { app, BrowserWindow } from "electron"
-import { AUTH_SERVER_PORT } from "./constants"
-import { generateCodeVerifier, generateCodeChallenge, generateState } from "./lib/okta/pkce"
 import { getEnv, getApiOrigin } from "./lib/env"
-
-// Okta configuration from validated environment
-function getOktaConfig() {
-  const env = getEnv()
-  return {
-    issuer: env.MAIN_VITE_OKTA_ISSUER,
-    clientId: env.MAIN_VITE_OKTA_CLIENT_ID,
-  }
-}
+import {
+  AuthProvider,
+  PkceState,
+  getCurrentProvider,
+  getProvider,
+  getEffectiveAuthProvider,
+} from "./lib/auth"
 
 // API base URL from validated environment
 function getApiBaseUrl(): string {
   return getEnv().MAIN_VITE_API_URL
+}
+
+/**
+ * Get additional headers for Azure AD authentication
+ * Returns the New-Authorizer header if current provider is Azure
+ */
+export function getAzureAuthHeaders(): Record<string, string> {
+  if (getEffectiveAuthProvider() === "azure") {
+    return { "New-Authorizer": "MSAL-CN" }
+  }
+  return {}
 }
 
 /**
@@ -57,6 +64,7 @@ async function fetchApi<T = unknown>(
     "sec-fetch-mode": "cors",
     "sec-fetch-site": "same-site",
     ...(options?.body ? { "Content-Type": "application/json" } : {}),
+    ...getAzureAuthHeaders(),
     ...options?.headers,
   }
 
@@ -119,6 +127,9 @@ function buildAvatarUrl(userId: string | number, avatarUpdatedAt?: string | numb
   return `${getApiBaseUrl()}/v1/api/user/avatar/${userId}?avatarUpdatedAt=${avatarUpdatedAt}`
 }
 
+// Re-export PkceState for backwards compatibility
+export type { PkceState }
+
 /**
  * Fetch user info from backend API
  */
@@ -153,41 +164,6 @@ async function fetchUserFromApi(accessToken: string): Promise<AuthUser | null> {
   return user
 }
 
-// PKCE flow state (stored in memory during auth flow)
-interface PkceState {
-  codeVerifier: string
-  state: string
-}
-
-/**
- * Parse JWT id_token to extract user information
- * Note: This is a simple decode, not a full verification
- * The token signature should be verified by the backend when making API calls
- */
-function parseIdToken(idToken: string): AuthUser {
-  try {
-    // JWT format: header.payload.signature
-    const parts = idToken.split(".")
-    if (parts.length !== 3) {
-      throw new Error("Invalid JWT format")
-    }
-
-    // Decode base64url payload
-    const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf-8"))
-
-    return {
-      id: payload.sub || payload.uid || "",
-      email: payload.email || "",
-      name: payload.name || payload.preferred_username || null,
-      imageUrl: payload.picture || null,
-      username: payload.preferred_username || payload.email?.split("@")[0] || null,
-    }
-  } catch (error) {
-    console.error("[Auth] Failed to parse id_token:", error)
-    throw new Error("Failed to parse user information from token")
-  }
-}
-
 export class AuthManager {
   private store: AuthStore
   private refreshTimer?: NodeJS.Timeout
@@ -200,6 +176,10 @@ export class AuthManager {
   constructor(isDev: boolean = false) {
     this.store = new AuthStore(app.getPath("userData"))
     this.isDev = isDev
+
+    // Log detected auth provider on startup
+    const detectedProvider = getEffectiveAuthProvider()
+    console.log(`[Auth] Detected auth provider: ${detectedProvider}`)
 
     // Schedule refresh if already authenticated
     if (this.store.isAuthenticated()) {
@@ -216,14 +196,6 @@ export class AuthManager {
   }
 
   /**
-   * Get the redirect URI for Okta callback
-   * Uses the configured callback URL from Okta application settings
-   */
-  private getRedirectUri(): string {
-    return getEnv().MAIN_VITE_OKTA_CALLBACK
-  }
-
-  /**
    * Get device info for logging/debugging
    */
   private getDeviceInfo(): string {
@@ -234,36 +206,19 @@ export class AuthManager {
   }
 
   /**
-   * Start Okta OAuth PKCE flow by opening browser
+   * Start OAuth PKCE flow by opening browser
+   * Automatically selects Okta or Azure AD based on Windows domain
    */
   startAuthFlow(_mainWindow: BrowserWindow | null): void {
-    const { shell } = require("electron")
-
     try {
-      const { issuer, clientId } = getOktaConfig()
+      // Get the appropriate auth provider
+      const provider = getCurrentProvider()
+      console.log(`[Auth] Starting ${provider.name} PKCE flow...`)
 
-      // Generate PKCE parameters
-      const codeVerifier = generateCodeVerifier()
-      const codeChallenge = generateCodeChallenge(codeVerifier)
-      const state = generateState()
+      // Start auth flow and store PKCE state
+      this.pkceState = provider.startAuthFlow(_mainWindow)
 
-      // Store PKCE state for later verification
-      this.pkceState = { codeVerifier, state }
-
-      // Build Okta authorize URL
-      const authorizeUrl = new URL(`${issuer}/v1/authorize`)
-      authorizeUrl.searchParams.set("client_id", clientId)
-      authorizeUrl.searchParams.set("response_type", "code")
-      authorizeUrl.searchParams.set("scope", "openid profile email offline_access")
-      authorizeUrl.searchParams.set("redirect_uri", this.getRedirectUri())
-      authorizeUrl.searchParams.set("state", state)
-      authorizeUrl.searchParams.set("code_challenge", codeChallenge)
-      authorizeUrl.searchParams.set("code_challenge_method", "S256")
-
-      console.log("[Auth] Starting Okta PKCE flow...")
-      console.log("[Auth] Redirect URI:", this.getRedirectUri())
-
-      shell.openExternal(authorizeUrl.toString())
+      console.log(`[Auth] Auth flow started with provider: ${provider.name}`)
     } catch (error) {
       console.error("[Auth] Failed to start auth flow:", error)
       throw error
@@ -292,47 +247,16 @@ export class AuthManager {
       throw new Error("No PKCE state found. Start auth flow first.")
     }
 
-    const { issuer, clientId } = getOktaConfig()
-    const { codeVerifier } = this.pkceState
+    // Get the provider that was used to start this auth flow
+    const provider = getProvider(this.pkceState.provider)
 
-    console.log("[Auth] Exchanging authorization code for tokens...")
+    console.log(`[Auth] Exchanging authorization code using ${provider.name}...`)
 
     // Exchange code for tokens
-    const tokenUrl = `${issuer}/v1/token`
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: clientId,
-      redirect_uri: this.getRedirectUri(),
-      code,
-      code_verifier: codeVerifier,
-    })
-
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body.toString(),
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("[Auth] Token exchange failed:", error)
-      throw new Error(error.error_description || error.error || `Token exchange failed: ${response.status}`)
-    }
-
-    const tokenData = await response.json()
-    console.log("[Auth] Token exchange successful")
-
-    // Parse basic user info from id_token first
-    if (!tokenData.id_token) {
-      throw new Error("No id_token in response. Make sure 'openid' scope is requested.")
-    }
-
-    let user = parseIdToken(tokenData.id_token)
+    const { tokenData, user: tokenUser } = await provider.exchangeCode(code, this.pkceState)
 
     // Fetch full user info from backend API (includes avatar)
+    let user = tokenUser
     const apiUser = await fetchUserFromApi(tokenData.access_token)
     if (apiUser) {
       // Merge API user info with id_token fallbacks
@@ -351,10 +275,11 @@ export class AuthManager {
 
     const authData: AuthData = {
       token: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
+      refreshToken: tokenData.refresh_token || "",
       idToken: tokenData.id_token,
       expiresAt,
       user,
+      provider: provider.name, // Store which provider was used
     }
 
     // Clear PKCE state after successful exchange
@@ -364,7 +289,7 @@ export class AuthManager {
     this.store.save(authData)
     this.scheduleRefresh()
 
-    console.log("[Auth] User authenticated:", user.email, "avatar:", user.imageUrl ? "yes" : "no")
+    console.log(`[Auth] User authenticated via ${provider.name}:`, user.email, "avatar:", user.imageUrl ? "yes" : "no")
 
     return authData
   }
@@ -386,6 +311,7 @@ export class AuthManager {
 
   /**
    * Refresh the current session using refresh_token
+   * Uses the provider that was stored during login
    */
   async refresh(): Promise<boolean> {
     const refreshToken = this.store.getRefreshToken()
@@ -394,46 +320,27 @@ export class AuthManager {
       return false
     }
 
+    // Get the provider that was used for this session
+    const providerType = this.store.getProvider()
+    const provider = getProvider(providerType)
+
+    console.log(`[Auth] Refreshing token using ${provider.name}...`)
+
     try {
-      const { issuer, clientId } = getOktaConfig()
+      const tokenData = await provider.refresh(refreshToken)
 
-      console.log("[Auth] Refreshing token...")
-
-      const tokenUrl = `${issuer}/v1/token`
-      const body = new URLSearchParams({
-        grant_type: "refresh_token",
-        client_id: clientId,
-        refresh_token: refreshToken,
-        scope: "openid profile email offline_access",
-      })
-
-      const response = await fetch(tokenUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: body.toString(),
-      })
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Unknown error" }))
-        console.error("[Auth] Refresh failed:", response.status, error)
-
-        // If refresh fails with 401/400, the refresh token is likely expired
-        if (response.status === 401 || response.status === 400) {
-          console.log("[Auth] Refresh token expired, logging out...")
-          this.logout("session_expired")
-        }
+      if (!tokenData) {
+        console.error("[Auth] Refresh failed - no token data returned")
+        // Provider refresh returns null on error, which means refresh token likely expired
+        console.log("[Auth] Refresh token expired, logging out...")
+        this.logout("session_expired")
         return false
       }
-
-      const tokenData = await response.json()
 
       // Get current user data (may be updated in new id_token)
       let user = this.store.getUser()
       if (tokenData.id_token) {
-        user = parseIdToken(tokenData.id_token)
+        user = provider.parseIdToken(tokenData.id_token)
       }
 
       if (!user) {
@@ -451,12 +358,13 @@ export class AuthManager {
         idToken: tokenData.id_token,
         expiresAt,
         user,
+        provider: providerType, // Preserve the provider type
       }
 
       this.store.save(authData)
       this.scheduleRefresh()
 
-      console.log("[Auth] Token refreshed successfully")
+      console.log(`[Auth] Token refreshed successfully via ${provider.name}`)
 
       // Notify callback about token refresh (so cookie can be updated)
       if (this.onTokenRefresh) {
@@ -596,6 +504,7 @@ export class AuthManager {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Desktop-Token": token, // Keep for backwards compatibility
+          ...getAzureAuthHeaders(),
         },
       })
 

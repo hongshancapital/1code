@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { BarChart3, ChevronLeft, ChevronRight, MoreHorizontal, Plus } from "lucide-react"
+import { BarChart3, ChevronDown, ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Plus, RefreshCw } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { UsageDetailsDialog } from "./usage-details-dialog"
@@ -10,7 +10,10 @@ import {
   customClaudeConfigAtom,
   openaiApiKeyAtom,
   showOfflineModeFeaturesAtom,
+  overrideModelModeAtom,
+  litellmSelectedModelAtom,
   type CustomClaudeConfig,
+  type OverrideModelMode,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { Badge } from "../../ui/badge"
@@ -25,6 +28,59 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Switch } from "../../ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../ui/tooltip"
+import { cn } from "../../../lib/utils"
+
+// LiteLLM model type
+type LiteLLMModel = {
+  id: string
+  object: string
+  created: number
+  owned_by: string
+}
+
+// Mode Switcher component
+function ModeSwitcher({
+  mode,
+  onModeChange,
+  litellmAvailable,
+}: {
+  mode: OverrideModelMode
+  onModeChange: (mode: OverrideModelMode) => void
+  litellmAvailable: boolean
+}) {
+  return (
+    <div className="flex rounded-lg border border-border overflow-hidden">
+      <button
+        onClick={() => litellmAvailable && onModeChange("litellm")}
+        disabled={!litellmAvailable}
+        className={cn(
+          "flex-1 px-4 py-2 text-sm font-medium transition-colors",
+          mode === "litellm"
+            ? "bg-primary text-primary-foreground"
+            : litellmAvailable
+              ? "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+              : "bg-muted/10 text-muted-foreground/50 cursor-not-allowed"
+        )}
+      >
+        LiteLLM
+        {!litellmAvailable && (
+          <span className="ml-1 text-xs">(Not configured)</span>
+        )}
+      </button>
+      <button
+        onClick={() => onModeChange("custom")}
+        className={cn(
+          "flex-1 px-4 py-2 text-sm font-medium transition-colors",
+          mode === "custom"
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+        )}
+      >
+        Custom
+      </button>
+    </div>
+  )
+}
 
 // Helper to format token count
 function formatTokenCount(tokens: number): string {
@@ -221,7 +277,7 @@ function ContributionHeatmap() {
   }
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-1">
+    <div ref={containerRef} className="space-y-1">
       {/* Inline styles for slide animations */}
       <style>{`
         @keyframes slideInLeft {
@@ -300,7 +356,7 @@ function ContributionHeatmap() {
                   }
 
                   const tooltipContent = (
-                    <div className="flex flex-col gap-0.5">
+                    <div className="space-y-0.5">
                       <div className="font-medium">{day.date}</div>
                       <div>{day.count} requests</div>
                       <div>{formatTokenCount(day.totalTokens)} tokens</div>
@@ -417,7 +473,7 @@ function AccountRow({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onRename}>Rename</DropdownMenuItem>
             <DropdownMenuItem
-              className="data-highlighted:bg-red-500/15 data-highlighted:text-red-400"
+              className="data-[highlighted]:bg-red-500/15 data-[highlighted]:text-red-400"
               onClick={onRemove}
             >
               Remove
@@ -443,7 +499,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
 
   return (
     <div className="bg-background rounded-lg border border-border overflow-hidden">
-      <div className="p-4 flex flex-col gap-4">
+      <div className="p-4 space-y-4">
         {/* Contribution Heatmap - at top */}
         <ContributionHeatmap />
 
@@ -622,10 +678,16 @@ function AnthropicAccountsSection() {
 }
 
 export function AgentsModelsTab() {
+  // Custom model config state
   const [storedConfig, setStoredConfig] = useAtom(customClaudeConfigAtom)
   const [model, setModel] = useState(storedConfig.model)
   const [baseUrl, setBaseUrl] = useState(storedConfig.baseUrl)
   const [token, setToken] = useState(storedConfig.token)
+
+  // Override mode state
+  const [overrideMode, setOverrideMode] = useAtom(overrideModelModeAtom)
+  const [litellmSelectedModel, setLitellmSelectedModel] = useAtom(litellmSelectedModelAtom)
+
   const [autoOffline, setAutoOffline] = useAtom(autoOfflineModeAtom)
   const [usageDetailsOpen, setUsageDetailsOpen] = useState(false)
   const setAnthropicOnboardingCompleted = useSetAtom(
@@ -651,6 +713,30 @@ export function AgentsModelsTab() {
   const setOpenAIKeyMutation = trpc.voice.setOpenAIKey.useMutation()
   const trpcUtils = trpc.useUtils()
 
+  // LiteLLM config from backend (env-based)
+  const { data: litellmConfig } = trpc.litellm.getConfig.useQuery()
+  const { data: litellmModelsData, isLoading: isLoadingModels, refetch: refetchModels } = trpc.litellm.getModels.useQuery(undefined, {
+    enabled: litellmConfig?.available === true,
+  })
+
+  const litellmAvailable = litellmConfig?.available === true
+  const litellmModels = litellmModelsData?.models || []
+
+  // Auto-select LiteLLM mode if available and no mode selected
+  useEffect(() => {
+    if (overrideMode === null && litellmAvailable) {
+      setOverrideMode("litellm")
+    }
+  }, [overrideMode, litellmAvailable, setOverrideMode])
+
+  // Auto-select default model if available and no model selected
+  useEffect(() => {
+    if (overrideMode === "litellm" && litellmModelsData?.defaultModel && !litellmSelectedModel) {
+      setLitellmSelectedModel(litellmModelsData.defaultModel)
+    }
+  }, [overrideMode, litellmModelsData?.defaultModel, litellmSelectedModel, setLitellmSelectedModel])
+
+  // Sync custom config from storage
   useEffect(() => {
     setModel(storedConfig.model)
     setBaseUrl(storedConfig.baseUrl)
@@ -747,10 +833,10 @@ export function AgentsModelsTab() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
+    <div className="p-6 space-y-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col gap-1.5 text-center sm:text-left">
+        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Models</h3>
           <p className="text-xs text-muted-foreground">
             Configure model overrides and Claude Code authentication
@@ -760,13 +846,13 @@ export function AgentsModelsTab() {
 
       {/* Offline Mode Section - only show if debug flag enabled */}
       {showOfflineFeatures && (
-        <div className="flex flex-col gap-2">
+        <div className="space-y-2">
           <div className="pb-2">
             <h4 className="text-sm font-medium text-foreground">Offline Mode</h4>
           </div>
 
           <div className="bg-background rounded-lg border border-border overflow-hidden">
-            <div className="p-4 flex flex-col gap-4">
+            <div className="p-4 space-y-4">
               {/* Status */}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
@@ -813,7 +899,7 @@ export function AgentsModelsTab() {
               {!ollamaStatus?.ollama.available && (
                 <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
                   <p className="font-medium mb-1">To enable offline mode:</p>
-                  <ol className="list-decimal list-inside flex flex-col gap-1 ml-2">
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
                     <li>Install Ollama from <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline">ollama.com</a></li>
                     <li>Run: <code className="bg-background px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></li>
                     <li>Ollama will run automatically in the background</li>
@@ -826,7 +912,7 @@ export function AgentsModelsTab() {
       )}
 
       {/* Anthropic Accounts Section */}
-      <div className="flex flex-col gap-2">
+      <div className="space-y-2">
         <div className="pb-2 flex items-center justify-between">
           <div>
             <h4 className="text-sm font-medium text-foreground">
@@ -851,7 +937,7 @@ export function AgentsModelsTab() {
       </div>
 
       {/* Usage Statistics Section */}
-      <div className="flex flex-col gap-2">
+      <div className="space-y-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">
             Usage Statistics
@@ -864,78 +950,179 @@ export function AgentsModelsTab() {
         <UsageStatisticsSection onViewDetails={() => setUsageDetailsOpen(true)} />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="pb-2 flex items-center justify-between">
+      <div className="space-y-2">
+        <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">
             Override Model
           </h4>
-          {canReset && (
-            <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10">
-              Reset
-            </Button>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Use a custom model to override default settings
+          </p>
         </div>
-        <div className="bg-background rounded-lg border border-border overflow-hidden">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex-1">
-              <Label className="text-sm font-medium">Model name</Label>
-              <p className="text-xs text-muted-foreground">
-                Model identifier to use for requests
-              </p>
-            </div>
-            <div className="shrink-0 w-80">
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                onBlur={handleBlurSave}
-                className="w-full"
-                placeholder="claude-3-7-sonnet-20250219"
-              />
+
+        {/* Mode Switcher */}
+        <ModeSwitcher
+          mode={overrideMode}
+          onModeChange={(newMode) => {
+            setOverrideMode(newMode)
+            if (newMode === "litellm" && litellmSelectedModel) {
+              toast.success(`Model set to ${litellmSelectedModel}`)
+            } else if (newMode === "custom" && model) {
+              toast.success(`Model set to ${model}`)
+            } else if (newMode) {
+              toast.success("Model override enabled")
+            }
+          }}
+          litellmAvailable={litellmAvailable}
+        />
+
+        {/* LiteLLM Mode Content */}
+        {overrideMode === "litellm" && (
+          <div className="bg-background rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Select Model</Label>
+                  <button
+                    onClick={() => refetchModels()}
+                    disabled={isLoadingModels}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                    title="Refresh model list"
+                  >
+                    <RefreshCw className={cn("w-3 h-3", isLoadingModels && "animate-spin")} />
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Available models from LiteLLM proxy
+                </p>
+              </div>
+              <div className="flex-shrink-0 w-80">
+                {isLoadingModels ? (
+                  <div className="flex items-center justify-center h-9 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Loading...
+                  </div>
+                ) : litellmModels.length > 0 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <span className={cn(!litellmSelectedModel && "text-muted-foreground")}>
+                          {litellmSelectedModel || "Select a model..."}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-80 max-h-64 overflow-y-auto">
+                      {litellmModels.map((m) => (
+                        <DropdownMenuItem
+                          key={m.id}
+                          onClick={() => {
+                            setLitellmSelectedModel(m.id)
+                            toast.success(`Model set to ${m.id}`)
+                          }}
+                          className={cn(litellmSelectedModel === m.id && "bg-accent")}
+                        >
+                          <span className="truncate">{m.id}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    {litellmModelsData?.error || "No models available"}
+                  </div>
+                )}
+                {litellmModels.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {litellmModels.length} model{litellmModels.length !== 1 ? "s" : ""} available
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="flex items-center justify-between p-4 border-t border-border">
-            <div className="flex-1">
-              <Label className="text-sm font-medium">API token</Label>
-              <p className="text-xs text-muted-foreground">
-                ANTHROPIC_AUTH_TOKEN env
-              </p>
+        {/* Custom Mode Content */}
+        {overrideMode === "custom" && (
+          <div className="bg-background rounded-lg border border-border overflow-hidden">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Base URL</Label>
+                <p className="text-xs text-muted-foreground">
+                  API endpoint address
+                </p>
+              </div>
+              <div className="flex-shrink-0 w-80">
+                <Input
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  onBlur={handleBlurSave}
+                  className="w-full"
+                  placeholder="https://api.anthropic.com"
+                />
+              </div>
             </div>
-            <div className="shrink-0 w-80">
-              <Input
-                type="password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                onBlur={handleBlurSave}
-                className="w-full"
-                placeholder="sk-ant-..."
-              />
+
+            <div className="flex items-center justify-between p-4 border-t border-border">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">API Token</Label>
+                <p className="text-xs text-muted-foreground">
+                  Authentication token
+                </p>
+              </div>
+              <div className="flex-shrink-0 w-80">
+                <Input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  onBlur={handleBlurSave}
+                  className="w-full"
+                  placeholder="sk-ant-..."
+                />
+              </div>
             </div>
+
+            <div className="flex items-center justify-between p-4 border-t border-border">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Model Name</Label>
+                <p className="text-xs text-muted-foreground">
+                  Model identifier
+                </p>
+              </div>
+              <div className="flex-shrink-0 w-80">
+                <Input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  onBlur={handleBlurSave}
+                  className="w-full"
+                  placeholder="claude-sonnet-4-20250514"
+                />
+              </div>
+            </div>
+
+            {/* Reset button at the bottom */}
+            {canReset && (
+              <div className="flex justify-end p-4 border-t border-border bg-muted/30">
+                <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10">
+                  Reset
+                </Button>
+              </div>
+            )}
           </div>
+        )}
 
-          <div className="flex items-center justify-between p-4 border-t border-border">
-            <div className="flex-1">
-              <Label className="text-sm font-medium">Base URL</Label>
-              <p className="text-xs text-muted-foreground">
-                ANTHROPIC_BASE_URL env
-              </p>
-            </div>
-            <div className="shrink-0 w-80">
-              <Input
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                onBlur={handleBlurSave}
-                className="w-full"
-                placeholder="https://api.anthropic.com"
-              />
-            </div>
+        {/* No mode selected hint */}
+        {!overrideMode && (
+          <div className="bg-muted/30 rounded-lg border border-border p-4 text-center text-sm text-muted-foreground">
+            Select a mode above to configure a custom model
           </div>
-
-        </div>
+        )}
       </div>
 
       {/* OpenAI API Key for Voice Input */}
-      <div className="flex flex-col gap-2">
+      <div className="space-y-2">
         <div className="pb-2 flex items-center justify-between">
           <h4 className="text-sm font-medium text-foreground">Voice Input</h4>
           {canResetOpenAI && (
@@ -959,7 +1146,7 @@ export function AgentsModelsTab() {
                 Required for voice transcription (Whisper API). Free users need their own key.
               </p>
             </div>
-            <div className="shrink-0 w-80">
+            <div className="flex-shrink-0 w-80">
               <Input
                 type="password"
                 value={openaiKey}

@@ -36,6 +36,7 @@ export function invalidateApprovedMcpCache(): void {
 export interface ClaudeSettings {
   env?: Record<string, string>
   enabledPlugins?: Record<string, boolean>
+  enabledSkills?: Record<string, boolean>
   alwaysThinkingEnabled?: boolean
   permissions?: Record<string, unknown>
   includeCoAuthoredBy?: boolean
@@ -80,6 +81,10 @@ function mergeSettings(user: ClaudeSettings, project: ClaudeSettings): ClaudeSet
     enabledPlugins: {
       ...user.enabledPlugins,
       ...project.enabledPlugins,
+    },
+    enabledSkills: {
+      ...user.enabledSkills,
+      ...project.enabledSkills,
     },
     env: {
       ...user.env,
@@ -346,6 +351,40 @@ export const claudeSettingsRouter = router({
       settings.approvedPluginMcpServers = approved.filter((id) => !id.startsWith(prefix))
       await writeClaudeSettings(settings)
       invalidateApprovedMcpCache()
+      return { success: true }
+    }),
+
+  /**
+   * Get enabled skills record
+   */
+  getEnabledSkills: publicProcedure
+    .input(z.object({ cwd: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const mergedSettings = await getMergedSettings(input?.cwd)
+      return mergedSettings.enabledSkills || {}
+    }),
+
+  /**
+   * Set a skill's enabled state
+   */
+  setSkillEnabled: publicProcedure
+    .input(z.object({
+      skillName: z.string(),
+      enabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      const settings = await readClaudeSettings()
+      const enabledSkills = settings.enabledSkills || {}
+
+      enabledSkills[input.skillName] = input.enabled
+
+      settings.enabledSkills = enabledSkills
+      await writeClaudeSettings(settings)
+
+      // Sync builtin skills to ~/.claude/skills/ for SDK discovery
+      const { syncBuiltinSkillEnabled } = await import("./skills")
+      await syncBuiltinSkillEnabled(input.skillName, input.enabled)
+
       return { success: true }
     }),
 })

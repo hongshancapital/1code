@@ -16,6 +16,8 @@ import {
   selectedOllamaModelAtom,
   sessionInfoAtom,
   showOfflineModeFeaturesAtom,
+  overrideModelModeAtom,
+  litellmSelectedModelAtom,
 } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
@@ -215,10 +217,28 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)
     const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["opus"]
 
-    const storedCustomConfig = appStore.get(
-      customClaudeConfigAtom,
-    ) as CustomClaudeConfig
-    const customConfig = normalizeCustomClaudeConfig(storedCustomConfig)
+    // Get override mode and LiteLLM model selection
+    const overrideMode = appStore.get(overrideModelModeAtom)
+    const litellmSelectedModel = appStore.get(litellmSelectedModelAtom)
+
+    // Build custom config based on override mode
+    let customConfig: CustomClaudeConfig | undefined
+    if (overrideMode === "litellm" && litellmSelectedModel) {
+      // LiteLLM mode: config will be populated by backend from env
+      customConfig = {
+        model: litellmSelectedModel,
+        token: "", // Backend will use env
+        baseUrl: "", // Backend will use env
+      }
+    } else if (overrideMode === "custom") {
+      // Custom mode: use manual config
+      const storedCustomConfig = appStore.get(
+        customClaudeConfigAtom,
+      ) as CustomClaudeConfig
+      customConfig = normalizeCustomClaudeConfig(storedCustomConfig)
+    } else {
+      customConfig = undefined
+    }
 
     // Get selected Ollama model for offline mode
     const selectedOllamaModel = appStore.get(selectedOllamaModelAtom)

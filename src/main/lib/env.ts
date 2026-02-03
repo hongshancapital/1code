@@ -12,7 +12,7 @@ interface RequiredEnv {
   // Okta OAuth (authentication)
   MAIN_VITE_OKTA_ISSUER: string
   MAIN_VITE_OKTA_CLIENT_ID: string
-  MAIN_VITE_OKTA_CALLBACK: string
+  // Note: OKTA_CALLBACK is auto-generated based on dev/production mode (port 3300/3000)
 
   // API configuration
   MAIN_VITE_API_URL: string
@@ -32,6 +32,17 @@ interface OptionalEnv {
   // Analytics (disabled if not set)
   MAIN_VITE_POSTHOG_KEY?: string
   MAIN_VITE_POSTHOG_HOST?: string
+
+  // LiteLLM proxy (internal use)
+  MAIN_VITE_LITELLM_BASE_URL?: string
+  MAIN_VITE_LITELLM_API_KEY?: string
+
+  // Azure AD OAuth (Windows domain users)
+  // Required for Windows machines joined to hongshan.cn domain
+  MAIN_VITE_AZURE_TENANT_ID?: string
+  MAIN_VITE_AZURE_CLIENT_ID?: string
+  // Azure AD login URL (e.g., https://login.partner.microsoftonline.cn for China)
+  MAIN_VITE_AZURE_LOGIN_URL?: string
 }
 
 /**
@@ -58,7 +69,6 @@ export function validateEnv(): Env {
   const requiredVars: (keyof RequiredEnv)[] = [
     "MAIN_VITE_OKTA_ISSUER",
     "MAIN_VITE_OKTA_CLIENT_ID",
-    "MAIN_VITE_OKTA_CALLBACK",
     "MAIN_VITE_API_URL",
     "MAIN_VITE_API_ORIGIN",
   ]
@@ -81,7 +91,6 @@ export function validateEnv(): Env {
     // Required
     MAIN_VITE_OKTA_ISSUER: import.meta.env.MAIN_VITE_OKTA_ISSUER!,
     MAIN_VITE_OKTA_CLIENT_ID: import.meta.env.MAIN_VITE_OKTA_CLIENT_ID!,
-    MAIN_VITE_OKTA_CALLBACK: import.meta.env.MAIN_VITE_OKTA_CALLBACK!,
     MAIN_VITE_API_URL: import.meta.env.MAIN_VITE_API_URL!,
     MAIN_VITE_API_ORIGIN: import.meta.env.MAIN_VITE_API_ORIGIN!,
 
@@ -90,6 +99,13 @@ export function validateEnv(): Env {
     MAIN_VITE_OPENAI_API_KEY: import.meta.env.MAIN_VITE_OPENAI_API_KEY,
     MAIN_VITE_POSTHOG_KEY: import.meta.env.MAIN_VITE_POSTHOG_KEY,
     MAIN_VITE_POSTHOG_HOST: import.meta.env.MAIN_VITE_POSTHOG_HOST,
+    MAIN_VITE_LITELLM_BASE_URL: import.meta.env.MAIN_VITE_LITELLM_BASE_URL,
+    MAIN_VITE_LITELLM_API_KEY: import.meta.env.MAIN_VITE_LITELLM_API_KEY,
+
+    // Azure AD (optional, for Windows domain users)
+    MAIN_VITE_AZURE_TENANT_ID: import.meta.env.MAIN_VITE_AZURE_TENANT_ID,
+    MAIN_VITE_AZURE_CLIENT_ID: import.meta.env.MAIN_VITE_AZURE_CLIENT_ID,
+    MAIN_VITE_AZURE_LOGIN_URL: import.meta.env.MAIN_VITE_AZURE_LOGIN_URL,
   }
 
   console.log("[Env] Environment validated successfully")

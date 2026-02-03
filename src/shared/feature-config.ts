@@ -6,7 +6,21 @@
  * and users can override individual features.
  */
 
-export type ProjectMode = "cowork" | "coding"
+export type ProjectMode = "chat" | "cowork" | "coding"
+
+/**
+ * Playground constants for Chat mode
+ * The playground project runs in a fixed directory: ~/.hong/.playground
+ */
+export const PLAYGROUND_DIR_NAME = ".playground"
+export const PLAYGROUND_PARENT_DIR = ".hong"
+export const PLAYGROUND_PROJECT_NAME = "Chat Playground"
+
+/**
+ * Get the playground directory path relative to home
+ * Use with path.join(homePath, PLAYGROUND_RELATIVE_PATH)
+ */
+export const PLAYGROUND_RELATIVE_PATH = `${PLAYGROUND_PARENT_DIR}/${PLAYGROUND_DIR_NAME}`
 
 export type WidgetId =
   | "info"
@@ -52,13 +66,25 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
 }
 
 /**
- * Git-related widgets that are NEVER available in cowork mode.
+ * Git-related widgets that are NEVER available in chat/cowork mode.
  * This constraint cannot be overridden by user configuration.
  */
 export const GIT_RELATED_WIDGETS: Set<WidgetId> = new Set([
   "info",     // Shows git branch info
   "terminal", // Can execute git commands
   "diff",     // Git diff viewer
+])
+
+/**
+ * Widgets disabled in chat mode (most widgets, as chat is purely conversational)
+ */
+export const CHAT_DISABLED_WIDGETS: Set<WidgetId> = new Set([
+  "info",
+  "terminal",
+  "diff",
+  "artifacts",
+  "explorer",
+  "background-tasks",
 ])
 
 /**
@@ -97,6 +123,11 @@ export function isWidgetEnabled(
     return true
   }
 
+  // Hard constraint: Chat mode only allows todo and plan widgets
+  if (projectMode === "chat" && CHAT_DISABLED_WIDGETS.has(widgetId)) {
+    return false
+  }
+
   // Hard constraint: Git-related widgets are NEVER available in cowork mode
   if (projectMode === "cowork" && GIT_RELATED_WIDGETS.has(widgetId)) {
     return false
@@ -114,6 +145,7 @@ export function isWidgetEnabled(
 
   if (userOverride !== undefined) return userOverride
   const defaults = WIDGET_DEFAULTS[widgetId]
+  // Chat mode uses cowork defaults (simplified)
   return projectMode === "coding"
     ? defaults.defaultInCoding
     : defaults.defaultInCowork
@@ -128,6 +160,11 @@ export function isWidgetConfigurable(
 ): boolean {
   // Always-enabled widgets cannot be toggled
   if (ALWAYS_ENABLED_WIDGETS.has(widgetId)) {
+    return false
+  }
+
+  // Chat mode has very limited configurability
+  if (projectMode === "chat" && CHAT_DISABLED_WIDGETS.has(widgetId)) {
     return false
   }
 

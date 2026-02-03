@@ -149,6 +149,7 @@ currentProjectModeAtom,
   agentsChatFullWidthAtom,
   pendingMentionAtom,
   suppressInputFocusAtom,
+  diffHasPendingChangesAtomFamily,
   type AgentMode,
   type SelectedCommit,
   type CachedParsedDiffFile,
@@ -1682,6 +1683,9 @@ interface DiffSidebarRendererProps {
   // Review system
   activeSubChatId: string | null
   onSubmitReview: (summary: string) => void
+  // Manual diff refresh
+  hasPendingDiffChanges: boolean
+  onRefreshDiff: () => void
 }
 
 const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
@@ -1730,6 +1734,8 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
   setDiffStats,
   activeSubChatId,
   onSubmitReview,
+  hasPendingDiffChanges,
+  onRefreshDiff,
 }: DiffSidebarRendererProps) {
   // Get callbacks and state from context
   const { handleCloseDiff, viewedCount, handleViewedCountChange } = useDiffState()
@@ -1801,6 +1807,8 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           displayMode={diffDisplayMode}
           onDisplayModeChange={setDiffDisplayMode}
           reviewButtonSlot={reviewButtonSlot}
+          hasPendingDiffChanges={hasPendingDiffChanges}
+          onRefreshDiff={onRefreshDiff}
         />
       ) : sandboxId ? (
         <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background shrink-0">
@@ -4563,6 +4571,14 @@ export function ChatView({
     [chatId],
   )
   const [isDiffSidebarOpen, setIsDiffSidebarOpen] = useAtom(diffSidebarAtom)
+
+  // Per-chat pending diff changes state - shows "Refresh" button when files change while sidebar is open
+  const pendingDiffChangesAtom = useMemo(
+    () => diffHasPendingChangesAtomFamily(chatId),
+    [chatId],
+  )
+  const [hasPendingDiffChanges, setHasPendingDiffChanges] = useAtom(pendingDiffChangesAtom)
+
   // Subscribe to activeSubChatId for plan sidebar (needs to update when switching sub-chats)
   const activeSubChatIdForPlan = useAgentSubChatStore((state) => state.activeSubChatId)
 
@@ -5305,7 +5321,11 @@ export function ChatView({
   useFileChangeListener(worktreePath)
 
   // Subscribe to GitWatcher for real-time file system monitoring (chokidar on main process)
-  useGitWatcher(worktreePath)
+  // When diff sidebar is open, don't auto-refresh - show "Refresh" button instead
+  useGitWatcher(worktreePath, {
+    isDiffSidebarOpen,
+    onPendingChange: setHasPendingDiffChanges,
+  })
 
   // Plugin MCP approval - disabled for now since official marketplace plugins
   // are trusted by default. Will re-enable when third-party plugin support is added.
@@ -5588,14 +5608,19 @@ export function ChatView({
     fetchDiffStats()
   }, [fetchDiffStats])
 
-  // Refresh diff stats when diff sidebar opens (background refresh - don't block UI)
-  // Keep existing data visible while fetching, only update if data changed
+  // Refresh diff stats when diff sidebar opens or closes
+  // When closing: refresh to update the Changes widget with latest data
   useEffect(() => {
     if (isDiffSidebarOpen) {
       // Fetch in background - existing parsedFileDiffs will be shown immediately
       fetchDiffStats()
+    } else {
+      // Clear pending changes flag and refresh data when sidebar closes
+      // This ensures the Changes widget shows latest data
+      setHasPendingDiffChanges(false)
+      fetchDiffStats()
     }
-  }, [isDiffSidebarOpen, fetchDiffStats])
+  }, [isDiffSidebarOpen, fetchDiffStats, setHasPendingDiffChanges])
 
   // Calculate total file count across all sub-chats for change detection
   const totalSubChatFileCount = useMemo(() => {
@@ -5825,20 +5850,21 @@ Make sure to preserve all functionality from both branches when resolving confli
     { enabled: !!worktreePath && isDiffSidebarOpen, staleTime: 30000 }
   )
 
-  // Refetch git status and diff stats when window gains focus
+  // Refetch git status when window gains focus (but not diff - let user manually refresh)
   useEffect(() => {
     if (!worktreePath || !isDiffSidebarOpen) return
 
     const handleWindowFocus = () => {
-      // Refetch git status
+      // Refetch git status (sync counts, etc.)
       refetchGitStatus()
-      // Refetch diff stats to get latest changes
-      fetchDiffStats()
+      // Don't auto-refresh diff - just mark as pending so user can choose when to refresh
+      // This prevents disrupting the user's review when switching windows
+      setHasPendingDiffChanges(true)
     }
 
     window.addEventListener('focus', handleWindowFocus)
     return () => window.removeEventListener('focus', handleWindowFocus)
-  }, [worktreePath, isDiffSidebarOpen, refetchGitStatus, fetchDiffStats])
+  }, [worktreePath, isDiffSidebarOpen, refetchGitStatus, setHasPendingDiffChanges])
 
   // Sync parsedFileDiffs with git status - clear diff data when all files are committed
   // This fixes the issue where diff sidebar shows stale files after external git commit
@@ -5871,6 +5897,12 @@ Make sure to preserve all functionality from both branches when resolving confli
   const handleRefreshGitStatus = useCallback(() => {
     refetchGitStatus()
   }, [refetchGitStatus])
+
+  // Manual refresh for diff view - called when user clicks "Refresh" button
+  const handleRefreshDiff = useCallback(() => {
+    setHasPendingDiffChanges(false)
+    fetchDiffStats()
+  }, [setHasPendingDiffChanges, fetchDiffStats])
 
   const handleExpandAll = useCallback(() => {
     diffViewRef.current?.expandAll()
@@ -7267,6 +7299,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               setDiffStats={setDiffStats}
               activeSubChatId={activeSubChatId}
               onSubmitReview={handleSubmitReview}
+              hasPendingDiffChanges={hasPendingDiffChanges}
+              onRefreshDiff={handleRefreshDiff}
             />
           </DiffStateProvider>
         )}

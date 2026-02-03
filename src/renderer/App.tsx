@@ -1,6 +1,6 @@
 import { Provider as JotaiProvider, useAtomValue, useSetAtom } from "jotai"
 import { ThemeProvider, useTheme } from "next-themes"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast, Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
@@ -20,6 +20,7 @@ import {
   apiKeyOnboardingCompletedAtom,
   billingMethodAtom,
   litellmOnboardingCompletedAtom,
+  overrideModelModeAtom,
 } from "./lib/atoms"
 import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
@@ -53,9 +54,33 @@ function AppContent() {
   const apiKeyOnboardingCompleted = useAtomValue(apiKeyOnboardingCompletedAtom)
   const setApiKeyOnboardingCompleted = useSetAtom(apiKeyOnboardingCompletedAtom)
   const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
+  const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
+  const setOverrideModelMode = useSetAtom(overrideModelModeAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
+
+  // Track if auth check has completed
+  const [authCheckCompleted, setAuthCheckCompleted] = useState(false)
+
+  // Force re-login if Okta auth is invalid (applies to all users)
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const isAuthenticated = await window.desktopApi?.isAuthenticated()
+        if (!isAuthenticated) {
+          console.log("[App] Okta auth invalid, triggering logout to show login page")
+          // Trigger logout to show login page
+          window.desktopApi?.logout()
+          return // Don't set authCheckCompleted, page will reload
+        }
+      } catch (error) {
+        console.warn("[App] Failed to check auth status:", error)
+      }
+      setAuthCheckCompleted(true)
+    }
+    checkAuth()
+  }, [])
 
   // Apply initial window params (chatId/subChatId) when opening via "Open in new window"
   useEffect(() => {
@@ -76,6 +101,10 @@ function AppContent() {
   const { data: cliConfig, isLoading: isLoadingCliConfig } =
     trpc.claudeCode.hasExistingCliConfig.useQuery()
 
+  // Check if LiteLLM is configured via env
+  const { data: litellmConfig, isLoading: isLoadingLitellmConfig } =
+    trpc.litellm.getConfig.useQuery()
+
   // Migration: If user already completed Anthropic onboarding but has no billing method set,
   // automatically set it to "claude-subscription" (legacy users before billing method was added)
   useEffect(() => {
@@ -93,6 +122,16 @@ function AppContent() {
       setApiKeyOnboardingCompleted(true)
     }
   }, [cliConfig?.hasConfig, billingMethod, setBillingMethod, setApiKeyOnboardingCompleted])
+
+  // Auto-skip onboarding if LiteLLM is configured via env (MAIN_VITE_LITELLM_BASE_URL)
+  useEffect(() => {
+    if (litellmConfig?.available && !billingMethod) {
+      console.log("[App] Detected LiteLLM env config, auto-completing onboarding")
+      setBillingMethod("litellm")
+      setLitellmOnboardingCompleted(true)
+      setOverrideModelMode("litellm")
+    }
+  }, [litellmConfig?.available, billingMethod, setBillingMethod, setLitellmOnboardingCompleted, setOverrideModelMode])
 
   // Fetch projects to validate selectedProject exists
   const { data: projects, isLoading: isLoadingProjects } =
@@ -112,6 +151,11 @@ function AppContent() {
   // ============================================================================
   // Auth/Onboarding Flow
   // ============================================================================
+
+  // Wait for auth check to complete before rendering to prevent flash
+  if (!authCheckCompleted) {
+    return null // Or a loading spinner if preferred
+  }
 
   // Determine which page to show:
   // 1. No billing method selected -> BillingMethodPage
