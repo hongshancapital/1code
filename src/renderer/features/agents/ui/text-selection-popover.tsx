@@ -144,7 +144,7 @@ export function TextSelectionPopover({
         {/* Comment button for review system - shows for plan, diff, and tool-edit */}
         {hasComment && (
           <>
-            <div className="w-px h-4 bg-border flex-shrink-0" />
+            <div className="w-px h-4 bg-border shrink-0" />
             <button
               onClick={handleAddComment}
               className="rounded px-2 py-1 text-xs text-popover-foreground hover:bg-white/15 transition-colors duration-100 active:scale-[0.97] whitespace-nowrap"

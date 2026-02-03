@@ -174,7 +174,7 @@ const CommandInput = React.forwardRef<HTMLInputElement, CommandInputProps>(
         <input
           ref={inputRef}
           className={cn(
-            "flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+            "flex-1 bg-transparent text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           onChange={(e) => {

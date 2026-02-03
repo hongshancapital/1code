@@ -190,7 +190,7 @@ function LazyDirectoryNode({
       >
         {/* Expand/collapse chevron for folders */}
         {isFolder ? (
-          <span className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+          <span className="w-4 h-4 flex items-center justify-center shrink-0">
             {isLoading ? (
               <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
             ) : isExpanded ? (
@@ -200,11 +200,11 @@ function LazyDirectoryNode({
             )}
           </span>
         ) : (
-          <span className="w-4 flex-shrink-0" />
+          <span className="w-4 shrink-0" />
         )}
 
         {/* File/folder icon */}
-        <FileIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
         {/* Name with highlight */}
         <span className="truncate flex-1">{highlightMatch(entry.name)}</span>
@@ -214,14 +214,14 @@ function LazyDirectoryNode({
           <>
             <button
               onClick={handleReference}
-              className="flex-shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
+              className="shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
               title="Insert reference to chat"
             >
               <AtSign className="h-3 w-3 text-muted-foreground hover:text-primary" />
             </button>
             <button
               onClick={handleOpenInEditor}
-              className="flex-shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
+              className="shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
               title="Open in editor"
             >
               <GenericEditorIcon className="h-3 w-3 text-muted-foreground hover:text-primary" />
@@ -298,7 +298,7 @@ function ContentSearchResultItem({ result, projectPath, query, onSelect }: Conte
       onClick={() => onSelect(result.file, result.line)}
     >
       <div className="flex items-center gap-1.5 text-xs">
-        <FileIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="text-muted-foreground truncate">{result.file}</span>
         <span className="text-muted-foreground/60">:</span>
         <span className="text-primary font-mono">{result.line}</span>
@@ -637,7 +637,7 @@ export function FileTreePanel({
         </div>
 
         {/* Search Input */}
-        <div className="p-2 border-b space-y-2">
+        <div className="p-2 border-b flex flex-col gap-2">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -775,7 +775,7 @@ export function FileTreePanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 flex-shrink-0"
+            className="h-7 w-7 shrink-0"
             onClick={handleOpenContentSearch}
             title="Search file contents"
           >
@@ -784,7 +784,7 @@ export function FileTreePanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 flex-shrink-0"
+            className="h-7 w-7 shrink-0"
             onClick={handleRefresh}
             disabled={isFetching}
             title="Refresh"
@@ -796,7 +796,7 @@ export function FileTreePanel({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 flex-shrink-0"
+                className="h-7 w-7 shrink-0"
                 title="More options"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />

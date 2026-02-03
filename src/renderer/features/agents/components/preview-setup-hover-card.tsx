@@ -70,8 +70,8 @@ export function PreviewSetupHoverCard({ children }: PreviewSetupHoverCardProps) 
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-3">
-          <div className="space-y-1.5">
+        <div className="p-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
             <h4 className="text-sm font-semibold">Preview not available</h4>
             <p className="text-[13px] text-muted-foreground leading-relaxed">
               To see live preview of your changes, you need to set up your repository first.

@@ -153,12 +153,12 @@ const TaskListItem = memo(function TaskListItem({
         {hasOutput && (
           <ChevronRight
             className={cn(
-              "h-3 w-3 text-muted-foreground transition-transform flex-shrink-0",
+              "h-3 w-3 text-muted-foreground transition-transform shrink-0",
               isExpanded && "rotate-90"
             )}
           />
         )}
-        <div className="flex-shrink-0">{statusIcons[task.status]}</div>
+        <div className="shrink-0">{statusIcons[task.status]}</div>
         <Tooltip>
           <TooltipTrigger asChild>
             <span
@@ -189,7 +189,7 @@ const TaskListItem = memo(function TaskListItem({
                   e.stopPropagation()
                   onKill(task.taskId, task.shellId)
                 }}
-                className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 shrink-0"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -443,7 +443,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
       <div className="mx-2 mb-2">
         <div className="rounded-lg border border-border/50 bg-muted/30 px-2 h-8 flex items-center">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Cpu className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
               0 Background Processes Running
             </span>
@@ -467,7 +467,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Icon with activity indicator */}
-          <div className="relative flex-shrink-0">
+          <div className="relative shrink-0">
             <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
             {runningCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -490,7 +490,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                     e.stopPropagation()
                     handleClearCompleted()
                   }}
-                  className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 mr-1"
+                  className="p-0.5 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100 shrink-0 mr-1"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -499,7 +499,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
             </Tooltip>
           )}
           {/* Expand/Collapse icon */}
-          <div className="relative w-3.5 h-3.5 flex-shrink-0">
+          <div className="relative w-3.5 h-3.5 shrink-0">
             <ExpandIcon
               className={cn(
                 "absolute inset-0 w-3.5 h-3.5 text-muted-foreground transition-[opacity,transform] duration-200 ease-out",
@@ -524,11 +524,11 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
             className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/30 transition-colors duration-150"
             onClick={() => setIsExpanded(true)}
           >
-            <div className="flex-shrink-0">{statusIcons[displayTask.status]}</div>
+            <div className="shrink-0">{statusIcons[displayTask.status]}</div>
             <span className="text-xs text-muted-foreground truncate flex-1">
               {displayTask.summary}
             </span>
-            <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">
+            <span className="text-xs text-muted-foreground tabular-nums shrink-0">
               {runningCount}/{totalTasks}
             </span>
           </div>

@@ -300,7 +300,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 		handler: () => void;
 		tooltip: string;
 		badge?: string;
-		variant?: "default" | "ghost" | "outline";
+		variant?: "default" | "ghost" | "outline-solid";
 		isPending?: boolean;
 		disabled?: boolean;
 	}
@@ -427,7 +427,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 		: primaryAction;
 
 	return (
-		<div className="relative flex items-center justify-between h-10 px-2 border-b border-border/50 bg-background flex-shrink-0">
+		<div className="relative flex items-center justify-between h-10 px-2 border-b border-border/50 bg-background shrink-0">
 			{/* Drag region for window dragging */}
 			{isDesktop && !isFullscreen && (
 				<div
@@ -439,7 +439,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 			)}
 			{/* Left side: Close button + Branch selector */}
 			<div
-				className="relative z-10 flex items-center gap-1 min-w-0 flex-shrink"
+				className="relative z-10 flex items-center gap-1 min-w-0 shrink"
 				style={{
 					WebkitAppRegion: "no-drag",
 				}}
@@ -448,7 +448,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 				<Button
 					variant="ghost"
 					size="sm"
-					className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+					className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
 					onClick={onClose}
 				>
 					{displayMode === "side-peek" ? (
@@ -504,7 +504,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 
 			{/* Right side: Review + View mode toggle + Primary action (split button) + Secondary action + Overflow menu */}
 			<div
-				className="relative z-10 flex items-center gap-1 flex-shrink-0"
+				className="relative z-10 flex items-center gap-1 shrink-0"
 				style={{
 					WebkitAppRegion: "no-drag",
 				}}
@@ -545,7 +545,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 								disabled={displayAction.isPending || displayAction.disabled}
 								className={cn(
 									"inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors",
-									"outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/70",
+									"outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary/70",
 									"disabled:pointer-events-none disabled:opacity-50",
 									"h-6 px-2 gap-1 text-xs rounded-md focus:z-10 overflow-hidden",
 									"transition-all duration-200 ease-out",
@@ -591,7 +591,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 									disabled={displayAction.isPending || displayAction.disabled}
 									className={cn(
 										"inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors",
-										"outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary/70",
+										"outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary/70",
 										"disabled:pointer-events-none disabled:opacity-50",
 										"h-6 px-2 gap-1 text-xs rounded-l-md rounded-r-none focus:z-10 overflow-hidden",
 										"transition-all duration-200 ease-out",
@@ -665,7 +665,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 									<DropdownMenuItem
 										onClick={handleForcePush}
 										disabled={forcePushMutation.isPending}
-										className="text-xs data-[highlighted]:bg-red-500/15 data-[highlighted]:text-red-400 [&_div]:data-[highlighted]:text-red-400/70"
+										className="text-xs data-highlighted:bg-red-500/15 data-highlighted:text-red-400 data-highlighted:[&_div]:text-red-400/70"
 									>
 										<IconForcePush className="mr-2 size-3.5" />
 										<div className="flex-1">
@@ -844,7 +844,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+							className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
 						>
 							<MoreHorizontal className="size-4 text-muted-foreground" />
 						</Button>

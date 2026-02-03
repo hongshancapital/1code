@@ -98,10 +98,10 @@ export function AgentsNotificationsTab() {
     : "Default sound"
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
           <p className="text-xs text-muted-foreground">
             Configure notification sounds and behavior
@@ -110,7 +110,7 @@ export function AgentsNotificationsTab() {
       )}
 
       {/* Sound Section */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">Sound</h4>
           <p className="text-xs text-muted-foreground mt-1">
@@ -119,10 +119,10 @@ export function AgentsNotificationsTab() {
         </div>
 
         <div className="bg-background rounded-lg border border-border overflow-hidden">
-          <div className="p-4 space-y-6">
+          <div className="p-4 flex flex-col gap-6">
             {/* Sound Notifications Toggle */}
             <div className="flex items-start justify-between">
-              <div className="flex flex-col space-y-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-foreground">
                   Sound Notifications
                 </span>
@@ -135,7 +135,7 @@ export function AgentsNotificationsTab() {
 
             {/* Custom Sound Selector */}
             <div className="flex items-start justify-between">
-              <div className="flex flex-col space-y-1 flex-1 mr-4">
+              <div className="flex flex-col gap-1 flex-1 mr-4">
                 <span className="text-sm font-medium text-foreground">
                   Notification Sound
                 </span>
@@ -185,7 +185,7 @@ export function AgentsNotificationsTab() {
       </div>
 
       {/* System Notifications Section */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">System Notifications</h4>
           <p className="text-xs text-muted-foreground mt-1">
@@ -194,10 +194,10 @@ export function AgentsNotificationsTab() {
         </div>
 
         <div className="bg-background rounded-lg border border-border overflow-hidden">
-          <div className="p-4 space-y-6">
+          <div className="p-4 flex flex-col gap-6">
             {/* Always Show Notifications Toggle */}
             <div className="flex items-start justify-between">
-              <div className="flex flex-col space-y-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-foreground">
                   Always Show Notifications
                 </span>

@@ -147,7 +147,7 @@ function ShortcutListItem({
       data-item-id={action.id}
       onClick={onClick}
       className={cn(
-        "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-left transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+        "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-left transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
         isSelected
           ? "bg-foreground/5 text-foreground"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
@@ -157,7 +157,7 @@ function ShortcutListItem({
       <span className="text-sm truncate">
         {action.label}
       </span>
-      <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
+      <div className="flex items-center gap-0.5 ml-2 shrink-0">
         {keys.map((key, index) => (
           <ShortcutKey key={index} keyName={key} size="sm" />
         ))}
@@ -517,25 +517,25 @@ export function AgentsKeyboardTab() {
       >
         <div className="flex flex-col h-full bg-background border-r overflow-hidden" style={{ borderRightWidth: "0.5px" }}>
           {/* Search */}
-          <div className="px-2 pt-2 flex-shrink-0">
+          <div className="px-2 pt-2 shrink-0">
             <input
               ref={searchInputRef}
               type="text"
               placeholder="Search shortcuts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-none"
+              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
             />
           </div>
 
           {/* Shortcuts list */}
-          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-none">
+          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {totalShortcuts === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 No shortcuts found
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 {(["general", "workspaces", "agents"] as ShortcutCategory[]).map((category) => {
                   const actions = filteredShortcuts[category]
                   if (actions.length === 0) return null
@@ -544,7 +544,7 @@ export function AgentsKeyboardTab() {
                       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
                         {CATEGORY_LABELS[category]}
                       </p>
-                      <div className="space-y-0.5">
+                      <div className="flex flex-col gap-0.5">
                         {actions.map((action) => (
                           <ShortcutListItem
                             key={action.id}
@@ -569,7 +569,7 @@ export function AgentsKeyboardTab() {
 
           {/* Reset all button at bottom */}
           {hasCustomHotkeys && (
-            <div className="pt-2 pb-2 px-2 flex-shrink-0">
+            <div className="pt-2 pb-2 px-2 shrink-0">
               <button
                 type="button"
                 onClick={handleResetAll}

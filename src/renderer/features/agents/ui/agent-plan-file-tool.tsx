@@ -166,7 +166,7 @@ export const AgentPlanFileTool = memo(function AgentPlanFileTool({
     return (
       <div className="flex items-center gap-1.5 px-2 py-0.5">
         {!shouldShowShimmer && (
-          <PlanIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+          <PlanIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
         )}
         <span className="text-xs text-muted-foreground">
           {shouldShowShimmer ? (
@@ -189,7 +189,7 @@ export const AgentPlanFileTool = memo(function AgentPlanFileTool({
         className="flex items-center justify-between pl-2.5 pr-0.5 h-7 cursor-pointer hover:bg-muted/50 transition-colors duration-150"
       >
         <div className="flex items-center gap-1.5 text-xs truncate flex-1 min-w-0">
-          <PlanIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+          <PlanIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           {shouldShowShimmer ? (
             <TextShimmer as="span" duration={1.2} className="truncate">
               {isEdit ? "Updating plan..." : "Creating plan..."}

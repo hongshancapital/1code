@@ -70,7 +70,7 @@ const QueueItemRow = memo(function QueueItemRow({
           <RenderFileMentions text={item.message} />
         </span>
       {hasAttachments && (
-        <span className="flex-shrink-0 text-muted-foreground text-[10px]">
+        <span className="shrink-0 text-muted-foreground text-[10px]">
           +{attachmentCount} {attachmentCount === 1 ? "file" : "files"}
         </span>
       )}
@@ -80,7 +80,7 @@ const QueueItemRow = memo(function QueueItemRow({
             <TooltipTrigger asChild>
               <button
                 onClick={handleSendNow}
-                className="flex-shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
+                className="shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
               >
                 <ArrowUp className="w-3.5 h-3.5" />
               </button>
@@ -93,7 +93,7 @@ const QueueItemRow = memo(function QueueItemRow({
             <TooltipTrigger asChild>
               <button
                 onClick={handleRestore}
-                className="flex-shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
+                className="shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
               >
                 <ArrowDown className="w-3.5 h-3.5" />
               </button>
@@ -106,7 +106,7 @@ const QueueItemRow = memo(function QueueItemRow({
             <TooltipTrigger asChild>
               <button
                 onClick={handleRemove}
-                className="flex-shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
+                className="shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -176,7 +176,7 @@ export const AgentQueueIndicator = memo(function AgentQueueIndicator({
         }}
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? "Collapse" : "Expand"} queue`}
-        className="flex items-center justify-between pr-1 pl-3 h-8 cursor-pointer hover:bg-muted/50 transition-colors duration-150 focus:outline-none rounded-sm"
+        className="flex items-center justify-between pr-1 pl-3 h-8 cursor-pointer hover:bg-muted/50 transition-colors duration-150 focus:outline-hidden rounded-sm"
       >
         <div className="flex items-center gap-2 text-xs flex-1 min-w-0">
           <ChevronDown

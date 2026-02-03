@@ -98,20 +98,20 @@ export function AgentPlanSidebar({
   return (
     <div className="flex flex-col h-full bg-tl-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 h-10 bg-tl-background flex-shrink-0 border-b border-border/50">
+      <div className="flex items-center justify-between px-2 h-10 bg-tl-background shrink-0 border-b border-border/50">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex-shrink-0 rounded-md"
+            className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
             aria-label="Close plan"
           >
             <IconDoubleChevronRight className="h-4 w-4" />
           </Button>
           <span className="text-sm font-medium truncate">{planTitle}</span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {/* View mode toggle */}
           {planContent && (
             <Tooltip>

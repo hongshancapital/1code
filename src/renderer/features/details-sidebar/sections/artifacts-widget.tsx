@@ -31,13 +31,13 @@ export function useArtifactsCount(): number {
 function ArtifactStatusIcon({ status }: { status: Artifact["status"] }) {
   switch (status) {
     case "created":
-      return <FilePlus className="h-3 w-3 text-green-500 flex-shrink-0" />
+      return <FilePlus className="h-3 w-3 text-green-500 shrink-0" />
     case "modified":
-      return <FileEdit className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+      return <FileEdit className="h-3 w-3 text-yellow-500 shrink-0" />
     case "deleted":
-      return <FileX className="h-3 w-3 text-red-500 flex-shrink-0" />
+      return <FileX className="h-3 w-3 text-red-500 shrink-0" />
     default:
-      return <FileEdit className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+      return <FileEdit className="h-3 w-3 text-muted-foreground shrink-0" />
   }
 }
 
@@ -64,7 +64,7 @@ function ContextItem({
           onFileSelect?.(context.filePath!)
         }}
       >
-        <FileIcon className="h-3 w-3 flex-shrink-0" />
+        <FileIcon className="h-3 w-3 shrink-0" />
         <span className="truncate flex-1">{fileName}</span>
         {context.toolType && (
           <span className="text-[9px] text-muted-foreground/60">{context.toolType}</span>
@@ -84,7 +84,7 @@ function ContextItem({
           window.desktopApi?.openExternal?.(context.url!)
         }}
       >
-        <Globe className="h-3 w-3 flex-shrink-0" />
+        <Globe className="h-3 w-3 shrink-0" />
         <span className="truncate flex-1">{displayUrl}</span>
       </button>
     )
@@ -121,7 +121,7 @@ function ArtifactItem({
         onClick={onClick}
       >
         <ArtifactStatusIcon status={artifact.status} />
-        <FileIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+        <FileIcon className="h-3 w-3 text-muted-foreground shrink-0" />
         <span className="truncate flex-1 min-w-0">{fileName}</span>
         {hasContexts && (
           <button
@@ -141,7 +141,7 @@ function ArtifactItem({
       </div>
 
       {expanded && hasContexts && (
-        <div className="ml-5 py-1 px-2 space-y-0.5">
+        <div className="ml-5 py-1 px-2 flex flex-col gap-0.5">
           {artifact.contexts!.map((ctx, i) => (
             <ContextItem key={i} context={ctx} onFileSelect={onFileSelect} />
           ))}
@@ -205,12 +205,12 @@ export const ArtifactsWidget = memo(function ArtifactsWidget({ subChatId }: Arti
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="text-xs font-medium text-foreground">Artifacts</span>
-          <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0 ml-auto">
+          <span className="text-xs text-muted-foreground tabular-nums shrink-0 ml-auto">
             {artifacts.length} {artifacts.length === 1 ? "file" : "files"}
           </span>
-          <div className="relative w-3.5 h-3.5 flex-shrink-0">
+          <div className="relative w-3.5 h-3.5 shrink-0">
             <ExpandIcon
               className={cn(
                 "absolute inset-0 w-3.5 h-3.5 text-muted-foreground transition-[opacity,transform] duration-200 ease-out",

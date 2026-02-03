@@ -112,14 +112,14 @@ export function AgentsRenameSubChatDialog({
               pointerEvents: "none" as const,
               transition: { duration: 0.15, ease: EASING_CURVE },
             }}
-            className="fixed inset-0 z-[45] bg-black/25"
+            className="fixed inset-0 z-45 bg-black/25"
             onClick={handleClose}
             style={{ pointerEvents: "auto" }}
             data-modal="agents-rename-subchat"
           />
 
           {/* Main Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-[46] pointer-events-none">
+          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-46 pointer-events-none">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}

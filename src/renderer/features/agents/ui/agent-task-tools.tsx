@@ -502,7 +502,7 @@ const InProgressIcon = ({ size = 14 }: { size?: number }) => {
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
-      className="text-muted-foreground flex-shrink-0"
+      className="text-muted-foreground shrink-0"
     >
       {/* Outer border circle */}
       <circle
@@ -533,7 +533,7 @@ const ChangeStatusIcon = ({ change }: { change: TaskChange }) => {
       case "completed":
         return (
           <div
-            className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+            className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0"
             style={{ border: "0.5px solid hsl(var(--border))" }}
           >
             <CheckIcon className="w-2 h-2 text-muted-foreground" />
@@ -544,7 +544,7 @@ const ChangeStatusIcon = ({ change }: { change: TaskChange }) => {
       default:
         return (
           <div
-            className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+            className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
             style={{ border: "1px solid hsl(var(--muted-foreground) / 0.3)" }}
           />
         )
@@ -554,7 +554,7 @@ const ChangeStatusIcon = ({ change }: { change: TaskChange }) => {
   // For other changes (updated, deleted), show a neutral icon
   return (
     <div
-      className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+      className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
       style={{ border: "1px solid hsl(var(--muted-foreground) / 0.3)" }}
     />
   )
@@ -569,7 +569,7 @@ const TaskStatusIcon = ({ status }: { status: "pending" | "in_progress" | "compl
     case "completed":
       return (
         <div
-          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0"
           style={{ border: "0.5px solid hsl(var(--border))" }}
         >
           <CheckIcon className="w-2 h-2 text-muted-foreground" />
@@ -580,7 +580,7 @@ const TaskStatusIcon = ({ status }: { status: "pending" | "in_progress" | "compl
     default:
       return (
         <div
-          className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
           style={{ border: "1px solid hsl(var(--muted-foreground) / 0.3)" }}
         />
       )
@@ -606,7 +606,7 @@ const BlockingTasksList = memo(function BlockingTasksList({
   const sortedIds = [...blockedByIds].sort(compareTaskIds)
 
   return (
-    <div className="mt-2 space-y-1.5">
+    <div className="mt-2 flex flex-col gap-1.5">
       {sortedIds.map(id => {
         const subject = taskSubjects.get(id) ?? `#${id}`
         // Get actual status from snapshot, fallback to pending
@@ -659,7 +659,7 @@ const TaskInfoItem = memo(function TaskInfoItem({
         !isLast && "border-b border-border/30",
       )}
     >
-      <div className="h-4 flex items-center flex-shrink-0">
+      <div className="h-4 flex items-center shrink-0">
         <TaskStatusIcon status={task.status} />
       </div>
       <div className="flex-1 min-w-0 flex flex-col">
@@ -727,7 +727,7 @@ const ChangeItem = memo(function ChangeItem({
         !isLast && "border-b border-border/30",
       )}
     >
-      <div className="h-4 flex items-center flex-shrink-0">
+      <div className="h-4 flex items-center shrink-0">
         <ChangeStatusIcon change={change} />
       </div>
       <div className="flex-1 min-w-0 flex flex-col">
@@ -933,8 +933,8 @@ export const AgentTaskToolsGroup = memo(function AgentTaskToolsGroup({
         <div className="mx-2">
           <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
             <div className="flex items-center gap-1.5">
-              <PlanIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-xs font-medium whitespace-nowrap flex-shrink-0">
+              <PlanIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs font-medium whitespace-nowrap shrink-0">
                 <TextShimmer
                   as="span"
                   duration={1.2}
@@ -1003,7 +1003,7 @@ export const AgentTaskToolsGroup = memo(function AgentTaskToolsGroup({
     <div
       className={cn(
         "mx-2",
-        isStreaming && "sticky z-[5] bg-background",
+        isStreaming && "sticky z-5 bg-background",
       )}
       style={
         isStreaming
@@ -1021,7 +1021,7 @@ export const AgentTaskToolsGroup = memo(function AgentTaskToolsGroup({
         onClick={isReadOnly ? () => setIsExpanded(!isExpanded) : undefined}
       >
         <div className="flex items-center gap-1.5">
-          <PlanIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <PlanIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           {headerText.startsWith("__TASK_GET__") ? (
             <span className="text-xs flex-1">
               <span className="font-medium text-foreground">Read task</span>
@@ -1040,7 +1040,7 @@ export const AgentTaskToolsGroup = memo(function AgentTaskToolsGroup({
             </span>
           )}
           {isReadOnly && (
-            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           )}
         </div>
       </div>

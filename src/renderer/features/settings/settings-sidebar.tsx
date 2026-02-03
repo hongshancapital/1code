@@ -121,7 +121,7 @@ function TabButton({ tab, isActive, onClick }: TabButtonProps) {
       onClick={onClick}
       className={cn(
         "inline-flex items-center whitespace-nowrap transition-colors duration-75 cursor-pointer w-full justify-start gap-2 text-left px-3 py-1.5 text-sm h-7 rounded-md",
-        "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+        "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
         isActive
           ? "bg-foreground/5 text-foreground font-medium"
           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground font-medium"
@@ -200,9 +200,9 @@ export function SettingsSidebar() {
       </div>
 
       {/* Tab list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent px-2 pb-4 space-y-4">
+      <div className="flex flex-col-1 overflow-y-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent px-2 pb-4 gap-4">
         {/* Main Tabs */}
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           {mainTabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -217,7 +217,7 @@ export function SettingsSidebar() {
         <div className="border-t border-border/50 mx-2" />
 
         {/* Advanced Tabs */}
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           {ADVANCED_TABS_BASE.map((tab) => (
             <TabButton
               key={tab.id}

@@ -128,10 +128,10 @@ export function AgentsBetaTab() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Beta Features</h3>
           <p className="text-xs text-muted-foreground">
             Enable experimental features. These may be unstable or change without notice.
@@ -143,7 +143,7 @@ export function AgentsBetaTab() {
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         {/* Rollback Toggle */}
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Rollback
             </span>
@@ -159,7 +159,7 @@ export function AgentsBetaTab() {
 
         {/* Offline Mode Toggle */}
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Offline Mode
             </span>
@@ -175,7 +175,7 @@ export function AgentsBetaTab() {
 
         {/* Kanban Board Toggle */}
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Kanban Board
             </span>
@@ -191,7 +191,7 @@ export function AgentsBetaTab() {
 
         {/* Automations & Inbox Toggle */}
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className={cn("text-sm font-medium", canEnableAutomations ? "text-foreground" : "text-muted-foreground")}>
               Automations & Inbox
             </span>
@@ -214,7 +214,7 @@ export function AgentsBetaTab() {
 
         {/* Agent Tasks Toggle */}
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Agent Tasks
             </span>
@@ -231,13 +231,13 @@ export function AgentsBetaTab() {
 
       {/* Offline Mode Settings - only show when feature is enabled */}
       {showOfflineFeatures && (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <div className="pb-2">
             <h4 className="text-sm font-medium text-foreground">Offline Mode Settings</h4>
           </div>
 
           <div className="bg-background rounded-lg border border-border overflow-hidden">
-            <div className="p-4 space-y-4">
+            <div className="p-4 flex flex-col gap-4">
               {/* Status */}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
@@ -319,9 +319,9 @@ export function AgentsBetaTab() {
               </div>
 
               {/* Installation instructions - always show */}
-              <div className="text-xs text-muted-foreground bg-muted p-3 rounded space-y-2">
+              <div className="text-xs text-muted-foreground bg-muted p-3 rounded flex flex-col gap-2">
                 <p className="font-medium">Setup Instructions:</p>
-                <ol className="list-decimal list-inside space-y-1 ml-2">
+                <ol className="list-decimal list-inside flex flex-col gap-1 ml-2">
                   <li>
                     Install Ollama {MINIMUM_OLLAMA_VERSION}+ from{" "}
                     <a
@@ -370,7 +370,7 @@ export function AgentsBetaTab() {
       )}
 
       {/* Updates Section */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">Updates</h4>
           <p className="text-xs text-muted-foreground mt-1">
@@ -381,7 +381,7 @@ export function AgentsBetaTab() {
         <div className="bg-background rounded-lg border border-border overflow-hidden">
           {/* Early Access Toggle */}
           <div className="flex items-center justify-between p-4">
-            <div className="flex flex-col space-y-1">
+            <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-foreground">
                 Early Access
               </span>
@@ -401,7 +401,7 @@ export function AgentsBetaTab() {
           {/* Version & Check */}
           <div className="p-4 border-t border-border">
             <div className="flex items-center justify-between">
-              <div className="flex flex-col space-y-1">
+              <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-foreground">
                   {currentVersion ? `Current: v${currentVersion}` : "Version"}
                 </span>

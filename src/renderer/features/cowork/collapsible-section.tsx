@@ -44,7 +44,7 @@ export function CollapsibleSection({
           {badge}
         </div>
         {/* Expand/Collapse chevron - on the right */}
-        <span className="flex-shrink-0">
+        <span className="shrink-0">
           {isExpanded ? (
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           ) : (

@@ -168,7 +168,7 @@ function TabButton({ tab, isActive, onClick, isNarrow }: TabButtonProps) {
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 cursor-pointer shadow-none w-full justify-start gap-2 text-left px-3 py-1.5 text-sm",
+        "inline-flex items-center whitespace-nowrap ring-offset-background transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 cursor-pointer shadow-none w-full justify-start gap-2 text-left px-3 py-1.5 text-sm",
         isNarrow
           ? "h-12 rounded-lg bg-foreground/5 hover:bg-foreground/10"
           : "h-7 rounded-md",
@@ -343,9 +343,9 @@ export function AgentsSettingsDialog({
   }
 
   const renderTabList = () => (
-    <div className="space-y-4 px-1">
+    <div className="flex flex-col gap-4 px-1">
       {/* Main tabs */}
-      <div className="space-y-1">
+      <div className="flex flex-col gap-1">
         {MAIN_TABS.map((tab) => (
           <TabButton
             key={tab.id}
@@ -361,7 +361,7 @@ export function AgentsSettingsDialog({
       <div className="border-t border-border/50 mx-2" />
 
       {/* Advanced tabs */}
-      <div className="space-y-1">
+      <div className="flex flex-col gap-1">
         {ADVANCED_TABS.map((tab) => (
           <TabButton
             key={tab.id}
@@ -387,7 +387,7 @@ export function AgentsSettingsDialog({
       <>
         {/* Full-screen settings panel */}
         <div
-          className="fixed inset-0 z-[45] flex flex-col bg-background overflow-hidden select-none"
+          className="fixed inset-0 z-45 flex flex-col bg-background overflow-hidden select-none"
           role="dialog"
           aria-modal="true"
           aria-labelledby="agents-settings-dialog-title-narrow"
@@ -457,7 +457,7 @@ export function AgentsSettingsDialog({
           />
 
           {/* Settings Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-[45]">
+          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-45">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -477,13 +477,13 @@ export function AgentsSettingsDialog({
 
               <div className="flex h-full p-2">
                 {/* Left Sidebar - Tabs */}
-                <div className="w-52 px-1 py-5 space-y-4">
+                <div className="w-52 px-1 py-5 flex flex-col gap-4">
                   <h2 className="text-lg font-semibold px-2 pb-3 text-foreground">
                     Settings
                   </h2>
 
                   {/* Main Tabs */}
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-1">
                     {MAIN_TABS.map((tab) => (
                       <TabButton
                         key={tab.id}
@@ -498,7 +498,7 @@ export function AgentsSettingsDialog({
                   <div className="border-t border-border/50 mx-2" />
 
                   {/* Advanced Tabs */}
-                  <div className="space-y-1">
+                  <div className="flex flex-col gap-1">
                     {ADVANCED_TABS.map((tab) => (
                       <TabButton
                         key={tab.id}
@@ -526,7 +526,7 @@ export function AgentsSettingsDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="absolute appearance-none outline-none select-none top-5 right-5 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-7 w-7 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-[60] focus:outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                className="absolute appearance-none outline-hidden select-none top-5 right-5 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-7 w-7 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-60 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
               >
                 <X className="h-4 w-4" />
                 <span className="sr-only">Close</span>

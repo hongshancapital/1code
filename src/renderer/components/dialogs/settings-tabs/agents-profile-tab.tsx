@@ -140,14 +140,14 @@ export function AgentsProfileTab() {
   // Not logged in state
   if (!user) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 flex flex-col gap-6">
         {!isNarrowScreen && (
           <div className="flex items-center justify-between pb-3 mb-4">
             <h3 className="text-sm font-medium text-foreground">Profile</h3>
           </div>
         )}
 
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
           <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
             <User className="w-10 h-10 text-muted-foreground" />
           </div>
@@ -161,7 +161,7 @@ export function AgentsProfileTab() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header */}
       {!isNarrowScreen && (
         <div className="flex items-center justify-between pb-3 mb-4">
@@ -176,7 +176,7 @@ export function AgentsProfileTab() {
           type="button"
           onClick={handleRefreshAvatar}
           disabled={isRefreshing}
-          className="flex-shrink-0 rounded-full overflow-hidden transition-all hover:ring-2 hover:ring-primary/50 active:scale-95 disabled:opacity-50"
+          className="shrink-0 rounded-full overflow-hidden transition-all hover:ring-2 hover:ring-primary/50 active:scale-95 disabled:opacity-50"
           title="Click to refresh"
         >
           {isRefreshing ? (
@@ -210,7 +210,7 @@ export function AgentsProfileTab() {
       </div>
 
       {/* Profile Settings Card */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="bg-background rounded-lg border border-border overflow-hidden">
           {/* Full Name Field */}
           <div className="flex items-center justify-between p-4">
@@ -220,7 +220,7 @@ export function AgentsProfileTab() {
                 This is your display name
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
@@ -239,7 +239,7 @@ export function AgentsProfileTab() {
                 Your account email
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 value={user?.email || ""}
                 disabled

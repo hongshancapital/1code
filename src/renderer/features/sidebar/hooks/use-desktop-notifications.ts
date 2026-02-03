@@ -141,7 +141,7 @@ export function useDesktopNotifications() {
 
     return () => {
       window.removeEventListener("focus", handleFocus)
-      window.removeEventListener("blur", handleBlur)
+      window.removeEventListener("blur-sm", handleBlur)
       unsubscribe?.()
     }
   }, [setPendingCount])

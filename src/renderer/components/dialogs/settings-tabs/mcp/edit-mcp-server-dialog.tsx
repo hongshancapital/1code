@@ -151,7 +151,7 @@ export function EditMcpServerDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5">
+          <div className="flex flex-col gap-5">
             {/* Enable/Disable */}
             <div className="flex items-center justify-between">
               <div>
@@ -179,9 +179,9 @@ export function EditMcpServerDialog({
             )}
 
             {/* Authentication */}
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               <Label>Authentication</Label>
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Button
                   variant="outline"
                   size="sm"

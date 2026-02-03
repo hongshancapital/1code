@@ -182,10 +182,10 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Preferences</h3>
           <p className="text-xs text-muted-foreground">
             Configure Claude's behavior and features
@@ -196,7 +196,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
       {/* Agent Behavior */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Extended Thinking
             </span>
@@ -214,7 +214,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
 
         {/* AI Question Timeout */}
         <div className="flex items-start justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               AI Question Timeout
             </span>
@@ -250,7 +250,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
         </div>
 
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Default Mode
             </span>
@@ -274,7 +274,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Include Co-Authored-By
             </span>
@@ -293,7 +293,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
       {/* Notifications */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Desktop Notifications
             </span>
@@ -304,7 +304,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
           <Switch checked={desktopNotificationsEnabled} onCheckedChange={setDesktopNotificationsEnabled} />
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Sound Notifications
             </span>
@@ -319,7 +319,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
       {/* Navigation */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Quick Switch
             </span>
@@ -343,7 +343,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Auto-advance
             </span>
@@ -372,7 +372,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Preferred Editor
             </span>
@@ -390,7 +390,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
                   <img
                     src={EDITOR_ICONS[preferredEditor]}
                     alt=""
-                    className="h-4 w-4 flex-shrink-0"
+                    className="h-4 w-4 shrink-0"
                   />
                 )}
                 <span className="truncate">
@@ -407,9 +407,9 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
                   className="flex items-center gap-2"
                 >
                   {EDITOR_ICONS[editor.id] ? (
-                    <img src={EDITOR_ICONS[editor.id]} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                    <img src={EDITOR_ICONS[editor.id]} alt="" className="h-4 w-4 shrink-0 object-contain" />
                   ) : (
-                    <div className="h-4 w-4 flex-shrink-0" />
+                    <div className="h-4 w-4 shrink-0" />
                   )}
                   <span>{editor.label}</span>
                 </DropdownMenuItem>
@@ -421,16 +421,16 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
                   className="flex items-center gap-2"
                 >
                   {EDITOR_ICONS[app.id] ? (
-                    <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                    <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 shrink-0 object-contain" />
                   ) : (
-                    <div className="h-4 w-4 flex-shrink-0" />
+                    <div className="h-4 w-4 shrink-0" />
                   )}
                   <span>{app.label}</span>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="flex items-center gap-2">
-                  <img src={vscodeBaseIcon} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                  <img src={vscodeBaseIcon} alt="" className="h-4 w-4 shrink-0 object-contain" />
                   <span>VS Code</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-48" sideOffset={6} alignOffset={-4}>
@@ -441,9 +441,9 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
                       className="flex items-center gap-2"
                     >
                       {EDITOR_ICONS[app.id] ? (
-                        <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                        <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 shrink-0 object-contain" />
                       ) : (
-                        <div className="h-4 w-4 flex-shrink-0" />
+                        <div className="h-4 w-4 shrink-0" />
                       )}
                       <span>{app.label}</span>
                     </DropdownMenuItem>
@@ -452,7 +452,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
               </DropdownMenuSub>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="flex items-center gap-2">
-                  <img src={jetbrainsBaseIcon} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                  <img src={jetbrainsBaseIcon} alt="" className="h-4 w-4 shrink-0 object-contain" />
                   <span>JetBrains</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-48 max-h-[300px] overflow-y-auto" sideOffset={6} alignOffset={-4}>
@@ -463,9 +463,9 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
                       className="flex items-center gap-2"
                     >
                       {EDITOR_ICONS[app.id] ? (
-                        <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 flex-shrink-0 object-contain" />
+                        <img src={EDITOR_ICONS[app.id]} alt="" className="h-4 w-4 shrink-0 object-contain" />
                       ) : (
-                        <div className="h-4 w-4 flex-shrink-0" />
+                        <div className="h-4 w-4 shrink-0" />
                       )}
                       <span>{app.label}</span>
                     </DropdownMenuItem>
@@ -480,7 +480,7 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
       {/* Privacy */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between gap-6 p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Share Usage Analytics
             </span>

@@ -382,7 +382,7 @@ const MermaidBlockInner = memo(function MermaidBlockInner({
     <>
       <div className="relative mt-2 mb-4 rounded-[10px] bg-muted/50 overflow-hidden">
         {/* Toolbar */}
-        <div className="absolute top-[6px] right-[6px] flex gap-1 z-[2]">
+        <div className="absolute top-[6px] right-[6px] flex gap-1 z-2">
           <button
             onClick={handleCopy}
             tabIndex={-1}
@@ -456,7 +456,7 @@ const MermaidBlockInner = memo(function MermaidBlockInner({
             <div className="w-full">
               <div className="flex items-start gap-2 text-destructive text-sm mb-3">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span className="break-words">{renderState.message}</span>
+                <span className="wrap-break-word">{renderState.message}</span>
               </div>
               <div className="flex gap-2">
                 <button
@@ -471,7 +471,7 @@ const MermaidBlockInner = memo(function MermaidBlockInner({
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                   Show diagram code
                 </summary>
-                <pre className="mt-2 p-2 rounded bg-muted text-xs overflow-x-auto whitespace-pre-wrap break-words font-mono">
+                <pre className="mt-2 p-2 rounded bg-muted text-xs overflow-x-auto whitespace-pre-wrap wrap-break-word font-mono">
                   {code}
                 </pre>
               </details>
@@ -485,7 +485,7 @@ const MermaidBlockInner = memo(function MermaidBlockInner({
         <DialogPortal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/90 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
           <DialogPrimitive.Content
-            className="fixed inset-0 z-50 flex items-center justify-center outline-none overflow-hidden"
+            className="fixed inset-0 z-50 flex items-center justify-center outline-hidden overflow-hidden"
             onPointerDownOutside={(e) => e.preventDefault()}
           >
             <VisuallyHidden.Root>
@@ -516,8 +516,8 @@ const MermaidBlockInner = memo(function MermaidBlockInner({
                 >
                   <ZoomControls />
                   <TransformComponent
-                    wrapperClass="!w-full !h-full"
-                    contentClass="!w-full !h-full flex items-center justify-center"
+                    wrapperClass="w-full! h-full!"
+                    contentClass="w-full! h-full! flex items-center justify-center"
                   >
                     <div
                       className={cn(

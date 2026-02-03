@@ -221,7 +221,7 @@ function ContributionHeatmap() {
   }
 
   return (
-    <div ref={containerRef} className="space-y-1">
+    <div ref={containerRef} className="flex flex-col gap-1">
       {/* Inline styles for slide animations */}
       <style>{`
         @keyframes slideInLeft {
@@ -300,7 +300,7 @@ function ContributionHeatmap() {
                   }
 
                   const tooltipContent = (
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       <div className="font-medium">{day.date}</div>
                       <div>{day.count} requests</div>
                       <div>{formatTokenCount(day.totalTokens)} tokens</div>
@@ -417,7 +417,7 @@ function AccountRow({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onRename}>Rename</DropdownMenuItem>
             <DropdownMenuItem
-              className="data-[highlighted]:bg-red-500/15 data-[highlighted]:text-red-400"
+              className="data-highlighted:bg-red-500/15 data-highlighted:text-red-400"
               onClick={onRemove}
             >
               Remove
@@ -443,7 +443,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
 
   return (
     <div className="bg-background rounded-lg border border-border overflow-hidden">
-      <div className="p-4 space-y-4">
+      <div className="p-4 flex flex-col gap-4">
         {/* Contribution Heatmap - at top */}
         <ContributionHeatmap />
 
@@ -747,10 +747,10 @@ export function AgentsModelsTab() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Models</h3>
           <p className="text-xs text-muted-foreground">
             Configure model overrides and Claude Code authentication
@@ -760,13 +760,13 @@ export function AgentsModelsTab() {
 
       {/* Offline Mode Section - only show if debug flag enabled */}
       {showOfflineFeatures && (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2">
           <div className="pb-2">
             <h4 className="text-sm font-medium text-foreground">Offline Mode</h4>
           </div>
 
           <div className="bg-background rounded-lg border border-border overflow-hidden">
-            <div className="p-4 space-y-4">
+            <div className="p-4 flex flex-col gap-4">
               {/* Status */}
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
@@ -813,7 +813,7 @@ export function AgentsModelsTab() {
               {!ollamaStatus?.ollama.available && (
                 <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
                   <p className="font-medium mb-1">To enable offline mode:</p>
-                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <ol className="list-decimal list-inside flex flex-col gap-1 ml-2">
                     <li>Install Ollama from <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline">ollama.com</a></li>
                     <li>Run: <code className="bg-background px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></li>
                     <li>Ollama will run automatically in the background</li>
@@ -826,7 +826,7 @@ export function AgentsModelsTab() {
       )}
 
       {/* Anthropic Accounts Section */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2 flex items-center justify-between">
           <div>
             <h4 className="text-sm font-medium text-foreground">
@@ -851,7 +851,7 @@ export function AgentsModelsTab() {
       </div>
 
       {/* Usage Statistics Section */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">
             Usage Statistics
@@ -864,7 +864,7 @@ export function AgentsModelsTab() {
         <UsageStatisticsSection onViewDetails={() => setUsageDetailsOpen(true)} />
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2 flex items-center justify-between">
           <h4 className="text-sm font-medium text-foreground">
             Override Model
@@ -883,7 +883,7 @@ export function AgentsModelsTab() {
                 Model identifier to use for requests
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -901,7 +901,7 @@ export function AgentsModelsTab() {
                 ANTHROPIC_AUTH_TOKEN env
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 type="password"
                 value={token}
@@ -920,7 +920,7 @@ export function AgentsModelsTab() {
                 ANTHROPIC_BASE_URL env
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
@@ -935,7 +935,7 @@ export function AgentsModelsTab() {
       </div>
 
       {/* OpenAI API Key for Voice Input */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2 flex items-center justify-between">
           <h4 className="text-sm font-medium text-foreground">Voice Input</h4>
           {canResetOpenAI && (
@@ -959,7 +959,7 @@ export function AgentsModelsTab() {
                 Required for voice transcription (Whisper API). Free users need their own key.
               </p>
             </div>
-            <div className="flex-shrink-0 w-80">
+            <div className="shrink-0 w-80">
               <Input
                 type="password"
                 value={openaiKey}

@@ -103,11 +103,11 @@ export const FileListItem = memo(function FileListItem({
       />
       <div className="flex-1 min-w-0 flex items-center overflow-hidden">
         {dirPath && (
-          <span className="text-xs text-muted-foreground truncate flex-shrink min-w-0">
+          <span className="text-xs text-muted-foreground truncate shrink min-w-0">
             {dirPath}/
           </span>
         )}
-        <span className="text-xs font-medium flex-shrink-0 whitespace-nowrap">
+        <span className="text-xs font-medium shrink-0 whitespace-nowrap">
           {fileName}
         </span>
       </div>
@@ -173,7 +173,7 @@ export const FileListItem = memo(function FileListItem({
             <ContextMenuSeparator />
             <ContextMenuItem
               onClick={onDiscard}
-              className="data-[highlighted]:bg-red-500/15 data-[highlighted]:text-red-400"
+              className="data-highlighted:bg-red-500/15 data-highlighted:text-red-400"
             >
               {isUntracked ? "Delete File..." : "Discard Changes..."}
             </ContextMenuItem>

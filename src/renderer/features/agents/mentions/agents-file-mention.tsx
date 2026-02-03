@@ -479,7 +479,7 @@ function createMCPIconElement(): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
   svg.setAttribute("viewBox", "0 0 24 24")
   svg.setAttribute("fill", "none")
-  svg.className.baseVal = "h-3 w-3 text-muted-foreground flex-shrink-0"
+  svg.className.baseVal = "h-3 w-3 text-muted-foreground shrink-0"
 
   const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path")
   path1.setAttribute("fill-rule", "evenodd")
@@ -524,7 +524,7 @@ export function createFileIconElement(filename: string, type?: "file" | "folder"
 
   // Create React element
   const iconElement = createElement(IconComponent, {
-    className: "h-3 w-3 text-muted-foreground flex-shrink-0",
+    className: "h-3 w-3 text-muted-foreground shrink-0",
   })
 
   const root = createRoot(container)
@@ -558,7 +558,7 @@ export function createFileIconElement(filename: string, type?: "file" | "folder"
     fallbackSvg.setAttribute("stroke-linecap", "round")
     fallbackSvg.setAttribute("stroke-linejoin", "round")
     fallbackSvg.className.baseVal =
-      "h-3 w-3 text-muted-foreground flex-shrink-0"
+      "h-3 w-3 text-muted-foreground shrink-0"
 
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
     path.setAttribute(
@@ -579,7 +579,7 @@ export function createFileIconElement(filename: string, type?: "file" | "folder"
 
   // Clone the SVG to avoid issues
   const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
-  clonedSvg.setAttribute("class", "h-3 w-3 text-muted-foreground flex-shrink-0")
+  clonedSvg.setAttribute("class", "h-3 w-3 text-muted-foreground shrink-0")
 
   return clonedSvg
 }
@@ -668,7 +668,7 @@ function renderFolderTree(path: string) {
             style={{ paddingLeft: `${index * 20}px` }}
           >
             <FolderOpenIcon className={cn(
-              "h-3.5 w-3.5 flex-shrink-0",
+              "h-3.5 w-3.5 shrink-0",
               isLast ? "text-foreground/70" : "text-muted-foreground"
             )} />
             <span className={isLast ? "font-medium" : ""}>{part}</span>
@@ -788,7 +788,7 @@ function renderTooltipContent(option: FileMentionOption) {
     return (
       <div className="flex flex-col gap-1.5 w-full overflow-hidden">
         {option.description && (
-          <p className="text-xs text-muted-foreground break-words">
+          <p className="text-xs text-muted-foreground wrap-break-word">
             {option.description}
           </p>
         )}
@@ -798,7 +798,7 @@ function renderTooltipContent(option: FileMentionOption) {
           </div>
         )}
         {option.tools && option.tools.length > 0 && (
-          <div className="text-xs text-muted-foreground break-words">
+          <div className="text-xs text-muted-foreground wrap-break-word">
             Tools: {option.tools.join(", ")}
           </div>
         )}
@@ -1310,7 +1310,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
     <TooltipProvider delayDuration={300}>
       <div
         ref={dropdownRef}
-        className="fixed z-[99999] overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
+        className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
         style={{
           top: finalTop,
           left: finalLeft,
@@ -1383,7 +1383,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
                         setHoverIndex((prev) => (prev === index ? null : prev))
                       }}
                       className={cn(
-                        "group inline-flex w-[calc(100%-8px)] mx-1 items-center whitespace-nowrap outline-none",
+                        "group inline-flex w-[calc(100%-8px)] mx-1 items-center whitespace-nowrap outline-hidden",
                         "h-7 px-1.5 justify-start text-xs rounded-md",
                         "transition-colors cursor-pointer select-none gap-1.5",
                         isSelected
@@ -1391,7 +1391,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
                           : "text-muted-foreground dark:hover:bg-neutral-800 hover:bg-accent hover:text-foreground",
                       )}
                     >
-                      <OptionIcon className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <OptionIcon className="h-3 w-3 text-muted-foreground shrink-0" />
                       <span className="flex items-center gap-1 w-full min-w-0">
                         <span className={cn("shrink-0 whitespace-nowrap", isCategory && "font-medium")}>
                           {option.label}
@@ -1429,7 +1429,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
                       </span>
                       {/* ChevronRight for category items (navigate to subpage) */}
                       {isCategory && (
-                        <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       )}
                     </div>
                   )

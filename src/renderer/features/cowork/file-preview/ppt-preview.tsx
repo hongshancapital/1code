@@ -271,7 +271,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
 
       {/* Navigation bar */}
       {!isLoading && totalSlides > 0 && (
-        <div className="flex items-center justify-center gap-4 py-3 px-4 border-t bg-background flex-shrink-0">
+        <div className="flex items-center justify-center gap-4 py-3 px-4 border-t bg-background shrink-0">
           <Button
             variant="outline"
             size="icon"

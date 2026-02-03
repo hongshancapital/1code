@@ -133,7 +133,7 @@ export function LiteLLMOnboardingPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
-      <div className="w-full max-w-[480px] space-y-6 px-4">
+      <div className="w-full max-w-[480px] flex flex-col gap-6 px-4">
         {/* Back button */}
         <button
           onClick={handleBack}
@@ -144,7 +144,7 @@ export function LiteLLMOnboardingPage() {
         </button>
 
         {/* Header */}
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold tracking-tight">
             Connect to LiteLLM
           </h1>
@@ -154,9 +154,9 @@ export function LiteLLMOnboardingPage() {
         </div>
 
         {/* Configuration Form */}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           {/* Base URL */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="baseUrl" className="text-sm font-medium">
               LiteLLM Base URL
             </Label>
@@ -174,7 +174,7 @@ export function LiteLLMOnboardingPage() {
           </div>
 
           {/* API Key (optional) */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="apiKey" className="text-sm font-medium">
               API Key <span className="text-muted-foreground">(optional)</span>
             </Label>
@@ -192,7 +192,7 @@ export function LiteLLMOnboardingPage() {
           </div>
 
           {/* Model Selection */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="model" className="text-sm font-medium">
                 Model
@@ -209,7 +209,7 @@ export function LiteLLMOnboardingPage() {
 
             {modelsError ? (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{modelsError}</span>
               </div>
             ) : isLoadingModels ? (
@@ -221,7 +221,7 @@ export function LiteLLMOnboardingPage() {
                 id="model"
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 {models.map((model) => (
                   <option key={model.id} value={model.id}>

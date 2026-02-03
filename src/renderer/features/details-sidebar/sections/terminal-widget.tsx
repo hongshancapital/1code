@@ -303,7 +303,7 @@ export const TerminalWidget = memo(function TerminalWidget({
                 variant="ghost"
                 size="icon"
                 onClick={createTerminal}
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] rounded-md flex-shrink-0"
+                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] rounded-md shrink-0"
                 aria-label="New terminal"
               >
                 <PlusIcon className="h-3.5 w-3.5" />
@@ -320,7 +320,7 @@ export const TerminalWidget = memo(function TerminalWidget({
                   variant="ghost"
                   size="icon"
                   onClick={onExpand}
-                  className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0"
+                  className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity,transform] duration-150 ease-out active:scale-[0.97] shrink-0"
                   aria-label="Expand terminal"
                 >
                   <ArrowUpRight className="h-3 w-3" />

@@ -126,9 +126,9 @@ export function ContextReviewPanel({
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               {Object.entries(groupedByFile).map(([filePath, contexts]) => (
-                <div key={filePath} className="space-y-2">
+                <div key={filePath} className="flex flex-col gap-2">
                   {/* File header */}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <FileCode className="size-3" />
@@ -136,7 +136,7 @@ export function ContextReviewPanel({
                   </div>
 
                   {/* Comments for this file */}
-                  <div className="space-y-2 pl-5">
+                  <div className="flex flex-col gap-2 pl-5">
                     {contexts.map((ctx) => (
                       <div
                         key={ctx.id}
@@ -167,7 +167,7 @@ export function ContextReviewPanel({
                                 onChange={(e) => setEditValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 autoFocus
-                                className="flex-1 text-sm bg-background border border-input rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring"
+                                className="flex-1 text-sm bg-background border border-input rounded px-2 py-1 outline-hidden focus:ring-1 focus:ring-ring"
                               />
                               <Button size="sm" onClick={handleSaveEdit}>
                                 Save

@@ -13,7 +13,7 @@ const ButtonGroup = React.forwardRef<HTMLDivElement, ButtonGroupProps>(
       <div
         ref={ref}
         className={cn(
-          "inline-flex rounded-md shadow-sm",
+          "inline-flex rounded-md shadow-xs",
           "[&>button]:rounded-none",
           "[&>button:first-child]:rounded-l-md",
           "[&>button:last-child]:rounded-r-md",

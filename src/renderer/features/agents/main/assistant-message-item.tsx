@@ -139,7 +139,7 @@ function CollapsibleSteps({
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ListTree className="w-3.5 h-3.5 flex-shrink-0" />
+          <ListTree className="w-3.5 h-3.5 shrink-0" />
           <span className="font-medium whitespace-nowrap">
             {stepsCount} {stepsCount === 1 ? "step" : "steps"}
           </span>
@@ -167,7 +167,7 @@ function CollapsibleSteps({
           </div>
         </button>
       </div>
-      {isExpanded && <div className="mt-1 space-y-1.5">{children}</div>}
+      {isExpanded && <div className="mt-1 flex flex-col gap-1.5">{children}</div>}
     </div>
   )
 }

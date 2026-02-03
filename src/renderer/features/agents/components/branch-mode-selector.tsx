@@ -153,7 +153,7 @@ export function BranchModeSelector({
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1.5 px-2 py-1 text-sm transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-none",
+            "flex items-center gap-1.5 px-2 py-1 text-sm transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-hidden",
             workMode === "worktree"
               ? "text-foreground"
               : "text-muted-foreground hover:text-foreground",
@@ -183,7 +183,7 @@ export function BranchModeSelector({
                 setOpen(false)
               }}
               className={cn(
-                "flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-none transition-colors",
+                "flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-hidden transition-colors",
                 workMode === "local"
                   ? "bg-accent text-foreground"
                   : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
@@ -208,7 +208,7 @@ export function BranchModeSelector({
             <button
               onClick={handleSelectWorktree}
               className={cn(
-                "flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-none transition-colors",
+                "flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-hidden transition-colors",
                 workMode === "worktree"
                   ? "bg-accent text-foreground"
                   : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
@@ -234,7 +234,7 @@ export function BranchModeSelector({
                 {/* Base branch selector */}
                 <button
                   onClick={() => setView("branches")}
-                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-none transition-colors hover:bg-accent/50"
+                  className="flex items-center gap-2 w-[calc(100%-8px)] mx-1 px-2 py-2 text-sm text-left rounded-md cursor-default select-none outline-hidden transition-colors hover:bg-accent/50"
                 >
                   <BranchIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
@@ -266,7 +266,7 @@ export function BranchModeSelector({
                       }
                     }}
                     className={cn(
-                      "w-full px-2.5 py-1.5 text-sm rounded-md border bg-background outline-none transition-colors",
+                      "w-full px-2.5 py-1.5 text-sm rounded-md border bg-background outline-hidden transition-colors",
                       branchNameError
                         ? "border-destructive"
                         : "border-input focus:border-muted-foreground"
@@ -307,7 +307,7 @@ export function BranchModeSelector({
                 placeholder="Search branches..."
                 value={branchSearch}
                 onChange={(e) => setBranchSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="flex-1 bg-transparent text-sm outline-hidden placeholder:text-muted-foreground"
                 autoFocus
               />
             </div>
@@ -346,7 +346,7 @@ export function BranchModeSelector({
                         key={`${branch.type}-${branch.name}`}
                         onClick={() => handleBranchSelect(branch)}
                         className={cn(
-                          "flex items-center gap-1.5 w-[calc(100%-8px)] mx-1 px-2 text-sm text-left absolute left-0 top-0 rounded-md cursor-default select-none outline-none transition-colors",
+                          "flex items-center gap-1.5 w-[calc(100%-8px)] mx-1 px-2 text-sm text-left absolute left-0 top-0 rounded-md cursor-default select-none outline-hidden transition-colors",
                           isSelected
                             ? "bg-accent text-foreground"
                             : "hover:bg-accent/50 hover:text-foreground"

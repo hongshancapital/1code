@@ -270,9 +270,9 @@ export function AnthropicOnboardingPage() {
         <ChevronLeft className="h-5 w-5" />
       </button>
 
-      <div className="w-full max-w-[440px] space-y-8 px-4">
+      <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header with dual icons */}
-        <div className="text-center space-y-4">
+        <div className="text-center flex flex-col gap-4">
           <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
               <Logo className="w-5 h-5" fill="white" />
@@ -281,7 +281,7 @@ export function AnthropicOnboardingPage() {
               <ClaudeCodeIcon className="w-6 h-6 text-white" />
             </div>
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
               Connect Claude Code
             </h1>
@@ -292,16 +292,16 @@ export function AnthropicOnboardingPage() {
         </div>
 
         {/* Content */}
-        <div className="space-y-6 flex flex-col items-center">
+        <div className="gap-6 flex flex-col items-center">
           {/* Existing token prompt */}
           {shouldOfferExistingToken && flowState.step === "idle" && (
-            <div className="space-y-4 w-full">
+            <div className="flex flex-col gap-4 w-full">
               <div className="p-4 bg-muted/50 border border-border rounded-lg">
                 <p className="text-sm font-medium">
                   Existing Claude Code credentials found
                 </p>
                 {existingToken && (
-                  <pre className="mt-2 px-2.5 py-2 text-xs text-foreground whitespace-pre-wrap break-words font-mono bg-background/60 rounded border border-border/60">
+                  <pre className="mt-2 px-2.5 py-2 text-xs text-foreground whitespace-pre-wrap wrap-break-word font-mono bg-background/60 rounded border border-border/60">
                     {formatTokenPreview(existingToken)}
                   </pre>
                 )}
@@ -360,7 +360,7 @@ export function AnthropicOnboardingPage() {
           {(urlOpened ||
             flowState.step === "has_url" ||
             flowState.step === "submitting") && (
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               <div className="relative">
                 <Input
                   value={authCode}
@@ -396,7 +396,7 @@ export function AnthropicOnboardingPage() {
 
           {/* Error State */}
           {flowState.step === "error" && (
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                 <p className="text-sm text-destructive">{flowState.message}</p>
               </div>

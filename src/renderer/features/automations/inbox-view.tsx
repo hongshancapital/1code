@@ -220,12 +220,12 @@ export function InboxView() {
         {mobileViewMode === "list" ? (
           <>
             {/* Mobile Header */}
-            <div className="flex-shrink-0 border-b bg-background">
+            <div className="shrink-0 border-b bg-background">
               <div className="h-14 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleMobileBackToChats}
-                    className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+                    className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md text-muted-foreground hover:text-foreground"
                     aria-label="Back to chats"
                   >
                     <AlignJustify className="h-4 w-4" />
@@ -239,7 +239,7 @@ export function InboxView() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[240px] p-3">
-                    <div className="space-y-4">
+                    <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-sm">
                           <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
@@ -292,7 +292,7 @@ export function InboxView() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-0.5 py-4">
+                <div className="flex flex-col gap-0.5 py-4">
                   {filteredChats.map((chat) => (
                     <button
                       key={chat.id}
@@ -300,7 +300,7 @@ export function InboxView() {
                       className="w-full text-left py-3 px-3 rounded-lg transition-colors duration-150 cursor-pointer hover:bg-foreground/5 active:bg-foreground/10"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="pt-0.5 flex-shrink-0 relative">
+                        <div className="pt-0.5 shrink-0 relative">
                           <GitHubIcon className="h-5 w-5 text-muted-foreground" />
                           {!chat.isRead && (
                             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full" />
@@ -320,7 +320,7 @@ export function InboxView() {
                             </span>
                           </div>
                         </div>
-                        <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5 h-5 flex-shrink-0", getStatusColor(chat.status))}>
+                        <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5 h-5 shrink-0", getStatusColor(chat.status))}>
                           {chat.status}
                         </Badge>
                       </div>
@@ -384,7 +384,7 @@ export function InboxView() {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-[240px] p-3">
-                  <div className="space-y-4">
+                  <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm">
                         <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
@@ -416,8 +416,8 @@ export function InboxView() {
           )}
 
           {/* Header */}
-          <div className="p-2 pb-3 flex-shrink-0 relative z-10">
-            <div className="space-y-2">
+          <div className="p-2 pb-3 shrink-0 relative z-10">
+            <div className="flex flex-col gap-2">
               {/* Top row - different layout based on main sidebar state */}
               {sidebarOpen ? (
                 <div className="h-6" />
@@ -425,7 +425,7 @@ export function InboxView() {
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <button
                     onClick={() => setSidebarOpen(true)}
-                    className="h-6 w-6 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+                    className="h-6 w-6 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md text-muted-foreground hover:text-foreground"
                     aria-label="Open sidebar"
                     style={{
                       WebkitAppRegion: "no-drag",
@@ -446,7 +446,7 @@ export function InboxView() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent align="end" className="w-[240px] p-3">
-                        <div className="space-y-4">
+                        <div className="flex flex-col gap-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-sm">
                               <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
@@ -500,7 +500,7 @@ export function InboxView() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-0.5 pb-4">
+              <div className="flex flex-col gap-0.5 pb-4">
                 {filteredChats.map((chat) => (
                   <button
                     key={chat.id}
@@ -513,7 +513,7 @@ export function InboxView() {
                     )}
                   >
                     <div className="flex items-start gap-2.5">
-                      <div className="pt-0.5 flex-shrink-0 relative">
+                      <div className="pt-0.5 shrink-0 relative">
                         <GitHubIcon className="h-4 w-4 text-muted-foreground" />
                         {!chat.isRead && (
                           <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
@@ -533,7 +533,7 @@ export function InboxView() {
                           </span>
                         </div>
                       </div>
-                      <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 flex-shrink-0", getStatusColor(chat.status))}>
+                      <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 shrink-0", getStatusColor(chat.status))}>
                         {chat.status}
                       </Badge>
                     </div>

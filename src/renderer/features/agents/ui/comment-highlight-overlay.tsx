@@ -247,7 +247,7 @@ function HighlightMarker({ comment, rects, onClick }: HighlightMarkerProps) {
             "bg-yellow-500 dark:bg-yellow-400",
             "text-white dark:text-gray-900",
             "hover:scale-110 transition-transform",
-            "cursor-pointer shadow-sm"
+            "cursor-pointer shadow-xs"
           )}
           style={{
             left: lastRect.x + lastRect.width + 4,

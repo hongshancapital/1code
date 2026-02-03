@@ -53,9 +53,9 @@ export function AgentFileItem({
       onMouseLeave={() => setIsHovered(false)}
     >
       {isLoading ? (
-        <IconSpinner className="size-3.5 text-muted-foreground flex-shrink-0" />
+        <IconSpinner className="size-3.5 text-muted-foreground shrink-0" />
       ) : (
-        <Icon className="size-3.5 text-muted-foreground flex-shrink-0" />
+        <Icon className="size-3.5 text-muted-foreground shrink-0" />
       )}
 
       <div className="flex flex-col min-w-0">

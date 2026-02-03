@@ -182,10 +182,10 @@ export function AgentsWorktreesTab() {
   const cursorExists = configData?.available?.cursor?.exists ?? false
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Worktrees</h3>
           <p className="text-xs text-muted-foreground">
             Configure setup commands that run when a new worktree is created
@@ -194,7 +194,7 @@ export function AgentsWorktreesTab() {
       )}
 
       {/* Project Selection */}
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">Project</h4>
         </div>
@@ -207,7 +207,7 @@ export function AgentsWorktreesTab() {
                 Choose which project to configure
               </p>
             </div>
-            <div className="flex-shrink-0 w-64">
+            <div className="shrink-0 w-64">
               <Select
                 value={selectedProjectId ?? ""}
                 onValueChange={setSelectedProjectId}
@@ -233,7 +233,7 @@ export function AgentsWorktreesTab() {
       {selectedProjectId && (
         <>
           {/* Config Location */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <div className="pb-2">
               <h4 className="text-sm font-medium text-foreground">
                 Config Location
@@ -253,7 +253,7 @@ export function AgentsWorktreesTab() {
                     Where to save the configuration file
                   </p>
                 </div>
-                <div className="flex-shrink-0 w-auto min-w-56 max-w-80">
+                <div className="shrink-0 w-auto min-w-56 max-w-80">
                   <Select
                     value={saveTarget}
                     onValueChange={(v) => setSaveTarget(v as "cursor" | "hong")}
@@ -282,7 +282,7 @@ export function AgentsWorktreesTab() {
           </div>
 
           {/* Setup Commands - Main */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <div className="pb-2 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-medium text-foreground">
@@ -316,14 +316,14 @@ export function AgentsWorktreesTab() {
             </div>
 
             <div className="bg-background rounded-lg border border-border overflow-hidden">
-              <div className="p-4 space-y-3">
+              <div className="p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium">All Platforms</Label>
                   <span className="text-xs text-muted-foreground">
                     use <code className="font-mono bg-muted px-1 py-0.5 rounded">$ROOT_WORKTREE_PATH</code> for main repo path
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="flex flex-col gap-2">
                   {commands.map((cmd, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <Input
@@ -374,9 +374,9 @@ export function AgentsWorktreesTab() {
                 </button>
 
                 {showPlatformSpecific && (
-                  <div className="p-4 pt-0 space-y-4">
+                  <div className="p-4 pt-0 flex flex-col gap-4">
                     {/* Unix Commands */}
-                    <div className="space-y-2">
+                    <div className="flex flex-col gap-2">
                       <span className="text-xs font-medium text-muted-foreground">
                         macOS / Linux
                       </span>
@@ -385,7 +385,7 @@ export function AgentsWorktreesTab() {
                           Falls back to "All Platforms"
                         </p>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                           {unixCommands.map((cmd, i) => (
                             <div key={i} className="flex items-center gap-2">
                               <Input
@@ -427,7 +427,7 @@ export function AgentsWorktreesTab() {
                     </div>
 
                     {/* Windows Commands */}
-                    <div className="space-y-2">
+                    <div className="flex flex-col gap-2">
                       <span className="text-xs font-medium text-muted-foreground">
                         Windows
                       </span>
@@ -436,7 +436,7 @@ export function AgentsWorktreesTab() {
                           Falls back to "All Platforms"
                         </p>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="flex flex-col gap-2">
                           {windowsCommands.map((cmd, i) => (
                             <div key={i} className="flex items-center gap-2">
                               <Input

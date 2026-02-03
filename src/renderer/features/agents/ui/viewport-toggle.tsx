@@ -32,7 +32,7 @@ export function ViewportToggle({
       >
         {/* Animated selector */}
         <motion.div
-          className="absolute inset-y-0.5 rounded-md bg-background shadow transition-all duration-200 ease-in-out"
+          className="absolute inset-y-0.5 rounded-md bg-background shadow-xs transition-all duration-200 ease-in-out"
           animate={{
             width: "calc(50% - 2px)",
             left: value === "desktop" ? "2px" : "calc(50%)",
@@ -58,7 +58,7 @@ export function ViewportToggle({
           aria-label="Desktop viewport"
           aria-pressed={value === "desktop"}
           className={cn(
-            "relative z-[2] px-2 flex-1 flex items-center justify-center transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 text-muted-foreground",
+            "relative z-2 px-2 flex-1 flex items-center justify-center transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 text-muted-foreground",
           )}
         >
           <Monitor className="h-3.5 w-3.5" />
@@ -79,7 +79,7 @@ export function ViewportToggle({
           aria-label="Mobile viewport"
           aria-pressed={value === "mobile"}
           className={cn(
-            "relative z-[2] px-2 flex-1 flex items-center justify-center transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 text-muted-foreground",
+            "relative z-2 px-2 flex-1 flex items-center justify-center transition-colors duration-200 rounded-md outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 text-muted-foreground",
           )}
         >
           <Smartphone className="h-3.5 w-3.5" />

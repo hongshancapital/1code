@@ -81,7 +81,7 @@ export function ReviewPanel({
   return (
     <div className="flex flex-col max-h-[480px]">
       {/* Submit comment section - at top */}
-      <div className="p-3 space-y-2">
+      <div className="p-3 flex flex-col gap-2">
         <div className="text-xs font-medium text-muted-foreground mb-1.5">
           Submit comment
         </div>
@@ -90,7 +90,7 @@ export function ReviewPanel({
           onChange={(e) => setSummary(e.target.value)}
           placeholder="Add an optional message, ↵ to submit comments"
           rows={2}
-          className="w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 outline-none focus:ring-1 focus:ring-primary resize-none placeholder:text-muted-foreground"
+          className="w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 outline-hidden focus:ring-1 focus:ring-primary resize-none placeholder:text-muted-foreground"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
@@ -140,9 +140,9 @@ export function ReviewPanel({
           {/* Expandable comments list */}
           {isCommentsExpanded && (
             <div className="max-h-[280px] overflow-y-auto">
-              <div className="p-2 space-y-3">
+              <div className="p-2 flex flex-col gap-3">
                 {groupedComments.map(({ path, fileName, comments: docComments }) => (
-                  <div key={path} className="space-y-2">
+                  <div key={path} className="flex flex-col gap-2">
                     {/* Document header */}
                     <div className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted-foreground">
                       {getDocumentIcon(docComments[0])}
@@ -230,12 +230,12 @@ function ReviewCommentItem({
       {/* Comment content */}
       <div className="px-2 py-1.5">
         {isEditing ? (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <textarea
               value={editContent}
               onChange={(e) => onEditContentChange(e.target.value)}
               rows={2}
-              className="w-full text-xs bg-transparent outline-none resize-none"
+              className="w-full text-xs bg-transparent outline-hidden resize-none"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

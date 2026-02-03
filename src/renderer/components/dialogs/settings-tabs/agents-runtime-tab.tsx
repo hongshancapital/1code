@@ -336,7 +336,7 @@ function CommonToolsSection() {
       description="CLI tools that enhance Hóng functionality"
       defaultOpen={true}
     >
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         {/* Header with refresh */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
@@ -479,9 +479,9 @@ export function AgentsRuntimeTab() {
   )
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col space-y-1.5">
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <Terminal className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">
@@ -494,7 +494,7 @@ export function AgentsRuntimeTab() {
       </div>
 
       {/* Runtime Sections */}
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         {/* Common Tools Section - First */}
         <CommonToolsSection />
 
@@ -506,9 +506,9 @@ export function AgentsRuntimeTab() {
           description="Node.js, Bun, and package managers"
           defaultOpen={false}
         >
-          <div className="space-y-6">
+          <div className="flex flex-col gap-6">
             {/* Preferred Runtime */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-medium">Preferred Runtime</Label>
                 <Button
@@ -601,7 +601,7 @@ export function AgentsRuntimeTab() {
               </div>
 
               {/* Default Package Manager */}
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 flex flex-col gap-2">
                 <Label className="text-sm font-medium">Default Package Manager</Label>
                 <Select
                   value={packageManager}
@@ -626,7 +626,7 @@ export function AgentsRuntimeTab() {
 
             {/* Debug Settings Sub-section */}
             <RuntimeSubSection title="Debug Settings">
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Label className="text-sm font-medium">Default Debug Port</Label>
                 <Input
                   type="number"

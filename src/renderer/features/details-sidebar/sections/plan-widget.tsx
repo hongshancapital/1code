@@ -141,7 +141,7 @@ export const PlanWidget = memo(function PlanWidget({
       <div className="rounded-lg border border-border/50 overflow-hidden">
         {/* Header - same as original WidgetCard but with expand button added */}
         <div className="flex items-center gap-2 px-2 h-8 select-none group bg-muted/30">
-          <PlanIcon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <PlanIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="text-xs font-medium text-foreground flex-1">Plan</span>
 
           {/* Original buttons: View plan + Approve */}
@@ -176,7 +176,7 @@ export const PlanWidget = memo(function PlanWidget({
               variant="ghost"
               size="icon"
               onClick={handleToggleExpand}
-              className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0"
+              className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0"
               aria-label={isExpanded ? "Collapse plan" : "Expand plan"}
             >
               <div className="relative w-3.5 h-3.5">

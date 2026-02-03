@@ -97,7 +97,7 @@ function AgentDetail({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-5">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="flex-1 min-w-0">
@@ -112,7 +112,7 @@ function AgentDetail({
         </div>
 
         {/* Description */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Description</Label>
           <Input
             value={description}
@@ -123,7 +123,7 @@ function AgentDetail({
         </div>
 
         {/* Model */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Model</Label>
           <Select value={model} onValueChange={handleModelChange}>
             <SelectTrigger>
@@ -140,7 +140,7 @@ function AgentDetail({
 
         {/* Tools (read-only) */}
         {agent.tools && agent.tools.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Allowed Tools</Label>
             <div className="flex flex-wrap gap-1">
               {agent.tools.map((tool) => (
@@ -157,7 +157,7 @@ function AgentDetail({
 
         {/* Disallowed Tools (read-only) */}
         {agent.disallowedTools && agent.disallowedTools.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Disallowed Tools</Label>
             <div className="flex flex-wrap gap-1">
               {agent.disallowedTools.map((tool) => (
@@ -173,7 +173,7 @@ function AgentDetail({
         )}
 
         {/* System Prompt */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>System Prompt</Label>
           <Textarea
             value={prompt}
@@ -211,7 +211,7 @@ function CreateAgentForm({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-5">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">New Agent</h3>
           <div className="flex items-center gap-2">
@@ -222,7 +222,7 @@ function CreateAgentForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Name</Label>
           <Input
             value={name}
@@ -233,7 +233,7 @@ function CreateAgentForm({
           <p className="text-[11px] text-muted-foreground">Lowercase letters, numbers, and hyphens</p>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Description</Label>
           <Input
             value={description}
@@ -242,7 +242,7 @@ function CreateAgentForm({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>Model</Label>
           <Select value={model} onValueChange={setModel}>
             <SelectTrigger>
@@ -258,7 +258,7 @@ function CreateAgentForm({
         </div>
 
         {hasProject && (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <Label>Scope</Label>
             <Select value={source} onValueChange={(v) => setSource(v as "user" | "project")}>
               <SelectTrigger>
@@ -272,7 +272,7 @@ function CreateAgentForm({
           </div>
         )}
 
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label>System Prompt</Label>
           <Textarea
             value={prompt}
@@ -409,14 +409,14 @@ export function AgentsCustomAgentsTab() {
       >
         <div className="flex flex-col h-full bg-background border-r overflow-hidden" style={{ borderRightWidth: "0.5px" }}>
           {/* Search + Add */}
-          <div className="px-2 pt-2 flex-shrink-0 flex items-center gap-1.5">
+          <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
               placeholder="Search agents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
-              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-none"
+              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
             />
             <button
               onClick={() => { setShowAddForm(true); setSelectedAgentName(null) }}
@@ -427,7 +427,7 @@ export function AgentsCustomAgentsTab() {
             </button>
           </div>
           {/* Agent list */}
-          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-none">
+          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-xs text-muted-foreground">Loading...</p>
@@ -451,14 +451,14 @@ export function AgentsCustomAgentsTab() {
                 <p className="text-xs text-muted-foreground">No results found</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="flex flex-col gap-3">
                 {/* User Agents */}
                 {userAgents.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
                       User
                     </p>
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       {userAgents.map((agent) => {
                         const isSelected = selectedAgentName === agent.name
                         return (
@@ -467,7 +467,7 @@ export function AgentsCustomAgentsTab() {
                             data-item-id={agent.name}
                             onClick={() => setSelectedAgentName(agent.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
@@ -501,7 +501,7 @@ export function AgentsCustomAgentsTab() {
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
                       Project
                     </p>
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-0.5">
                       {projectAgents.map((agent) => {
                         const isSelected = selectedAgentName === agent.name
                         return (
@@ -510,7 +510,7 @@ export function AgentsCustomAgentsTab() {
                             data-item-id={agent.name}
                             onClick={() => setSelectedAgentName(agent.name)}
                             className={cn(
-                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                               isSelected
                                 ? "bg-foreground/5 text-foreground"
                                 : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"

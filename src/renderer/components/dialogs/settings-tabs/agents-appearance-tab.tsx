@@ -108,7 +108,7 @@ function ThemePreviewBox({
   return (
     <div
       className={cn(
-        "flex-shrink-0 flex items-center justify-center font-semibold",
+        "shrink-0 flex items-center justify-center font-semibold",
         sizeClasses,
         className,
       )}
@@ -119,7 +119,7 @@ function ThemePreviewBox({
     >
       {/* Accent dot to the left of text */}
       <div
-        className={cn("rounded-full flex-shrink-0", dotSize)}
+        className={cn("rounded-full shrink-0", dotSize)}
         style={{ backgroundColor: accentColor }}
       />
       <span style={{ color: isDark ? "#fff" : "#000", opacity: 0.9 }}>Aa</span>
@@ -369,7 +369,7 @@ export function AgentsAppearanceTab() {
 
   if (!mounted) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 flex flex-col gap-6">
         <div className="h-48 flex items-center justify-center">
           <IconSpinner className="h-8 w-8 text-foreground" />
         </div>
@@ -378,10 +378,10 @@ export function AgentsAppearanceTab() {
   }
 
   return (
-    <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+    <div className="p-6 gap-6 flex flex-col-1 overflow-y-auto">
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
-        <div className="flex flex-col space-y-1.5 text-center sm:text-left">
+        <div className="flex flex-col gap-1.5 text-center sm:text-left">
           <h3 className="text-sm font-semibold text-foreground">Appearance</h3>
           <p className="text-xs text-muted-foreground">
             Customize the look and feel of the interface
@@ -393,7 +393,7 @@ export function AgentsAppearanceTab() {
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         {/* Main theme selector */}
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Interface theme
             </span>
@@ -514,7 +514,7 @@ export function AgentsAppearanceTab() {
             >
               {/* Light theme selector */}
               <div className="flex items-center justify-between p-4 border-t border-border">
-                <div className="flex flex-col space-y-1">
+                <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-foreground">
                     Light
                   </span>
@@ -550,7 +550,7 @@ export function AgentsAppearanceTab() {
 
               {/* Dark theme selector */}
               <div className="flex items-center justify-between p-4 border-t border-border">
-                <div className="flex flex-col space-y-1">
+                <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-foreground">
                     Dark
                   </span>
@@ -592,7 +592,7 @@ export function AgentsAppearanceTab() {
       {/* Display Options Section */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between p-4">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Workspace icon
             </span>
@@ -606,7 +606,7 @@ export function AgentsAppearanceTab() {
           />
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
               Always expand to-do list
             </span>

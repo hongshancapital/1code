@@ -1,8 +1,7 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite"
 import { resolve } from "path"
 import react from "@vitejs/plugin-react"
-import tailwindcss from "tailwindcss"
-import autoprefixer from "autoprefixer"
+import tailwindcss from "@tailwindcss/vite"
 
 const isDev = process.env.NODE_ENV !== "production"
 
@@ -56,6 +55,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      tailwindcss(),
       react({
         // In dev mode, use WDYR as JSX import source to track ALL component re-renders
         jsxImportSource: isDev
@@ -74,11 +74,6 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, "src/renderer/index.html"),
         },
-      },
-    },
-    css: {
-      postcss: {
-        plugins: [tailwindcss, autoprefixer],
       },
     },
   },

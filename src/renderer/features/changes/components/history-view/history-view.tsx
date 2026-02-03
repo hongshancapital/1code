@@ -285,11 +285,11 @@ const CommitFileItem = memo(function CommitFileItem({
 			<FileText className="size-3.5 text-muted-foreground shrink-0 ml-5" />
 			<div className="flex-1 min-w-0 flex items-center overflow-hidden">
 				{dirPath && (
-					<span className="text-xs text-muted-foreground truncate flex-shrink min-w-0">
+					<span className="text-xs text-muted-foreground truncate shrink min-w-0">
 						{dirPath}/
 					</span>
 				)}
-				<span className="text-xs font-medium flex-shrink-0 whitespace-nowrap">
+				<span className="text-xs font-medium shrink-0 whitespace-nowrap">
 					{fileName}
 				</span>
 			</div>

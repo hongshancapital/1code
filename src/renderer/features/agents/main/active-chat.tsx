@@ -951,7 +951,7 @@ function CollapsibleSteps({
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ListTree className="w-3.5 h-3.5 flex-shrink-0" />
+          <ListTree className="w-3.5 h-3.5 shrink-0" />
           <span className="font-medium whitespace-nowrap">
             {stepsCount} {stepsCount === 1 ? "step" : "steps"}
           </span>
@@ -979,7 +979,7 @@ function CollapsibleSteps({
           </div>
         </button>
       </div>
-      {isExpanded && <div className="mt-1 space-y-1.5">{children}</div>}
+      {isExpanded && <div className="mt-1 flex flex-col gap-1.5">{children}</div>}
     </div>
   )
 }
@@ -1068,11 +1068,11 @@ const CommitFileItem = memo(function CommitFileItem({
     >
       <div className="flex-1 min-w-0 flex items-center overflow-hidden">
         {dirPath && (
-          <span className="text-xs text-muted-foreground truncate flex-shrink min-w-0">
+          <span className="text-xs text-muted-foreground truncate shrink min-w-0">
             {dirPath}/
           </span>
         )}
-        <span className="text-xs font-medium flex-shrink-0 whitespace-nowrap">
+        <span className="text-xs font-medium shrink-0 whitespace-nowrap">
           {fileName}
         </span>
       </div>
@@ -1254,11 +1254,11 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
 
     // Vertical layout: ChangesPanel on top, diff/file list below
     return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col-1 min-h-0 overflow-hidden">
         {/* Top: ChangesPanel (file list + commit) */}
         {worktreePath && (
           <div className={cn(
-            "flex-shrink-0 overflow-hidden flex flex-col",
+            "shrink-0 overflow-hidden flex flex-col",
             "h-[45%] min-h-[200px] border-b border-border/50"
           )}>
             <ChangesPanel
@@ -1372,7 +1372,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
       {/* Left: ChangesPanel (file list + commit) with resize handle */}
       {worktreePath && (
         <div
-          className="h-full flex-shrink-0 relative"
+          className="h-full shrink-0 relative"
           style={{ width: changesPanelWidth }}
         >
           <ChangesPanel
@@ -1803,11 +1803,11 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           reviewButtonSlot={reviewButtonSlot}
         />
       ) : sandboxId ? (
-        <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background flex-shrink-0">
+        <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background shrink-0">
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 flex-shrink-0 hover:bg-foreground/10"
+            className="h-6 w-6 p-0 shrink-0 hover:bg-foreground/10"
             onClick={handleCloseDiff}
           >
             <IconCloseSidebarRight className="size-4 text-muted-foreground" />
@@ -4245,7 +4245,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
   return (
     <SearchHighlightProvider>
-      <div className="flex flex-col flex-1 min-h-0 relative">
+      <div className="flex flex-col-1 min-h-0 relative">
         {/* Text selection popover for adding text to context */}
         <TextSelectionPopover
           onAddToContext={addTextContext}
@@ -4278,7 +4278,7 @@ const ChatViewInner = memo(function ChatViewInner({
         {!isMobile && (
           <div
             className={cn(
-              "flex-shrink-0 pb-2",
+              "shrink-0 pb-2",
               isSubChatsSidebarOpen ? "pt-[52px]" : "pt-2",
             )}
           >
@@ -4303,7 +4303,7 @@ const ChatViewInner = memo(function ChatViewInner({
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsChatFullWidth(!isChatFullWidth)}
-                    className="h-7 w-7 p-0 flex-shrink-0 hover:bg-foreground/10"
+                    className="h-7 w-7 p-0 shrink-0 hover:bg-foreground/10"
                   >
                     {isChatFullWidth ? (
                       <ArrowLeftFromLine className="size-4 text-muted-foreground" />
@@ -4341,7 +4341,7 @@ const ChatViewInner = memo(function ChatViewInner({
             chatContainerObserverRef.current = observer
           }
         }}
-        className="flex-1 overflow-y-auto w-full relative allow-text-selection outline-none"
+        className="flex-1 overflow-y-auto w-full relative allow-text-selection outline-hidden"
         tabIndex={-1}
         data-chat-container
       >
@@ -6835,12 +6835,12 @@ Make sure to preserve all functionality from both branches when resolving confli
                 // Mobile: always flex; Desktop: absolute when sidebar open, flex when closed
                 !isMobileFullscreen && subChatsSidebarMode === "sidebar"
                   ? `absolute top-0 left-0 right-0 ${CHAT_LAYOUT.headerPaddingSidebarOpen}`
-                  : `flex-shrink-0 ${CHAT_LAYOUT.headerPaddingSidebarClosed}`,
+                  : `shrink-0 ${CHAT_LAYOUT.headerPaddingSidebarClosed}`,
               )}
             >
               {/* Gradient background - only when not absolute */}
               {(isMobileFullscreen || subChatsSidebarMode !== "sidebar") && (
-                <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-b from-background via-background to-transparent" />
               )}
               <div className="pointer-events-auto flex items-center justify-between relative">
                 <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -6928,7 +6928,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                           variant="ghost"
                           size="icon"
                           onClick={() => setIsPreviewSidebarOpen(true)}
-                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
                           aria-label="Open preview"
                         >
                           <IconOpenSidebarRight className="h-4 w-4" />
@@ -6943,7 +6943,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                           variant="ghost"
                           size="icon"
                           disabled
-                          className="h-6 w-6 p-0 text-muted-foreground flex-shrink-0 rounded-md cursor-not-allowed pointer-events-none"
+                          className="h-6 w-6 p-0 text-muted-foreground shrink-0 rounded-md cursor-not-allowed pointer-events-none"
                           aria-label="Preview not available"
                         >
                           <IconOpenSidebarRight className="h-4 w-4" />
@@ -6963,7 +6963,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                               variant="ghost"
                               size="icon"
                               onClick={() => setIsDetailsSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
                               aria-label="View details"
                             >
                               <IconOpenSidebarRight className="h-4 w-4" />
@@ -6984,7 +6984,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                               variant="ghost"
                               size="icon"
                               onClick={() => setIsTerminalSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2"
+                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
                               aria-label="Open terminal"
                             >
                               <SquareTerminal className="h-4 w-4" />
@@ -7006,7 +7006,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                         variant="ghost"
                         onClick={handleRestoreWorkspace}
                         disabled={restoreWorkspaceMutation.isPending}
-                        className="h-6 px-2 gap-1.5 hover:bg-foreground/10 transition-colors text-foreground flex-shrink-0 rounded-md ml-2 flex items-center"
+                        className="h-6 px-2 gap-1.5 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2 flex items-center"
                         aria-label="Restore workspace"
                       >
                         <IconTextUndo className="h-4 w-4" />
@@ -7030,7 +7030,7 @@ Make sure to preserve all functionality from both branches when resolving confli
             <div className="relative flex-1 min-h-0 flex">
               {/* Collapsed indicator column - occupies its own space in left */}
               {collapsedIndicator && (
-                <div className="flex-shrink-0 pl-2">
+                <div className="shrink-0 pl-2">
                   {collapsedIndicator}
                 </div>
               )}
@@ -7147,7 +7147,7 @@ Make sure to preserve all functionality from both branches when resolving confli
                             <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                           </button>
                         </div>
-                        <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
+                        <div className="flex items-center gap-0.5 ml-auto shrink-0">
                           {/* Attach button placeholder */}
                           <Button
                             variant="ghost"
@@ -7289,7 +7289,7 @@ Make sure to preserve all functionality from both branches when resolving confli
             {isQuickSetup ? (
               <div className="flex flex-col h-full">
                 {/* Header with close button */}
-                <div className="flex items-center justify-end px-3 h-10 bg-tl-background flex-shrink-0 border-b border-border/50">
+                <div className="flex items-center justify-end px-3 h-10 bg-tl-background shrink-0 border-b border-border/50">
                   <Button
                     variant="ghost"
                     className="h-7 w-7 p-0 hover:bg-muted transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] rounded-md"

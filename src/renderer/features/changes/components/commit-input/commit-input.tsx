@@ -162,7 +162,7 @@ export function CommitInput({
 					"w-full px-2 py-1.5 text-xs rounded-md",
 					"bg-background border border-input",
 					"placeholder:text-muted-foreground",
-					"focus:outline-none focus:ring-1 focus:ring-ring"
+					"focus:outline-hidden focus:ring-1 focus:ring-ring"
 				)}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canCommit) {
@@ -181,7 +181,7 @@ export function CommitInput({
 					"w-full px-2 py-1.5 text-xs rounded-md resize-none",
 					"bg-background border border-input",
 					"placeholder:text-muted-foreground",
-					"focus:outline-none focus:ring-1 focus:ring-ring",
+					"focus:outline-hidden focus:ring-1 focus:ring-ring",
 					"min-h-[60px]"
 				)}
 				onKeyDown={(e) => {

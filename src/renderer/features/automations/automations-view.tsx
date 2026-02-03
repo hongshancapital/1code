@@ -142,7 +142,7 @@ export function AutomationsView() {
               {(!sidebarOpen || isMobile) && (
                 <button
                   onClick={handleSidebarToggle}
-                  className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] flex-shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+                  className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={isMobile ? "Back to chats" : "Open sidebar"}
                 >
                   <AlignJustify className="h-4 w-4" />
@@ -157,7 +157,7 @@ export function AutomationsView() {
             </div>
             <button
               onClick={handleNewAutomation}
-              className="h-8 px-3 rounded-lg text-sm font-medium border border-border hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex items-center gap-1.5 flex-shrink-0"
+              className="h-8 px-3 rounded-lg text-sm font-medium border border-border hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground flex items-center gap-1.5 shrink-0"
             >
               <Plus className="h-4 w-4" />
               <span className="text-sm font-medium hidden min-420:inline">New</span>
@@ -173,7 +173,7 @@ export function AutomationsView() {
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full max-w-[160px] h-8 rounded-lg text-sm bg-muted border-0 px-3 placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full max-w-[160px] h-8 rounded-lg text-sm bg-muted border-0 px-3 placeholder:text-muted-foreground/40 focus:outline-hidden focus:ring-1 focus:ring-ring"
               />
             )}
           </div>

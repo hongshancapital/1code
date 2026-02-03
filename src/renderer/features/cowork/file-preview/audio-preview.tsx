@@ -41,7 +41,7 @@ export function AudioPreview({ filePath, className }: AudioPreviewProps) {
   }
 
   return (
-    <div className={cn("h-full w-full flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-muted/20 to-muted/40", className)}>
+    <div className={cn("h-full w-full flex flex-col items-center justify-center gap-6 bg-linear-to-b from-muted/20 to-muted/40", className)}>
       {/* Album art placeholder */}
       <div className="w-48 h-48 rounded-lg bg-muted/50 flex items-center justify-center shadow-lg">
         <Music className="h-20 w-20 text-muted-foreground/40" />

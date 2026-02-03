@@ -157,12 +157,12 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[60] bg-black/50"
+            className="fixed inset-0 z-60 bg-black/50"
             onClick={() => onOpenChange(false)}
           />
 
           {/* Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-[65]">
+          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-65">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -186,9 +186,9 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
               </div>
 
               {/* Content */}
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+              <form onSubmit={handleSubmit} className="flex flex-col-1 overflow-y-auto p-6 gap-5">
                 {/* Name */}
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">
                     Name <span className="text-red-500">*</span>
                   </label>
@@ -197,7 +197,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="code-reviewer"
-                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
                   />
                   <p className="text-xs text-muted-foreground">
                     Will be converted to kebab-case (e.g., "code-reviewer")
@@ -205,7 +205,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                 </div>
 
                 {/* Description */}
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">
                     Description <span className="text-red-500">*</span>
                   </label>
@@ -214,7 +214,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Reviews code for quality and best practices"
-                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
                   />
                   <p className="text-xs text-muted-foreground">
                     Tells Claude when to use this agent
@@ -222,7 +222,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                 </div>
 
                 {/* Prompt */}
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">
                     System Prompt <span className="text-red-500">*</span>
                   </label>
@@ -235,7 +235,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
 2. Check for security issues
 3. Suggest improvements"
                     rows={8}
-                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono"
+                    className="w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring resize-none font-mono"
                   />
                   <p className="text-xs text-muted-foreground">
                     Instructions for the agent when it's invoked
@@ -243,7 +243,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                 </div>
 
                 {/* Model */}
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium text-foreground">Model</label>
                   <div className="flex flex-wrap gap-2">
                     {(["inherit", "sonnet", "opus", "haiku"] as const).map((m) => (
@@ -265,7 +265,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
                 </div>
 
                 {/* Tools */}
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   <label className="text-sm font-medium text-foreground">Tools</label>
                   <div className="flex flex-wrap gap-2">
                     {(["all", "allowlist", "denylist"] as const).map((mode) => (
@@ -301,7 +301,7 @@ export function AgentDialog({ open, onOpenChange, agent, onSuccess }: AgentDialo
 
                 {/* Source (only for new agents) */}
                 {!isEditing && (
-                  <div className="space-y-1.5">
+                  <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-medium text-foreground">Location</label>
                     <div className="flex flex-wrap gap-2">
                       <button

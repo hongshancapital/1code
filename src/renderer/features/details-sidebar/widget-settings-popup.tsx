@@ -182,7 +182,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
         className="w-56 p-2"
         sideOffset={8}
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
             Widgets
           </div>
@@ -209,7 +209,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
                 )}
               >
                 <GripVertical
-                  className="h-3.5 w-3.5 text-muted-foreground/50 flex-shrink-0 cursor-grab active:cursor-grabbing"
+                  className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 cursor-grab active:cursor-grabbing"
                   onMouseDown={() => setDraggableWidget(widget.id)}
                   onMouseUp={() => setDraggableWidget(null)}
                   onClick={(e) => e.stopPropagation()}
@@ -220,7 +220,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
                   onClick={(e) => e.stopPropagation()}
                   className="h-4 w-4 pointer-events-none"
                 />
-                <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-sm flex-1">{widget.label}</span>
               </div>
             )

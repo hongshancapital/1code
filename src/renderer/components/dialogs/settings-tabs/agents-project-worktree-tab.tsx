@@ -291,7 +291,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
     placeholder: string,
     allowEmpty = false,
   ) => (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       {list.map((cmd, i) => (
         <div key={i} className="flex items-center gap-2">
           <Input
@@ -325,7 +325,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col gap-6">
 
         {/* ── General ── */}
         <div>
@@ -337,7 +337,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                 <span className="text-sm font-medium text-foreground">Name</span>
                 <p className="text-sm text-muted-foreground">Display name for this project</p>
               </div>
-              <div className="flex-shrink-0 w-80">
+              <div className="shrink-0 w-80">
                 <Input
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
@@ -354,7 +354,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                 <span className="text-sm font-medium text-foreground">Icon</span>
                 <p className="text-sm text-muted-foreground">Project avatar in sidebar</p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   className="relative h-10 w-10 rounded-lg border border-border overflow-hidden flex items-center justify-center cursor-pointer bg-muted group/icon"
@@ -396,7 +396,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 flex-shrink-0 pl-2"
+                className="gap-1.5 shrink-0 pl-2"
                 onClick={handleOpenInFinder}
                 disabled={!project?.path}
               >
@@ -418,7 +418,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 flex-shrink-0 pl-2"
+                    className="gap-1.5 shrink-0 pl-2"
                     onClick={() => {
                       window.open(
                         `https://github.com/${project.gitOwner}/${project.gitRepo}`,
@@ -513,7 +513,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
           </div>
           <div className="bg-background rounded-lg border border-border overflow-hidden">
             {/* Setup commands */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 flex flex-col gap-3">
               <div>
                 <span className="text-sm font-medium text-foreground">Setup Commands</span>
                 <p className="text-sm text-muted-foreground">
@@ -537,7 +537,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
             {/* Platform overrides — macOS/Linux */}
             {(unixCommands.length > 0 || showPlatformSpecific) && (
-              <div className="p-4 border-t border-border space-y-3">
+              <div className="p-4 border-t border-border flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">macOS / Linux</span>
                   {unixCommands.length === 0 && (
@@ -550,7 +550,7 @@ function ProjectDetail({ projectId }: { projectId: string }) {
 
             {/* Platform overrides — Windows */}
             {(windowsCommands.length > 0 || showPlatformSpecific) && (
-              <div className="p-4 border-t border-border space-y-3">
+              <div className="p-4 border-t border-border flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">Windows</span>
                   {windowsCommands.length === 0 && (
@@ -706,14 +706,14 @@ export function AgentsProjectsTab() {
       >
         <div className="flex flex-col h-full bg-background border-r overflow-hidden" style={{ borderRightWidth: "0.5px" }}>
           {/* Search + Add */}
-          <div className="px-2 pt-2 flex-shrink-0 flex items-center gap-1.5">
+          <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
               placeholder="Search projects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
-              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-none"
+              className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
             />
             <button
               onClick={() => openFolderMutation.mutate()}
@@ -725,7 +725,7 @@ export function AgentsProjectsTab() {
           </div>
 
           {/* Project list */}
-          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-none">
+          <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <FolderFilledIcon className="h-5 w-5 text-muted-foreground animate-pulse" />
@@ -746,7 +746,7 @@ export function AgentsProjectsTab() {
                 <p className="text-xs text-muted-foreground">No results found</p>
               </div>
             ) : (
-              <div className="space-y-0.5">
+              <div className="flex flex-col gap-0.5">
                 {filteredProjects.map((project) => {
                   const isSelected = selectedProjectId === project.id
                   return (
@@ -755,7 +755,7 @@ export function AgentsProjectsTab() {
                       data-item-id={project.id}
                       onClick={() => setSelectedProjectId(project.id)}
                       className={cn(
-                        "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                        "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
                         isSelected
                           ? "bg-foreground/5 text-foreground"
                           : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",

@@ -83,12 +83,12 @@ export const AgentMessageUsage = memo(function AgentMessageUsage({
       <HoverCardContent
         sideOffset={4}
         align="end"
-        className="w-auto pt-2 px-2 pb-0 shadow-sm rounded-lg border-border/50 overflow-hidden"
+        className="w-auto pt-2 px-2 pb-0 shadow-xs rounded-lg border-border/50 overflow-hidden"
       >
-        <div className="space-y-1.5 pb-2">
+        <div className="flex flex-col gap-1.5 pb-2">
           {/* Status & Duration group */}
           {(resultSubtype || (durationMs !== undefined && durationMs > 0)) && (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               {resultSubtype && (
                 <div className="flex justify-between text-xs gap-4">
                   <span className="text-muted-foreground">Status:</span>

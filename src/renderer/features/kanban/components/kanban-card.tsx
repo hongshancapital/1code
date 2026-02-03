@@ -85,7 +85,7 @@ export const KanbanCard = memo(function KanbanCard({
     <div className="flex items-start gap-2.5">
       {/* Checkbox for multi-select mode */}
       {isMultiSelectMode && !card.isDraft && (
-        <div className="pt-0.5 flex-shrink-0">
+        <div className="pt-0.5 shrink-0">
           <Checkbox
             checked={card.isSelected}
             onClick={(e) => onCheckboxClick(e, card.chatId)}
@@ -104,7 +104,7 @@ export const KanbanCard = memo(function KanbanCard({
 
           {/* Status indicator container - справа от названия */}
           {!isMultiSelectMode && (
-            <div className="flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
+            <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
               {/* Indicator - absolute, скрывается при hover */}
               {showStatusIndicator && (
                 <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0">
@@ -185,7 +185,7 @@ export const KanbanCard = memo(function KanbanCard({
         {/* Second row: project/branch + stats + time */}
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
           <span className="truncate flex-1 min-w-0">{displayText}</span>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {card.stats && (card.stats.additions > 0 || card.stats.deletions > 0) && (
               <>
                 <span className="text-green-600 dark:text-green-400">
@@ -215,7 +215,7 @@ export const KanbanCard = memo(function KanbanCard({
           "bg-card border border-border/50",
           "hover:bg-accent/50 hover:border-border",
           "transition-colors duration-75",
-          "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
+          "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
         )}
       >
         {cardContent}
@@ -235,7 +235,7 @@ export const KanbanCard = memo(function KanbanCard({
             "bg-card border border-border/50",
             "hover:bg-accent/50 hover:border-border",
             "transition-colors duration-75",
-            "outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70",
+            "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
             card.isSelected && "bg-primary/10 border-primary/30"
           )}
         >

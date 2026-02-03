@@ -322,7 +322,7 @@ export function TerminalSection({
     <div className="flex flex-col" style={{ minHeight: isExpanded ? "400px" : "200px", height: isExpanded ? "100%" : undefined }}>
       {/* Tabs */}
       <div
-        className="flex items-center gap-1 px-1 py-1 flex-shrink-0"
+        className="flex items-center gap-1 px-1 py-1 shrink-0"
         style={{ backgroundColor: terminalBg }}
       >
         {tabsHeader}

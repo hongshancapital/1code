@@ -227,14 +227,14 @@ export function OpenLocallyDialog({
               pointerEvents: "none" as const,
               transition: { duration: 0.15, ease: EASING_CURVE },
             }}
-            className="fixed inset-0 z-[45] bg-black/25"
+            className="fixed inset-0 z-45 bg-black/25"
             onClick={handleClose}
             style={{ pointerEvents: "auto" }}
             data-modal="open-locally"
           />
 
           {/* Main Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-[46] pointer-events-none">
+          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-46 pointer-events-none">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -260,7 +260,7 @@ export function OpenLocallyDialog({
                         , but we couldn't find it on your machine.
                       </p>
 
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-2">
                         {/* Option 1: Locate existing clone */}
                         <button
                           onClick={handleLocateProject}
@@ -336,7 +336,7 @@ export function OpenLocallyDialog({
                         in multiple locations. Which one should we use?
                       </p>
 
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-2">
                         {matchingProjects.map((project) => (
                           <button
                             key={project.id}

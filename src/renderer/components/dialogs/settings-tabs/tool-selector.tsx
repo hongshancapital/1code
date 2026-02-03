@@ -53,7 +53,7 @@ export function ToolSelector({ selectedTools, onChange, mode }: ToolSelectorProp
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       {/* Quick actions */}
       <div className="flex items-center gap-2">
         <button
@@ -78,13 +78,13 @@ export function ToolSelector({ selectedTools, onChange, mode }: ToolSelectorProp
       </div>
 
       {/* Tools by category */}
-      <div className="space-y-4 p-3 rounded-lg border border-border bg-muted/20">
+      <div className="flex flex-col gap-4 p-3 rounded-lg border border-border bg-muted/20">
         {CATEGORIES.map((category) => {
           const categoryTools = AVAILABLE_TOOLS.filter((t) => t.category === category.id)
           if (categoryTools.length === 0) return null
 
           return (
-            <div key={category.id} className="space-y-2">
+            <div key={category.id} className="flex flex-col gap-2">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {category.name}
               </div>
@@ -107,7 +107,7 @@ export function ToolSelector({ selectedTools, onChange, mode }: ToolSelectorProp
                     >
                       <div
                         className={cn(
-                          "mt-0.5 h-3.5 w-3.5 rounded border flex items-center justify-center flex-shrink-0",
+                          "mt-0.5 h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
                           isSelected
                             ? mode === "allowlist"
                               ? "border-green-500 bg-green-500"

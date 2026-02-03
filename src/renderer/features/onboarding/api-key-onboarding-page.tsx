@@ -130,9 +130,9 @@ export function ApiKeyOnboardingPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
 
-        <div className="w-full max-w-[440px] space-y-8 px-4">
+        <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
           {/* Header with dual icons */}
-          <div className="text-center space-y-4">
+          <div className="text-center flex flex-col gap-4">
             <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <Logo className="w-5 h-5" fill="white" />
@@ -141,7 +141,7 @@ export function ApiKeyOnboardingPage() {
                 <KeyFilledIcon className="w-5 h-5 text-background" />
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               <h1 className="text-base font-semibold tracking-tight">
                 Enter API Key
               </h1>
@@ -160,7 +160,7 @@ export function ApiKeyOnboardingPage() {
           </div>
 
           {/* API Key Input */}
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <div className="relative">
               <Input
                 value={apiKey}
@@ -203,9 +203,9 @@ export function ApiKeyOnboardingPage() {
         <ChevronLeft className="h-5 w-5" />
       </button>
 
-      <div className="w-full max-w-[440px] space-y-8 px-4">
+      <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header with dual icons */}
-        <div className="text-center space-y-4">
+        <div className="text-center flex flex-col gap-4">
           <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
               <Logo className="w-5 h-5" fill="white" />
@@ -214,7 +214,7 @@ export function ApiKeyOnboardingPage() {
               <SettingsFilledIcon className="w-5 h-5 text-background" />
             </div>
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
               Configure Custom Model
             </h1>
@@ -225,9 +225,9 @@ export function ApiKeyOnboardingPage() {
         </div>
 
         {/* Form Fields */}
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           {/* Model Name */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium">Model name</Label>
             <Input
               value={model}
@@ -241,7 +241,7 @@ export function ApiKeyOnboardingPage() {
           </div>
 
           {/* API Token */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium">API token</Label>
             <Input
               type="password"
@@ -256,7 +256,7 @@ export function ApiKeyOnboardingPage() {
           </div>
 
           {/* Base URL */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium">Base URL</Label>
             <Input
               value={baseUrl}
