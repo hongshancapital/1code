@@ -1707,6 +1707,23 @@ export const CustomTerminalIcon = (props: LucideProps) => (
   </svg>
 )
 
+export const TerminalFilledIcon = (props: LucideProps) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M4 6C4 4.34315 5.34315 3 7 3H17C18.6569 3 20 4.34315 20 6V18C20 19.6569 18.6569 21 17 21H7C5.34315 21 4 19.6569 4 18V6ZM7.29289 8.29289C7.68342 7.90237 8.31658 7.90237 8.70711 8.29289L10.4571 10.0429C10.8476 10.4334 10.8476 11.0666 10.4571 11.4571L8.70711 13.2071C8.31658 13.5976 7.68342 13.5976 7.29289 13.2071C6.90237 12.8166 6.90237 12.1834 7.29289 11.7929L8.58579 10.5L7.29289 9.20711C6.90237 8.81658 6.90237 8.18342 7.29289 7.79289V8.29289ZM11 12C11 11.4477 11.4477 11 12 11H15C15.5523 11 16 11.4477 16 12C16 12.5523 15.5523 13 15 13H12C11.4477 13 11 12.5523 11 12Z"
+    />
+  </svg>
+)
+
 export const WriteFileIcon = (props: LucideProps) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

@@ -933,3 +933,16 @@ export const mcpApprovalDialogOpenAtom = atom<boolean>(false)
 
 // Pending MCP approvals to show in the dialog
 export const pendingMcpApprovalsAtom = atom<PendingMcpApproval[]>([])
+
+// ============================================
+// RUNTIME INIT BANNER ATOMS
+// ============================================
+
+// Whether the runtime init banner has been dismissed
+// Once dismissed, it won't show again until cleared
+export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
+  "onboarding:runtime-init-banner-dismissed",
+  false,
+  undefined,
+  { getOnInit: true },
+)

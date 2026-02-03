@@ -23,6 +23,7 @@ import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
 import { AgentsSidebar } from "../sidebar/agents-sidebar"
 import { AgentsContent } from "../agents/ui/agents-content"
 import { UpdateBanner } from "../../components/update-banner"
+import { RuntimeInitBanner } from "../../components/runtime-init-banner"
 import { WindowsTitleBar } from "../../components/windows-title-bar"
 import { useUpdateChecker } from "../../lib/hooks/use-update-checker"
 import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
@@ -354,8 +355,10 @@ export function AgentsLayout() {
           </div>
         </div>
 
-        {/* Update Banner */}
+        {/* Update Banner (left bottom) */}
         <UpdateBanner />
+        {/* Runtime Init Banner (right bottom) */}
+        <RuntimeInitBanner />
       </div>
     </TooltipProvider>
   )

@@ -28,28 +28,18 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { trpc } from "../../../lib/trpc"
 
-// Stub types for disabled tool detection feature
-interface ToolInfo {
+// Tool info type from backend
+interface ToolInfoDisplay {
   name: string
+  displayName: string
+  category: string
   installed: boolean
-  version?: string | null
-  path?: string | null
-  installCommand?: string | null
+  version: string | null
+  path: string | null
+  installCommand: string | null
+  description: string
+  required: boolean
 }
-interface InstallResult {
-  success: boolean
-  error?: string
-}
-const useDetectToolsStub = () => ({
-  data: [] as ToolInfo[],
-  isLoading: false,
-  refetch: () => Promise.resolve({ data: [] as ToolInfo[] }),
-  isRefetching: false,
-})
-const useInstallToolStub = () => ({
-  mutate: (_params: { command: string }) => {},
-  isPending: false,
-})
 import {
   packageManagerAtom,
   runtimePathsAtom,
@@ -285,55 +275,81 @@ function ToolRow({
   )
 }
 
-const TOOL_DESCRIPTIONS: Record<string, string> = {
-  ripgrep: "Fast search tool for file contents (used by Hóng Explorer)",
-  fd: "Fast alternative to find command",
-  fzf: "Fuzzy finder for files and command history",
-  jq: "JSON processor for command line",
-  bat: "Cat clone with syntax highlighting",
-  delta: "Better git diff viewer",
-  tree: "Directory tree visualization",
-  Homebrew: "Package manager for macOS",
+// Get platform display name
+function getPlatformDisplayName(platform: NodeJS.Platform): string {
+  switch (platform) {
+    case "darwin":
+      return "macOS"
+    case "win32":
+      return "Windows"
+    case "linux":
+      return "Linux"
+    default:
+      return platform
+  }
 }
 
 function CommonToolsSection() {
   const [installingTool, setInstallingTool] = useState<string | null>(null)
 
-  // Tool detection feature is currently disabled
+  // Real tool detection from backend
   const {
-    data: tools,
+    data: toolsData,
     isLoading,
     refetch,
     isRefetching,
-  } = useDetectToolsStub()
+  } = trpc.runner.detectTools.useQuery()
 
-  const installMutation = useInstallToolStub()
+  // Install tool mutation
+  const installMutation = trpc.runner.installTool.useMutation({
+    onSuccess: (result, { toolName }) => {
+      if (result.success) {
+        toast.success(`${toolName} installed successfully`)
+        refetch()
+      } else {
+        toast.error(`Failed to install ${toolName}: ${result.error}`)
+      }
+    },
+    onError: (error, { toolName }) => {
+      toast.error(`Failed to install ${toolName}: ${error.message}`)
+    },
+    onSettled: () => {
+      setInstallingTool(null)
+    },
+  })
 
   const handleInstall = useCallback(
     (toolName: string, command: string) => {
       setInstallingTool(toolName)
-      installMutation.mutate({ command })
+      installMutation.mutate({ toolName, command })
     },
     [installMutation]
   )
 
-  // Filter to show important tools first
-  const priorityTools = ["ripgrep", "fd", "fzf", "jq"]
-  const sortedTools = tools?.slice().sort((a, b) => {
-    const aIdx = priorityTools.indexOf(a.name)
-    const bIdx = priorityTools.indexOf(b.name)
-    if (aIdx !== -1 && bIdx === -1) return -1
-    if (aIdx === -1 && bIdx !== -1) return 1
-    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
-    return a.name.localeCompare(b.name)
-  })
+  // Filter to show common category tools, sorted by priority
+  const priorityTools = ["git", "rg", "fd", "jq", "curl", "brew"]
+  const commonTools = toolsData?.tools
+    ?.filter((t) => t.category === "common")
+    .slice()
+    .sort((a, b) => {
+      const aIdx = priorityTools.indexOf(a.name)
+      const bIdx = priorityTools.indexOf(b.name)
+      if (aIdx !== -1 && bIdx === -1) return -1
+      if (aIdx === -1 && bIdx !== -1) return 1
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx
+      return a.name.localeCompare(b.name)
+    })
+
+  const platformName = toolsData?.platform
+    ? getPlatformDisplayName(toolsData.platform)
+    : ""
 
   return (
     <RuntimeSection
       id="common-tools"
       icon={<Wrench className="h-5 w-5" />}
       title="Common Tools"
-      description="CLI tools that enhance Hóng functionality"
+      description={`CLI tools that enhance Hóng functionality${platformName ? ` (${platformName})` : ""}`}
       defaultOpen={true}
     >
       <div className="flex flex-col gap-4">
@@ -364,16 +380,16 @@ function CommonToolsSection() {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Detecting tools...</span>
               </div>
-            ) : sortedTools && sortedTools.length > 0 ? (
-              sortedTools.map((tool) => (
+            ) : commonTools && commonTools.length > 0 ? (
+              commonTools.map((tool) => (
                 <ToolRow
                   key={tool.name}
-                  name={tool.name}
+                  name={tool.displayName}
                   installed={tool.installed}
-                  version={tool.version ?? null}
-                  path={tool.path ?? null}
-                  installCommand={tool.installCommand ?? null}
-                  description={TOOL_DESCRIPTIONS[tool.name] || "CLI tool"}
+                  version={tool.version}
+                  path={tool.path}
+                  installCommand={tool.installCommand}
+                  description={tool.description}
                   isInstalling={installingTool === tool.name}
                   onInstall={() =>
                     tool.installCommand &&
@@ -391,9 +407,123 @@ function CommonToolsSection() {
 
         {/* Note about package managers */}
         <p className="text-[10px] text-muted-foreground">
-          Note: Installation requires Homebrew on macOS, apt on Linux, or Scoop on Windows.
+          Note: Installation requires Homebrew on macOS, apt on Linux, or winget/Scoop on Windows.
           You can also copy the command and run it in your terminal.
         </p>
+      </div>
+    </RuntimeSection>
+  )
+}
+
+// ============================================================================
+// Python Section Component
+// ============================================================================
+
+function PythonSection() {
+  const [installingTool, setInstallingTool] = useState<string | null>(null)
+
+  // Get Python tools from the same query
+  const {
+    data: toolsData,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = trpc.runner.detectTools.useQuery()
+
+  // Install tool mutation
+  const installMutation = trpc.runner.installTool.useMutation({
+    onSuccess: (result, { toolName }) => {
+      if (result.success) {
+        toast.success(`${toolName} installed successfully`)
+        refetch()
+      } else {
+        toast.error(`Failed to install ${toolName}: ${result.error}`)
+      }
+    },
+    onError: (error, { toolName }) => {
+      toast.error(`Failed to install ${toolName}: ${error.message}`)
+    },
+    onSettled: () => {
+      setInstallingTool(null)
+    },
+  })
+
+  const handleInstall = useCallback(
+    (toolName: string, command: string) => {
+      setInstallingTool(toolName)
+      installMutation.mutate({ toolName, command })
+    },
+    [installMutation]
+  )
+
+  // Filter to show python category tools
+  const pythonTools = toolsData?.tools?.filter((t) => t.category === "python")
+
+  return (
+    <RuntimeSection
+      id="python"
+      icon={
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+          <path d="M9.585 11.692h4.328s2.432.039 2.432-2.35V5.391S16.714 3 11.936 3C7.362 3 7.647 4.983 7.647 4.983l.006 2.055h4.363v.617H5.92s-2.927-.332-2.927 4.282 2.555 4.45 2.555 4.45h1.524v-2.141s-.083-2.554 2.513-2.554zm-.056-5.74a.784.784 0 110-1.57.784.784 0 110 1.57z" />
+          <path d="M18.452 7.532h-1.524v2.141s.083 2.554-2.513 2.554h-4.328s-2.432-.04-2.432 2.35v3.951s-.369 2.391 4.409 2.391c4.573 0 4.288-1.983 4.288-1.983l-.006-2.054h-4.363v-.617h6.097s2.927.332 2.927-4.282-2.555-4.451-2.555-4.451zm-4.025 10.48a.784.784 0 110 1.57.784.784 0 110-1.57z" />
+        </svg>
+      }
+      title="Python"
+      description="Python interpreter and package managers"
+      defaultOpen={false}
+    >
+      <div className="space-y-4">
+        {/* Header with refresh */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Python runtime and package management tools
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => refetch()}
+            disabled={isLoading || isRefetching}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
+            />
+            <span className="text-xs">Refresh</span>
+          </Button>
+        </div>
+
+        {/* Tools list */}
+        <div className="bg-background rounded-lg border border-border">
+          <div className="p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Detecting Python tools...</span>
+              </div>
+            ) : pythonTools && pythonTools.length > 0 ? (
+              pythonTools.map((tool) => (
+                <ToolRow
+                  key={tool.name}
+                  name={tool.displayName}
+                  installed={tool.installed}
+                  version={tool.version}
+                  path={tool.path}
+                  installCommand={tool.installCommand}
+                  description={tool.description}
+                  isInstalling={installingTool === tool.name}
+                  onInstall={() =>
+                    tool.installCommand &&
+                    handleInstall(tool.name, tool.installCommand)
+                  }
+                />
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                No Python tools detected
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </RuntimeSection>
   )
@@ -644,23 +774,8 @@ export function AgentsRuntimeTab() {
           </div>
         </RuntimeSection>
 
-        {/* Python Section - Coming Soon */}
-        <RuntimeSection
-          id="python"
-          icon={
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-              <path d="M9.585 11.692h4.328s2.432.039 2.432-2.35V5.391S16.714 3 11.936 3C7.362 3 7.647 4.983 7.647 4.983l.006 2.055h4.363v.617H5.92s-2.927-.332-2.927 4.282 2.555 4.45 2.555 4.45h1.524v-2.141s-.083-2.554 2.513-2.554zm-.056-5.74a.784.784 0 110-1.57.784.784 0 110 1.57z" />
-              <path d="M18.452 7.532h-1.524v2.141s.083 2.554-2.513 2.554h-4.328s-2.432-.04-2.432 2.35v3.951s-.369 2.391 4.409 2.391c4.573 0 4.288-1.983 4.288-1.983l-.006-2.054h-4.363v-.617h6.097s2.927.332 2.927-4.282-2.555-4.451-2.555-4.451zm-4.025 10.48a.784.784 0 110 1.57.784.784 0 110-1.57z" />
-            </svg>
-          }
-          title="Python"
-          description="Python interpreter and virtual environments"
-          disabled={true}
-        >
-          <div className="text-sm text-muted-foreground">
-            Python runtime configuration coming soon.
-          </div>
-        </RuntimeSection>
+        {/* Python Section */}
+        <PythonSection />
 
         {/* Go Section - Coming Soon */}
         <RuntimeSection

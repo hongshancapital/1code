@@ -26,9 +26,210 @@ export interface DetectedRuntimes {
   pnpm: RuntimeInfo | null
 }
 
+// Tool detection types
+export type ToolCategory = "common" | "nodejs" | "python" | "go"
+
+export interface ToolInfo {
+  name: string
+  displayName: string
+  category: ToolCategory
+  installed: boolean
+  version: string | null
+  path: string | null
+  installCommand: string | null
+  description: string
+  required: boolean // If true, show warning when not installed
+}
+
+export interface DetectedTools {
+  platform: NodeJS.Platform
+  tools: ToolInfo[]
+}
+
 // Cache for runtime detection
 let runtimeCache: { data: DetectedRuntimes; timestamp: number } | null = null
 const RUNTIME_CACHE_TTL = 60000 // 1 minute
+
+// Cache for tool detection
+let toolsCache: { data: DetectedTools; timestamp: number } | null = null
+const TOOLS_CACHE_TTL = 60000 // 1 minute
+
+// ============================================================================
+// Tool Definitions
+// ============================================================================
+
+interface ToolDefinition {
+  name: string
+  displayName: string
+  category: ToolCategory
+  description: string
+  required: boolean
+  versionFlag?: string // Default: --version
+  versionParser?: (output: string) => string // Extract version from output
+  installCommands: {
+    darwin?: string
+    win32?: string
+    linux?: string
+  }
+}
+
+const TOOL_DEFINITIONS: ToolDefinition[] = [
+  // Common Tools
+  {
+    name: "git",
+    displayName: "Git",
+    category: "common",
+    description: "Version control system",
+    required: true,
+    versionParser: (output) => output.replace(/^git version\s*/, "").split(" ")[0],
+    installCommands: {
+      darwin: "brew install git",
+      win32: "winget install Git.Git",
+      linux: "sudo apt install git",
+    },
+  },
+  {
+    name: "rg",
+    displayName: "ripgrep",
+    category: "common",
+    description: "Fast search tool for file contents",
+    required: false,
+    versionParser: (output) => output.replace(/^ripgrep\s*/, "").split(" ")[0],
+    installCommands: {
+      darwin: "brew install ripgrep",
+      win32: "winget install BurntSushi.ripgrep.MSVC",
+      linux: "sudo apt install ripgrep",
+    },
+  },
+  {
+    name: "fd",
+    displayName: "fd",
+    category: "common",
+    description: "Fast alternative to find command",
+    required: false,
+    installCommands: {
+      darwin: "brew install fd",
+      win32: "winget install sharkdp.fd",
+      linux: "sudo apt install fd-find",
+    },
+  },
+  {
+    name: "jq",
+    displayName: "jq",
+    category: "common",
+    description: "JSON processor for command line",
+    required: false,
+    versionParser: (output) => output.replace(/^jq-/, ""),
+    installCommands: {
+      darwin: "brew install jq",
+      win32: "winget install jqlang.jq",
+      linux: "sudo apt install jq",
+    },
+  },
+  {
+    name: "curl",
+    displayName: "curl",
+    category: "common",
+    description: "Command line tool for transferring data",
+    required: false,
+    versionParser: (output) => output.split(" ")[1],
+    installCommands: {
+      darwin: "brew install curl",
+      win32: "winget install cURL.cURL",
+      linux: "sudo apt install curl",
+    },
+  },
+  // macOS specific
+  {
+    name: "brew",
+    displayName: "Homebrew",
+    category: "common",
+    description: "Package manager for macOS",
+    required: false,
+    versionParser: (output) => output.replace(/^Homebrew\s*/, "").split("\n")[0],
+    installCommands: {
+      darwin: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+    },
+  },
+  // Node.js Tools
+  {
+    name: "node",
+    displayName: "Node.js",
+    category: "nodejs",
+    description: "JavaScript runtime",
+    required: false,
+    installCommands: {
+      darwin: "brew install node",
+      win32: "winget install OpenJS.NodeJS.LTS",
+      linux: "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install nodejs",
+    },
+  },
+  {
+    name: "bun",
+    displayName: "Bun",
+    category: "nodejs",
+    description: "Fast JavaScript runtime",
+    required: false,
+    installCommands: {
+      darwin: "brew install oven-sh/bun/bun",
+      win32: "powershell -c \"irm bun.sh/install.ps1|iex\"",
+      linux: "curl -fsSL https://bun.sh/install | bash",
+    },
+  },
+  // Python Tools
+  {
+    name: "python3",
+    displayName: "Python",
+    category: "python",
+    description: "Python interpreter",
+    required: false,
+    versionParser: (output) => output.replace(/^Python\s*/, ""),
+    installCommands: {
+      darwin: "brew install python",
+      win32: "winget install Python.Python.3.12",
+      linux: "sudo apt install python3",
+    },
+  },
+  {
+    name: "pip3",
+    displayName: "pip",
+    category: "python",
+    description: "Python package installer",
+    required: false,
+    versionParser: (output) => output.split(" ")[1],
+    installCommands: {
+      darwin: "python3 -m ensurepip --upgrade",
+      win32: "python -m ensurepip --upgrade",
+      linux: "sudo apt install python3-pip",
+    },
+  },
+  {
+    name: "uv",
+    displayName: "uv",
+    category: "python",
+    description: "Fast Python package installer",
+    required: false,
+    installCommands: {
+      darwin: "brew install uv",
+      win32: "powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"",
+      linux: "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    },
+  },
+  // Go Tools (coming soon, but detect if installed)
+  {
+    name: "go",
+    displayName: "Go",
+    category: "go",
+    description: "Go programming language",
+    required: false,
+    versionParser: (output) => output.replace(/^go version go/, "").split(" ")[0],
+    installCommands: {
+      darwin: "brew install go",
+      win32: "winget install GoLang.Go",
+      linux: "sudo apt install golang-go",
+    },
+  },
+]
 
 // ============================================================================
 // Helper Functions
@@ -68,6 +269,83 @@ async function detectRuntime(
     name: displayName,
     version: version.replace(/^v/, ""),
     path: path.split("\n")[0], // Take first result on Windows
+  }
+}
+
+/**
+ * Detect a single tool from definition
+ */
+async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
+  const platform = process.platform as NodeJS.Platform
+  const whichCmd = platform === "win32" ? "where" : "which"
+
+  // Check if tool exists
+  const toolPath = await execWithTimeout(`${whichCmd} ${def.name}`)
+
+  if (!toolPath) {
+    return {
+      name: def.name,
+      displayName: def.displayName,
+      category: def.category,
+      installed: false,
+      version: null,
+      path: null,
+      installCommand: def.installCommands[platform] || null,
+      description: def.description,
+      required: def.required,
+    }
+  }
+
+  // Get version
+  const versionFlag = def.versionFlag || "--version"
+  const versionOutput = await execWithTimeout(`${def.name} ${versionFlag}`)
+
+  let version: string | null = null
+  if (versionOutput) {
+    if (def.versionParser) {
+      try {
+        version = def.versionParser(versionOutput)
+      } catch {
+        version = versionOutput.split("\n")[0].trim()
+      }
+    } else {
+      // Default: remove leading 'v' and take first line
+      version = versionOutput.split("\n")[0].trim().replace(/^v/, "")
+    }
+  }
+
+  return {
+    name: def.name,
+    displayName: def.displayName,
+    category: def.category,
+    installed: true,
+    version,
+    path: toolPath.split("\n")[0], // Take first result on Windows
+    installCommand: def.installCommands[platform] || null,
+    description: def.description,
+    required: def.required,
+  }
+}
+
+/**
+ * Detect all tools (with platform filtering)
+ */
+async function detectAllTools(): Promise<DetectedTools> {
+  const platform = process.platform as NodeJS.Platform
+
+  // Filter tools by platform (only include tools that have install command for this platform OR are universal)
+  const platformTools = TOOL_DEFINITIONS.filter((def) => {
+    // Homebrew is macOS only
+    if (def.name === "brew" && platform !== "darwin") return false
+    return true
+  })
+
+  // Detect all tools in parallel
+  const tools = await Promise.all(platformTools.map(detectTool))
+
+  return {
+    platform,
+    tools,
   }
 }
 
@@ -276,6 +554,73 @@ export const runnerRouter = router({
           valid: false,
           error: "Failed to execute runtime",
           version: null,
+        }
+      }
+    }),
+
+  /**
+   * Detect common CLI tools (cached)
+   */
+  detectTools: publicProcedure.query(async (): Promise<DetectedTools> => {
+    // Return cached data if still valid
+    if (toolsCache && Date.now() - toolsCache.timestamp < TOOLS_CACHE_TTL) {
+      return toolsCache.data
+    }
+
+    const data = await detectAllTools()
+
+    // Cache the result
+    toolsCache = { data, timestamp: Date.now() }
+
+    return data
+  }),
+
+  /**
+   * Force refresh tool detection
+   */
+  refreshTools: publicProcedure.mutation(async (): Promise<DetectedTools> => {
+    // Clear cache
+    toolsCache = null
+
+    const data = await detectAllTools()
+    toolsCache = { data, timestamp: Date.now() }
+
+    return data
+  }),
+
+  /**
+   * Install a tool using the provided command
+   * Note: This runs the command in a shell. For commands requiring sudo,
+   * the user will be prompted for password in the terminal.
+   */
+  installTool: publicProcedure
+    .input(
+      z.object({
+        toolName: z.string(),
+        command: z.string(),
+      })
+    )
+    .mutation(async ({ input }): Promise<{ success: boolean; error?: string; output?: string }> => {
+      try {
+        // Execute the install command
+        // Use a longer timeout for installation (5 minutes)
+        const { stdout, stderr } = await execAsync(input.command, {
+          timeout: 300000,
+          shell: process.platform === "win32" ? "powershell.exe" : "/bin/bash",
+        })
+
+        // Clear cache so next detection will refresh
+        toolsCache = null
+
+        return {
+          success: true,
+          output: stdout || stderr,
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        return {
+          success: false,
+          error: errorMessage,
         }
       }
     }),
