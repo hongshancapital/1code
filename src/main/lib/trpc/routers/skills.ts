@@ -323,17 +323,10 @@ async function scanSkillsDirectory(
       const skillMdPath = path.join(skillDir, "SKILL.md")
 
       try {
-        // Skip directories with .hong marker when scanning user skills
-        // These are builtin skills synced by Hong, should be listed from builtin source instead
-        if (source === "user") {
-          const hongMarkerPath = path.join(skillDir, ".hong")
-          try {
-            await fs.access(hongMarkerPath)
-            // .hong marker exists, skip this skill
-            continue
-          } catch {
-            // .hong marker doesn't exist, proceed with scanning
-          }
+        // Skip builtin skills synced by Hong when scanning user skills
+        // These are prefixed with "builtin-" and should be listed from builtin source instead
+        if (source === "user" && entry.name.startsWith("builtin-")) {
+          continue
         }
 
         await fs.access(skillMdPath)
