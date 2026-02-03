@@ -1,14 +1,22 @@
 /**
- * Azure AD OAuth Provider
+ * Azure AD OAuth Provider for SPA-configured redirect URIs
  *
- * OAuth 2.0 + PKCE implementation for Azure AD (Microsoft Entra ID) authentication.
+ * Uses a hidden BrowserWindow to perform token exchange via cross-origin request,
+ * which is required when Azure Portal is configured with SPA redirect URI type.
+ *
+ * The SPA configuration requires tokens to be redeemed via browser-based
+ * cross-origin requests, not server-side HTTP requests.
  */
 
+import { BrowserWindow } from "electron"
+import { randomBytes, createHash } from "crypto"
 import { shell } from "electron"
 import { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
-import { generateCodeVerifier, generateCodeChallenge, generateState } from "../okta/pkce"
 import { getEnv } from "../env"
 import { OKTA_CALLBACK_PORT } from "../../constants"
+
+// Scopes required for authentication
+const SCOPES = ["openid", "profile", "email", "offline_access"]
 
 /**
  * Get Azure AD configuration from environment
@@ -26,15 +34,13 @@ function getAzureConfig() {
   return {
     tenantId,
     clientId,
-    // Microsoft identity platform v2.0 endpoints
-    authorizeEndpoint: `${loginUrl}/${tenantId}/oauth2/v2.0/authorize`,
+    authority: `${loginUrl}/${tenantId}`,
     tokenEndpoint: `${loginUrl}/${tenantId}/oauth2/v2.0/token`,
   }
 }
 
 /**
  * Parse JWT id_token from Azure AD to extract user information
- * Azure AD id_token contains claims like: oid, email, name, preferred_username
  */
 function parseIdToken(idToken: string): AuthUser {
   try {
@@ -45,15 +51,11 @@ function parseIdToken(idToken: string): AuthUser {
 
     const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf-8"))
 
-    // Azure AD uses different claim names
-    // oid = Object ID (unique user identifier)
-    // preferred_username = email address or UPN
-    // name = display name
     return {
       id: payload.oid || payload.sub || "",
       email: payload.email || payload.preferred_username || "",
       name: payload.name || null,
-      imageUrl: null, // Azure AD doesn't include picture in id_token by default
+      imageUrl: null,
       username: payload.preferred_username?.split("@")[0] || null,
     }
   } catch (error) {
@@ -62,33 +64,228 @@ function parseIdToken(idToken: string): AuthUser {
   }
 }
 
+/**
+ * Generate PKCE code verifier (synchronous)
+ */
+function generateCodeVerifier(): string {
+  return randomBytes(32).toString("base64url")
+}
+
+/**
+ * Generate PKCE code challenge from verifier (synchronous)
+ */
+function generateCodeChallenge(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url")
+}
+
+/**
+ * Generate random state for CSRF protection
+ */
+function generateState(): string {
+  return randomBytes(16).toString("hex")
+}
+
+/**
+ * Exchange authorization code for tokens using a hidden BrowserWindow.
+ * This makes the request appear as a cross-origin browser request,
+ * which is required for SPA-configured redirect URIs in Azure AD.
+ */
+async function exchangeCodeViaBrowser(
+  code: string,
+  codeVerifier: string,
+  redirectUri: string,
+): Promise<TokenResponse> {
+  const { clientId, tokenEndpoint } = getAzureConfig()
+
+  console.log("[Azure] Exchanging code via browser window...")
+
+  return new Promise((resolve, reject) => {
+    // Create a hidden browser window for the token exchange
+    const tokenWindow = new BrowserWindow({
+      width: 400,
+      height: 300,
+      show: false, // Hidden window
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    })
+
+    // Build the token request body
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code,
+      code_verifier: codeVerifier,
+      scope: SCOPES.join(" "),
+    }).toString()
+
+    // JavaScript to execute the token exchange via fetch
+    const script = `
+      (async function() {
+        try {
+          const response = await fetch("${tokenEndpoint}", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Accept": "application/json",
+            },
+            body: "${body}",
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            return { error: true, data };
+          }
+
+          return { error: false, data };
+        } catch (err) {
+          return { error: true, data: { error: err.message } };
+        }
+      })();
+    `
+
+    // Set timeout for the token exchange
+    const timeout = setTimeout(() => {
+      tokenWindow.destroy()
+      reject(new Error("Token exchange timed out"))
+    }, 30000)
+
+    // Load a minimal HTML page and execute the token exchange
+    tokenWindow.loadURL("data:text/html,<html><body></body></html>")
+
+    tokenWindow.webContents.on("did-finish-load", async () => {
+      try {
+        const result = await tokenWindow.webContents.executeJavaScript(script)
+
+        clearTimeout(timeout)
+        tokenWindow.destroy()
+
+        if (result.error) {
+          const errorData = result.data
+          const errorMsg = errorData.error_description || errorData.error || "Token exchange failed"
+          reject(new Error(errorMsg))
+        } else {
+          resolve(result.data as TokenResponse)
+        }
+      } catch (err) {
+        clearTimeout(timeout)
+        tokenWindow.destroy()
+        reject(err)
+      }
+    })
+  })
+}
+
+/**
+ * Refresh token using a hidden BrowserWindow
+ */
+async function refreshTokenViaBrowser(refreshToken: string): Promise<TokenResponse | null> {
+  const { clientId, tokenEndpoint } = getAzureConfig()
+
+  console.log("[Azure] Refreshing token via browser window...")
+
+  return new Promise((resolve) => {
+    const tokenWindow = new BrowserWindow({
+      width: 400,
+      height: 300,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    })
+
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: clientId,
+      refresh_token: refreshToken,
+      scope: SCOPES.join(" "),
+    }).toString()
+
+    const script = `
+      (async function() {
+        try {
+          const response = await fetch("${tokenEndpoint}", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Accept": "application/json",
+            },
+            body: "${body}",
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            return { error: true, data };
+          }
+
+          return { error: false, data };
+        } catch (err) {
+          return { error: true, data: { error: err.message } };
+        }
+      })();
+    `
+
+    const timeout = setTimeout(() => {
+      tokenWindow.destroy()
+      resolve(null)
+    }, 30000)
+
+    tokenWindow.loadURL("data:text/html,<html><body></body></html>")
+
+    tokenWindow.webContents.on("did-finish-load", async () => {
+      try {
+        const result = await tokenWindow.webContents.executeJavaScript(script)
+
+        clearTimeout(timeout)
+        tokenWindow.destroy()
+
+        if (result.error) {
+          console.error("[Azure] Token refresh failed:", result.data)
+          resolve(null)
+        } else {
+          resolve(result.data as TokenResponse)
+        }
+      } catch (err) {
+        clearTimeout(timeout)
+        tokenWindow.destroy()
+        console.error("[Azure] Token refresh error:", err)
+        resolve(null)
+      }
+    })
+  })
+}
+
 export class AzureProvider implements AuthProvider {
   readonly name = "azure" as const
 
   getRedirectUri(): string {
-    // Share the same callback port as Okta
     return `http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`
   }
 
   startAuthFlow(): PkceState {
-    const { clientId, authorizeEndpoint } = getAzureConfig()
+    const { clientId, authority } = getAzureConfig()
 
-    // Generate PKCE parameters (same as Okta)
-    const codeVerifier = generateCodeVerifier()
-    const codeChallenge = generateCodeChallenge(codeVerifier)
+    // Generate PKCE codes (synchronous)
+    const verifier = generateCodeVerifier()
+    const challenge = generateCodeChallenge(verifier)
+
+    // Generate state for CSRF protection
     const state = generateState()
 
-    // Build Azure AD authorize URL
-    const authorizeUrl = new URL(authorizeEndpoint)
+    // Build authorization URL
+    const authorizeUrl = new URL(`${authority}/oauth2/v2.0/authorize`)
     authorizeUrl.searchParams.set("client_id", clientId)
     authorizeUrl.searchParams.set("response_type", "code")
-    // Azure AD scopes: openid, profile, email for id_token; offline_access for refresh_token
-    authorizeUrl.searchParams.set("scope", "openid profile email offline_access")
     authorizeUrl.searchParams.set("redirect_uri", this.getRedirectUri())
+    authorizeUrl.searchParams.set("scope", SCOPES.join(" "))
     authorizeUrl.searchParams.set("state", state)
-    authorizeUrl.searchParams.set("code_challenge", codeChallenge)
+    authorizeUrl.searchParams.set("code_challenge", challenge)
     authorizeUrl.searchParams.set("code_challenge_method", "S256")
-    // Response mode: query returns code in URL query params (default for code flow)
     authorizeUrl.searchParams.set("response_mode", "query")
 
     console.log("[Azure] Starting PKCE flow...")
@@ -97,7 +294,7 @@ export class AzureProvider implements AuthProvider {
     shell.openExternal(authorizeUrl.toString())
 
     return {
-      codeVerifier,
+      codeVerifier: verifier,
       state,
       provider: "azure",
     }
@@ -107,41 +304,17 @@ export class AzureProvider implements AuthProvider {
     tokenData: TokenResponse
     user: AuthUser
   }> {
-    const { clientId, tokenEndpoint } = getAzureConfig()
+    console.log("[Azure] Exchanging authorization code...")
+
     const { codeVerifier } = pkceState
 
-    console.log("[Azure] Exchanging authorization code for tokens...")
-
-    const body = new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: clientId,
-      redirect_uri: this.getRedirectUri(),
-      code,
-      code_verifier: codeVerifier,
-      // scope is required for Azure AD token endpoint
-      scope: "openid profile email offline_access",
-    })
-
-    const response = await fetch(tokenEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body.toString(),
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("[Azure] Token exchange failed:", error)
-      throw new Error(
-        error.error_description ||
-        error.error ||
-        `Token exchange failed: ${response.status}`
-      )
+    if (!codeVerifier) {
+      throw new Error("No PKCE verifier found for token exchange")
     }
 
-    const tokenData: TokenResponse = await response.json()
+    // Use browser-based token exchange for SPA redirect URIs
+    const tokenData = await exchangeCodeViaBrowser(code, codeVerifier, this.getRedirectUri())
+
     console.log("[Azure] Token exchange successful")
 
     if (!tokenData.id_token) {
@@ -154,34 +327,13 @@ export class AzureProvider implements AuthProvider {
   }
 
   async refresh(refreshToken: string): Promise<TokenResponse | null> {
-    const { clientId, tokenEndpoint } = getAzureConfig()
-
     console.log("[Azure] Refreshing token...")
 
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: clientId,
-      refresh_token: refreshToken,
-      scope: "openid profile email offline_access",
-    })
+    const tokenData = await refreshTokenViaBrowser(refreshToken)
 
-    const response = await fetch(tokenEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body.toString(),
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("[Azure] Refresh failed:", response.status, error)
-      return null
+    if (tokenData) {
+      console.log("[Azure] Token refreshed successfully")
     }
-
-    const tokenData: TokenResponse = await response.json()
-    console.log("[Azure] Token refreshed successfully")
 
     return tokenData
   }
