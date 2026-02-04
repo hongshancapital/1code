@@ -129,7 +129,7 @@ function getOpenAIApiKey(): string | null {
     const shell = process.env.SHELL || "/bin/zsh"
     const result = execSync(`${shell} -ilc 'echo $OPENAI_API_KEY'`, {
       encoding: "utf8",
-      timeout: 5000,
+      timeout: 15000,
       env: {
         HOME: os.homedir(),
         USER: os.userInfo().username,
