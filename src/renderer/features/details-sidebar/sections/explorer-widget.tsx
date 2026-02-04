@@ -2,6 +2,7 @@
 
 import { memo, useCallback } from "react"
 import { useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { FolderTree, ArrowUpRight } from "lucide-react"
 import {
@@ -37,6 +38,7 @@ export const ExplorerWidget = memo(function ExplorerWidget({
   onExpand,
   onFileSelect,
 }: ExplorerWidgetProps) {
+  const { t } = useTranslation("sidebar")
   const setFilePreviewPath = useSetAtom(filePreviewPathAtom)
 
   // Handle file selection - open preview dialog
@@ -59,10 +61,10 @@ export const ExplorerWidget = memo(function ExplorerWidget({
         <div className="rounded-lg border border-border/50 overflow-hidden">
           <div className="flex items-center gap-2 px-2 h-8 select-none bg-muted/30">
             <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-foreground">Explorer</span>
+            <span className="text-xs font-medium text-foreground">{t("details.widgets.explorer")}</span>
           </div>
           <div className="text-xs text-muted-foreground px-2 py-2">
-            No workspace selected
+            {t("details.explorerWidget.noWorkspace")}
           </div>
         </div>
       </div>
@@ -77,7 +79,7 @@ export const ExplorerWidget = memo(function ExplorerWidget({
           {/* Header */}
           <div className="flex items-center gap-2 px-2 h-8 select-none group bg-muted/30 shrink-0">
             <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-medium text-foreground">Explorer</span>
+            <span className="text-xs font-medium text-foreground">{t("details.widgets.explorer")}</span>
             <div className="flex-1" />
 
             {/* Expand button */}
@@ -89,12 +91,12 @@ export const ExplorerWidget = memo(function ExplorerWidget({
                     size="icon"
                     onClick={onExpand}
                     className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity] duration-150 shrink-0"
-                    aria-label="Expand explorer"
+                    aria-label={t("details.widgets.explorer")}
                   >
                     <ArrowUpRight className="h-3 w-3" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="left">Open in sidebar</TooltipContent>
+                <TooltipContent side="left">{t("details.explorerWidget.openInSidebar")}</TooltipContent>
               </Tooltip>
             )}
           </div>

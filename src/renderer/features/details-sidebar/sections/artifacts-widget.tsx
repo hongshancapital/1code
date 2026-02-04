@@ -2,6 +2,7 @@
 
 import { memo, useMemo, useState, useCallback } from "react"
 import { useAtom, useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Package, ChevronRight, FileEdit, FilePlus, FileX, FolderOpen, Globe } from "lucide-react"
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
@@ -160,6 +161,7 @@ interface ArtifactsWidgetProps {
 }
 
 export const ArtifactsWidget = memo(function ArtifactsWidget({ subChatId }: ArtifactsWidgetProps) {
+  const { t } = useTranslation("sidebar")
   const effectiveId = subChatId || "default"
   const artifactsAtom = useMemo(
     () => artifactsAtomFamily(effectiveId),
@@ -200,15 +202,15 @@ export const ArtifactsWidget = memo(function ArtifactsWidget({ subChatId }: Arti
         onClick={handleToggleExpand}
         role="button"
         aria-expanded={isExpanded}
-        aria-label={`Artifacts with ${artifacts.length} files. Click to ${isExpanded ? "collapse" : "expand"}`}
+        aria-label={t("details.artifactsWidget.expandLabel", { count: artifacts.length, action: isExpanded ? t("details.todosWidget.collapse") : t("details.todosWidget.expand") })}
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Package className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="text-xs font-medium text-foreground">Artifacts</span>
+          <span className="text-xs font-medium text-foreground">{t("details.artifactsWidget.title")}</span>
           <span className="text-xs text-muted-foreground tabular-nums shrink-0 ml-auto">
-            {artifacts.length} {artifacts.length === 1 ? "file" : "files"}
+            {t("details.artifactsWidget.file", { count: artifacts.length })}
           </span>
           <div className="relative w-3.5 h-3.5 shrink-0">
             <ExpandIcon

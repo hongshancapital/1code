@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { useAtom, useAtomValue } from "jotai"
+import { useTranslation } from "react-i18next"
 import { GripVertical, Box, TerminalSquare, ListTodo, Package, FolderTree } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,7 +52,22 @@ function getWidgetIcon(widgetId: WidgetId) {
   }
 }
 
+// Widget ID to translation key mapping
+const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
+  info: "workspace",
+  todo: "tasks",
+  plan: "plan",
+  terminal: "terminal",
+  diff: "changes",
+  artifacts: "artifacts",
+  explorer: "explorer",
+  "background-tasks": "backgroundTasks",
+  mcp: "mcpServers",
+}
+
 export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: WidgetSettingsPopupProps) {
+  const { t } = useTranslation("sidebar")
+
   // Get enabled widgets from project feature config
   const enabledWidgets = useAtomValue(enabledWidgetsAtom)
   const projectMode = useAtomValue(currentProjectModeAtom)
@@ -174,7 +190,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
           size="sm"
           className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors rounded-md"
         >
-          Edit widgets
+          {t("details.editWidgets")}
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -184,7 +200,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
       >
         <div className="flex flex-col gap-1">
           <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Widgets
+            {t("details.widgetsTitle")}
           </div>
           {orderedWidgets.map((widget) => {
             const isVisible = visibleWidgets.includes(widget.id)
@@ -221,7 +237,7 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
                   className="h-4 w-4 pointer-events-none"
                 />
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm flex-1">{widget.label}</span>
+                <span className="text-sm flex-1">{t(`details.widgets.${WIDGET_I18N_KEYS[widget.id]}`)}</span>
               </div>
             )
           })}

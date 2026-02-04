@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { X } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,19 @@ interface ExpandedWidgetSidebarProps {
   diffStats?: { additions: number; deletions: number; fileCount: number } | null
 }
 
+// Widget ID to translation key mapping
+const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
+  info: "workspace",
+  todo: "tasks",
+  plan: "plan",
+  terminal: "terminal",
+  diff: "changes",
+  artifacts: "artifacts",
+  explorer: "explorer",
+  "background-tasks": "backgroundTasks",
+  mcp: "mcpServers",
+}
+
 export function ExpandedWidgetSidebar({
   chatId,
   worktreePath,
@@ -51,6 +65,8 @@ export function ExpandedWidgetSidebar({
   setIsDiffSidebarOpen,
   diffStats,
 }: ExpandedWidgetSidebarProps) {
+  const { t } = useTranslation("sidebar")
+
   // Per-workspace expanded widget state
   const expandedWidgetAtom = useMemo(
     () => expandedWidgetAtomFamily(chatId),
@@ -149,10 +165,10 @@ export function ExpandedWidgetSidebar({
         {/* Header */}
         <div className="flex items-center justify-between pl-3 pr-1.5 h-10 bg-tl-background shrink-0 border-b border-border/50">
           <div className="flex items-center gap-2">
-            {widgetConfig && (
+            {widgetConfig && expandedWidget && (
               <>
                 <widgetConfig.icon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{widgetConfig.label}</span>
+                <span className="text-sm font-medium">{t(`details.widgets.${WIDGET_I18N_KEYS[expandedWidget]}`)}</span>
               </>
             )}
           </div>
@@ -169,7 +185,7 @@ export function ExpandedWidgetSidebar({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              Close
+              {t("details.close")}
               <Kbd>Esc</Kbd>
             </TooltipContent>
           </Tooltip>

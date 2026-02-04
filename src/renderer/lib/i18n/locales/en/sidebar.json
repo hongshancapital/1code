@@ -105,5 +105,124 @@
     "title": "Tags",
     "clear": "Clear tag",
     "manage": "Manage tags..."
+  },
+  "grouping": {
+    "enable": "Enable grouped view",
+    "disable": "Disable grouped view",
+    "byFolder": "Group by folder",
+    "byTag": "Group by tag",
+    "noGroups": "No groups",
+    "ungrouped": "Ungrouped",
+    "other": "Other",
+    "tagGrouping": "Tag grouping",
+    "folderGrouping": "Folder grouping",
+    "quickJump": "Click to quickly jump to group",
+    "expandGroup": "Expand group",
+    "collapseGroup": "Collapse group"
+  },
+  "details": {
+    "title": "Details",
+    "close": "Close",
+    "closeDetails": "Close details",
+    "editWidgets": "Edit widgets",
+    "widgetsTitle": "Widgets",
+    "expandToSidebar": "Expand to sidebar",
+    "openSettings": "Open settings",
+    "widgets": {
+      "workspace": "Workspace",
+      "tasks": "Tasks",
+      "plan": "Plan",
+      "terminal": "Terminal",
+      "changes": "Changes",
+      "artifacts": "Artifacts",
+      "explorer": "Explorer",
+      "backgroundTasks": "Background Tasks",
+      "mcpServers": "MCP Servers"
+    },
+    "workspace": {
+      "noInfo": "No workspace info available",
+      "repository": "Repository",
+      "branch": "Branch",
+      "pullRequest": "Pull Request",
+      "path": "Path",
+      "renameBranch": "Rename branch with AI",
+      "openInGitHub": "Open in GitHub",
+      "openInFinder": "Open in Finder",
+      "copied": "Copied",
+      "clickToCopy": "Click to copy",
+      "openIn": "Open in {{editor}}"
+    },
+    "changesWidget": {
+      "noChanges": "No changes",
+      "viewDiff": "View Diff",
+      "openInSidebar": "Open in sidebar",
+      "openInDialog": "Open in dialog",
+      "openFullscreen": "Open fullscreen",
+      "selectedFiles": "{{selected}} of {{total}} file selected",
+      "selectedFiles_other": "{{selected}} of {{total}} files selected",
+      "commitFiles": "Commit {{count}} file",
+      "commitFiles_other": "Commit {{count}} files",
+      "committing": "Committing..."
+    },
+    "explorerWidget": {
+      "noWorkspace": "No workspace selected",
+      "openInSidebar": "Open in sidebar"
+    },
+    "todosWidget": {
+      "title": "To-dos",
+      "expandLabel": "To-do list with {{count}} items. Click to {{action}}",
+      "expand": "expand",
+      "collapse": "collapse"
+    },
+    "backgroundTasks": {
+      "title": "Background Tasks",
+      "noTasks": "0 Background Processes Running",
+      "running": "{{count}} running",
+      "expandLabel": "Background tasks with {{count}} items. Click to {{action}}",
+      "killTask": "Kill task",
+      "clearCompleted": "Clear completed",
+      "output": "OUTPUT",
+      "openInTerminal": "Open in terminal (tail -f)",
+      "loading": "Loading...",
+      "noOutput": "No output",
+      "outputNotAvailable": "Output file not available yet (task starting...)",
+      "outputCleanedUp": "Output file cleaned up (SDK removes files after session)",
+      "failedToRead": "Failed to read output file"
+    },
+    "artifactsWidget": {
+      "title": "Artifacts",
+      "file": "{{count}} file",
+      "file_other": "{{count}} files",
+      "expandLabel": "Artifacts with {{count}} files. Click to {{action}}"
+    },
+    "mcpWidget": {
+      "noServers": "Configure MCP servers"
+    }
+  },
+  "tagManager": {
+    "title": "Tag Manager",
+    "description": "Select color and icon combination to create tags",
+    "created": "Created tags",
+    "clickToEdit": "Click to edit",
+    "color": "Color",
+    "colorOptional": "Color (optional)",
+    "icon": "Icon",
+    "preview": "Preview",
+    "addTag": "Add tag",
+    "updateTag": "Update tag",
+    "cancel": "Cancel",
+    "tagCreated": "Tag created",
+    "tagUpdated": "Tag updated",
+    "tagDeleted": "Tag deleted",
+    "createFailed": "Create failed",
+    "updateFailed": "Update failed",
+    "deleteFailed": "Delete failed",
+    "iconGroups": {
+      "common": "Common",
+      "status": "Status",
+      "work": "Work",
+      "dev": "Development",
+      "creative": "Creative"
+    }
   }
 }

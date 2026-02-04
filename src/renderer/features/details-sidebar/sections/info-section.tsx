@@ -2,6 +2,7 @@
 
 import { memo, useState, useCallback } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
@@ -41,6 +42,8 @@ function PropertyRow({
   onClick,
   copyable,
   tooltip,
+  copiedText,
+  clickToCopyText,
 }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
@@ -50,6 +53,10 @@ function PropertyRow({
   copyable?: boolean
   /** Tooltip to show on hover (for clickable items) */
   tooltip?: string
+  /** "Copied" text for i18n */
+  copiedText?: string
+  /** "Click to copy" text for i18n */
+  clickToCopyText?: string
 }) {
   const [showCopied, setShowCopied] = useState(false)
 
@@ -95,7 +102,7 @@ function PropertyRow({
               {valueEl}
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              {showCopied ? "Copied" : "Click to copy"}
+              {showCopied ? (copiedText || "Copied") : (clickToCopyText || "Click to copy")}
             </TooltipContent>
           </Tooltip>
         ) : tooltip ? (
@@ -126,6 +133,8 @@ export const InfoSection = memo(function InfoSection({
   isExpanded = false,
   remoteInfo,
 }: InfoSectionProps) {
+  const { t } = useTranslation("sidebar")
+
   // Extract folder name from path
   const folderName = worktreePath?.split("/").pop() || "Unknown"
 
@@ -260,7 +269,7 @@ Please suggest a new branch name.`
     return (
       <div className="px-2 py-2">
         <div className="text-xs text-muted-foreground">
-          No workspace info available
+          {t("details.workspace.noInfo")}
         </div>
       </div>
     )
@@ -272,18 +281,25 @@ Please suggest a new branch name.`
       {repositoryName && (
         <PropertyRow
           icon={FolderFilledIcon}
-          label="Repository"
+          label={t("details.workspace.repository")}
           value={repositoryName}
           title={remoteInfo?.repository}
           onClick={handleOpenRepository}
-          tooltip="Open in GitHub"
+          tooltip={t("details.workspace.openInGitHub")}
         />
       )}
       {/* Branch - for both local and remote */}
       {branchName && (
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            <PropertyRow icon={GitBranchFilledIcon} label="Branch" value={branchName} copyable />
+            <PropertyRow
+              icon={GitBranchFilledIcon}
+              label={t("details.workspace.branch")}
+              value={branchName}
+              copyable
+              copiedText={t("details.workspace.copied")}
+              clickToCopyText={t("details.workspace.clickToCopy")}
+            />
           </div>
           {/* Only show rename button for local chats */}
           {!isRemoteChat && (
@@ -299,7 +315,7 @@ Please suggest a new branch name.`
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
-                Rename branch with AI
+                {t("details.workspace.renameBranch")}
               </TooltipContent>
             </Tooltip>
           )}
@@ -309,11 +325,11 @@ Please suggest a new branch name.`
       {pr && (
         <PropertyRow
           icon={GitPullRequestFilledIcon}
-          label="Pull Request"
+          label={t("details.workspace.pullRequest")}
           value={`#${pr.number}`}
           title={pr.title}
           onClick={handleOpenPr}
-          tooltip="Open in GitHub"
+          tooltip={t("details.workspace.openInGitHub")}
         />
       )}
       {/* Path - for local chats, with editor button */}
@@ -322,11 +338,11 @@ Please suggest a new branch name.`
           <div className="flex-1 min-w-0">
             <PropertyRow
               icon={FolderFilledIcon}
-              label="Path"
+              label={t("details.workspace.path")}
               value={folderName}
               title={worktreePath}
               onClick={handleOpenFolder}
-              tooltip="Open in Finder"
+              tooltip={t("details.workspace.openInFinder")}
             />
           </div>
           <Tooltip>
@@ -346,7 +362,7 @@ Please suggest a new branch name.`
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              Open in {editorLabel}
+              {t("details.workspace.openIn", { editor: editorLabel })}
             </TooltipContent>
           </Tooltip>
         </div>

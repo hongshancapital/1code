@@ -1,10 +1,11 @@
 "use client"
 
 import { useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown } from "lucide-react"
-import { memo, useMemo, useState } from "react"
+import { ChevronDown, Settings } from "lucide-react"
+import { memo, useCallback, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { OriginalMCPIcon } from "../../../components/ui/icons"
-import { sessionInfoAtom, type MCPServer } from "../../../lib/atoms"
+import { agentsSettingsDialogActiveTabAtom, agentsSettingsDialogOpenAtom, sessionInfoAtom, type MCPServer } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
 import { pendingMentionAtom } from "../../agents/atoms"
 
@@ -63,9 +64,17 @@ function ServerIcon({ server }: { server: MCPServer }) {
 }
 
 export const McpWidget = memo(function McpWidget() {
+  const { t } = useTranslation("sidebar")
   const sessionInfo = useAtomValue(sessionInfoAtom)
   const setPendingMention = useSetAtom(pendingMentionAtom)
+  const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
+  const setSettingsTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
+
+  const openMcpSettings = useCallback(() => {
+    setSettingsTab("mcp")
+    setSettingsOpen(true)
+  }, [setSettingsTab, setSettingsOpen])
 
   const toolsByServer = useMemo(() => {
     if (!sessionInfo?.tools || !sessionInfo?.mcpServers) return new Map<string, string[]>()
@@ -89,9 +98,13 @@ export const McpWidget = memo(function McpWidget() {
   if (!sessionInfo?.mcpServers || sessionInfo.mcpServers.length === 0) {
     return (
       <div className="px-2 py-2">
-        <div className="text-xs text-muted-foreground">
-          No MCP servers configured
-        </div>
+        <button
+          onClick={openMcpSettings}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+        >
+          <Settings className="h-3 w-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+          <span>{t("details.mcpWidget.noServers")}</span>
+        </button>
       </div>
     )
   }

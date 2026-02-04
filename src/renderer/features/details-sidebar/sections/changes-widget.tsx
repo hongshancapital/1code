@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useMemo, useState, useEffect } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowUpRight } from "lucide-react"
@@ -74,6 +75,8 @@ export const ChangesWidget = memo(function ChangesWidget({
   onFileSelect,
   diffDisplayMode = "side-peek",
 }: ChangesWidgetProps) {
+  const { t } = useTranslation("sidebar")
+
   // Data is now cached at the ActiveChat level via workspaceDiffCacheAtomFamily
   // So parsedFileDiffs and diffStats persist across workspace switches
   const displayFiles = parsedFileDiffs ?? []
@@ -83,10 +86,10 @@ export const ChangesWidget = memo(function ChangesWidget({
 
   // Get tooltip text based on diff display mode
   const expandTooltip = diffDisplayMode === "side-peek"
-    ? "Open in sidebar"
+    ? t("details.changesWidget.openInSidebar")
     : diffDisplayMode === "center-peek"
-      ? "Open in dialog"
-      : "Open fullscreen"
+      ? t("details.changesWidget.openInDialog")
+      : t("details.changesWidget.openFullscreen")
 
   // Resolved hotkey for tooltip
   const openDiffHotkey = useResolvedHotkeyDisplay("open-diff")
@@ -207,7 +210,7 @@ export const ChangesWidget = memo(function ChangesWidget({
           <DiffIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
           {/* Title */}
-          <span className="text-xs font-medium text-foreground">Changes</span>
+          <span className="text-xs font-medium text-foreground">{t("details.widgets.changes")}</span>
 
           {/* Stats in header - total lines changed */}
           {hasChanges && displayStats && (
@@ -254,8 +257,7 @@ export const ChangesWidget = memo(function ChangesWidget({
                 className="size-4 border-muted-foreground/50"
               />
               <span className="text-xs text-muted-foreground">
-                {selectedCount} of {displayFiles.length} file
-                {displayFiles.length !== 1 ? "s" : ""} selected
+                {t("details.changesWidget.selectedFiles", { selected: selectedCount, total: displayFiles.length, count: displayFiles.length })}
               </span>
             </div>
 
@@ -319,7 +321,7 @@ export const ChangesWidget = memo(function ChangesWidget({
                   onClick={handleCommit}
                   disabled={isCommitting || selectedCount === 0}
                 >
-                  {isCommitting ? "Committing..." : `Commit ${selectedCount} file${selectedCount !== 1 ? "s" : ""}`}
+                  {isCommitting ? t("details.changesWidget.committing") : t("details.changesWidget.commitFiles", { count: selectedCount })}
                 </Button>
               )}
 
@@ -330,13 +332,13 @@ export const ChangesWidget = memo(function ChangesWidget({
                 className={cn("h-7 text-xs", onCommit ? "flex-1" : "w-full")}
                 onClick={() => onExpand?.()}
               >
-                View Diff
+                {t("details.changesWidget.viewDiff")}
               </Button>
             </div>
           </>
         ) : (
           <div className="text-xs text-muted-foreground px-2 py-2">
-            No changes
+            {t("details.changesWidget.noChanges")}
           </div>
         )}
       </div>

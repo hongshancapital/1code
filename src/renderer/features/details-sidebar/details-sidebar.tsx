@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
@@ -43,7 +44,7 @@ import type { AgentMode } from "../agents/atoms"
 import {
   agentsSettingsDialogOpenAtom,
   agentsSettingsDialogActiveTabAtom,
-} from "../../lib/atoms/agents-settings-dialog"
+} from "../../lib/atoms"
 
 interface DetailsSidebarProps {
   /** Workspace/chat ID */
@@ -121,6 +122,8 @@ export function DetailsSidebar({
   remoteInfo,
   isRemoteChat = false,
 }: DetailsSidebarProps) {
+  const { t } = useTranslation("sidebar")
+
   // Global sidebar open state
   const [isOpen, setIsOpen] = useAtom(detailsSidebarOpenAtom)
 
@@ -304,7 +307,7 @@ export function DetailsSidebar({
                       <ArrowUpRight className="h-3 w-3" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="left">Expand to sidebar</TooltipContent>
+                  <TooltipContent side="left">{t("details.expandToSidebar")}</TooltipContent>
                 </Tooltip>
               )}
             </div>
@@ -344,17 +347,17 @@ export function DetailsSidebar({
                   size="icon"
                   onClick={closeSidebar}
                   className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
-                  aria-label="Close details"
+                  aria-label={t("details.closeDetails")}
                 >
                   <IconDoubleChevronRight className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                Close details
+                {t("details.closeDetails")}
                 {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
               </TooltipContent>
             </Tooltip>
-            <span className="text-sm font-medium">Details</span>
+            <span className="text-sm font-medium">{t("details.title")}</span>
           </div>
           <WidgetSettingsPopup workspaceId={chatId} isRemoteChat={isRemoteChat} />
         </div>
@@ -369,7 +372,7 @@ export function DetailsSidebar({
             switch (widgetId) {
               case "info":
                 return (
-                  <WidgetCard key="info" widgetId="info" title="Workspace">
+                  <WidgetCard key="info" widgetId="info" title={t("details.widgets.workspace")}>
                     <InfoSection
                       chatId={chatId}
                       worktreePath={worktreePath}
@@ -467,7 +470,7 @@ export function DetailsSidebar({
                   <WidgetCard
                     key="mcp"
                     widgetId="mcp"
-                    title="MCP Servers"
+                    title={t("details.widgets.mcpServers")}
                     badge={
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -481,7 +484,7 @@ export function DetailsSidebar({
                             <ArrowUpRight className="h-3 w-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="left">Open settings</TooltipContent>
+                        <TooltipContent side="left">{t("details.openSettings")}</TooltipContent>
                       </Tooltip>
                     }
                     hideExpand

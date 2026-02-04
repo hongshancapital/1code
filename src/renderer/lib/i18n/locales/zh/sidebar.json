@@ -105,5 +105,124 @@
     "title": "标签",
     "clear": "清除标签",
     "manage": "管理标签..."
+  },
+  "grouping": {
+    "enable": "开启分组视图",
+    "disable": "关闭分组视图",
+    "byFolder": "按文件夹分组",
+    "byTag": "按标签分组",
+    "noGroups": "暂无分组",
+    "ungrouped": "未分组",
+    "other": "其他",
+    "tagGrouping": "标签分组",
+    "folderGrouping": "文件夹分组",
+    "quickJump": "点击快速跳转到对应分组",
+    "expandGroup": "展开组",
+    "collapseGroup": "折叠组"
+  },
+  "details": {
+    "title": "详情",
+    "close": "关闭",
+    "closeDetails": "关闭详情",
+    "editWidgets": "编辑组件",
+    "widgetsTitle": "组件",
+    "expandToSidebar": "展开到侧边栏",
+    "openSettings": "打开设置",
+    "widgets": {
+      "workspace": "工作区",
+      "tasks": "任务",
+      "plan": "计划",
+      "terminal": "终端",
+      "changes": "变更",
+      "artifacts": "产物",
+      "explorer": "文件浏览器",
+      "backgroundTasks": "后台任务",
+      "mcpServers": "MCP 服务器"
+    },
+    "workspace": {
+      "noInfo": "暂无工作区信息",
+      "repository": "仓库",
+      "branch": "分支",
+      "pullRequest": "Pull Request",
+      "path": "路径",
+      "renameBranch": "使用 AI 重命名分支",
+      "openInGitHub": "在 GitHub 中打开",
+      "openInFinder": "在 Finder 中打开",
+      "copied": "已复制",
+      "clickToCopy": "点击复制",
+      "openIn": "在 {{editor}} 中打开"
+    },
+    "changesWidget": {
+      "noChanges": "暂无变更",
+      "viewDiff": "查看差异",
+      "openInSidebar": "在侧边栏中打开",
+      "openInDialog": "在弹窗中打开",
+      "openFullscreen": "全屏打开",
+      "selectedFiles": "已选择 {{selected}}/{{total}} 个文件",
+      "selectedFiles_other": "已选择 {{selected}}/{{total}} 个文件",
+      "commitFiles": "提交 {{count}} 个文件",
+      "commitFiles_other": "提交 {{count}} 个文件",
+      "committing": "提交中..."
+    },
+    "explorerWidget": {
+      "noWorkspace": "未选择工作区",
+      "openInSidebar": "在侧边栏中打开"
+    },
+    "todosWidget": {
+      "title": "待办事项",
+      "expandLabel": "待办事项列表，共 {{count}} 项。点击{{action}}",
+      "expand": "展开",
+      "collapse": "折叠"
+    },
+    "backgroundTasks": {
+      "title": "后台任务",
+      "noTasks": "0 个后台进程运行中",
+      "running": "{{count}} 个运行中",
+      "expandLabel": "后台任务，共 {{count}} 项。点击{{action}}",
+      "killTask": "终止任务",
+      "clearCompleted": "清除已完成",
+      "output": "输出",
+      "openInTerminal": "在终端中打开 (tail -f)",
+      "loading": "加载中...",
+      "noOutput": "无输出",
+      "outputNotAvailable": "输出文件尚未可用（任务启动中...）",
+      "outputCleanedUp": "输出文件已清理（SDK 在会话结束后删除文件）",
+      "failedToRead": "读取输出文件失败"
+    },
+    "artifactsWidget": {
+      "title": "产物",
+      "file": "{{count}} 个文件",
+      "file_other": "{{count}} 个文件",
+      "expandLabel": "产物，共 {{count}} 个文件。点击{{action}}"
+    },
+    "mcpWidget": {
+      "noServers": "配置 MCP 服务器"
+    }
+  },
+  "tagManager": {
+    "title": "标签管理",
+    "description": "选择颜色和图标组合创建标签",
+    "created": "已创建的标签",
+    "clickToEdit": "点击可编辑",
+    "color": "颜色",
+    "colorOptional": "颜色（可选）",
+    "icon": "图标",
+    "preview": "预览",
+    "addTag": "添加标签",
+    "updateTag": "更新标签",
+    "cancel": "取消",
+    "tagCreated": "标签已创建",
+    "tagUpdated": "标签已更新",
+    "tagDeleted": "标签已删除",
+    "createFailed": "创建失败",
+    "updateFailed": "更新失败",
+    "deleteFailed": "删除失败",
+    "iconGroups": {
+      "common": "常用",
+      "status": "状态",
+      "work": "工作",
+      "dev": "开发",
+      "creative": "创意"
+    }
   }
 }

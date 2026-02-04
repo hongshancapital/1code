@@ -2,6 +2,7 @@
 
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
@@ -56,11 +57,22 @@ const TaskListItem = memo(function TaskListItem({
   isLast,
   onKill,
   onOpenInTerminal,
+  i18n,
 }: {
   task: BackgroundTask
   isLast: boolean
   onKill?: (taskId: string, shellId: string) => void
   onOpenInTerminal?: (outputFile: string) => void
+  i18n: {
+    killTask: string
+    output: string
+    openInTerminal: string
+    loading: string
+    noOutput: string
+    outputNotAvailable: string
+    outputCleanedUp: string
+    failedToRead: string
+  }
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
@@ -91,12 +103,12 @@ const TaskListItem = memo(function TaskListItem({
       let errorMsg: string
       if (err?.message?.includes("ENOENT")) {
         if (task.status === "running") {
-          errorMsg = "Output file not available yet (task starting...)"
+          errorMsg = i18n.outputNotAvailable
         } else {
-          errorMsg = "Output file cleaned up (SDK removes files after session)"
+          errorMsg = i18n.outputCleanedUp
         }
       } else {
-        errorMsg = "Failed to read output file"
+        errorMsg = i18n.failedToRead
       }
       setOutput(errorMsg)
       setIsExpanded(true)
@@ -119,12 +131,12 @@ const TaskListItem = memo(function TaskListItem({
       let errorMsg: string
       if (err?.message?.includes("ENOENT")) {
         if (task.status === "running") {
-          errorMsg = "Output file not available yet (task starting...)"
+          errorMsg = i18n.outputNotAvailable
         } else {
-          errorMsg = "Output file cleaned up (SDK removes files after session)"
+          errorMsg = i18n.outputCleanedUp
         }
       } else {
-        errorMsg = "Failed to read output file"
+        errorMsg = i18n.failedToRead
       }
       setOutput(errorMsg)
     } finally {
@@ -194,7 +206,7 @@ const TaskListItem = memo(function TaskListItem({
                 <X className="h-3 w-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left">Kill task</TooltipContent>
+            <TooltipContent side="left">{i18n.killTask}</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -204,7 +216,7 @@ const TaskListItem = memo(function TaskListItem({
         <div className="border-t border-border/30 bg-muted/20">
           {/* Output header with refresh and terminal buttons */}
           <div className="flex items-center justify-between px-2 py-1 border-b border-border/20">
-            <span className="text-[10px] text-muted-foreground font-medium">OUTPUT</span>
+            <span className="text-[10px] text-muted-foreground font-medium">{i18n.output}</span>
             <div className="flex items-center gap-1">
               {/* Open in terminal button */}
               {task.outputFile && onOpenInTerminal && (
@@ -220,7 +232,7 @@ const TaskListItem = memo(function TaskListItem({
                       <TerminalIcon className="h-3 w-3" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="left">Open in terminal (tail -f)</TooltipContent>
+                  <TooltipContent side="left">{i18n.openInTerminal}</TooltipContent>
                 </Tooltip>
               )}
               {/* Refresh button */}
@@ -238,7 +250,7 @@ const TaskListItem = memo(function TaskListItem({
           </div>
           {/* Output content */}
           <pre className="px-2 py-1.5 text-[10px] text-muted-foreground max-h-[150px] overflow-auto whitespace-pre-wrap break-all font-mono">
-            {isLoading && !output ? "Loading..." : output || "No output"}
+            {isLoading && !output ? i18n.loading : output || i18n.noOutput}
           </pre>
         </div>
       )}
@@ -258,6 +270,20 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   workspaceId,
   onKillTask,
 }: BackgroundTasksWidgetProps) {
+  const { t } = useTranslation("sidebar")
+
+  // i18n strings for TaskListItem
+  const taskListI18n = useMemo(() => ({
+    killTask: t("details.backgroundTasks.killTask"),
+    output: t("details.backgroundTasks.output"),
+    openInTerminal: t("details.backgroundTasks.openInTerminal"),
+    loading: t("details.backgroundTasks.loading"),
+    noOutput: t("details.backgroundTasks.noOutput"),
+    outputNotAvailable: t("details.backgroundTasks.outputNotAvailable"),
+    outputCleanedUp: t("details.backgroundTasks.outputCleanedUp"),
+    failedToRead: t("details.backgroundTasks.failedToRead"),
+  }), [t])
+
   // Get tasks from the active sub-chat
   const tasksAtom = useMemo(
     () => backgroundTasksAtomFamily(subChatId || "default"),
@@ -445,7 +471,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span className="text-xs text-muted-foreground">
-              0 Background Processes Running
+              {t("details.backgroundTasks.noTasks")}
             </span>
           </div>
         </div>
@@ -461,7 +487,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
         onClick={handleToggleExpand}
         role="button"
         aria-expanded={isExpanded}
-        aria-label={`Background tasks with ${totalTasks} items. Click to ${isExpanded ? "collapse" : "expand"}`}
+        aria-label={t("details.backgroundTasks.expandLabel", { count: totalTasks, action: isExpanded ? t("details.todosWidget.collapse") : t("details.todosWidget.expand") })}
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
@@ -473,10 +499,10 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
               <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
             )}
           </div>
-          <span className="text-xs font-medium text-foreground">Background Tasks</span>
+          <span className="text-xs font-medium text-foreground">{t("details.backgroundTasks.title")}</span>
           {runningCount > 0 && (
             <span className="text-xs text-blue-500">
-              {runningCount} running
+              {t("details.backgroundTasks.running", { count: runningCount })}
             </span>
           )}
           {/* Spacer */}
@@ -495,7 +521,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                   <Trash2 className="h-3 w-3" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="left">Clear completed</TooltipContent>
+              <TooltipContent side="left">{t("details.backgroundTasks.clearCompleted")}</TooltipContent>
             </Tooltip>
           )}
           {/* Expand/Collapse icon */}
@@ -545,6 +571,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 isLast={idx === runningTasks.length - 1 && completedTasks.length === 0}
                 onKill={handleKill}
                 onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
+                i18n={taskListI18n}
               />
             ))}
             {/* Completed tasks */}
@@ -554,6 +581,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
                 task={task}
                 isLast={idx === completedTasks.length - 1}
                 onOpenInTerminal={chatId && cwd ? handleOpenInTerminal : undefined}
+                i18n={taskListI18n}
               />
             ))}
           </div>
