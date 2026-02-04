@@ -26,6 +26,7 @@ npm-debug.log*
 .env.local
 .env.production
 .env.backup
+.env.dev
 
 # electron-vite temp files
 electron.vite.config.*.mjs

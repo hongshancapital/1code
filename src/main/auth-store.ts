@@ -31,9 +31,11 @@ export interface AuthData {
  */
 export class AuthStore {
   private filePath: string
+  private skipFilePath: string
 
   constructor(userDataPath: string) {
     this.filePath = join(userDataPath, "auth.dat") // .dat for encrypted data
+    this.skipFilePath = join(userDataPath, "auth-skipped.json")
   }
 
   /**
@@ -213,5 +215,49 @@ export class AuthStore {
     data.user = { ...data.user, ...updates }
     this.save(data)
     return data.user
+  }
+
+  /**
+   * Save auth skipped state
+   */
+  saveSkipped(skipped: boolean): void {
+    try {
+      const dir = dirname(this.skipFilePath)
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+      }
+      writeFileSync(this.skipFilePath, JSON.stringify({ skipped }), "utf-8")
+    } catch (error) {
+      console.error("Failed to save auth skipped state:", error)
+    }
+  }
+
+  /**
+   * Check if auth was skipped
+   */
+  isSkipped(): boolean {
+    try {
+      if (existsSync(this.skipFilePath)) {
+        const content = readFileSync(this.skipFilePath, "utf-8")
+        const data = JSON.parse(content)
+        return data.skipped === true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Clear skipped state (called when user logs in)
+   */
+  clearSkipped(): void {
+    try {
+      if (existsSync(this.skipFilePath)) {
+        unlinkSync(this.skipFilePath)
+      }
+    } catch (error) {
+      console.error("Failed to clear auth skipped state:", error)
+    }
   }
 }

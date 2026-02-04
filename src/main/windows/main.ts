@@ -315,6 +315,22 @@ function registerIpcHandlers(): void {
     getAuthManager().startAuthFlow(win)
   })
 
+  // Skip authentication (user chose to skip login)
+  ipcMain.handle("auth:skip", (event) => {
+    if (!validateSender(event)) return
+    getAuthManager().skipAuth()
+    // Load main app in all windows
+    for (const win of windowManager.getAll()) {
+      loadAppInWindow(win)
+    }
+  })
+
+  // Check if authentication was skipped
+  ipcMain.handle("auth:is-skipped", (event) => {
+    if (!validateSender(event)) return false
+    return getAuthManager().isSkipped()
+  })
+
   ipcMain.handle("auth:submit-code", async (event, code: string) => {
     if (!validateSender(event)) return
     if (!code || typeof code !== "string") {
@@ -496,6 +512,30 @@ function showLoginPageInWindow(window: BrowserWindow): void {
 }
 
 /**
+ * Load main app in a specific window (used after skip auth or login)
+ */
+function loadAppInWindow(window: BrowserWindow): void {
+  console.log("[Main] Loading main app in window", window.id)
+
+  const devServerUrl = process.env.ELECTRON_RENDERER_URL
+  const windowId = windowManager.getStableId(window)
+
+  if (devServerUrl) {
+    // Pass params via query for dev mode
+    const url = new URL(devServerUrl)
+    url.searchParams.set("windowId", windowId)
+    window.loadURL(url.toString())
+  } else {
+    // Pass params via hash for production (file:// URLs)
+    const hashParams = new URLSearchParams()
+    hashParams.set("windowId", windowId)
+    window.loadFile(join(__dirname, "../renderer/index.html"), {
+      hash: hashParams.toString(),
+    })
+  }
+}
+
+/**
  * Show login page in the focused window (or first window)
  */
 export function showLoginPage(): void {
@@ -662,9 +702,10 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   // Check authentication before loading
   const authManager = getAuthManager()
   const isAuthenticated = authManager?.isAuthenticated() ?? false
+  const isSkipped = authManager?.isSkipped() ?? false
 
-  if (!isAuthenticated) {
-    console.log("[Main] Not authenticated, showing login page")
+  if (!isAuthenticated && !isSkipped) {
+    console.log("[Main] Not authenticated and not skipped, showing login page")
     showLoginPageInWindow(window)
     return window
   }

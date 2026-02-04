@@ -125,3 +125,25 @@ export function getBuiltinMcpInfo(authManager: AuthManager): {
     available: authManager.isAuthenticated(),
   }
 }
+
+/**
+ * Get built-in MCP placeholder for displaying when user is not authenticated.
+ * This allows showing the MCP in the list with a "needs login" status.
+ */
+export function getBuiltinMcpPlaceholder(): {
+  name: string
+  url: string
+  requiresLogin: true
+  _builtin: true
+  _placeholder: true
+} {
+  const apiUrl = getApiBaseUrl()
+
+  return {
+    name: BUILTIN_MCP_NAME,
+    url: `${apiUrl}/v1/api/mcp`,
+    requiresLogin: true,
+    _builtin: true,
+    _placeholder: true,
+  }
+}

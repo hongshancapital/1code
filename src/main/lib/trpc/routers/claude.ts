@@ -27,7 +27,7 @@ import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
 import { discoverPluginMcpServers } from "../../plugins"
-import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig } from "../../builtin-mcp"
+import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 
 /**
@@ -799,7 +799,7 @@ export async function getAllMcpConfigHandler() {
       groupName: string
       projectPath: string | null
       promise: Promise<{
-        mcpServers: Array<{ name: string; status: string; tools: McpToolInfo[]; needsAuth: boolean; config: Record<string, unknown> }>
+        mcpServers: Array<{ name: string; status: string; tools: McpToolInfo[]; needsAuth: boolean; config: Record<string, unknown>; requiresLogin?: boolean }>
         duration: number
       }>
     }> = []
@@ -879,7 +879,7 @@ export async function getAllMcpConfigHandler() {
     const builtinConfig = await getBuiltinMcpConfig(authManager)
 
     if (builtinConfig) {
-      // Try to fetch tools from built-in MCP
+      // User is authenticated - try to fetch tools from built-in MCP
       let builtinTools: McpToolInfo[] = []
       let builtinStatus = "connected"
 
@@ -912,6 +912,49 @@ export async function getAllMcpConfigHandler() {
           },
         }],
       })
+    } else {
+      // User is not authenticated - show placeholder with "needs-login" status
+      console.log("[MCP] User not authenticated, adding builtin placeholder")
+      try {
+        const placeholder = getBuiltinMcpPlaceholder()
+        console.log("[MCP] Builtin placeholder created:", placeholder.name)
+        groups.unshift({
+          groupName: "Built-in",
+          projectPath: null,
+          mcpServers: [{
+            name: placeholder.name,
+            status: "needs-login",
+            tools: [],
+            needsAuth: true,
+            requiresLogin: true,
+            config: {
+              url: placeholder.url,
+              _builtin: true,
+              _placeholder: true,
+            },
+          }],
+        })
+        console.log("[MCP] Builtin placeholder added to groups, total groups:", groups.length)
+      } catch (error) {
+        console.error("[MCP] Failed to create builtin placeholder:", error)
+        // Still add a minimal placeholder even if getBuiltinMcpPlaceholder fails
+        groups.unshift({
+          groupName: "Built-in",
+          projectPath: null,
+          mcpServers: [{
+            name: BUILTIN_MCP_NAME,
+            status: "needs-login",
+            tools: [],
+            needsAuth: true,
+            requiresLogin: true,
+            config: {
+              _builtin: true,
+              _placeholder: true,
+            },
+          }],
+        })
+        console.log("[MCP] Minimal builtin placeholder added after error")
+      }
     }
 
     // Plugin MCPs (from installed plugins)

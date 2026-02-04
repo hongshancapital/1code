@@ -213,6 +213,29 @@
       .error-toast.show {
         opacity: 1;
       }
+      .skip-link {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        font-size: 13px;
+        color: var(--text);
+        opacity: 0.5;
+        -webkit-app-region: no-drag;
+        cursor: pointer;
+        transition: opacity 0.2s ease;
+        text-decoration: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .skip-link:hover {
+        opacity: 0.8;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      @media (prefers-color-scheme: light) {
+        .skip-link:hover {
+          background: rgba(0, 0, 0, 0.05);
+        }
+      }
     </style>
   </head>
   <body>
@@ -230,6 +253,7 @@
       <button class="login-btn" id="loginBtn">Meet Hóng</button>
     </div>
     <div class="version"><span id="version"></span><span class="badge">Inside</span></div>
+    <a class="skip-link" id="skipLink">Skip for now</a>
     <div class="error-toast" id="errorToast"></div>
     <script>
       // Display version
@@ -300,6 +324,18 @@
         if (window.desktopApi && window.desktopApi.startAuthFlow) {
           console.log('Calling startAuthFlow...');
           window.desktopApi.startAuthFlow();
+        } else {
+          console.error('Desktop API not available');
+          alert('Desktop API not available. Please restart the app.');
+        }
+      });
+
+      // Skip authentication
+      document.getElementById('skipLink').addEventListener('click', function() {
+        console.log('Skip clicked');
+        if (window.desktopApi && window.desktopApi.skipAuth) {
+          console.log('Calling skipAuth...');
+          window.desktopApi.skipAuth();
         } else {
           console.error('Desktop API not available');
           alert('Desktop API not available. Please restart the app.');

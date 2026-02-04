@@ -18,6 +18,7 @@ import { identify, initAnalytics, shutdown } from "./lib/analytics"
 import {
   anthropicOnboardingCompletedAtom,
   apiKeyOnboardingCompletedAtom,
+  authSkippedAtom,
   billingMethodAtom,
   litellmOnboardingCompletedAtom,
   overrideModelModeAtom,
@@ -56,6 +57,7 @@ function AppContent() {
   const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
   const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
   const setOverrideModelMode = useSetAtom(overrideModelModeAtom)
+  const setAuthSkipped = useSetAtom(authSkippedAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
@@ -63,13 +65,18 @@ function AppContent() {
   // Track if auth check has completed
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false)
 
-  // Force re-login if Okta auth is invalid (applies to all users)
+  // Check auth status and sync skipped state
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const isAuthenticated = await window.desktopApi?.isAuthenticated()
-        if (!isAuthenticated) {
-          console.log("[App] Okta auth invalid, triggering logout to show login page")
+        const isSkipped = await window.desktopApi?.isSkipped()
+
+        // Sync skipped state to atom
+        setAuthSkipped(isSkipped ?? false)
+
+        if (!isAuthenticated && !isSkipped) {
+          console.log("[App] Not authenticated and not skipped, triggering logout to show login page")
           // Trigger logout to show login page
           window.desktopApi?.logout()
           return // Don't set authCheckCompleted, page will reload
@@ -80,7 +87,7 @@ function AppContent() {
       setAuthCheckCompleted(true)
     }
     checkAuth()
-  }, [])
+  }, [setAuthSkipped])
 
   // Apply initial window params (chatId/subChatId) when opening via "Open in new window"
   useEffect(() => {

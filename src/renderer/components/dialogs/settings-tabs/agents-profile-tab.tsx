@@ -137,7 +137,7 @@ export function AgentsProfileTab() {
     )
   }
 
-  // Not logged in state
+  // Not logged in state - beautiful sign in prompt
   if (!user) {
     return (
       <div className="p-6 flex flex-col gap-6">
@@ -147,13 +147,26 @@ export function AgentsProfileTab() {
           </div>
         )}
 
-        <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
-            <User className="w-10 h-10 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center py-16 space-y-6">
+          {/* Avatar placeholder with border ring */}
+          <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center border-2 border-border">
+            <User className="w-12 h-12 text-muted-foreground/70" />
           </div>
-          <p className="text-muted-foreground">Not signed in</p>
-          <Button onClick={handleLogin}>
-            Sign in
+
+          {/* Sign in text */}
+          <div className="text-center space-y-2">
+            <h4 className="text-lg font-semibold text-foreground">Sign in to Hóng</h4>
+            <p className="text-sm text-muted-foreground max-w-[280px]">
+              Access cloud features, sync your settings, and unlock built-in tools.
+            </p>
+          </div>
+
+          {/* Sign in button */}
+          <Button
+            onClick={handleLogin}
+            className="px-6 h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+          >
+            Sign in with SSO
           </Button>
         </div>
       </div>

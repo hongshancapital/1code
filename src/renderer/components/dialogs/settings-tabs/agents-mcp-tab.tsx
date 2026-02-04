@@ -2,7 +2,7 @@
 
 import { Loader2, Plus } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useAtomValue } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
 import { Button } from "../../ui/button"
 import { toast } from "sonner"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
@@ -14,6 +14,7 @@ import { Label } from "../../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { selectedProjectAtom, settingsMcpSidebarWidthAtom } from "../../../features/agents/atoms"
+import { agentsSettingsDialogActiveTabAtom } from "../../../lib/atoms"
 import {
   AddMcpServerDialog,
   EditMcpServerDialog,
@@ -31,6 +32,8 @@ export function McpStatusDot({ status }: { status: string }) {
       return <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
     case "needs-auth":
       return <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0" />
+    case "needs-login":
+      return <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
     case "pending":
       return <LoadingDot isLoading={true} className="w-3 h-3 text-muted-foreground shrink-0" />
     default:
@@ -76,12 +79,21 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
               {server.serverInfo?.version && ` \u00B7 v${server.serverInfo.version}`}
             </p>
           </div>
-          {needsAuth && onAuth && (
+          {needsAuth && onAuth && !server.requiresLogin && (
             <Button variant="secondary" size="sm" className="h-7 px-3 text-xs" onClick={onAuth}>
               {isConnected ? "Reconnect" : "Authenticate"}
             </Button>
           )}
         </div>
+
+        {/* Requires Login Notice */}
+        {server.requiresLogin && (
+          <div className="rounded-md border border-orange-500/20 bg-orange-500/5 px-3 py-3">
+            <p className="text-xs text-orange-600 dark:text-orange-400">
+              This MCP server requires authentication. Please sign in to your account to access it.
+            </p>
+          </div>
+        )}
 
         {/* Connection Section */}
         <div>
@@ -302,6 +314,7 @@ export function AgentsMcpTab() {
   const [showAddForm, setShowAddForm] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const selectedProject = useAtomValue(selectedProjectAtom)
+  const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
 
   // Dialog state for Add/Edit MCP server dialogs
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -575,15 +588,27 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                     {group.mcpServers.map((server) => {
                       const key = `${group.groupName}-${server.name}`
                       const isSelected = selectedServerKey === key
+                      const needsLogin = server.status === "needs-login"
+
+                      const handleClick = () => {
+                        if (needsLogin) {
+                          // Navigate to Account settings for login
+                          setSettingsActiveTab("profile")
+                        } else {
+                          setSelectedServerKey(key)
+                        }
+                      }
+
                       return (
                         <button
                           key={key}
                           data-item-id={key}
-                          onClick={() => setSelectedServerKey(key)}
+                          onClick={handleClick}
                           className={cn(
                             "w-full text-left py-1.5 pl-2 pr-2 rounded-md cursor-pointer group relative",
                             "transition-colors duration-75",
                             "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
+                            needsLogin && "opacity-50",
                             isSelected
                               ? "bg-foreground/5 text-foreground"
                               : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
@@ -604,10 +629,12 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                                   {group.groupName}
                                 </span>
                                 {server.status !== "pending" && (
-                                  <span className="shrink-0">
-                                    {server.status === "connected"
-                                      ? `${server.tools.length} tool${server.tools.length !== 1 ? "s" : ""}`
-                                      : getStatusText(server.status)}
+                                  <span className={cn("shrink-0", needsLogin && "text-orange-500")}>
+                                    {needsLogin
+                                      ? "Requires login"
+                                      : server.status === "connected"
+                                        ? `${server.tools.length} tool${server.tools.length !== 1 ? "s" : ""}`
+                                        : getStatusText(server.status)}
                                   </span>
                                 )}
                               </div>
