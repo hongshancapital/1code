@@ -1,6 +1,5 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
-import LanguageDetector from 'i18next-browser-languagedetector'
 
 // 导入翻译资源
 import commonEn from './locales/en/common.json'
@@ -44,20 +43,37 @@ export const resources = {
   },
 } as const
 
+// Get initial language from localStorage preference
+// The preference can be "system", "en", or "zh"
+// If "system", we detect from navigator; otherwise use the explicit choice
+function getInitialLanguage(): string {
+  const stored = localStorage.getItem('preferences:language')
+  // Remove quotes if stored as JSON string (atomWithStorage format)
+  const preference = stored?.replace(/^"|"$/g, '') ?? 'system'
+
+  if (preference === 'system') {
+    const systemLocale = navigator.language
+    return systemLocale.startsWith('zh') ? 'zh' : 'en'
+  }
+
+  // Return the explicit language choice if it's valid
+  if (preference === 'en' || preference === 'zh') {
+    return preference
+  }
+
+  // Fallback to English
+  return 'en'
+}
+
 i18n
-  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
     defaultNS,
+    lng: getInitialLanguage(),
     fallbackLng: 'en',
     supportedLngs: ['en', 'zh'],
     interpolation: { escapeValue: false },
-    detection: {
-      order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'preferences:language',
-      caches: ['localStorage'],
-    },
   })
 
 export default i18n
