@@ -11,7 +11,8 @@
     "submit": "Submit",
     "retry": "Retry",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "reloadPage": "Reload Page"
   },
   "status": {
     "loading": "Loading...",
@@ -26,6 +27,9 @@
   "loading": {
     "prefix": "Co",
     "initializing": "Initializing...",
+    "detecting": "Detecting model service...",
+    "configuring": "Configuring model...",
+    "ready": "Ready",
     "words": {
       "work": "Work",
       "chat": "Chat",
@@ -43,6 +47,12 @@
       "assist": "Assist",
       "guide": "Guide",
       "grow": "Grow"
+    }
+  },
+  "error": {
+    "globalCrash": {
+      "title": "Oops! Something went wrong",
+      "message": "We encountered an unexpected error. Don't worry, refreshing the page usually fixes it."
     }
   }
 }

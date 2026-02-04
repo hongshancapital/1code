@@ -3,8 +3,11 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import RotatingText from './ui/rotating-text'
 
+type LoadingStatus = 'initializing' | 'detecting' | 'configuring' | 'ready'
+
 interface LoadingSceneProps {
   isLoading: boolean
+  loadingStatus?: LoadingStatus
   onLoadingComplete?: () => void
 }
 
@@ -28,7 +31,7 @@ const WORD_KEYS = [
   'grow'
 ] as const
 
-export function LoadingScene({ isLoading, onLoadingComplete }: LoadingSceneProps) {
+export function LoadingScene({ isLoading, loadingStatus = 'initializing', onLoadingComplete }: LoadingSceneProps) {
   const [visible, setVisible] = useState(true)
   const { t } = useTranslation('common')
 
@@ -43,7 +46,20 @@ export function LoadingScene({ isLoading, onLoadingComplete }: LoadingSceneProps
   }, [t, startIndex])
 
   const prefix = t('loading.prefix')
-  const loadingText = t('loading.initializing')
+
+  // 根据加载状态显示不同的文案
+  const loadingText = useMemo(() => {
+    switch (loadingStatus) {
+      case 'detecting':
+        return t('loading.detecting')
+      case 'configuring':
+        return t('loading.configuring')
+      case 'ready':
+        return t('loading.ready')
+      default:
+        return t('loading.initializing')
+    }
+  }, [loadingStatus, t])
 
   useEffect(() => {
     if (!isLoading && visible) {

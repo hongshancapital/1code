@@ -11,7 +11,8 @@
     "submit": "提交",
     "retry": "重试",
     "copy": "复制",
-    "copied": "已复制"
+    "copied": "已复制",
+    "reloadPage": "刷新页面"
   },
   "status": {
     "loading": "加载中...",
@@ -26,6 +27,9 @@
   "loading": {
     "prefix": "共同",
     "initializing": "正在初始化...",
+    "detecting": "正在检测模型服务...",
+    "configuring": "正在配置模型...",
+    "ready": "准备就绪",
     "words": {
       "work": "协作",
       "chat": "交流",
@@ -43,6 +47,12 @@
       "assist": "陪伴",
       "guide": "引导",
       "grow": "成长"
+    }
+  },
+  "error": {
+    "globalCrash": {
+      "title": "哎呀！程序崩溃了",
+      "message": "遇到了意外错误。别担心，刷新页面通常就能解决问题。"
     }
   }
 }

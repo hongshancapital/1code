@@ -32,6 +32,7 @@ import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
 import { trpc } from "./lib/trpc"
 import { LoadingScene } from "./components/loading-scene"
+import { GlobalErrorBoundary } from "./components/ui/global-error-boundary"
 
 /**
  * Custom Toaster that adapts to theme
@@ -95,6 +96,10 @@ function AppContent() {
   const [initialDataLoaded, setInitialDataLoaded] = useState(false)
   // Track if loading scene exit animation is complete
   const [loadingSceneComplete, setLoadingSceneComplete] = useState(false)
+  // Track current loading status for display
+  const [loadingStatus, setLoadingStatus] = useState<'initializing' | 'detecting' | 'configuring' | 'ready'>('initializing')
+  // Track if LiteLLM auto-detection succeeded (to skip billing page)
+  const [litellmAutoDetected, setLitellmAutoDetected] = useState(false)
 
   // Check auth status and sync skipped state
   useEffect(() => {
@@ -139,14 +144,13 @@ function AppContent() {
   const { data: cliConfig, isLoading: isLoadingCliConfig } =
     trpc.claudeCode.hasExistingCliConfig.useQuery()
 
-  // Check if LiteLLM is configured via env
-  const { data: litellmConfig, isLoading: isLoadingLitellmConfig } =
-    trpc.litellm.getConfig.useQuery()
-
-  // Fetch LiteLLM models to get default model when auto-completing onboarding
-  const { data: litellmModels } = trpc.litellm.getModels.useQuery(undefined, {
-    enabled: litellmConfig?.available === true,
-  })
+  // Always fetch LiteLLM models to auto-detect available models
+  // This runs regardless of env config - allows runtime detection
+  const { data: litellmModels, isLoading: isLoadingLitellmModels, error: litellmModelsError } =
+    trpc.litellm.getModels.useQuery(undefined, {
+      retry: false, // Don't retry on failure - fast fail for detection
+      staleTime: 0, // Always fetch fresh
+    })
 
   // Migration: If user already completed Anthropic onboarding but has no billing method set,
   // automatically set it to "claude-subscription" (legacy users before billing method was added)
@@ -166,17 +170,53 @@ function AppContent() {
     }
   }, [cliConfig?.hasConfig, billingMethod, setBillingMethod, setApiKeyOnboardingCompleted])
 
-  // Auto-skip onboarding if LiteLLM is configured via env (MAIN_VITE_LITELLM_BASE_URL)
-  // Also set the default model from LiteLLM backend
+  // Auto-detect LiteLLM and complete onboarding if sonnet model is available
+  // This happens during the loading scene - seamless experience for users with LiteLLM configured
   useEffect(() => {
-    if (litellmConfig?.available && litellmModels?.defaultModel && !billingMethod) {
-      console.log("[App] Detected LiteLLM env config, auto-completing onboarding with default model:", litellmModels.defaultModel)
-      setBillingMethod("litellm")
-      setLitellmOnboardingCompleted(true)
-      setOverrideModelMode("litellm")
-      setLitellmSelectedModel(litellmModels.defaultModel)
+    // Skip if already has billing method or already detected - keep initializing status
+    if (billingMethod || litellmAutoDetected) {
+      return
     }
-  }, [litellmConfig?.available, litellmModels?.defaultModel, billingMethod, setBillingMethod, setLitellmOnboardingCompleted, setOverrideModelMode, setLitellmSelectedModel])
+    // Skip if still loading
+    if (isLoadingLitellmModels) {
+      setLoadingStatus('detecting')
+      return
+    }
+
+    // Check if LiteLLM returned models with a sonnet match
+    if (litellmModels?.models && litellmModels.models.length > 0 && litellmModels.defaultModel) {
+      // Check if default model contains "sonnet" (case insensitive)
+      const isSonnetModel = litellmModels.defaultModel.toLowerCase().includes('sonnet')
+
+      if (isSonnetModel) {
+        console.log("[App] Auto-detected LiteLLM with Sonnet model:", litellmModels.defaultModel)
+        setLoadingStatus('configuring')
+        setLitellmAutoDetected(true)
+        setBillingMethod("litellm")
+        setLitellmOnboardingCompleted(true)
+        setOverrideModelMode("litellm")
+        setLitellmSelectedModel(litellmModels.defaultModel)
+      } else {
+        console.log("[App] LiteLLM available but no Sonnet model found, defaultModel:", litellmModels.defaultModel)
+        setLoadingStatus('ready')
+      }
+    } else if (litellmModelsError || litellmModels?.error || (litellmModels && litellmModels.models?.length === 0)) {
+      // LiteLLM not available or no models - proceed to billing page
+      console.log("[App] LiteLLM not available or no models:", litellmModels?.error || litellmModelsError)
+      setLoadingStatus('ready')
+    }
+  }, [
+    billingMethod,
+    litellmAutoDetected,
+    isLoadingLitellmModels,
+    litellmModels,
+    litellmModelsError,
+    loadingStatus,
+    setBillingMethod,
+    setLitellmOnboardingCompleted,
+    setOverrideModelMode,
+    setLitellmSelectedModel,
+  ])
 
   // Fetch projects to validate selectedProject exists
   const { isLoading: isLoadingProjects } =
@@ -187,31 +227,37 @@ function AppContent() {
     console.log("[LoadingScene] Status:", {
       authCheckCompleted,
       isLoadingCliConfig,
-      isLoadingLitellmConfig,
+      isLoadingLitellmModels,
       isLoadingProjects,
+      loadingStatus,
       initialDataLoaded
     })
 
     const allQueriesComplete =
       authCheckCompleted &&
       !isLoadingCliConfig &&
-      !isLoadingLitellmConfig &&
-      !isLoadingProjects
+      !isLoadingLitellmModels &&
+      !isLoadingProjects &&
+      // Ready when: has billing method, or LiteLLM auto-detected, or detection finished (ready/configuring)
+      (billingMethod || litellmAutoDetected || loadingStatus === 'ready' || loadingStatus === 'configuring')
 
     if (allQueriesComplete && !initialDataLoaded) {
       console.log("[LoadingScene] All queries complete, starting exit timer")
-      // Add a minimum display time for the loading scene (500ms)
+      // Add a minimum display time for the loading scene (1.5s for welcome animation)
       const timer = setTimeout(() => {
         console.log("[LoadingScene] Setting initialDataLoaded to true")
         setInitialDataLoaded(true)
-      }, 500)
+      }, 1500)
       return () => clearTimeout(timer)
     }
   }, [
     authCheckCompleted,
     isLoadingCliConfig,
-    isLoadingLitellmConfig,
+    isLoadingLitellmModels,
     isLoadingProjects,
+    loadingStatus,
+    billingMethod,
+    litellmAutoDetected,
     initialDataLoaded
   ])
 
@@ -227,6 +273,7 @@ function AppContent() {
   const loadingOverlay = showLoadingScene ? (
     <LoadingScene
       isLoading={isLoading}
+      loadingStatus={loadingStatus}
       onLoadingComplete={() => setLoadingSceneComplete(true)}
     />
   ) : null
@@ -323,27 +370,29 @@ export function App() {
   }, [])
 
   return (
-    <WindowProvider>
-      <JotaiProvider store={appStore}>
-        <I18nextProvider i18n={i18n}>
-          <LanguageSync />
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <VSCodeThemeProvider>
-              <TooltipProvider delayDuration={100}>
-                <TRPCProvider>
-                  <div
-                    data-agents-page
-                    className="h-screen w-screen bg-background text-foreground overflow-hidden"
-                  >
-                    <AppContent />
-                  </div>
-                  <ThemedToaster />
-                </TRPCProvider>
-              </TooltipProvider>
-            </VSCodeThemeProvider>
-          </ThemeProvider>
-        </I18nextProvider>
-      </JotaiProvider>
-    </WindowProvider>
+    <GlobalErrorBoundary>
+      <WindowProvider>
+        <JotaiProvider store={appStore}>
+          <I18nextProvider i18n={i18n}>
+            <LanguageSync />
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <VSCodeThemeProvider>
+                <TooltipProvider delayDuration={100}>
+                  <TRPCProvider>
+                    <div
+                      data-agents-page
+                      className="h-screen w-screen bg-background text-foreground overflow-hidden"
+                    >
+                      <AppContent />
+                    </div>
+                    <ThemedToaster />
+                  </TRPCProvider>
+                </TooltipProvider>
+              </VSCodeThemeProvider>
+            </ThemeProvider>
+          </I18nextProvider>
+        </JotaiProvider>
+      </WindowProvider>
+    </GlobalErrorBoundary>
   )
 }
