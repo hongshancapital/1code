@@ -13,10 +13,9 @@ import {
 } from "react"
 import { createPortal } from "react-dom"
 import { IconSpinner } from "../../../components/ui/icons"
-import type { SlashCommandOption, SlashTriggerPayload } from "./types"
+import type { SlashCommandOption } from "./types"
 import {
   filterBuiltinCommands,
-  BUILTIN_SLASH_COMMANDS,
 } from "./builtin-commands"
 import type { AgentMode } from "../atoms"
 
@@ -77,9 +76,6 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
       argumentHint: cmd.argumentHint,
     }))
   }, [fileCommands])
-
-  // State for loading command content
-  const [isLoadingContent, setIsLoadingContent] = useState(false)
 
   // tRPC utils for fetching command content
   const trpcUtils = trpc.useUtils()
@@ -340,7 +336,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
   return createPortal(
     <div
       ref={dropdownRef}
-      className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
+      className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg [&::-webkit-scrollbar]:hidden"
       style={{
         top: finalTop,
         left: finalLeft,

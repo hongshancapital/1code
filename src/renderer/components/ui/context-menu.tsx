@@ -67,7 +67,7 @@ const ContextMenuContent = React.forwardRef<
       ref={ref}
       className={cn(
         overlayContent,
-        "min-w-[200px] py-1 dark",
+        "min-w-[200px] py-1",
         className,
       )}
       {...props}

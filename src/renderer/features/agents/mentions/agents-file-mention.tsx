@@ -5,7 +5,6 @@ import { api } from "../../../lib/mock-api"
 import { trpc } from "../../../lib/trpc"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -48,16 +47,16 @@ import {
 // Custom folder icon matching design
 function FolderOpenIcon({ className }: { className?: string }) {
   return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      viewBox="0 0 24 24" 
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
       fill="none"
       className={className}
     >
-      <path 
-        d="M4 8V6C4 4.89543 4.89543 4 6 4H14C15.1046 4 16 4.89543 16 6M4 8H8.17548C8.70591 8 9.21462 8.21071 9.58969 8.58579L11.4181 10.4142C11.7932 10.7893 12.3019 11 12.8323 11H16M4 8C3.44987 8 3.00391 8.44597 3.00391 8.99609V18C3.00391 19.1046 3.89934 20 5.00391 20H19.0039C20.1085 20 21.0039 19.1046 21.0039 18V12.0039C21.0039 11.4495 20.5544 11 20 11M16 11V6M16 11H20M16 6H18C19.1046 6 20 6.89543 20 8V11" 
-        stroke="currentColor" 
-        strokeWidth="2" 
+      <path
+        d="M4 8V6C4 4.89543 4.89543 4 6 4H14C15.1046 4 16 4.89543 16 6M4 8H8.17548C8.70591 8 9.21462 8.21071 9.58969 8.58579L11.4181 10.4142C11.7932 10.7893 12.3019 11 12.8323 11H16M4 8C3.44987 8 3.00391 8.44597 3.00391 8.99609V18C3.00391 19.1046 3.89934 20 5.00391 20H19.0039C20.1085 20 21.0039 19.1046 21.0039 18V12.0039C21.0039 11.4495 20.5544 11 20 11M16 11V6M16 11H20M16 6H18C19.1046 6 20 6.89543 20 8V11"
+        stroke="currentColor"
+        strokeWidth="2"
         strokeLinejoin="round"
       />
     </svg>
@@ -69,7 +68,6 @@ import {
   PythonIcon,
   GoIcon,
   RustIcon,
-  CodeIcon,
   ReactIcon,
   MarkdownInfoIcon,
   MarkdownIcon,
@@ -136,113 +134,6 @@ const CATEGORY_OPTIONS: FileMentionOption[] = [
   { id: "tools", label: "MCP", type: "category", path: "", repository: "" },
 ]
 
-// Known file extensions with icons
-const KNOWN_FILE_ICON_EXTENSIONS = new Set([
-  // Code files
-  "tsx",
-  "ts",
-  "js",
-  "mjs",
-  "cjs",
-  "jsx",
-  "py",
-  "pyw",
-  "pyi",
-  "go",
-  "rs",
-  "md",
-  "mdx",
-  "css",
-  "html",
-  "htm",
-  "scss",
-  "sass",
-  "json",
-  "jsonc",
-  "yaml",
-  "yml",
-  "sh",
-  "bash",
-  "zsh",
-  "sql",
-  "graphql",
-  "gql",
-  "prisma",
-  "dockerfile",
-  "toml",
-  "env",
-  "java",
-  "c",
-  "h",
-  "cpp",
-  "cc",
-  "cxx",
-  "hpp",
-  "cs",
-  "php",
-  "rb",
-  "kt",
-  "vue",
-  "svelte",
-  "astro",
-  "swift",
-  // Image files
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "svg",
-  "ico",
-  "bmp",
-  "avif",
-  "tiff",
-  "heic",
-  "heif",
-  // PDF
-  "pdf",
-  // Video files
-  "mp4",
-  "webm",
-  "mov",
-  "avi",
-  "mkv",
-  "m4v",
-  "ogv",
-  "3gp",
-  // Audio files
-  "mp3",
-  "wav",
-  "ogg",
-  "flac",
-  "m4a",
-  "aac",
-  "wma",
-  "opus",
-  "aiff",
-  // Office documents
-  "docx",
-  "doc",
-  "xlsx",
-  "xls",
-  "xlsm",
-  "xlsb",
-  "pptx",
-  "ppt",
-  // Archive files
-  "zip",
-  "tar",
-  "gz",
-  "rar",
-  "7z",
-  // Font files
-  "ttf",
-  "otf",
-  "woff",
-  "woff2",
-  // Text files
-  "txt",
-])
 
 // Get file icon component based on file extension
 // If returnNullForUnknown is true, returns null for unknown file types instead of default icon
@@ -844,13 +735,13 @@ export const AgentsFileMention = memo(function AgentsFileMention({
   const placementRef = useRef<"above" | "below" | null>(null)
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText)
 
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const [_hoverIndex, setHoverIndex] = useState<number | null>(null) // hoverIndex prefixed - tracking state for future tooltip feature
 
   // Get session info (MCP servers, tools) from atom
   const sessionInfo = useAtomValue(sessionInfoAtom)
 
   // Fetch skills from filesystem (cached for 5 minutes)
-  const { data: skills = [], isFetching: isFetchingSkills } = trpc.skills.listEnabled.useQuery(
+  const { data: skills = [], isFetching: _isFetchingSkills } = trpc.skills.listEnabled.useQuery(
     projectPath ? { cwd: projectPath } : undefined,
     {
       enabled: isOpen,
@@ -859,7 +750,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
   )
 
   // Fetch custom agents from filesystem (cached for 5 minutes)
-  const { data: customAgents = [], isFetching: isFetchingAgents } = trpc.agents.listEnabled.useQuery(
+  const { data: customAgents = [], isFetching: _isFetchingAgents } = trpc.agents.listEnabled.useQuery(
     projectPath ? { cwd: projectPath } : undefined,
     {
       enabled: isOpen,
@@ -1207,8 +1098,6 @@ export const AgentsFileMention = memo(function AgentsFileMention({
   useEffect(() => {
     if (!isOpen || !dropdownRef.current) return
 
-    // Account for header element
-    const headerOffset = 1
     if (selectedIndex === 0) {
       dropdownRef.current.scrollTo({ top: 0, behavior: "auto" })
       return
@@ -1310,7 +1199,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
     <TooltipProvider delayDuration={300}>
       <div
         ref={dropdownRef}
-        className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg dark [&::-webkit-scrollbar]:hidden"
+        className="fixed z-99999 overflow-y-auto rounded-[10px] border border-border bg-popover py-1 text-xs text-popover-foreground shadow-lg [&::-webkit-scrollbar]:hidden"
         style={{
           top: finalTop,
           left: finalLeft,
