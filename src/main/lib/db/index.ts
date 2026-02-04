@@ -82,6 +82,106 @@ export function initDatabase() {
     }
   }
 
+  // Ensure tag_id column exists on chats table (for preset tags)
+  try {
+    sqlite.exec(`ALTER TABLE chats ADD COLUMN tag_id TEXT`)
+    console.log("[DB] Added tag_id column to chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] tag_id column check:", error.message)
+    }
+  }
+
+  // Ensure workspace_tags tables exist (for grouping feature)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS workspace_tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        color TEXT,
+        icon TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS workspace_tags_name_idx ON workspace_tags(name)`)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS chat_tags (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES workspace_tags(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS chat_tags_unique_idx ON chat_tags(chat_id, tag_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS chat_tags_chat_idx ON chat_tags(chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS chat_tags_tag_idx ON chat_tags(tag_id)`)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS sub_chat_tags (
+        id TEXT PRIMARY KEY,
+        sub_chat_id TEXT NOT NULL REFERENCES sub_chats(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES workspace_tags(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS sub_chat_tags_unique_idx ON sub_chat_tags(sub_chat_id, tag_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_tags_sub_chat_idx ON sub_chat_tags(sub_chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_tags_tag_idx ON sub_chat_tags(tag_id)`)
+    console.log("[DB] Workspace tags tables ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Workspace tags tables check:", error.message)
+  }
+
+  // Ensure automations tables exist (for automation engine)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS automations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        is_enabled INTEGER DEFAULT 1,
+        triggers TEXT NOT NULL DEFAULT '[]',
+        agent_prompt TEXT NOT NULL,
+        skills TEXT DEFAULT '[]',
+        model_id TEXT DEFAULT 'claude-opus-4-20250514',
+        actions TEXT NOT NULL DEFAULT '[]',
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_triggered_at INTEGER,
+        total_executions INTEGER DEFAULT 0,
+        successful_executions INTEGER DEFAULT 0,
+        failed_executions INTEGER DEFAULT 0
+      )
+    `)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS automation_executions (
+        id TEXT PRIMARY KEY,
+        automation_id TEXT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        triggered_by TEXT NOT NULL,
+        trigger_data TEXT,
+        result TEXT,
+        error_message TEXT,
+        inbox_chat_id TEXT REFERENCES chats(id),
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        duration_ms INTEGER,
+        input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS executions_automation_idx ON automation_executions(automation_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS executions_status_idx ON automation_executions(status)`)
+    console.log("[DB] Automations tables ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Automations tables check:", error.message)
+  }
+
   return db
 }
 

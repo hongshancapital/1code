@@ -33,6 +33,8 @@ import {
   parseLaunchDirectory,
 } from "./lib/cli"
 import { cleanupGitWatchers } from "./lib/git/watcher"
+import { AutomationEngine } from "./lib/automation/engine"
+import { ensureInboxProject } from "./lib/automation/inbox-project"
 import { cancelAllPendingOAuth, handleMcpOAuthCallback } from "./lib/mcp-auth"
 import {
   createMainWindow,
@@ -1234,10 +1236,15 @@ if (gotTheLock) {
             console.log("[Analytics] User identified after token refresh:", refreshedUser.id)
           }
         } else {
-          // Refresh failed, need to re-authenticate
-          console.log("[App] Token refresh failed, user needs to re-authenticate")
-          // Clear invalid session
-          authManager.logout()
+          // Refresh failed, auto-start OAuth for returning users
+          console.log("[App] Token refresh failed, auto-starting OAuth for returning user...")
+          const windows = getAllWindows()
+          if (windows.length > 0) {
+            // Notify renderer that we're re-authenticating
+            windows[0]!.webContents.send("auth:reauthenticating")
+            authManager.startAuthFlow(windows[0]!)
+          }
+          // Don't logout - keep the saved auth data for provider info
         }
       }
     }
@@ -1273,6 +1280,15 @@ if (gotTheLock) {
       console.log("[App] Database initialized")
     } catch (error) {
       console.error("[App] Failed to initialize database:", error)
+    }
+
+    // Initialize AutomationEngine
+    try {
+      await ensureInboxProject()
+      await AutomationEngine.getInstance().initialize()
+      console.log("[App] AutomationEngine initialized")
+    } catch (error) {
+      console.error("[App] AutomationEngine init failed:", error)
     }
 
     // Sync builtin skills to user directory (for Claude SDK discovery)
@@ -1339,6 +1355,7 @@ if (gotTheLock) {
   app.on("before-quit", async () => {
     console.log("[App] Shutting down...")
     cancelAllPendingOAuth()
+    AutomationEngine.getInstance().cleanup()
     await cleanupGitWatchers()
     await shutdownAnalytics()
     await closeDatabase()

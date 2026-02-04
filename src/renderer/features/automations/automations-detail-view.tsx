@@ -2,7 +2,6 @@
 
 import "./automations-styles.css"
 import { useAtomValue, useSetAtom, useAtom } from "jotai"
-import { selectedTeamIdAtom } from "../../lib/atoms"
 import {
   desktopViewAtom,
   automationDetailIdAtom,
@@ -21,12 +20,10 @@ import {
   MoreHorizontal,
 } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
-// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
-// import { remoteTrpc } from "../../lib/remote-trpc"
 import { cn } from "../../lib/utils"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { trpc } from "../../lib/trpc"
 
-// Type definitions for disabled cloud feature
+// Type definitions for automation data
 interface AutomationExecution {
   id: string
   status: string
@@ -34,34 +31,6 @@ interface AutomationExecution {
   external_url?: string
   error_message?: string
   created_at: string
-}
-
-interface AutomationData {
-  name?: string
-  agent_prompt?: string
-  add_to_inbox?: boolean
-  is_enabled?: boolean
-  target_repository?: string
-  triggers?: Array<{
-    id?: string
-    platform: string
-    trigger_type: string
-    filters?: Array<{ field: string; operator: string; value: string }>
-  }>
-  executions?: AutomationExecution[]
-}
-
-// Stub for disabled cloud feature - returns null/empty data until cloud backend is available
-const remoteTrpc = {
-  automations: {
-    getAutomation: { query: async (_params: { automationId: string }): Promise<AutomationData | null> => null },
-    createAutomation: { mutate: async (_params: Record<string, unknown>): Promise<Record<string, unknown>> => ({}) },
-    updateAutomation: { mutate: async (_params: Record<string, unknown>): Promise<Record<string, unknown>> => ({}) },
-    deleteAutomation: { mutate: async (_params: { automationId: string }): Promise<Record<string, unknown>> => ({}) },
-    listExecutions: { query: async (_params: { automationId: string; limit: number; offset: number }): Promise<{ executions: AutomationExecution[]; total: number }> => ({ executions: [], total: 0 }) },
-  },
-  github: { getConnectionStatus: { query: async (_params: { teamId: string }): Promise<{ connected: boolean; isConnected?: boolean }> => ({ connected: false }) } },
-  linear: { getIntegration: { query: async (_params: { teamId: string }): Promise<{ isConnected?: boolean } | null> => null } },
 }
 import { Switch } from "../../components/ui/switch"
 import {
@@ -139,7 +108,6 @@ function formatDistanceToNow(date: Date): string {
 }
 
 export function AutomationsDetailView() {
-  const teamId = useAtomValue(selectedTeamIdAtom)
   const automationId = useAtomValue(automationDetailIdAtom)
   const templateParams = useAtomValue(automationTemplateParamsAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
@@ -148,7 +116,6 @@ export function AutomationsDetailView() {
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
   const setMobileViewMode = useSetAtom(agentsMobileViewModeAtom)
   const isMobile = useIsMobile()
-  const queryClient = useQueryClient()
 
   const isCreateMode = automationId === "new"
 
@@ -184,65 +151,57 @@ export function AutomationsDetailView() {
 
   // Past Runs state
   const [pastRunsExpanded, setPastRunsExpanded] = useState(true)
-  const [pastRunsOffset, setPastRunsOffset] = useState(0)
-  const [additionalExecutions, setAdditionalExecutions] = useState<AutomationExecution[]>([])
 
   // ============================================================================
-  // Fetch existing automation (edit mode)
+  // Fetch existing automation (edit mode) - for local automations, we use list and find by ID
   // ============================================================================
-  const { data: automation, isLoading } = useQuery({
-    queryKey: ["automations", "get", automationId],
-    queryFn: () => remoteTrpc.automations.getAutomation.query({ automationId: automationId! }),
+  const { data: automationsList, isLoading } = trpc.automations.list.useQuery(undefined, {
     enabled: !isCreateMode && !!automationId,
   })
 
-  // Fetch additional executions for Past Runs pagination
-  const { data: moreExecutionsData, isFetching: isFetchingMoreExecutions } = useQuery({
-    queryKey: ["automations", "listExecutions", automationId, pastRunsOffset],
-    queryFn: () => remoteTrpc.automations.listExecutions.query({
-      automationId: automationId!,
-      limit: 20,
-      offset: pastRunsOffset,
-    }),
-    enabled: !isCreateMode && !!automationId && pastRunsOffset > 0,
-  })
-
-  // Accumulate additional executions when data arrives
-  useEffect(() => {
-    if (moreExecutionsData?.executions) {
-      setAdditionalExecutions((prev) => [...prev, ...moreExecutionsData.executions])
+  // Find the specific automation from the list
+  const automation = useMemo(() => {
+    if (!automationsList || !automationId) return null
+    const found = automationsList.find((a) => a.id === automationId)
+    if (!found) return null
+    // Parse JSON fields
+    return {
+      ...found,
+      triggers: JSON.parse(found.triggers) as Array<{
+        type: string
+        config: { expression: string; strict?: boolean }
+      }>,
+      actions: JSON.parse(found.actions) as Array<{ type: string }>,
+      skills: JSON.parse(found.skills || "[]") as string[],
     }
-  }, [moreExecutionsData])
+  }, [automationsList, automationId])
 
-  // Combine initial executions (from getAutomation) with paginated ones
+  // Fetch executions for Past Runs
+  const { data: executionsData, isFetching: isFetchingMoreExecutions } = trpc.automations.listExecutions.useQuery(
+    { automationId: automationId!, limit: 20 },
+    { enabled: !isCreateMode && !!automationId }
+  )
+
+  // All executions from the query
   const allExecutions = useMemo(() => {
-    const initial = automation?.executions ?? []
-    if (additionalExecutions.length === 0) return initial
-    const ids = new Set(initial.map((e) => e.id))
-    const extra = additionalExecutions.filter((e) => !ids.has(e.id))
-    return [...initial, ...extra]
-  }, [automation?.executions, additionalExecutions])
+    return (executionsData || []).map((e) => ({
+      id: e.id,
+      status: e.status,
+      external_id: undefined,
+      external_url: undefined,
+      error_message: e.errorMessage || undefined,
+      created_at: e.startedAt?.toISOString() || new Date().toISOString(),
+    }))
+  }, [executionsData])
 
-  const totalExecutions = moreExecutionsData?.total ?? allExecutions.length
-  const hasMoreExecutions = allExecutions.length < totalExecutions
-
-  // ============================================================================
-  // Fetch GitHub connection status
-  // ============================================================================
-  const { data: githubStatus } = useQuery({
-    queryKey: ["github", "connectionStatus", teamId],
-    queryFn: () => remoteTrpc.github.getConnectionStatus.query({ teamId: teamId! }),
-    enabled: !!teamId,
-  })
+  const totalExecutions = allExecutions.length
+  const hasMoreExecutions = false // 本地版暂不支持分页
 
   // ============================================================================
-  // Fetch Linear integration status
+  // GitHub/Linear connection status - stubbed for local version
   // ============================================================================
-  const { data: linearStatus } = useQuery({
-    queryKey: ["linear", "integration", teamId],
-    queryFn: () => remoteTrpc.linear.getIntegration.query({ teamId: teamId! }),
-    enabled: !!teamId,
-  })
+  const githubStatus = { isConnected: false }
+  const linearStatus = { isConnected: false }
 
   // ============================================================================
   // Initialize from template params or existing automation
@@ -270,58 +229,45 @@ export function AutomationsDetailView() {
   useEffect(() => {
     if (!isCreateMode && automation) {
       setName(automation.name || "")
-      setInstructions(automation.agent_prompt || "")
-      setAddToInbox(automation.add_to_inbox ?? true)
-      setRespondToTrigger(automation.respond_to_trigger ?? true)
-      setIsEnabled(automation.is_enabled ?? true)
-      setTargetRepository(automation.target_repository || "")
-      setLocalTriggers(
-        (automation.triggers || []).map((t: any) => ({
-          id: t.id || crypto.randomUUID(),
-          platform: t.platform || "github",
-          trigger_type: t.trigger_type,
-          filters: t.filters || [],
-        }))
-      )
+      setInstructions(automation.agentPrompt || "")
+      setAddToInbox(true) // 本地版默认开启
+      setRespondToTrigger(true) // 本地版默认开启
+      setIsEnabled(automation.isEnabled ?? true)
+      setTargetRepository("")
+      // 本地版使用 cron 触发器，不同于云端的 GitHub/Linear 触发器
+      setLocalTriggers([])
     }
   }, [isCreateMode, automation])
 
   // ============================================================================
-  // Mutations
+  // Mutations - using local tRPC
   // ============================================================================
-  const createMutation = useMutation({
-    mutationFn: (data: any) => remoteTrpc.automations.createAutomation.mutate(data),
+  const trpcUtils = trpc.useUtils()
+
+  const createMutation = trpc.automations.create.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations", "list"] })
+      trpcUtils.automations.list.invalidate()
       doNavigateBack()
     },
   })
 
-  const updateMutation = useMutation({
-    mutationFn: (data: any) => remoteTrpc.automations.updateAutomation.mutate(data),
+  const updateMutation = trpc.automations.update.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations", "list"] })
-      queryClient.invalidateQueries({ queryKey: ["automations", "get", automationId] })
+      trpcUtils.automations.list.invalidate()
       setInstructionsDirty(false)
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: () => remoteTrpc.automations.deleteAutomation.mutate({ automationId: automationId! }),
+  const deleteMutation = trpc.automations.delete.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations", "list"] })
+      trpcUtils.automations.list.invalidate()
       doNavigateBack()
     },
   })
 
-  const toggleMutation = useMutation({
-    mutationFn: (enabled: boolean) =>
-      remoteTrpc.automations.updateAutomation.mutate({
-        automationId: automationId!,
-        isEnabled: enabled,
-      }),
+  const toggleMutation = trpc.automations.update.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations", "get", automationId] })
+      trpcUtils.automations.list.invalidate()
     },
   })
 
@@ -346,38 +292,21 @@ export function AutomationsDetailView() {
   const handleSave = useCallback(() => {
     if (isCreateMode) {
       createMutation.mutate({
-        teamId: teamId!,
         name: name || "Untitled Automation",
         agentPrompt: instructions,
-        addToInbox,
-        respondToTrigger,
-        triggers: localTriggers.map((t) => ({
-          platform: t.platform,
-          trigger_type: t.trigger_type,
-          filters: t.filters,
-        })),
-        targetRepository: targetRepository || undefined,
+        triggers: [{ type: "cron", config: { expression: "0 9 * * *" } }], // 默认每天9点
+        actions: [{ type: "inbox" }],
       })
     } else {
       updateMutation.mutate({
-        automationId: automationId!,
+        id: automationId!,
         name,
         agentPrompt: instructions,
-        addToInbox,
-        respondToTrigger,
         isEnabled,
-        triggers: localTriggers.map((t) => ({
-          id: t.id,
-          platform: t.platform,
-          trigger_type: t.trigger_type,
-          filters: t.filters,
-        })),
-        targetRepository: targetRepository || null,
       })
     }
   }, [
-    isCreateMode, teamId, name, instructions, addToInbox, respondToTrigger, isEnabled,
-    localTriggers, targetRepository, automationId,
+    isCreateMode, name, instructions, isEnabled, automationId,
     createMutation, updateMutation,
   ])
 
@@ -427,14 +356,6 @@ export function AutomationsDetailView() {
   // ============================================================================
   // Render
   // ============================================================================
-  if (!teamId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Logo className="h-8 w-8 animate-pulse text-muted-foreground" />
-      </div>
-    )
-  }
-
   if (!isCreateMode && isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -478,7 +399,7 @@ export function AutomationsDetailView() {
                   onCheckedChange={(checked) => {
                     setIsEnabled(checked)
                     if (!isCreateMode) {
-                      toggleMutation.mutate(checked)
+                      toggleMutation.mutate({ id: automationId!, isEnabled: checked })
                     }
                   }}
                 />
@@ -780,21 +701,7 @@ export function AutomationsDetailView() {
                         </div>
                       )}
 
-                      {hasMoreExecutions && (
-                        <div className="border-t border-border px-3 py-2">
-                          <button
-                            onClick={() => setPastRunsOffset((prev) => prev === 0 ? 10 : prev + 20)}
-                            disabled={isFetchingMoreExecutions}
-                            className="text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center py-1"
-                          >
-                            {isFetchingMoreExecutions ? (
-                              <IconSpinner className="h-3 w-3 mx-auto" />
-                            ) : (
-                              "Show more"
-                            )}
-                          </button>
-                        </div>
-                      )}
+                      {/* TODO: Pagination support for local automations */}
                     </div>
                   )}
                 </section>
@@ -816,7 +723,7 @@ export function AutomationsDetailView() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteMutation.mutate()}
+              onClick={() => deleteMutation.mutate({ id: automationId! })}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? <IconSpinner className="h-4 w-4 mr-2" /> : null}

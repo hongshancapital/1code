@@ -1,0 +1,10 @@
+name: automations
+description: Manage background automations that run on schedules
+allowed_tools:
+  - trpc.automations.list
+  - trpc.automations.create
+  - trpc.automations.update
+  - trpc.automations.delete
+  - trpc.automations.trigger
+  - trpc.automations.listExecutions
+  - trpc.automations.getInboxChats

@@ -23,6 +23,8 @@ import { lspRouter } from "./lsp"
 import { editorRouter } from "./editor"
 import { pluginsRouter } from "./plugins"
 import { createGitRouter } from "../../git"
+import { automationsRouter } from "./automations"
+import { tagsRouter } from "./tags"
 import { BrowserWindow } from "electron"
 
 /**
@@ -56,6 +58,10 @@ export function createAppRouter(getWindow: () => BrowserWindow | null) {
     plugins: pluginsRouter,
     // Git operations - named "changes" to match Superset API
     changes: createGitRouter(),
+    // Automations (cron triggers, AI processing, inbox executor)
+    automations: automationsRouter,
+    // Workspace tags (macOS-style grouping)
+    tags: tagsRouter,
   })
 }
 

@@ -36,25 +36,8 @@ import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
 import { ArrowUpDown, AlignJustify } from "lucide-react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
 import { desktopViewAtom } from "../agents/atoms"
-// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
-// import { remoteTrpc } from "../../lib/remote-trpc"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-
-// Stub type for disabled cloud feature
-interface DisabledRemoteTrpc {
-  automations: {
-    getInboxChats: { query: (_params: { teamId: string; limit: number }) => Promise<{ chats: never[] }> }
-    markInboxItemRead: { mutate: (_params: { executionId: string }) => Promise<Record<string, never>> }
-  }
-}
-
-// Stub for disabled cloud feature
-const remoteTrpc: DisabledRemoteTrpc = {
-  automations: {
-    getInboxChats: { query: async () => ({ chats: [] }) },
-    markInboxItemRead: { mutate: async () => ({}) },
-  },
-}
+import { trpc } from "../../lib/trpc"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Popover,
   PopoverContent,
@@ -114,17 +97,21 @@ export function InboxView() {
   const [showRead, setShowRead] = useState(true)
   const [showUnreadFirst, setShowUnreadFirst] = useState(false)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["automations", "inboxChats", teamId],
-    queryFn: () => remoteTrpc.automations.getInboxChats.query({ teamId: teamId!, limit: 50 }),
-    enabled: !!teamId,
-  })
+  // 使用本地 tRPC 查询 Inbox 消息
+  const { data, isLoading } = trpc.automations.getInboxChats.useQuery(
+    { limit: 50 },
+    { enabled: !!teamId }
+  )
 
+  // 暂时移除 markRead 功能，因为数据库中没有 isRead 字段
+  // 可以在后续版本中添加
   const markReadMutation = useMutation({
-    mutationFn: (executionId: string) =>
-      remoteTrpc.automations.markInboxItemRead.mutate({ executionId }),
+    mutationFn: async (executionId: string) => {
+      // TODO: 实现 markRead 功能
+      console.log("Mark as read:", executionId)
+      return {}
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations", "inboxUnreadCount"] })
       queryClient.invalidateQueries({ queryKey: ["automations", "inboxChats"] })
     },
   })

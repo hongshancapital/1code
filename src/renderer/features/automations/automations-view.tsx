@@ -1,8 +1,7 @@
 "use client"
 
 import "./automations-styles.css"
-import { useAtomValue, useSetAtom, useAtom } from "jotai"
-import { selectedTeamIdAtom } from "../../lib/atoms"
+import { useSetAtom, useAtom } from "jotai"
 import {
   desktopViewAtom,
   automationDetailIdAtom,
@@ -10,27 +9,10 @@ import {
   agentsSidebarOpenAtom,
   agentsMobileViewModeAtom,
 } from "../agents/atoms"
-import { Logo } from "../../components/ui/logo"
 import { useState, useMemo, useCallback } from "react"
 import { Plus, AlignJustify } from "lucide-react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
-// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
-// import { remoteTrpc } from "../../lib/remote-trpc"
-import { useQuery } from "@tanstack/react-query"
-
-// Stub type for disabled cloud feature
-interface DisabledRemoteTrpc {
-  automations: { listAutomations: { query: (_params: { teamId: string }) => Promise<never[]> } }
-  github: { getConnectionStatus: { query: (_params: { teamId: string }) => Promise<{ isConnected: boolean }> } }
-  linear: { getIntegration: { query: (_params: { teamId: string }) => Promise<null> } }
-}
-
-// Stub for disabled cloud feature
-const remoteTrpc: DisabledRemoteTrpc = {
-  automations: { listAutomations: { query: async () => [] } },
-  github: { getConnectionStatus: { query: async () => ({ isConnected: false }) } },
-  linear: { getIntegration: { query: async () => null } },
-}
+import { trpc } from "../../lib/trpc"
 
 import {
   AutomationCard,
@@ -42,7 +24,6 @@ import {
 } from "./_components"
 
 export function AutomationsView() {
-  const teamId = useAtomValue(selectedTeamIdAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setAutomationDetailId = useSetAtom(automationDetailIdAtom)
   const setTemplateParams = useSetAtom(automationTemplateParamsAtom)
@@ -62,17 +43,11 @@ export function AutomationsView() {
   const [activeTab, setActiveTab] = useState<ViewTab>("active")
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Fetch automations via remoteTrpc
-  const { data: automationsData, isLoading } = useQuery({
-    queryKey: ["automations", "list", teamId],
-    queryFn: () => remoteTrpc.automations.listAutomations.query({ teamId: teamId! }),
-    enabled: !!teamId,
-  })
+  // Fetch automations via local tRPC
+  const { data: automationsData, isLoading } = trpc.automations.list.useQuery()
 
-  // [CLOUD DISABLED] Fetch GitHub connection status - stubbed
+  // [CLOUD DISABLED] GitHub and Linear integration - stubbed for now
   const githubStatus: { isConnected: boolean } | undefined = undefined
-
-  // [CLOUD DISABLED] Fetch Linear integration status - stubbed
   const linearStatus: { isConnected: boolean } | undefined = undefined
 
   const automations = automationsData ?? []
@@ -123,14 +98,7 @@ export function AutomationsView() {
     return undefined
   }
 
-  // Loading state
-  if (!teamId) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Logo className="h-8 w-8 animate-pulse text-muted-foreground" />
-      </div>
-    )
-  }
+  // No longer need teamId check since we use local tRPC
 
   return (
     <div className="h-full flex flex-col overflow-hidden" data-automations-page>

@@ -59,6 +59,8 @@ export const chats = sqliteTable("chats", {
   // PR tracking fields
   prUrl: text("pr_url"),
   prNumber: integer("pr_number"),
+  // Tag for grouping (preset tag ID like "red", "blue", etc.)
+  tagId: text("tag_id"),
 }, (table) => [
   index("chats_worktree_path_idx").on(table.worktreePath),
 ])
@@ -187,6 +189,145 @@ export const anthropicSettings = sqliteTable("anthropic_settings", {
   ),
 })
 
+// ============ AUTOMATIONS ============
+export const automations = sqliteTable("automations", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name").notNull(),
+  description: text("description"),
+  isEnabled: integer("is_enabled", { mode: "boolean" }).default(true),
+
+  // 触发器配置 (JSON)
+  // [{ type: 'cron', config: { expression: '0 9 * * *', strict: false } }]
+  triggers: text("triggers").notNull().default("[]"),
+
+  // AI 处理配置
+  agentPrompt: text("agent_prompt").notNull(),
+  skills: text("skills").default("[]"),
+  modelId: text("model_id").default("claude-opus-4-20250514"),
+
+  // 执行器配置 (JSON)
+  // [{ type: 'inbox', config: {} }]
+  actions: text("actions").notNull().default("[]"),
+
+  // 关联项目（可选）
+  projectId: text("project_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
+
+  // 时间和统计
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  lastTriggeredAt: integer("last_triggered_at", { mode: "timestamp" }),
+  totalExecutions: integer("total_executions").default(0),
+  successfulExecutions: integer("successful_executions").default(0),
+  failedExecutions: integer("failed_executions").default(0),
+})
+
+export const automationExecutions = sqliteTable(
+  "automation_executions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    automationId: text("automation_id")
+      .notNull()
+      .references(() => automations.id, { onDelete: "cascade" }),
+
+    status: text("status").notNull(), // 'pending' | 'running' | 'success' | 'failed'
+    triggeredBy: text("triggered_by").notNull(), // 'cron' | 'webhook' | 'startup-missed' | ...
+    triggerData: text("trigger_data"), // JSON
+    result: text("result"), // JSON
+    errorMessage: text("error_message"),
+
+    // 关联 Inbox Chat（如果执行器创建了消息）
+    inboxChatId: text("inbox_chat_id").references(() => chats.id),
+
+    // 性能指标
+    startedAt: integer("started_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    completedAt: integer("completed_at", { mode: "timestamp" }),
+    durationMs: integer("duration_ms"),
+
+    // Token 使用
+    inputTokens: integer("input_tokens").default(0),
+    outputTokens: integer("output_tokens").default(0),
+  },
+  (table) => [
+    index("executions_automation_idx").on(table.automationId),
+    index("executions_status_idx").on(table.status),
+  ],
+)
+
+// ============ WORKSPACE TAGS (macOS-style tags for Chats/Workspaces) ============
+export const workspaceTags = sqliteTable("workspace_tags", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text("name").notNull(),
+  color: text("color"), // Hex color code, e.g., "#FF3B30" (optional - no color = icon only)
+  icon: text("icon"), // Optional Lucide icon name identifier
+  sortOrder: integer("sort_order").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+})
+
+// ============ CHAT-TAG ASSOCIATIONS (M:N relationship) ============
+export const chatTags = sqliteTable(
+  "chat_tags",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    chatId: text("chat_id")
+      .notNull()
+      .references(() => chats.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => workspaceTags.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("chat_tags_chat_idx").on(table.chatId),
+    index("chat_tags_tag_idx").on(table.tagId),
+  ],
+)
+
+// ============ SUBCHAT-TAG ASSOCIATIONS (M:N relationship) ============
+export const subChatTags = sqliteTable(
+  "sub_chat_tags",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    subChatId: text("sub_chat_id")
+      .notNull()
+      .references(() => subChats.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => workspaceTags.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("sub_chat_tags_sub_chat_idx").on(table.subChatId),
+    index("sub_chat_tags_tag_idx").on(table.tagId),
+  ],
+)
+
 // ============ TYPE EXPORTS ============
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
@@ -201,3 +342,13 @@ export type NewModelUsage = typeof modelUsage.$inferInsert
 export type AnthropicAccount = typeof anthropicAccounts.$inferSelect
 export type NewAnthropicAccount = typeof anthropicAccounts.$inferInsert
 export type AnthropicSettings = typeof anthropicSettings.$inferSelect
+export type Automation = typeof automations.$inferSelect
+export type NewAutomation = typeof automations.$inferInsert
+export type AutomationExecution = typeof automationExecutions.$inferSelect
+export type NewAutomationExecution = typeof automationExecutions.$inferInsert
+export type WorkspaceTag = typeof workspaceTags.$inferSelect
+export type NewWorkspaceTag = typeof workspaceTags.$inferInsert
+export type ChatTag = typeof chatTags.$inferSelect
+export type NewChatTag = typeof chatTags.$inferInsert
+export type SubChatTag = typeof subChatTags.$inferSelect
+export type NewSubChatTag = typeof subChatTags.$inferInsert
