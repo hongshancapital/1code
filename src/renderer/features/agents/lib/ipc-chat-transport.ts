@@ -18,6 +18,7 @@ import {
   showOfflineModeFeaturesAtom,
   overrideModelModeAtom,
   litellmSelectedModelAtom,
+  userPersonalizationAtom,
 } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
@@ -215,7 +216,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
 
     // Read model selection dynamically (so model changes apply to existing chats)
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)
-    const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["opus"]
+    const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"]
 
     // Get override mode and LiteLLM model selection
     const overrideMode = appStore.get(overrideModelModeAtom)
@@ -266,7 +267,17 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const projectPath = this.config.projectPath || this.config.cwd
     const disabledMcpServers = disabledServersMap[projectPath] || []
 
-    console.log(`[SD] R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"} disabledMcp=${disabledMcpServers.join(",") || "none"}`)
+    // Get user personalization for AI recognition
+    const personalization = appStore.get(userPersonalizationAtom)
+    const userProfile =
+      personalization.preferredName || personalization.personalPreferences
+        ? {
+            preferredName: personalization.preferredName || undefined,
+            personalPreferences: personalization.personalPreferences || undefined,
+          }
+        : undefined
+
+    console.log(`[SD] R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"} disabledMcp=${disabledMcpServers.join(",") || "none"} userProfile=${JSON.stringify(userProfile)}`)
 
     return new ReadableStream({
       start: (controller) => {
@@ -289,6 +300,7 @@ askUserQuestionTimeout,
             enableTasks,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
+            ...(userProfile && { userProfile }),
           },
           {
             // Cast chunk to our extended type - the server sends custom chunk types

@@ -1065,6 +1065,13 @@ export const claudeRouter = router({
         offlineModeEnabled: z.boolean().optional(), // Whether offline mode (Ollama) is enabled in settings
 askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in seconds (0 = no timeout)
         enableTasks: z.boolean().optional(), // Enable task management tools (TodoWrite, Task agents)
+        disabledMcpServers: z.array(z.string()).optional(), // MCP servers to disable for this project
+        userProfile: z
+          .object({
+            preferredName: z.string().max(50).optional(),
+            personalPreferences: z.string().max(1000).optional(),
+          })
+          .optional(), // User personalization for AI recognition
       }),
     )
     .subscription(({ input }) => {
@@ -1721,6 +1728,22 @@ ${history}
                 }
               }
 
+              // Build user profile section for Ollama context
+              let ollamaUserProfile = ""
+              if (input.userProfile) {
+                const { preferredName, personalPreferences } = input.userProfile
+                const profileParts: string[] = []
+                if (preferredName?.trim()) {
+                  profileParts.push(`- Preferred name: ${preferredName.trim()}`)
+                }
+                if (personalPreferences?.trim()) {
+                  profileParts.push(`- Personal preferences: ${personalPreferences.trim()}`)
+                }
+                if (profileParts.length > 0) {
+                  ollamaUserProfile = `\n\n[USER PROFILE]\n${profileParts.join("\n")}\n[/USER PROFILE]`
+                }
+              }
+
               const ollamaContext = `[CONTEXT]
 You are a coding assistant in OFFLINE mode (Ollama model: ${resolvedModel || 'unknown'}).
 Project: ${input.projectPath || input.cwd}
@@ -1736,7 +1759,7 @@ IMPORTANT: When using tools, use these EXACT parameter names:
 
 When asked about the project, use Glob to find files and Read to examine them.
 Be concise and helpful.
-[/CONTEXT]${agentsMdContent ? `
+[/CONTEXT]${ollamaUserProfile}${agentsMdContent ? `
 
 [AGENTS.MD]
 ${agentsMdContent}
@@ -1749,18 +1772,43 @@ ${prompt}
               console.log('[Ollama] Context prefix added to prompt')
             }
 
+            // Build user profile section for system prompt
+            let userProfileSection = ""
+            console.log('[claude] userProfile received:', input.userProfile)
+            if (input.userProfile) {
+              const { preferredName, personalPreferences } = input.userProfile
+              const profileParts: string[] = []
+              if (preferredName?.trim()) {
+                profileParts.push(`- Preferred name: ${preferredName.trim()}`)
+              }
+              if (personalPreferences?.trim()) {
+                profileParts.push(`- Personal preferences: ${personalPreferences.trim()}`)
+              }
+              if (profileParts.length > 0) {
+                userProfileSection = `\n\n# User Profile\nThe following describes the user you are assisting:\n${profileParts.join("\n")}\n\nPlease use the user's preferred name naturally and warmly in your responses to create a friendly, personalized experience.`
+              }
+            }
+
             // System prompt config - use preset for both Claude and Ollama
-            // If AGENTS.md exists, append its content to the system prompt
-            const systemPromptConfig = agentsMdContent
+            // Append user profile and AGENTS.md content to the system prompt
+            const appendParts = [
+              userProfileSection,
+              agentsMdContent
+                ? `\n\n# AGENTS.md\nThe following are the project's AGENTS.md instructions:\n\n${agentsMdContent}`
+                : "",
+            ].filter(Boolean)
+
+            const systemPromptConfig = appendParts.length > 0
               ? {
                   type: "preset" as const,
                   preset: "claude_code" as const,
-                  append: `\n\n# AGENTS.md\nThe following are the project's AGENTS.md instructions:\n\n${agentsMdContent}`,
+                  append: appendParts.join(""),
                 }
               : {
                   type: "preset" as const,
                   preset: "claude_code" as const,
                 }
+            console.log('[claude] systemPromptConfig append:', systemPromptConfig.append ? systemPromptConfig.append.slice(0, 200) : 'none')
 
             const queryOptions = {
               prompt: finalQueryPrompt,
