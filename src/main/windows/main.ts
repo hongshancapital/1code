@@ -13,7 +13,8 @@ import { join } from "path"
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs"
 import { createIPCHandler } from "trpc-electron/main"
 import { createAppRouter } from "../lib/trpc/routers"
-import { getAuthManager, handleAuthCode, getBaseUrl } from "../index"
+import { getAuthManager, getBaseUrl, authCallbackHandlers } from "../index"
+import { handleAuthCode } from "../lib/auth-callback-server"
 import { registerGitWatcherIPC } from "../lib/git/watcher"
 import { registerThemeScannerIPC } from "../lib/vscode-theme-scanner"
 import { windowManager } from "./window-manager"
@@ -340,7 +341,7 @@ function registerIpcHandlers(): void {
       )
       return
     }
-    await handleAuthCode(code)
+    await handleAuthCode(code, authCallbackHandlers)
   })
 
   ipcMain.handle("auth:update-user", async (event, updates: { name?: string }) => {
