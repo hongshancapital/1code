@@ -14,7 +14,6 @@ import { app } from "electron"
 import type {
   LSPSession,
   LSPConfig,
-  LSPLanguage,
   TsServerRequest,
   TsServerResponse,
   TsServerEvent,
@@ -559,12 +558,23 @@ export class LSPManager extends EventEmitter {
    * Find tsgo path
    */
   private async findTsgo(): Promise<string> {
-    // Check common locations
+    // Check common locations (platform-aware)
+    const homedir = require("os").homedir()
+    const isWindows = globalThis.process.platform === "win32"
+
     const locations = [
       globalThis.process.env.TSGO_PATH,
-      resolve(globalThis.process.env.HOME || "", ".tsgo/bin/tsgo"),
-      "/usr/local/bin/tsgo",
-      "/opt/homebrew/bin/tsgo",
+      resolve(homedir, ".tsgo/bin/tsgo"),
+      // Windows paths
+      ...(isWindows ? [
+        resolve(homedir, "AppData/Local/tsgo/bin/tsgo.exe"),
+        "C:\\Program Files\\tsgo\\bin\\tsgo.exe",
+      ] : []),
+      // Unix paths
+      ...(!isWindows ? [
+        "/usr/local/bin/tsgo",
+        "/opt/homebrew/bin/tsgo",
+      ] : []),
     ].filter(Boolean) as string[]
 
     for (const loc of locations) {

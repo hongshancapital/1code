@@ -120,26 +120,24 @@ async function scanExtensionsDir(extensionsDir: string, source: EditorSource): P
   }
 
   try {
-    // Always use execSync to get directory listing (fs.readdir has caching issues in Electron)
-    const { execSync } = require("child_process")
-    const lsOutput = execSync(`ls -1 "${extensionsDir}"`, { encoding: "utf-8" })
-    const lsEntries = lsOutput.trim().split("\n").filter(Boolean)
+    // Use native fs.readdir for cross-platform compatibility
+    // Note: Use readdirSync to bypass Electron caching issues
+    const { readdirSync, statSync } = require("fs")
+    const lsEntries = readdirSync(extensionsDir) as string[]
 
-    // Create Dirent-like objects from ls output
-    const entries_final = await Promise.all(
-      lsEntries.map(async (name: string) => {
-        const fullPath = path.join(extensionsDir, name)
-        try {
-          const stat = await fs.stat(fullPath)
-          return {
-            name,
-            isDirectory: () => stat.isDirectory(),
-          }
-        } catch {
-          return { name, isDirectory: () => false }
+    // Create Dirent-like objects from readdir output
+    const entries_final = lsEntries.map((name: string) => {
+      const fullPath = path.join(extensionsDir, name)
+      try {
+        const stat = statSync(fullPath)
+        return {
+          name,
+          isDirectory: () => stat.isDirectory(),
         }
-      })
-    )
+      } catch {
+        return { name, isDirectory: () => false }
+      }
+    })
 
     for (const entry of entries_final) {
       if (!entry.isDirectory()) continue
