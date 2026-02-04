@@ -125,26 +125,29 @@ function getOpenAIApiKey(): string | null {
   }
 
   // Try to get from shell environment (for production builds)
-  try {
-    const shell = process.env.SHELL || "/bin/zsh"
-    const result = execSync(`${shell} -ilc 'echo $OPENAI_API_KEY'`, {
-      encoding: "utf8",
-      timeout: 15000,
-      env: {
-        HOME: os.homedir(),
-        USER: os.userInfo().username,
-        SHELL: shell,
-      } as unknown as NodeJS.ProcessEnv,
-    })
+  // Skip on Windows - shell invocation doesn't work the same way
+  if (process.platform !== "win32") {
+    try {
+      const shell = process.env.SHELL || "/bin/zsh"
+      const result = execSync(`${shell} -ilc 'echo $OPENAI_API_KEY'`, {
+        encoding: "utf8",
+        timeout: 15000,
+        env: {
+          HOME: os.homedir(),
+          USER: os.userInfo().username,
+          SHELL: shell,
+        } as unknown as NodeJS.ProcessEnv,
+      })
 
-    const key = result.trim()
-    if (key && key !== "$OPENAI_API_KEY" && key.startsWith("sk-")) {
-      cachedOpenAIKey = key
-      console.log("[Voice] Using OPENAI_API_KEY from shell environment")
-      return cachedOpenAIKey
+      const key = result.trim()
+      if (key && key !== "$OPENAI_API_KEY" && key.startsWith("sk-")) {
+        cachedOpenAIKey = key
+        console.log("[Voice] Using OPENAI_API_KEY from shell environment")
+        return cachedOpenAIKey
+      }
+    } catch (err) {
+      console.error("[Voice] Failed to read OPENAI_API_KEY from shell:", err)
     }
-  } catch (err) {
-    console.error("[Voice] Failed to read OPENAI_API_KEY from shell:", err)
   }
 
   cachedOpenAIKey = null
