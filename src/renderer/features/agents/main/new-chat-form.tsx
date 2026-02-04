@@ -157,13 +157,6 @@ function useAvailableModels() {
   }
 }
 
-// Agent providers
-const agents = [
-  { id: "claude-code", name: "Claude Code", hasModels: true },
-  { id: "cursor", name: "Cursor CLI", disabled: true },
-  { id: "codex", name: "OpenAI Codex", disabled: true },
-]
-
 interface NewChatFormProps {
   isMobileFullscreen?: boolean
   onBackToChats?: () => void
@@ -223,7 +216,7 @@ export function NewChatForm({
     }
   }, [selectedProject, projectsList, validatedProject, setSelectedProject])
 
-  const [lastSelectedAgentId, _setLastSelectedAgentId] = useAtom(
+  const [_lastSelectedAgentId, _setLastSelectedAgentId] = useAtom(
     lastSelectedAgentIdAtom,
   )
   const [lastSelectedModelId, setLastSelectedModelId] = useAtom(
@@ -295,10 +288,10 @@ export function NewChatForm({
   const setSettingsDialogOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
-  const [repoSearchQuery, _setRepoSearchQuery] = useState("")
+  const [_repoSearchQuery, _setRepoSearchQuery] = useState("")
 
   // Worktree config banner state
-  const [worktreeBannerDismissed, setWorktreeBannerDismissed] = useState(() => {
+  const [worktreeBannerDismissed, _setWorktreeBannerDismissed] = useState(() => {
     try {
       return localStorage.getItem("worktree-banner-dismissed") === "true"
     } catch {
@@ -307,7 +300,7 @@ export function NewChatForm({
   })
 
   // Check if project has worktree config
-  const { data: worktreeConfigData } = trpc.worktreeConfig.get.useQuery(
+  const { data: _worktreeConfigData } = trpc.worktreeConfig.get.useQuery(
     { projectId: validatedProject?.id ?? "" },
     { enabled: !!validatedProject?.id && workMode === "worktree" && !worktreeBannerDismissed },
   )
@@ -2025,7 +2018,7 @@ export function NewChatForm({
                             >
                               <div
                                 data-tooltip="true"
-                                className="relative rounded-[12px] bg-popover px-2.5 py-1.5 text-xs text-popover-foreground dark max-w-[150px]"
+                                className="relative rounded-[12px] bg-popover px-2.5 py-1.5 text-xs text-popover-foreground max-w-[150px]"
                               >
                                 <span>
                                   {modeTooltip.mode === "agent"

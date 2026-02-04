@@ -2,6 +2,10 @@ import * as Sentry from "@sentry/electron/main"
 import { validateEnv, getEnv } from "./lib/env"
 import { app, BrowserWindow, Menu, protocol, session } from "electron"
 
+// Increase V8 heap memory limit to prevent OOM with large chat histories
+// Default is ~2GB, increase to 8GB for safety
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=8192")
+
 // Validate environment variables early (before app logic starts)
 // This will throw if required env vars are missing
 validateEnv()
@@ -24,7 +28,6 @@ import {
 } from "./lib/auto-updater"
 import { closeDatabase, initDatabase } from "./lib/db"
 import {
-  getLaunchDirectory,
   isCliInstalled,
   installCli,
   uninstallCli,

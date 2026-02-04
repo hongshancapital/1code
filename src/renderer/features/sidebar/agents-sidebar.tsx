@@ -3891,7 +3891,7 @@ export function AgentsSidebar({
         createPortal(
           <div
             ref={agentTooltipRef}
-            className="fixed z-[100000] max-w-xs px-2 py-1 text-xs bg-popover border border-border rounded-md shadow-lg dark pointer-events-none text-foreground/90 whitespace-nowrap"
+            className="fixed z-[100000] max-w-xs px-2 py-1 text-xs bg-popover border border-border rounded-md shadow-lg pointer-events-none text-foreground/90 whitespace-nowrap"
             style={{
               display: "none",
               transform: "translateY(-50%)",

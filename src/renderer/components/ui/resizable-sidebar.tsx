@@ -498,7 +498,7 @@ export function ResizableSidebar({
                         ref={tooltipRef}
                         role="dialog"
                         data-tooltip="true"
-                        className="relative rounded-md border border-border bg-popover px-2 py-1 flex flex-col items-start gap-0.5 text-xs text-popover-foreground shadow-lg dark pointer-events-auto"
+                        className="relative rounded-md border border-border bg-popover px-2 py-1 flex flex-col items-start gap-0.5 text-xs text-popover-foreground shadow-lg pointer-events-auto"
                         onPointerDown={(e) => {
                           e.stopPropagation()
                           if (e.button === 0) {
