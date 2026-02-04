@@ -11,6 +11,8 @@ export interface McpServer {
   config: Record<string, unknown>
   serverInfo?: { name: string; version: string }
   error?: string
+  /** Whether this MCP requires login to use (for built-in MCPs) */
+  requiresLogin?: boolean
 }
 
 export interface McpGroup {

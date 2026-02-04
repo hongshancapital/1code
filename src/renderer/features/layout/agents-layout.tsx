@@ -10,6 +10,7 @@ import {
   isDesktopAtom,
   isFullscreenAtom,
   anthropicOnboardingCompletedAtom,
+  authSkippedAtom,
   customHotkeysAtom,
   betaKanbanEnabledAtom,
 } from "../../lib/atoms"
@@ -102,6 +103,7 @@ export function AgentsLayout() {
   const setAnthropicOnboardingCompleted = useSetAtom(
     anthropicOnboardingCompletedAtom
   )
+  const isAuthSkipped = useAtomValue(authSkippedAtom)
 
   // Fetch projects to validate selectedProject exists
   const { data: projects, isLoading: isLoadingProjects } =
@@ -343,6 +345,7 @@ export function AgentsLayout() {
           ) : (
             <AgentsSidebar
               desktopUser={desktopUser}
+              isAuthSkipped={isAuthSkipped}
               onSignOut={handleSignOut}
               onToggleSidebar={handleCloseSidebar}
             />

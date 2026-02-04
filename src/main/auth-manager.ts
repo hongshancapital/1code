@@ -285,6 +285,9 @@ export class AuthManager {
     // Clear PKCE state after successful exchange
     this.clearPkceState()
 
+    // Clear skipped state since user is now authenticated
+    this.clearSkipped()
+
     // Save auth data
     this.store.save(authData)
     this.scheduleRefresh()
@@ -407,6 +410,28 @@ export class AuthManager {
    */
   isAuthenticated(): boolean {
     return this.store.isAuthenticated()
+  }
+
+  /**
+   * Skip authentication (user chose to skip login)
+   */
+  skipAuth(): void {
+    this.store.saveSkipped(true)
+    console.log("[Auth] Authentication skipped by user")
+  }
+
+  /**
+   * Check if authentication was skipped
+   */
+  isSkipped(): boolean {
+    return this.store.isSkipped()
+  }
+
+  /**
+   * Clear skipped state (when user logs in)
+   */
+  clearSkipped(): void {
+    this.store.clearSkipped()
   }
 
   /**

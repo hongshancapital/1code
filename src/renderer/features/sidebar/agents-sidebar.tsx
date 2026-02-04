@@ -1107,6 +1107,7 @@ interface AgentsSidebarProps {
   userId?: string | null | undefined
   clerkUser?: any
   desktopUser?: { id: string; email: string; name?: string | null; imageUrl?: string | null; username?: string | null } | null
+  isAuthSkipped?: boolean
   onSignOut?: () => void
   onToggleSidebar?: () => void
   isMobileFullscreen?: boolean
@@ -1365,6 +1366,7 @@ interface SidebarHeaderProps {
   isMobileFullscreen: boolean
   userId: string | null | undefined
   desktopUser: { id: string; email: string; name?: string | null; imageUrl?: string | null } | null
+  isAuthSkipped?: boolean
   onSignOut: () => void
   onToggleSidebar?: () => void
   setSettingsDialogOpen: (open: boolean) => void
@@ -1381,6 +1383,7 @@ const SidebarHeader = memo(function SidebarHeader({
   isMobileFullscreen,
   userId,
   desktopUser,
+  isAuthSkipped = false,
   onSignOut,
   onToggleSidebar,
   setSettingsDialogOpen,
@@ -1393,6 +1396,12 @@ const SidebarHeader = memo(function SidebarHeader({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
   const toggleSidebarHotkey = useResolvedHotkeyDisplay("toggle-sidebar")
+
+  // Handle login button click (for skipped auth mode) - navigate to Account settings
+  const handleLoginClick = () => {
+    setSettingsActiveTab("profile")
+    setSettingsDialogOpen(true)
+  }
 
   return (
     <div
@@ -1459,6 +1468,27 @@ const SidebarHeader = memo(function SidebarHeader({
       <div className="px-2 pt-2 pb-2">
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
+            {/* Show offline indicator when auth is skipped */}
+            {isAuthSkipped ? (
+              <ButtonCustom
+                variant="ghost"
+                className="h-6 px-1.5 justify-start hover:bg-foreground/10 rounded-md group/team-button max-w-full"
+                onClick={handleLoginClick}
+              >
+                <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="text-sm font-medium text-foreground truncate">
+                      Hóng
+                    </div>
+                  </div>
+                  {/* Red LED dot indicating offline/not logged in */}
+                  <div className="relative flex-shrink-0 w-2 h-2">
+                    <div className="absolute inset-0 rounded-full bg-red-500/30 blur-[2px]" />
+                    <div className="absolute inset-0 rounded-full bg-red-500/60" />
+                  </div>
+                </div>
+              </ButtonCustom>
+            ) : (
             <DropdownMenu
               open={isDropdownOpen}
               onOpenChange={setIsDropdownOpen}
@@ -1679,6 +1709,7 @@ const SidebarHeader = memo(function SidebarHeader({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
           </div>
         </div>
       </div>
@@ -1746,6 +1777,7 @@ export function AgentsSidebar({
     email: "demo@example.com",
     name: "Demo User",
   },
+  isAuthSkipped = false,
   onSignOut = () => {},
   onToggleSidebar,
   isMobileFullscreen = false,
@@ -3233,6 +3265,7 @@ export function AgentsSidebar({
         isMobileFullscreen={isMobileFullscreen}
         userId={userId}
         desktopUser={desktopUser}
+        isAuthSkipped={isAuthSkipped}
         onSignOut={onSignOut}
         onToggleSidebar={onToggleSidebar}
         setSettingsDialogOpen={setSettingsDialogOpen}

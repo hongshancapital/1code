@@ -833,6 +833,10 @@ export const apiKeyOnboardingCompletedAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Whether auth was skipped (user chose "Skip for now" on login page)
+// This is synced from main process on app load
+export const authSkippedAtom = atom<boolean>(false)
+
 // ============================================
 // SESSION INFO ATOMS (MCP, Plugins, Tools)
 // ============================================

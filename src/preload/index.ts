@@ -139,6 +139,8 @@ contextBridge.exposeInMainWorld("desktopApi", {
   getUser: () => ipcRenderer.invoke("auth:get-user"),
   refreshUser: () => ipcRenderer.invoke("auth:refresh-user"),
   isAuthenticated: () => ipcRenderer.invoke("auth:is-authenticated"),
+  isSkipped: () => ipcRenderer.invoke("auth:is-skipped"),
+  skipAuth: () => ipcRenderer.invoke("auth:skip"),
   logout: () => ipcRenderer.invoke("auth:logout"),
   startAuthFlow: () => ipcRenderer.invoke("auth:start-flow"),
   submitAuthCode: (code: string) => ipcRenderer.invoke("auth:submit-code", code),
@@ -358,6 +360,8 @@ export interface DesktopApi {
     username: string | null
   } | null>
   isAuthenticated: () => Promise<boolean>
+  isSkipped: () => Promise<boolean>
+  skipAuth: () => Promise<void>
   logout: () => Promise<void>
   startAuthFlow: () => Promise<void>
   submitAuthCode: (code: string) => Promise<void>
