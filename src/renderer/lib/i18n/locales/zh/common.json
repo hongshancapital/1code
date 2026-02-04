@@ -22,5 +22,27 @@
   "session": {
     "expired": "会话已过期，请重新登录",
     "relogin": "重新登录"
+  },
+  "loading": {
+    "prefix": "共同",
+    "initializing": "正在初始化...",
+    "words": {
+      "work": "协作",
+      "chat": "交流",
+      "code": "编程",
+      "think": "思考",
+      "create": "创造",
+      "debug": "调试",
+      "explore": "探索",
+      "learn": "学习",
+      "solve": "解惑",
+      "build": "构建",
+      "design": "设计",
+      "review": "审阅",
+      "refactor": "重构",
+      "assist": "陪伴",
+      "guide": "引导",
+      "grow": "成长"
+    }
   }
 }

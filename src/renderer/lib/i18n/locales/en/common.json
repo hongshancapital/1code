@@ -22,5 +22,27 @@
   "session": {
     "expired": "Session expired, please log in again",
     "relogin": "Log in again"
+  },
+  "loading": {
+    "prefix": "Co",
+    "initializing": "Initializing...",
+    "words": {
+      "work": "Work",
+      "chat": "Chat",
+      "code": "Code",
+      "think": "Think",
+      "create": "Create",
+      "debug": "Debug",
+      "explore": "Explore",
+      "learn": "Learn",
+      "solve": "Solve",
+      "build": "Build",
+      "design": "Design",
+      "review": "Review",
+      "refactor": "Refactor",
+      "assist": "Assist",
+      "guide": "Guide",
+      "grow": "Grow"
+    }
   }
 }

@@ -1,12 +1,12 @@
 import { Provider as JotaiProvider, useAtomValue, useSetAtom } from "jotai"
 import { ThemeProvider, useTheme } from "next-themes"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { I18nextProvider } from "react-i18next"
 import { toast, Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
 import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext"
-import { selectedProjectAtom, selectedAgentChatIdAtom } from "./features/agents/atoms"
+import { selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { AgentsLayout } from "./features/layout/agents-layout"
 import { useTrafficLightSync } from "./lib/hooks/use-traffic-light-sync"
@@ -31,6 +31,7 @@ import i18n from "./lib/i18n"
 import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
 import { trpc } from "./lib/trpc"
+import { LoadingScene } from "./components/loading-scene"
 
 /**
  * Custom Toaster that adapts to theme
@@ -78,7 +79,6 @@ function AppContent() {
   const anthropicOnboardingCompleted = useAtomValue(
     anthropicOnboardingCompletedAtom
   )
-  const setAnthropicOnboardingCompleted = useSetAtom(anthropicOnboardingCompletedAtom)
   const apiKeyOnboardingCompleted = useAtomValue(apiKeyOnboardingCompletedAtom)
   const setApiKeyOnboardingCompleted = useSetAtom(apiKeyOnboardingCompletedAtom)
   const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
@@ -86,12 +86,15 @@ function AppContent() {
   const setOverrideModelMode = useSetAtom(overrideModelModeAtom)
   const setLitellmSelectedModel = useSetAtom(litellmSelectedModelAtom)
   const setAuthSkipped = useSetAtom(authSkippedAtom)
-  const selectedProject = useAtomValue(selectedProjectAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
 
   // Track if auth check has completed
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false)
+  // Track if initial data is loaded (for loading scene)
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false)
+  // Track if loading scene exit animation is complete
+  const [loadingSceneComplete, setLoadingSceneComplete] = useState(false)
 
   // Check auth status and sync skipped state
   useEffect(() => {
@@ -176,28 +179,57 @@ function AppContent() {
   }, [litellmConfig?.available, litellmModels?.defaultModel, billingMethod, setBillingMethod, setLitellmOnboardingCompleted, setOverrideModelMode, setLitellmSelectedModel])
 
   // Fetch projects to validate selectedProject exists
-  const { data: projects, isLoading: isLoadingProjects } =
+  const { isLoading: isLoadingProjects } =
     trpc.projects.list.useQuery()
 
-  // Validated project - only valid if exists in DB
-  const validatedProject = useMemo(() => {
-    if (!selectedProject) return null
-    // While loading, trust localStorage value to prevent flicker
-    if (isLoadingProjects) return selectedProject
-    // After loading, validate against DB
-    if (!projects) return null
-    const exists = projects.some((p) => p.id === selectedProject.id)
-    return exists ? selectedProject : null
-  }, [selectedProject, projects, isLoadingProjects])
+  // Track when all initial data queries are completed
+  useEffect(() => {
+    console.log("[LoadingScene] Status:", {
+      authCheckCompleted,
+      isLoadingCliConfig,
+      isLoadingLitellmConfig,
+      isLoadingProjects,
+      initialDataLoaded
+    })
+
+    const allQueriesComplete =
+      authCheckCompleted &&
+      !isLoadingCliConfig &&
+      !isLoadingLitellmConfig &&
+      !isLoadingProjects
+
+    if (allQueriesComplete && !initialDataLoaded) {
+      console.log("[LoadingScene] All queries complete, starting exit timer")
+      // Add a minimum display time for the loading scene (500ms)
+      const timer = setTimeout(() => {
+        console.log("[LoadingScene] Setting initialDataLoaded to true")
+        setInitialDataLoaded(true)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [
+    authCheckCompleted,
+    isLoadingCliConfig,
+    isLoadingLitellmConfig,
+    isLoadingProjects,
+    initialDataLoaded
+  ])
 
   // ============================================================================
   // Auth/Onboarding Flow
   // ============================================================================
 
-  // Wait for auth check to complete before rendering to prevent flash
-  if (!authCheckCompleted) {
-    return null // Or a loading spinner if preferred
-  }
+  // Show loading scene while initial data is loading or exit animation is playing
+  const showLoadingScene = !loadingSceneComplete
+  const isLoading = !initialDataLoaded
+
+  // Loading scene 作为覆盖层，后面的内容正常渲染
+  const loadingOverlay = showLoadingScene ? (
+    <LoadingScene
+      isLoading={isLoading}
+      onLoadingComplete={() => setLoadingSceneComplete(true)}
+    />
+  ) : null
 
   // Determine which page to show:
   // 1. No billing method selected -> BillingMethodPage
@@ -205,28 +237,32 @@ function AppContent() {
   // 3. API key or custom model selected but not completed -> ApiKeyOnboardingPage
   // 4. LiteLLM selected but not completed -> LiteLLMOnboardingPage
   // 5. Otherwise -> AgentsLayout (handles "no project" state with folder selection UI)
+
+  let content: React.ReactNode = null
+
   if (!billingMethod) {
-    return <BillingMethodPage />
-  }
-
-  if (billingMethod === "claude-subscription" && !anthropicOnboardingCompleted) {
-    return <AnthropicOnboardingPage />
-  }
-
-  if (
+    content = <BillingMethodPage />
+  } else if (billingMethod === "claude-subscription" && !anthropicOnboardingCompleted) {
+    content = <AnthropicOnboardingPage />
+  } else if (
     (billingMethod === "api-key" || billingMethod === "custom-model") &&
     !apiKeyOnboardingCompleted
   ) {
-    return <ApiKeyOnboardingPage />
+    content = <ApiKeyOnboardingPage />
+  } else if (billingMethod === "litellm" && !litellmOnboardingCompleted) {
+    content = <LiteLLMOnboardingPage />
+  } else {
+    // No more SelectRepoPage - AgentsLayout handles the "no project" state
+    // with the new-chat-form showing "Select a folder to get started"
+    content = <AgentsLayout />
   }
 
-  if (billingMethod === "litellm" && !litellmOnboardingCompleted) {
-    return <LiteLLMOnboardingPage />
-  }
-
-  // No more SelectRepoPage - AgentsLayout handles the "no project" state
-  // with the new-chat-form showing "Select a folder to get started"
-  return <AgentsLayout />
+  return (
+    <>
+      {content}
+      {loadingOverlay}
+    </>
+  )
 }
 
 export function App() {
