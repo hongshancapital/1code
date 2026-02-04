@@ -9,7 +9,16 @@
       "Bash(find:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(cut:*)"
+      "Bash(cut:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(bun run typecheck:*)",
+      "Bash(pkill -f \"electron-vite\")",
+      "Bash(bun add:*)",
+      "Bash(git show:*)",
+      "Bash(git status:*)",
+      "Bash(bunx tsc:*)"
     ]
   }
 }
