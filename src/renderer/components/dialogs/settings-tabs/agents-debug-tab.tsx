@@ -113,6 +113,17 @@ export function AgentsDebugTab() {
     onError: (error) => toast.error(error.message),
   })
 
+  // Factory reset - clear everything and return to login page
+  const factoryResetMutation = trpc.debug.factoryReset.useMutation({
+    onSuccess: () => {
+      // Clear all localStorage
+      localStorage.clear()
+      toast.success(t('debug.toast.factoryResetComplete'))
+      // The main process will navigate to login.html, no need to reload here
+    },
+    onError: (error) => toast.error(error.message),
+  })
+
   // Reset onboarding state (clear localStorage keys related to onboarding)
   const handleResetOnboarding = () => {
     // Clear onboarding-related localStorage keys
@@ -475,6 +486,30 @@ export function AgentsDebugTab() {
           >
             {clearAllDataMutation.isPending ? "..." : t('debug.dataManagement.resetAll')}
           </Button>
+        </div>
+        {/* Factory Reset - Nuclear option */}
+        <div className="mt-4 pt-4 border-t">
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              if (
+                confirm(t('debug.dataManagement.confirmFactoryReset'))
+              ) {
+                // Clear localStorage first
+                localStorage.clear()
+                // Then trigger factory reset which will navigate to login
+                factoryResetMutation.mutate()
+              }
+            }}
+            disabled={factoryResetMutation.isPending}
+          >
+            {factoryResetMutation.isPending ? "..." : t('debug.dataManagement.factoryReset')}
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            {t('debug.dataManagement.factoryResetDesc')}
+          </p>
         </div>
       </div>
     </div>

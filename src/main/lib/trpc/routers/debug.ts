@@ -1,8 +1,10 @@
 import { router, publicProcedure } from "../index"
 import { getDatabase, projects, chats, subChats } from "../../db"
-import { app, shell } from "electron"
+import { app, shell, BrowserWindow, session } from "electron"
 import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
+import { getAuthManager } from "../../../../auth-manager"
+import { join } from "path"
 
 // Protocol constant (must match main/index.ts)
 const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
@@ -127,4 +129,58 @@ export const debugRouter = router({
       console.log(`[Debug] Offline simulation ${input.enabled ? "enabled" : "disabled"}`)
       return { success: true, enabled: simulateOfflineMode }
     }),
+
+  /**
+   * Factory reset - clear ALL data and return to login page
+   * This resets the app to its initial state as if freshly installed
+   */
+  factoryReset: publicProcedure.mutation(async () => {
+    console.log("[Debug] Starting factory reset...")
+
+    // 1. Clear database (projects, chats, sub-chats)
+    const db = getDatabase()
+    db.delete(subChats).run()
+    db.delete(chats).run()
+    db.delete(projects).run()
+    console.log("[Debug] Database cleared")
+
+    // 2. Clear authentication data
+    const authManager = getAuthManager()
+    if (authManager) {
+      authManager.logout("manual")
+      console.log("[Debug] Auth data cleared")
+    }
+
+    // 3. Clear session cookies
+    try {
+      const ses = session.fromPartition("persist:main")
+      await ses.clearStorageData()
+      console.log("[Debug] Session storage cleared")
+    } catch (error) {
+      console.warn("[Debug] Failed to clear session storage:", error)
+    }
+
+    // 4. Navigate all windows to login page
+    const windows = BrowserWindow.getAllWindows()
+    for (const win of windows) {
+      try {
+        if (win.isDestroyed()) continue
+
+        // In dev mode, login.html is in src/renderer
+        if (process.env.ELECTRON_RENDERER_URL) {
+          const loginPath = join(app.getAppPath(), "src/renderer/login.html")
+          win.loadFile(loginPath)
+        } else {
+          // Production: load from built output
+          win.loadFile(join(__dirname, "../../renderer/login.html"))
+        }
+        console.log("[Debug] Window navigated to login page")
+      } catch (error) {
+        console.warn("[Debug] Failed to navigate window:", error)
+      }
+    }
+
+    console.log("[Debug] Factory reset complete")
+    return { success: true }
+  }),
 })
