@@ -17,8 +17,8 @@ const MODEL_BLACKLIST = [
   "dall-e-3",
 ]
 
-// Default model to select if available
-const DEFAULT_MODEL = "claude-opus-4-5-20251101"
+// Default model to select if available (Sonnet, not Opus)
+const DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
 type LiteLLMModel = {
   id: string

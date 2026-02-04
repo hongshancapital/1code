@@ -221,7 +221,7 @@ export const lastSelectedAgentIdAtom = atomWithStorage<string>(
 
 export const lastSelectedModelIdAtom = atomWithStorage<string>(
   "agents:lastSelectedModelId",
-  "opus",
+  "sonnet", // Default to Sonnet (not Opus)
   undefined,
   { getOnInit: true },
 )
@@ -960,10 +960,34 @@ export const enabledWidgetsAtom = atom<Set<WidgetId>>(new Set<WidgetId>())
 // DESKTOP VIEW NAVIGATION (Automations / Inbox)
 // ============================================================================
 
+// Sidebar navigation item - Notion-style navigation
+// "home" = home dashboard
+// "chat" = default chat/workspace view
+// "inbox" = inbox notifications from automations
+// "automations" = automations management panel
+export type SidebarNavItem = "home" | "chat" | "inbox" | "automations"
+export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
+  "agents:activeSidebarNav",
+  "chat",
+  undefined,
+  { getOnInit: true },
+)
+
 // Desktop view mode - takes priority over chat-based rendering
 // null = default behavior (chat/new-chat/kanban)
-export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | null
+export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
 export const desktopViewAtom = atom<DesktopView>(null)
+
+// Automations sidebar width (for the list panel in automations view)
+export const automationsSidebarWidthAtom = atomWithStorage<number>(
+  "agents-automations-sidebar-width",
+  240,
+  undefined,
+  { getOnInit: true },
+)
+
+// Selected automation ID in the automations panel (for highlight in list)
+export const selectedAutomationIdAtom = atom<string | null>(null)
 
 // Which automation is being viewed/edited (ID or "new" for creation)
 export const automationDetailIdAtom = atom<string | null>(null)
