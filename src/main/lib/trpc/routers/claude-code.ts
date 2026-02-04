@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm"
 import { safeStorage, shell } from "electron"
 import { z } from "zod"
+import { getAuthManager } from "../../../auth-manager"
 import { getClaudeShellEnvironment } from "../../claude"
 import { getExistingClaudeToken } from "../../claude-token"
 import { getApiUrl } from "../../config"
@@ -15,10 +16,12 @@ import { publicProcedure, router } from "../index"
 
 /**
  * Get desktop auth token for server API calls
- * @deprecated Auth manager removed - returns null
+ * Uses authManager to get valid Okta/Azure OAuth token
  */
 async function getDesktopToken(): Promise<string | null> {
-  return null
+  const authManager = getAuthManager()
+  if (!authManager) return null
+  return authManager.getValidToken()
 }
 
 /**
