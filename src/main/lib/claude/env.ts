@@ -174,7 +174,7 @@ export function getClaudeShellEnvironment(): Record<string, string> {
   try {
     const output = execSync(`${shell} -ilc '${command}'`, {
       encoding: "utf8",
-      timeout: 5000,
+      timeout: 15000,
       env: {
         // Prevent Oh My Zsh from blocking with auto-update prompts
         DISABLE_AUTO_UPDATE: "true",
