@@ -91,6 +91,7 @@ import {
 } from "../../../lib/hooks/use-voice-recording"
 import { getResolvedHotkey } from "../../../lib/hotkeys"
 import { customHotkeysAtom } from "../../../lib/atoms"
+import { useTranslation } from "react-i18next"
 
 // Hook to get available models (including offline models if Ollama is available and debug enabled)
 function useAvailableModels() {
@@ -379,6 +380,8 @@ export const ChatInputArea = memo(function ChatInputArea({
   onInputContentChange,
   onSubmitWithQuestionAnswer,
 }: ChatInputAreaProps) {
+  const { t } = useTranslation("chat")
+
   // Local state - changes here don't re-render parent
   const [hasContent, setHasContent] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
@@ -1068,8 +1071,8 @@ export const ChatInputArea = memo(function ChatInputArea({
             <PromptInput
               className={cn(
                 "border bg-input-background relative z-10 p-2 rounded-xl transition-[border-color,box-shadow] duration-150",
-                isDragOver && "ring-2 ring-primary/50 border-primary/50",
-                isFocused && !isDragOver && "ring-2 ring-primary/50",
+                isDragOver && (subChatMode === "plan" ? "ring-2 ring-plan-mode/50 border-plan-mode/50" : "ring-2 ring-primary/50 border-primary/50"),
+                isFocused && !isDragOver && (subChatMode === "plan" ? "ring-2 ring-plan-mode/50" : "ring-2 ring-primary/50"),
               )}
               maxHeight={200}
               onSubmit={onSend}
@@ -1173,7 +1176,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                   onSubmit={onSubmitWithQuestionAnswer || handleEditorSubmit}
                   onForceSubmit={onForceSend}
                   onShiftTab={toggleMode}
-                  placeholder={isStreaming ? "Add to the queue" : "Plan, @ for context, / for commands"}
+                  placeholder={isStreaming ? t("input.placeholderStreaming") : t("input.placeholder")}
                   className={cn(
                     "bg-transparent max-h-[200px] overflow-y-auto p-1",
                     isMobile && "min-h-[56px]",
@@ -1209,7 +1212,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                         ) : (
                           <AgentIcon className="h-3.5 w-3.5 shrink-0" />
                         )}
-                        <span className="truncate">{subChatMode === "plan" ? "Plan" : "Agent"}</span>
+                        <span className="truncate">{subChatMode === "plan" ? t("mode.plan") : t("mode.agent")}</span>
                         <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                       </button>
                     </DropdownMenuTrigger>
@@ -1268,7 +1271,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                       >
                         <div className="flex items-center gap-2">
                           <AgentIcon className="w-4 h-4 text-muted-foreground" />
-                          <span>Agent</span>
+                          <span>{t("mode.agent")}</span>
                         </div>
                         {subChatMode !== "plan" && (
                           <CheckIcon className="h-3.5 w-3.5 ml-auto shrink-0" />
@@ -1323,7 +1326,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                       >
                         <div className="flex items-center gap-2">
                           <PlanIcon className="w-4 h-4 text-muted-foreground" />
-                          <span>Plan</span>
+                          <span>{t("mode.plan")}</span>
                         </div>
                         {subChatMode === "plan" && (
                           <CheckIcon className="h-3.5 w-3.5 ml-auto shrink-0" />
@@ -1346,8 +1349,8 @@ export const ChatInputArea = memo(function ChatInputArea({
                           >
                             <span>
                               {modeTooltip.mode === "agent"
-                                ? "Apply changes directly without a plan"
-                                : "Create a plan before making changes"}
+                                ? t("mode.agentTooltip")
+                                : t("mode.planTooltip")}
                             </span>
                           </div>
                         </div>,
@@ -1367,7 +1370,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                           className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 border border-border"
                         >
                           <Zap className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{currentOllamaModel || "Select model"}</span>
+                          <span className="truncate">{currentOllamaModel || t("model.selectModel")}</span>
                           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
                       </DropdownMenuTrigger>
@@ -1389,7 +1392,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                                 <span>
                                   {model}
                                   {isRecommended && (
-                                    <span className="text-muted-foreground ml-1">(recommended)</span>
+                                    <span className="text-muted-foreground ml-1">({t("model.recommended")})</span>
                                   )}
                                 </span>
                               </div>
@@ -1413,11 +1416,11 @@ export const ChatInputArea = memo(function ChatInputArea({
                           }}
                         >
                           <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">LiteLLM</span>
+                          <span className="truncate">{t("model.litellm")}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        <p className="text-xs">{litellmSelectedModel || "No model selected"}</p>
+                        <p className="text-xs">{litellmSelectedModel || t("model.noModelSelected")}</p>
                       </TooltipContent>
                     </Tooltip>
                   ) : overrideMode === "custom" && hasCustomClaudeConfig ? (
@@ -1432,11 +1435,11 @@ export const ChatInputArea = memo(function ChatInputArea({
                           }}
                         >
                           <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">Custom</span>
+                          <span className="truncate">{t("model.custom")}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        <p className="text-xs">{normalizedCustomClaudeConfig?.model || "No model configured"}</p>
+                        <p className="text-xs">{normalizedCustomClaudeConfig?.model || t("model.noModelConfigured")}</p>
                       </TooltipContent>
                     </Tooltip>
                   ) : (
@@ -1489,7 +1492,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                         >
                           <div className="flex items-center gap-1.5">
                             <ThinkingIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            <span className="text-sm">Thinking</span>
+                            <span className="text-sm">{t("model.thinking")}</span>
                           </div>
                           <Switch
                             checked={thinkingEnabled}

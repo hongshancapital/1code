@@ -121,6 +121,7 @@ import {
   type DraftProject,
 } from "../lib/drafts"
 import { CLAUDE_MODELS } from "../lib/models"
+import { useTranslation } from "react-i18next"
 // import type { PlanType } from "@/lib/config/subscription-plans"
 type PlanType = string
 
@@ -179,12 +180,20 @@ const agents = [
 interface NewChatFormProps {
   isMobileFullscreen?: boolean
   onBackToChats?: () => void
+  /** Hide the "What do you want to get done?" title (for embedding in home page) */
+  hideTitle?: boolean
+  /** Embedded mode for home page - no header, no centered layout, compact spacing */
+  embedded?: boolean
 }
 
 export function NewChatForm({
   isMobileFullscreen = false,
   onBackToChats,
+  hideTitle = false,
+  embedded = false,
 }: NewChatFormProps = {}) {
+  const { t } = useTranslation("chat")
+
   // UNCONTROLLED: just track if editor has content for send button
   const [hasContent, setHasContent] = useState(false)
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
@@ -1784,46 +1793,62 @@ export function NewChatForm({
   }, [])
 
   return (
-    <div className="flex h-full flex-col relative">
-      {/* Header - Simple burger on mobile, AgentsHeaderControls on desktop */}
-      <div className="shrink-0 flex items-center justify-between bg-background p-1.5">
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          {isMobileFullscreen ? (
-            // Simple burger button for mobile - just opens chats list
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBackToChats}
-              className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
-              aria-label="All projects"
-            >
-              <AlignJustify className="h-4 w-4" />
-            </Button>
-          ) : (
-            <AgentsHeaderControls
-              isSidebarOpen={sidebarOpen}
-              onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-              hasUnseenChanges={hasAnyUnseenChanges}
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-1 items-center justify-center overflow-y-auto relative">
-        <div className="w-full max-w-2xl flex flex-col gap-6 md:gap-8 relative z-10 px-4">
-          {/* Title */}
-          <div className="text-center mb-2">
-            <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
-              What do you want to get done?
-            </h1>
+    <div className={cn(
+      "flex flex-col relative",
+      !embedded && "h-full"
+    )}>
+      {/* Header - Simple burger on mobile, AgentsHeaderControls on desktop (not shown in embedded mode) */}
+      {!embedded && (
+        <div className="shrink-0 flex items-center justify-between bg-background p-1.5">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            {isMobileFullscreen ? (
+              // Simple burger button for mobile - just opens chats list
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBackToChats}
+                className="h-7 w-7 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md"
+                aria-label="All projects"
+              >
+                <AlignJustify className="h-4 w-4" />
+              </Button>
+            ) : (
+              <AgentsHeaderControls
+                isSidebarOpen={sidebarOpen}
+                onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+                hasUnseenChanges={hasAnyUnseenChanges}
+              />
+            )}
           </div>
+        </div>
+      )}
+
+      <div className={cn(
+        "flex relative",
+        embedded ? "flex-col" : "flex-1 items-center justify-center overflow-y-auto"
+      )}>
+        <div className={cn(
+          "w-full flex flex-col relative z-10",
+          embedded ? "gap-3" : "max-w-2xl gap-6 md:gap-8 px-4"
+        )}>
+          {/* Title */}
+          {!hideTitle && !embedded && (
+            <div className="text-center mb-2">
+              <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
+                What do you want to get done?
+              </h1>
+            </div>
+          )}
 
           {/* Mode Toggle - Cowork/Coding with slogan (left-aligned, above input) */}
-          <div className="flex justify-start -mb-4!">
+          <div className={cn(
+            "flex justify-start",
+            !embedded && "-mb-4!"
+          )}>
             <ProjectModeToggleWithSlogan
               value={currentProjectMode}
               onChange={handleModeChange}
-              showSlogan={true}
+              showSlogan={!embedded}
             />
           </div>
 
@@ -1889,7 +1914,7 @@ export function NewChatForm({
                       onContentChange={handleContentChange}
                       onSubmit={handleSend}
                       onShiftTab={toggleMode}
-                      placeholder="Plan, @ for context, / for commands"
+                      placeholder={t("input.placeholder")}
                       className={cn(
                         "bg-transparent max-h-[240px] overflow-y-auto p-1",
                         isMobileFullscreen ? "min-h-[56px]" : "min-h-[44px]",
@@ -1923,7 +1948,7 @@ export function NewChatForm({
                           ) : (
                             <AgentIcon className="h-3.5 w-3.5" />
                           )}
-                          <span>{agentMode === "plan" ? "Plan" : "Agent"}</span>
+                          <span>{agentMode === "plan" ? t("mode.plan") : t("mode.agent")}</span>
                           <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
@@ -1982,7 +2007,7 @@ export function NewChatForm({
                           >
                             <div className="flex items-center gap-2">
                               <AgentIcon className="w-4 h-4 text-muted-foreground" />
-                              <span>Agent</span>
+                              <span>{t("mode.agent")}</span>
                             </div>
                             {agentMode !== "plan" && (
                               <CheckIcon className="h-3.5 w-3.5 ml-auto shrink-0" />
@@ -2037,7 +2062,7 @@ export function NewChatForm({
                           >
                             <div className="flex items-center gap-2">
                               <PlanIcon className="w-4 h-4 text-muted-foreground" />
-                              <span>Plan</span>
+                              <span>{t("mode.plan")}</span>
                             </div>
                             {agentMode === "plan" && (
                               <CheckIcon className="h-3.5 w-3.5 ml-auto shrink-0" />
@@ -2060,8 +2085,8 @@ export function NewChatForm({
                               >
                                 <span>
                                   {modeTooltip.mode === "agent"
-                                    ? "Apply changes directly without a plan"
-                                    : "Create a plan before making changes"}
+                                    ? t("mode.agentTooltip")
+                                    : t("mode.planTooltip")}
                                 </span>
                               </div>
                             </div>,
@@ -2081,7 +2106,7 @@ export function NewChatForm({
                               className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 border border-border"
                             >
                               <Zap className="h-4 w-4" />
-                              <span>{currentOllamaModel || "Select model"}</span>
+                              <span>{currentOllamaModel || t("model.selectModel")}</span>
                               <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                             </button>
                           </DropdownMenuTrigger>
@@ -2100,7 +2125,7 @@ export function NewChatForm({
                                     <span>
                                       {model}
                                       {isRecommended && (
-                                        <span className="text-muted-foreground ml-1">(recommended)</span>
+                                        <span className="text-muted-foreground ml-1">({t("model.recommended")})</span>
                                       )}
                                     </span>
                                   </div>
