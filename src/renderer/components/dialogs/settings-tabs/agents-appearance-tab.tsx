@@ -1,5 +1,6 @@
 import { useTheme } from "next-themes"
 import { useState, useEffect, useCallback, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { IconSpinner } from "../../../icons"
 import { useAtom, useSetAtom } from "jotai"
 import { motion, AnimatePresence } from "motion/react"
@@ -12,6 +13,9 @@ import {
   showWorkspaceIconAtom,
   alwaysExpandTodoListAtom,
   importedThemesAtom,
+  workspaceGroupedViewAtom,
+  workspaceGroupModeAtom,
+  type WorkspaceGroupMode,
   type VSCodeFullTheme,
 } from "../../../lib/atoms"
 import {
@@ -30,6 +34,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
   SelectSeparator,
   SelectLabel,
   SelectGroup,
@@ -128,6 +133,7 @@ function ThemePreviewBox({
 }
 
 export function AgentsAppearanceTab() {
+  const { t } = useTranslation('settings')
   const { resolvedTheme, setTheme: setNextTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const isNarrowScreen = useIsNarrowScreen()
@@ -145,6 +151,8 @@ export function AgentsAppearanceTab() {
 
   // Sidebar settings
   const [showWorkspaceIcon, setShowWorkspaceIcon] = useAtom(showWorkspaceIconAtom)
+  const [groupedView, setGroupedView] = useAtom(workspaceGroupedViewAtom)
+  const [groupMode, setGroupMode] = useAtom(workspaceGroupModeAtom)
 
   // To-do list preference
   const [alwaysExpandTodoList, setAlwaysExpandTodoList] = useAtom(alwaysExpandTodoListAtom)
@@ -382,9 +390,9 @@ export function AgentsAppearanceTab() {
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div className="flex flex-col gap-1.5 text-center sm:text-left">
-          <h3 className="text-sm font-semibold text-foreground">Appearance</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('appearance.title')}</h3>
           <p className="text-xs text-muted-foreground">
-            Customize the look and feel of the interface
+            {t('appearance.description')}
           </p>
         </div>
       )}
@@ -395,10 +403,10 @@ export function AgentsAppearanceTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Interface theme
+              {t('appearance.theme.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Select or customize your interface color scheme
+              {t('appearance.theme.description')}
             </span>
           </div>
 
@@ -417,13 +425,13 @@ export function AgentsAppearanceTab() {
                           : (systemLightTheme ?? null)
                       }
                     />
-                    <span className="text-xs truncate">System preference</span>
+                    <span className="text-xs truncate">{t('appearance.theme.system')}</span>
                   </>
                 ) : (
                   <>
                     <ThemePreviewBox theme={currentTheme} />
                     <span className="text-xs truncate">
-                      {currentTheme?.name || "Select"}
+                      {currentTheme?.name || t('appearance.theme.select')}
                     </span>
                   </>
                 )}
@@ -441,7 +449,7 @@ export function AgentsAppearanceTab() {
                     }
                     size="sm"
                   />
-                  <span className="truncate">System preference</span>
+                  <span className="truncate">{t('appearance.theme.system')}</span>
                 </div>
               </SelectItem>
 
@@ -471,7 +479,7 @@ export function AgentsAppearanceTab() {
                   <SelectSeparator />
                   <SelectGroup>
                     <SelectLabel className="text-xs text-muted-foreground px-2">
-                      From editors
+                      {t('appearance.theme.fromEditors')}
                     </SelectLabel>
                     {importedThemes.map((theme) => (
                       <SelectItem key={theme.id} value={theme.id}>
@@ -491,7 +499,7 @@ export function AgentsAppearanceTab() {
                   <SelectSeparator />
                   <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
                     <IconSpinner className="h-3 w-3" />
-                    <span>Loading themes from editors...</span>
+                    <span>{t('appearance.theme.loading')}</span>
                   </div>
                 </>
               )}
@@ -516,10 +524,10 @@ export function AgentsAppearanceTab() {
               <div className="flex items-center justify-between p-4 border-t border-border">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-foreground">
-                    Light
+                    {t('appearance.theme.light.title')}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    Theme to use for light system appearance
+                    {t('appearance.theme.light.description')}
                   </span>
                 </div>
 
@@ -531,7 +539,7 @@ export function AgentsAppearanceTab() {
                     <div className="flex items-center gap-2 min-w-0 -ml-[3px]">
                       <ThemePreviewBox theme={systemLightTheme || null} />
                       <span className="text-xs truncate">
-                        {systemLightTheme?.name || "Select"}
+                        {systemLightTheme?.name || t('appearance.theme.select')}
                       </span>
                     </div>
                   </SelectTrigger>
@@ -552,10 +560,10 @@ export function AgentsAppearanceTab() {
               <div className="flex items-center justify-between p-4 border-t border-border">
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-foreground">
-                    Dark
+                    {t('appearance.theme.dark.title')}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    Theme to use for dark system appearance
+                    {t('appearance.theme.dark.description')}
                   </span>
                 </div>
 
@@ -567,7 +575,7 @@ export function AgentsAppearanceTab() {
                     <div className="flex items-center gap-2 min-w-0 -ml-[3px]">
                       <ThemePreviewBox theme={systemDarkTheme || null} />
                       <span className="text-xs truncate">
-                        {systemDarkTheme?.name || "Select"}
+                        {systemDarkTheme?.name || t('appearance.theme.select')}
                       </span>
                     </div>
                   </SelectTrigger>
@@ -594,10 +602,10 @@ export function AgentsAppearanceTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Workspace icon
+              {t('appearance.display.workspaceIcon.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Show project icon in the sidebar workspace list
+              {t('appearance.display.workspaceIcon.description')}
             </span>
           </div>
           <Switch
@@ -608,10 +616,10 @@ export function AgentsAppearanceTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Always expand to-do list
+              {t('appearance.display.expandTodo.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Show the full to-do list instead of compact view
+              {t('appearance.display.expandTodo.description')}
             </span>
           </div>
           <Switch
@@ -619,6 +627,58 @@ export function AgentsAppearanceTab() {
             onCheckedChange={setAlwaysExpandTodoList}
           />
         </div>
+
+        {/* Grouped View Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              分组视图
+            </span>
+            <span className="text-xs text-muted-foreground">
+              对侧边栏中的 Workspace 进行分组显示
+            </span>
+          </div>
+          <Switch
+            checked={groupedView}
+            onCheckedChange={setGroupedView}
+          />
+        </div>
+
+        {/* Group Mode Selector (shown when grouped view is enabled) */}
+        <AnimatePresence>
+          {groupedView && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-4 border-t border-border bg-muted/30">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground">
+                    分组方式
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    选择 Workspace 的分组依据
+                  </span>
+                </div>
+                <Select
+                  value={groupMode}
+                  onValueChange={(value: WorkspaceGroupMode) => setGroupMode(value)}
+                >
+                  <SelectTrigger className="w-auto min-w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="folder">按文件夹</SelectItem>
+                    <SelectItem value="tag">按标签</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

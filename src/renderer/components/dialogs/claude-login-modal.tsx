@@ -52,7 +52,8 @@ export function ClaudeLoginModal() {
   const [savedOauthUrl, setSavedOauthUrl] = useState<string | null>(null)
   const urlOpenedRef = useRef(false)
 
-  // tRPC mutations
+  // tRPC mutations and utils
+  const utils = trpc.useUtils()
   const startAuthMutation = trpc.claudeCode.startAuth.useMutation()
   const submitCodeMutation = trpc.claudeCode.submitCode.useMutation()
   const openOAuthUrlMutation = trpc.claudeCode.openOAuthUrl.useMutation()
@@ -204,6 +205,15 @@ export function ClaudeLoginModal() {
         sessionId,
         code: authCode.trim(),
       })
+
+      // 验证账号是否真的被存储到数据库
+      await utils.anthropicAccounts.getActive.invalidate()
+      const activeAccount = await utils.anthropicAccounts.getActive.fetch()
+
+      if (!activeAccount) {
+        throw new Error("Account not found after authentication. Please try again.")
+      }
+
       // Success - trigger retry and close modal
       triggerAuthRetry()
       setOpen(false)
@@ -230,6 +240,15 @@ export function ClaudeLoginModal() {
             sessionId,
             code: value.trim(),
           })
+
+          // 验证账号是否真的被存储到数据库
+          await utils.anthropicAccounts.getActive.invalidate()
+          const activeAccount = await utils.anthropicAccounts.getActive.fetch()
+
+          if (!activeAccount) {
+            throw new Error("Account not found after authentication. Please try again.")
+          }
+
           // Success - trigger retry and close modal
           triggerAuthRetry()
           setOpen(false)

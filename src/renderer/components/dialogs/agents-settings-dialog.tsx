@@ -1,5 +1,5 @@
 import { useAtom } from "jotai"
-import { Bell, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Bell, ChevronLeft, ChevronRight, X, User } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -24,7 +24,6 @@ import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
 import { AgentsEditorTab } from "./settings-tabs/agents-editor-tab"
 import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
 import { GenericEditorIcon } from "../../icons/editor-icons"
-import { User } from "lucide-react"
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -384,56 +383,56 @@ export function AgentsSettingsDialog({
     if (!isOpen) return null
 
     return createPortal(
-      <>
-        {/* Full-screen settings panel */}
-        <div
-          className="fixed inset-0 z-45 flex flex-col bg-background overflow-hidden select-none"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="agents-settings-dialog-title-narrow"
-          data-modal="agents-settings"
-          data-canvas-dialog
-          data-agents-page
-        >
-          {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-            {showContent && (
-              <button
-                onClick={() => setShowContent(false)}
-                className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-foreground/5 transition-colors"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-            )}
-            <h2
-              id="agents-settings-dialog-title-narrow"
-              className="text-lg font-semibold flex-1"
+          <>
+            {/* Full-screen settings panel */}
+            <div
+              className="fixed inset-0 z-45 flex flex-col bg-background overflow-hidden select-none"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="agents-settings-dialog-title-narrow"
+              data-modal="agents-settings"
+              data-canvas-dialog
+              data-agents-page
             >
-              {showContent ? getTabLabel(activeTab) : "Settings"}
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-foreground/5 transition-colors"
-            >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </button>
-          </div>
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+                {showContent && (
+                  <button
+                    onClick={() => setShowContent(false)}
+                    className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-foreground/5 transition-colors"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                )}
+                <h2
+                  id="agents-settings-dialog-title-narrow"
+                  className="text-lg font-semibold flex-1"
+                >
+                  {showContent ? getTabLabel(activeTab) : "Settings"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-foreground/5 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </button>
+              </div>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto">
-            {showContent ? (
-              <div className="bg-tl-background min-h-full">
-                {renderTabContent()}
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto">
+                {showContent ? (
+                  <div className="bg-tl-background min-h-full">
+                    {renderTabContent()}
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    {renderTabList()}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="p-4">
-                {renderTabList()}
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
       </>,
       portalTarget,
     )
@@ -441,101 +440,101 @@ export function AgentsSettingsDialog({
 
   // Wide screen: Centered modal with sidebar
   return createPortal(
-    <AnimatePresence mode="wait">
-      {isOpen && (
-        <>
-          {/* Custom Overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/25"
-            onClick={onClose}
-            style={{ pointerEvents: isOpen ? "auto" : "none" }}
-            data-modal="agents-settings"
-          />
+        <AnimatePresence mode="wait">
+          {isOpen && (
+            <>
+              {/* Custom Overlay */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-40 bg-black/25"
+                onClick={onClose}
+                style={{ pointerEvents: isOpen ? "auto" : "none" }}
+                data-modal="agents-settings"
+              />
 
-          {/* Settings Dialog */}
-          <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-45">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="w-[90vw] h-[80vh] max-w-[900px] p-0 flex flex-col rounded-[20px] bg-background border-none bg-clip-padding shadow-2xl overflow-hidden select-none"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="agents-settings-dialog-title"
-              data-modal="agents-settings"
-              data-canvas-dialog
-              data-agents-page
-            >
-              <h2 id="agents-settings-dialog-title" className="sr-only">
-                Settings
-              </h2>
-
-              <div className="flex h-full p-2">
-                {/* Left Sidebar - Tabs */}
-                <div className="w-52 px-1 py-5 flex flex-col gap-4">
-                  <h2 className="text-lg font-semibold px-2 pb-3 text-foreground">
+              {/* Settings Dialog */}
+              <div className="fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%] z-45">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-[90vw] h-[80vh] max-w-[900px] p-0 flex flex-col rounded-[20px] bg-background border-none bg-clip-padding shadow-2xl overflow-hidden select-none"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="agents-settings-dialog-title"
+                  data-modal="agents-settings"
+                  data-canvas-dialog
+                  data-agents-page
+                >
+                  <h2 id="agents-settings-dialog-title" className="sr-only">
                     Settings
                   </h2>
 
-                  {/* Main Tabs */}
-                  <div className="flex flex-col gap-1">
-                    {MAIN_TABS.map((tab) => (
-                      <TabButton
-                        key={tab.id}
-                        tab={tab}
-                        isActive={activeTab === tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                      />
-                    ))}
+                  <div className="flex h-full p-2">
+                    {/* Left Sidebar - Tabs */}
+                    <div className="w-52 px-1 py-5 flex flex-col gap-4">
+                      <h2 className="text-lg font-semibold px-2 pb-3 text-foreground">
+                        Settings
+                      </h2>
+
+                      {/* Main Tabs */}
+                      <div className="flex flex-col gap-1">
+                        {MAIN_TABS.map((tab) => (
+                          <TabButton
+                            key={tab.id}
+                            tab={tab}
+                            isActive={activeTab === tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Separator */}
+                      <div className="border-t border-border/50 mx-2" />
+
+                      {/* Advanced Tabs */}
+                      <div className="flex flex-col gap-1">
+                        {ADVANCED_TABS.map((tab) => (
+                          <TabButton
+                            key={tab.id}
+                            tab={tab}
+                            isActive={activeTab === tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                          />
+                        ))}
+                      </div>
+
+                    </div>
+
+                    {/* Right Content Area */}
+                    <div className="flex-1 h-full overflow-hidden">
+                      <div className={cn(
+                        "flex flex-col relative h-full bg-tl-background rounded-xl w-full transition-all duration-300",
+                        TWO_PANEL_TABS.includes(activeTab) ? "overflow-hidden" : "overflow-y-auto"
+                      )}>
+                        {renderTabContent()}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Separator */}
-                  <div className="border-t border-border/50 mx-2" />
-
-                  {/* Advanced Tabs */}
-                  <div className="flex flex-col gap-1">
-                    {ADVANCED_TABS.map((tab) => (
-                      <TabButton
-                        key={tab.id}
-                        tab={tab}
-                        isActive={activeTab === tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                      />
-                    ))}
-                  </div>
-
-                </div>
-
-                {/* Right Content Area */}
-                <div className="flex-1 h-full overflow-hidden">
-                  <div className={cn(
-                    "flex flex-col relative h-full bg-tl-background rounded-xl w-full transition-all duration-300",
-                    TWO_PANEL_TABS.includes(activeTab) ? "overflow-hidden" : "overflow-y-auto"
-                  )}>
-                    {renderTabContent()}
-                  </div>
-                </div>
+                  {/* Close Button */}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute appearance-none outline-hidden select-none top-5 right-5 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-7 w-7 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-60 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </button>
+                </motion.div>
               </div>
-
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute appearance-none outline-hidden select-none top-5 right-5 rounded-full cursor-pointer flex items-center justify-center ring-offset-background focus:ring-ring bg-secondary h-7 w-7 text-foreground/70 hover:text-foreground focus:outline-hidden disabled:pointer-events-none active:scale-95 transition-all duration-200 ease-in-out z-60 focus:outline-hidden focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-offset-2"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </button>
-            </motion.div>
-          </div>
-        </>
-      )}
-    </AnimatePresence>,
+            </>
+          )}
+        </AnimatePresence>,
     portalTarget,
   )
 }

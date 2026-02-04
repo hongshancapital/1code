@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useMemo, useState, useRef, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
 import { useAtom, useAtomValue } from "jotai"
 import { RotateCcw, Settings2 } from "lucide-react"
@@ -179,6 +180,7 @@ function ShortcutDetailPanel({
   onReset,
   ctrlTabTarget,
   conflictMessage,
+  t,
 }: {
   action: ShortcutAction
   config: CustomHotkeysConfig
@@ -189,6 +191,7 @@ function ShortcutDetailPanel({
   onReset: () => void
   ctrlTabTarget: "workspaces" | "agents"
   conflictMessage: string | null
+  t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const isCustom = isCustomHotkey(action.id, config)
   let currentHotkey = getResolvedHotkey(action.id, config)
@@ -232,7 +235,7 @@ function ShortcutDetailPanel({
       {/* Title */}
       <h3 className="text-base font-medium text-foreground mb-1">{action.label}</h3>
       <p className="text-sm text-muted-foreground mb-8">
-        {action.isDynamic ? action.dynamicDescription : `${CATEGORY_LABELS[action.category]} shortcut`}
+        {action.isDynamic ? action.dynamicDescription : `${CATEGORY_LABELS[action.category]} ${t('keyboard.shortcutSuffix')}`}
       </p>
 
       {/* Hotkey display / recorder */}
@@ -263,7 +266,7 @@ function ShortcutDetailPanel({
             }
             return (
               <span className="text-sm text-muted-foreground animate-pulse">
-                Press keys...
+                {t('keyboard.pressKeys')}
               </span>
             )
           }
@@ -277,7 +280,7 @@ function ShortcutDetailPanel({
               </div>
             )
           }
-          return <span className="text-sm text-muted-foreground">Not set</span>
+          return <span className="text-sm text-muted-foreground">{t('keyboard.notSet')}</span>
         })()}
       </button>
 
@@ -297,7 +300,7 @@ function ShortcutDetailPanel({
             className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary border border-border rounded-lg transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
-            <span>Reset to</span>
+            <span>{t('keyboard.resetTo')}</span>
             <div className="flex items-center gap-0.5">
               {defaultKeys.map((key, index) => (
                 <ShortcutKey key={index} keyName={key} size="sm" />
@@ -306,7 +309,7 @@ function ShortcutDetailPanel({
           </button>
         ) : (
           <p className="text-xs text-muted-foreground text-center">
-            Click to record a new shortcut
+            {t('keyboard.clickToRecord')}
           </p>
         )}
       </div>
@@ -317,12 +320,12 @@ function ShortcutDetailPanel({
 /**
  * Empty state when no shortcut is selected
  */
-function EmptyDetailPanel() {
+function EmptyDetailPanel({ t }: { t: (key: string) => string }) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8 text-center">
       <Settings2 className="h-10 w-10 text-muted-foreground/20 mb-3" />
       <p className="text-sm text-muted-foreground">
-        Select a shortcut to customize
+        {t('keyboard.selectToCustomize')}
       </p>
     </div>
   )
@@ -332,6 +335,7 @@ function EmptyDetailPanel() {
  * Main keyboard settings tab component
  */
 export function AgentsKeyboardTab() {
+  const { t } = useTranslation("settings")
   const [customHotkeys, setCustomHotkeys] = useAtom(customHotkeysAtom)
   const [ctrlTabTarget] = useAtom(ctrlTabTargetAtom)
   const betaKanbanEnabled = useAtomValue(betaKanbanEnabledAtom)
@@ -453,7 +457,7 @@ export function AgentsKeyboardTab() {
     const conflictingAction = checkConflict(hotkey, selectedActionId)
     if (conflictingAction) {
       // Show conflict message and don't save
-      setConflictMessage(`"${conflictingAction.label}" already uses this shortcut`)
+      setConflictMessage(t('keyboard.conflictMessage', { label: conflictingAction.label }))
       setIsRecording(false)
 
       // Clear message after 2 seconds
@@ -521,7 +525,7 @@ export function AgentsKeyboardTab() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search shortcuts..."
+              placeholder={t('keyboard.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-7 w-full rounded-lg text-sm bg-muted border border-input px-3 placeholder:text-muted-foreground/40 outline-hidden"
@@ -532,7 +536,7 @@ export function AgentsKeyboardTab() {
           <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {totalShortcuts === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                No shortcuts found
+                {t('keyboard.noShortcutsFound')}
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -576,7 +580,7 @@ export function AgentsKeyboardTab() {
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 <RotateCcw className="h-3 w-3" />
-                Reset all to defaults
+                {t('keyboard.resetAllToDefaults')}
               </button>
             </div>
           )}
@@ -596,9 +600,10 @@ export function AgentsKeyboardTab() {
             onReset={handleReset}
             ctrlTabTarget={ctrlTabTarget}
             conflictMessage={conflictMessage}
+            t={t}
           />
         ) : (
-          <EmptyDetailPanel />
+          <EmptyDetailPanel t={t} />
         )}
       </div>
     </div>

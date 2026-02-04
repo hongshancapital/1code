@@ -2,6 +2,7 @@
 
 import { Loader2, Plus } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useAtomValue, useSetAtom } from "jotai"
 import { Button } from "../../ui/button"
 import { toast } from "sonner"
@@ -60,6 +61,7 @@ function getConnectionInfo(config: Record<string, unknown>) {
 
 // --- Detail Panel ---
 function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () => void }) {
+  const { t } = useTranslation('settings')
   const { tools, needsAuth } = server
   const hasTools = tools.length > 0
   const isConnected = server.status === "connected"
@@ -74,14 +76,14 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
             <h3 className="text-sm font-semibold text-foreground truncate">{server.name}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {isConnected
-                ? (hasTools ? `${tools.length} tool${tools.length !== 1 ? "s" : ""}` : "No tools")
+                ? (hasTools ? `${tools.length} ${tools.length !== 1 ? t('mcp.tools_plural') : t('mcp.tools')}` : t('mcp.detail.noTools'))
                 : getStatusText(server.status)}
               {server.serverInfo?.version && ` \u00B7 v${server.serverInfo.version}`}
             </p>
           </div>
           {needsAuth && onAuth && !server.requiresLogin && (
             <Button variant="secondary" size="sm" className="h-7 px-3 text-xs" onClick={onAuth}>
-              {isConnected ? "Reconnect" : "Authenticate"}
+              {isConnected ? t('mcp.detail.reconnect') : t('mcp.detail.authenticate')}
             </Button>
           )}
         </div>
@@ -90,41 +92,41 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
         {server.requiresLogin && (
           <div className="rounded-md border border-orange-500/20 bg-orange-500/5 px-3 py-3">
             <p className="text-xs text-orange-600 dark:text-orange-400">
-              This MCP server requires authentication. Please sign in to your account to access it.
+              {t('mcp.detail.requiresLoginNotice')}
             </p>
           </div>
         )}
 
         {/* Connection Section */}
         <div>
-          <h5 className="text-xs font-medium text-foreground mb-2">Connection</h5>
+          <h5 className="text-xs font-medium text-foreground mb-2">{t('mcp.detail.connection')}</h5>
           <div className="rounded-md border border-border bg-background overflow-hidden">
             <div className="divide-y divide-border">
               <div className="flex gap-3 px-3 py-2">
-                <span className="text-xs text-muted-foreground w-16 shrink-0">Type</span>
+                <span className="text-xs text-muted-foreground w-16 shrink-0">{t('mcp.detail.type')}</span>
                 <span className="text-xs text-foreground font-mono">{connection.type}</span>
               </div>
               {connection.url && (
                 <div className="flex gap-3 px-3 py-2">
-                  <span className="text-xs text-muted-foreground w-16 shrink-0">URL</span>
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">{t('mcp.detail.url')}</span>
                   <span className="text-xs text-foreground font-mono break-all">{connection.url}</span>
                 </div>
               )}
               {connection.command && (
                 <div className="flex gap-3 px-3 py-2">
-                  <span className="text-xs text-muted-foreground w-16 shrink-0">Command</span>
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">{t('mcp.detail.command')}</span>
                   <span className="text-xs text-foreground font-mono break-all">{connection.command}</span>
                 </div>
               )}
               {connection.args && connection.args.length > 0 && (
                 <div className="flex gap-3 px-3 py-2">
-                  <span className="text-xs text-muted-foreground w-16 shrink-0">Args</span>
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">{t('mcp.detail.args')}</span>
                   <span className="text-xs text-foreground font-mono break-all">{connection.args.join(" ")}</span>
                 </div>
               )}
               {connection.env && Object.keys(connection.env).length > 0 && (
                 <div className="flex gap-3 px-3 py-2">
-                  <span className="text-xs text-muted-foreground w-16 shrink-0">Env</span>
+                  <span className="text-xs text-muted-foreground w-16 shrink-0">{t('mcp.detail.env')}</span>
                   <div className="flex flex-wrap gap-1">
                     {Object.keys(connection.env).map((key) => (
                       <span key={key} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
@@ -141,7 +143,7 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
         {/* Error Section */}
         {server.error && (
           <div>
-            <h5 className="text-xs font-medium text-red-500 mb-2">Error</h5>
+            <h5 className="text-xs font-medium text-red-500 mb-2">{t('mcp.detail.error')}</h5>
             <div className="rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2">
               <p className="text-xs text-red-400 font-mono break-all">{server.error}</p>
             </div>
@@ -152,7 +154,7 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
         {hasTools && (
           <div>
             <h5 className="text-xs font-medium text-foreground mb-3">
-              Tools ({tools.length})
+              {t('mcp.detail.toolsCount', { count: tools.length })}
             </h5>
             <div className="grid gap-2">
               {tools.map((tool, i) => {
@@ -185,6 +187,7 @@ function CreateMcpServerForm({
   onCancel: () => void
   hasProject: boolean
 }) {
+  const { t } = useTranslation('settings')
   const addServerMutation = trpc.claude.addMcpServer.useMutation()
   const isSaving = addServerMutation.isPending
   const [name, setName] = useState("")
@@ -222,34 +225,34 @@ function CreateMcpServerForm({
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">New MCP Server</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('mcp.form.title')}</h3>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={onCancel}>{t('mcp.form.cancel')}</Button>
             <Button size="sm" onClick={handleSubmit} disabled={!canSave || isSaving}>
-              {isSaving ? "Adding..." : "Add"}
+              {isSaving ? t('mcp.form.adding') : t('mcp.form.add')}
             </Button>
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>Name</Label>
+          <Label>{t('mcp.form.nameLabel')}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="my-server"
+            placeholder={t('mcp.form.namePlaceholder')}
             autoFocus
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>Transport</Label>
+          <Label>{t('mcp.form.transportLabel')}</Label>
           <Select value={type} onValueChange={(v) => setType(v as "stdio" | "http")}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="stdio">stdio (local command)</SelectItem>
-              <SelectItem value="http">HTTP (SSE)</SelectItem>
+              <SelectItem value="stdio">{t('mcp.form.transportStdio')}</SelectItem>
+              <SelectItem value="http">{t('mcp.form.transportHttp')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -257,32 +260,32 @@ function CreateMcpServerForm({
         {type === "stdio" ? (
           <>
             <div className="flex flex-col gap-1.5">
-              <Label>Command</Label>
+              <Label>{t('mcp.form.commandLabel')}</Label>
               <Input
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}
-                placeholder="npx, python, node..."
+                placeholder={t('mcp.form.commandPlaceholder')}
                 className="font-mono"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Arguments</Label>
+              <Label>{t('mcp.form.argsLabel')}</Label>
               <Input
                 value={args}
                 onChange={(e) => setArgs(e.target.value)}
-                placeholder="-m mcp_server --port 3000"
+                placeholder={t('mcp.form.argsPlaceholder')}
                 className="font-mono"
               />
-              <p className="text-[11px] text-muted-foreground">Space-separated arguments</p>
+              <p className="text-[11px] text-muted-foreground">{t('mcp.form.argsHint')}</p>
             </div>
           </>
         ) : (
           <div className="flex flex-col gap-1.5">
-            <Label>URL</Label>
+            <Label>{t('mcp.form.urlLabel')}</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="http://localhost:3000/sse"
+              placeholder={t('mcp.form.urlPlaceholder')}
               className="font-mono"
             />
           </div>
@@ -290,14 +293,14 @@ function CreateMcpServerForm({
 
         {hasProject && (
           <div className="flex flex-col gap-1.5">
-            <Label>Scope</Label>
+            <Label>{t('mcp.form.scopeLabel')}</Label>
             <Select value={scope} onValueChange={(v) => setScope(v as "global" | "project")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="global">Global (~/.claude.json)</SelectItem>
-                <SelectItem value="project">Project</SelectItem>
+                <SelectItem value="global">{t('mcp.form.scopeGlobal')}</SelectItem>
+                <SelectItem value="project">{t('mcp.form.scopeProject')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -309,6 +312,7 @@ function CreateMcpServerForm({
 
 // --- Main Component ---
 export function AgentsMcpTab() {
+  const { t } = useTranslation('settings')
   const [selectedServerKey, setSelectedServerKey] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
@@ -543,7 +547,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
           <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
-              placeholder="Search servers..."
+              placeholder={t('mcp.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
@@ -552,7 +556,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
             <button
               onClick={() => { setShowAddForm(true); setSelectedServerKey(null) }}
               className="h-7 w-7 shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors cursor-pointer"
-              title="Add MCP server"
+              title={t('mcp.addTooltip')}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -566,7 +570,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
             ) : totalServers === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <OriginalMCPIcon className="h-8 w-8 text-border mb-3" />
-                <p className="text-sm text-muted-foreground mb-1">No servers</p>
+                <p className="text-sm text-muted-foreground mb-1">{t('mcp.emptyState')}</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -579,7 +583,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
               </div>
             ) : filteredGroups.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <p className="text-xs text-muted-foreground">No results found</p>
+                <p className="text-xs text-muted-foreground">{t('mcp.noResults')}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-0.5">
@@ -631,9 +635,9 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                                 {server.status !== "pending" && (
                                   <span className={cn("shrink-0", needsLogin && "text-orange-500")}>
                                     {needsLogin
-                                      ? "Requires login"
+                                      ? t('mcp.requiresLogin')
                                       : server.status === "connected"
-                                        ? `${server.tools.length} tool${server.tools.length !== 1 ? "s" : ""}`
+                                        ? `${server.tools.length} ${server.tools.length !== 1 ? t('mcp.tools_plural') : t('mcp.tools')}`
                                         : getStatusText(server.status)}
                                   </span>
                                 )}
@@ -674,8 +678,8 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
             <OriginalMCPIcon className="h-12 w-12 text-border mb-4" />
             <p className="text-sm text-muted-foreground">
               {totalServers > 0
-                ? "Select a server to view details"
-                : "No MCP servers configured"}
+                ? t('mcp.selectToView')
+                : t('mcp.noServersConfigured')}
             </p>
             {totalServers === 0 && (
               <Button
@@ -685,7 +689,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                 onClick={() => setShowAddForm(true)}
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Add your first server
+                {t('mcp.addFirst')}
               </Button>
             )}
           </div>

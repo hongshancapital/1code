@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { useState, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "../../ui/button"
 import {
@@ -70,10 +71,11 @@ function RuntimeRow({
   onPathChange,
   isValidating,
 }: RuntimeRowProps) {
+  const { t } = useTranslation('settings')
   const [isEditing, setIsEditing] = useState(false)
   const [localPath, setLocalPath] = useState(customPath || "")
 
-  const displayPath = customPath || detected?.path || "Not found"
+  const displayPath = customPath || detected?.path || t('runtime.pathRow.notFound')
   const displayVersion = detected?.version || "-"
   const isInstalled = detected !== null || customPath !== null
 
@@ -104,7 +106,7 @@ function RuntimeRow({
             </span>
           ) : (
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              Not installed
+              {t('runtime.pathRow.notInstalled')}
             </span>
           )}
         </div>
@@ -155,7 +157,7 @@ function RuntimeRow({
                 className="h-7 text-xs text-muted-foreground"
                 onClick={handleClear}
               >
-                Reset
+                {t('runtime.pathRow.reset')}
               </Button>
             )}
             <Button
@@ -163,7 +165,7 @@ function RuntimeRow({
               variant="ghost"
               className="h-7 w-7"
               onClick={() => setIsEditing(true)}
-              title="Set custom path"
+              title={t('runtime.pathRow.setCustomPath')}
             >
               <FolderOpen className="h-4 w-4" />
             </Button>
@@ -199,6 +201,7 @@ function ToolRow({
   isInstalling,
   onInstall,
 }: ToolRowProps) {
+  const { t } = useTranslation('settings')
   const [copied, setCopied] = useState(false)
 
   const handleCopyCommand = useCallback(() => {
@@ -227,7 +230,7 @@ function ToolRow({
           )}
           {!installed && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              Not installed
+              {t('runtime.commonTools.notInstalled')}
             </span>
           )}
         </div>
@@ -266,7 +269,7 @@ function ToolRow({
               ) : (
                 <Download className="h-3.5 w-3.5" />
               )}
-              Install
+              {t('runtime.commonTools.install')}
             </Button>
           </>
         )}
@@ -290,6 +293,7 @@ function getPlatformDisplayName(platform: NodeJS.Platform): string {
 }
 
 function CommonToolsSection() {
+  const { t } = useTranslation('settings')
   const [installingTool, setInstallingTool] = useState<string | null>(null)
 
   // Real tool detection from backend
@@ -348,15 +352,15 @@ function CommonToolsSection() {
     <RuntimeSection
       id="common-tools"
       icon={<Wrench className="h-5 w-5" />}
-      title="Common Tools"
-      description={`CLI tools that enhance Hóng functionality${platformName ? ` (${platformName})` : ""}`}
+      title={t('runtime.commonTools.title')}
+      description={`${t('runtime.commonTools.description')}${platformName ? ` (${platformName})` : ""}`}
       defaultOpen={true}
     >
       <div className="flex flex-col gap-4">
         {/* Header with refresh */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            These tools improve search, file operations, and developer experience
+            {t('runtime.commonTools.hint')}
           </p>
           <Button
             variant="ghost"
@@ -368,7 +372,7 @@ function CommonToolsSection() {
             <RefreshCw
               className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
             />
-            <span className="text-xs">Refresh</span>
+            <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
           </Button>
         </div>
 
@@ -378,7 +382,7 @@ function CommonToolsSection() {
             {isLoading ? (
               <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Detecting tools...</span>
+                <span className="text-sm">{t('runtime.commonTools.detecting')}</span>
               </div>
             ) : commonTools && commonTools.length > 0 ? (
               commonTools.map((tool) => (
@@ -399,7 +403,7 @@ function CommonToolsSection() {
               ))
             ) : (
               <div className="text-sm text-muted-foreground text-center py-4">
-                No tools detected
+                {t('runtime.commonTools.noTools')}
               </div>
             )}
           </div>
@@ -407,8 +411,7 @@ function CommonToolsSection() {
 
         {/* Note about package managers */}
         <p className="text-[10px] text-muted-foreground">
-          Note: Installation requires Homebrew on macOS, apt on Linux, or winget/Scoop on Windows.
-          You can also copy the command and run it in your terminal.
+          {t('runtime.commonTools.installNote')}
         </p>
       </div>
     </RuntimeSection>
@@ -420,6 +423,7 @@ function CommonToolsSection() {
 // ============================================================================
 
 function PythonSection() {
+  const { t } = useTranslation('settings')
   const [installingTool, setInstallingTool] = useState<string | null>(null)
 
   // Get Python tools from the same query
@@ -468,15 +472,15 @@ function PythonSection() {
           <path d="M18.452 7.532h-1.524v2.141s.083 2.554-2.513 2.554h-4.328s-2.432-.04-2.432 2.35v3.951s-.369 2.391 4.409 2.391c4.573 0 4.288-1.983 4.288-1.983l-.006-2.054h-4.363v-.617h6.097s2.927.332 2.927-4.282-2.555-4.451-2.555-4.451zm-4.025 10.48a.784.784 0 110 1.57.784.784 0 110-1.57z" />
         </svg>
       }
-      title="Python"
-      description="Python interpreter and package managers"
+      title={t('runtime.python.title')}
+      description={t('runtime.python.description')}
       defaultOpen={false}
     >
       <div className="space-y-4">
         {/* Header with refresh */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            Python runtime and package management tools
+            {t('runtime.python.hint')}
           </p>
           <Button
             variant="ghost"
@@ -488,7 +492,7 @@ function PythonSection() {
             <RefreshCw
               className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
             />
-            <span className="text-xs">Refresh</span>
+            <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
           </Button>
         </div>
 
@@ -498,7 +502,7 @@ function PythonSection() {
             {isLoading ? (
               <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Detecting Python tools...</span>
+                <span className="text-sm">{t('runtime.python.detecting')}</span>
               </div>
             ) : pythonTools && pythonTools.length > 0 ? (
               pythonTools.map((tool) => (
@@ -519,7 +523,7 @@ function PythonSection() {
               ))
             ) : (
               <div className="text-sm text-muted-foreground text-center py-4">
-                No Python tools detected
+                {t('runtime.python.noTools')}
               </div>
             )}
           </div>
@@ -550,6 +554,7 @@ function NodeJsIcon({ className }: { className?: string }) {
 // ============================================================================
 
 export function AgentsRuntimeTab() {
+  const { t } = useTranslation('settings')
   const [packageManager, setPackageManager] = useAtom(packageManagerAtom)
   const [runtimePaths, setRuntimePaths] = useAtom(runtimePathsAtom)
   const [debugPort, setDebugPort] = useAtom(defaultDebugPortAtom)
@@ -615,11 +620,11 @@ export function AgentsRuntimeTab() {
         <div className="flex items-center gap-2">
           <Terminal className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">
-            Runtime Settings
+            {t('runtime.title')}
           </h3>
         </div>
         <p className="text-xs text-muted-foreground">
-          Configure runtime environments for running and debugging scripts
+          {t('runtime.description')}
         </p>
       </div>
 
@@ -632,15 +637,15 @@ export function AgentsRuntimeTab() {
         <RuntimeSection
           id="nodejs"
           icon={<NodeJsIcon className="h-5 w-5" />}
-          title="Node.js / JavaScript"
-          description="Node.js, Bun, and package managers"
+          title={t('runtime.nodejs.title')}
+          description={t('runtime.nodejs.description')}
           defaultOpen={false}
         >
           <div className="flex flex-col gap-6">
             {/* Preferred Runtime */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Preferred Runtime</Label>
+                <Label className="text-sm font-medium">{t('runtime.nodejs.preferredRuntime.title')}</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -651,7 +656,7 @@ export function AgentsRuntimeTab() {
                   <RefreshCw
                     className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
                   />
-                  <span className="text-xs">Refresh</span>
+                  <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
                 </Button>
               </div>
               <Select
@@ -662,22 +667,22 @@ export function AgentsRuntimeTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">Auto-detect</SelectItem>
-                  <SelectItem value="node">Node.js</SelectItem>
-                  <SelectItem value="bun">Bun</SelectItem>
+                  <SelectItem value="auto">{t('runtime.nodejs.preferredRuntime.auto')}</SelectItem>
+                  <SelectItem value="node">{t('runtime.nodejs.preferredRuntime.node')}</SelectItem>
+                  <SelectItem value="bun">{t('runtime.nodejs.preferredRuntime.bun')}</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Auto-detect will choose based on project configuration
+                {t('runtime.nodejs.preferredRuntime.hint')}
               </p>
             </div>
 
             {/* Node.js Sub-section */}
-            <RuntimeSubSection title="Node.js">
+            <RuntimeSubSection title={t('runtime.nodejs.nodeSection')}>
               <div className="bg-background rounded-lg border border-border">
                 <div className="p-3">
                   <RuntimeRow
-                    label="Node runtime"
+                    label={t('runtime.nodejs.nodeRuntime')}
                     detected={detectedRuntimes?.node || null}
                     customPath={runtimePaths.node}
                     onPathChange={(path) => handlePathChange("node", path)}
@@ -688,11 +693,11 @@ export function AgentsRuntimeTab() {
             </RuntimeSubSection>
 
             {/* Bun Sub-section */}
-            <RuntimeSubSection title="Bun">
+            <RuntimeSubSection title={t('runtime.nodejs.bunSection')}>
               <div className="bg-background rounded-lg border border-border">
                 <div className="p-3">
                   <RuntimeRow
-                    label="Bun runtime"
+                    label={t('runtime.nodejs.bunRuntime')}
                     detected={detectedRuntimes?.bun || null}
                     customPath={runtimePaths.bun}
                     onPathChange={(path) => handlePathChange("bun", path)}
@@ -703,7 +708,7 @@ export function AgentsRuntimeTab() {
             </RuntimeSubSection>
 
             {/* Package Managers Sub-section */}
-            <RuntimeSubSection title="Package Manager">
+            <RuntimeSubSection title={t('runtime.nodejs.packageManager.title')}>
               <div className="bg-background rounded-lg border border-border">
                 <div className="p-3">
                   <RuntimeRow
@@ -732,7 +737,7 @@ export function AgentsRuntimeTab() {
 
               {/* Default Package Manager */}
               <div className="mt-3 flex flex-col gap-2">
-                <Label className="text-sm font-medium">Default Package Manager</Label>
+                <Label className="text-sm font-medium">{t('runtime.nodejs.packageManager.default')}</Label>
                 <Select
                   value={packageManager}
                   onValueChange={(value) => setPackageManager(value as PackageManager)}
@@ -741,7 +746,7 @@ export function AgentsRuntimeTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto">Auto-detect</SelectItem>
+                    <SelectItem value="auto">{t('runtime.nodejs.packageManager.auto')}</SelectItem>
                     <SelectItem value="bun">bun</SelectItem>
                     <SelectItem value="npm">npm</SelectItem>
                     <SelectItem value="yarn">yarn</SelectItem>
@@ -749,15 +754,15 @@ export function AgentsRuntimeTab() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Auto-detect will choose based on the project's lock file
+                  {t('runtime.nodejs.packageManager.hint')}
                 </p>
               </div>
             </RuntimeSubSection>
 
             {/* Debug Settings Sub-section */}
-            <RuntimeSubSection title="Debug Settings">
+            <RuntimeSubSection title={t('runtime.nodejs.debug.title')}>
               <div className="flex flex-col gap-2">
-                <Label className="text-sm font-medium">Default Debug Port</Label>
+                <Label className="text-sm font-medium">{t('runtime.nodejs.debug.port')}</Label>
                 <Input
                   type="number"
                   value={debugPort}
@@ -767,7 +772,7 @@ export function AgentsRuntimeTab() {
                   max={65535}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Port used for Node.js inspector when running in debug mode (default: 9229)
+                  {t('runtime.nodejs.debug.portHint')}
                 </p>
               </div>
             </RuntimeSubSection>
@@ -785,12 +790,12 @@ export function AgentsRuntimeTab() {
               <path d="M1.811 10.231c-.047 0-.058-.023-.035-.059l.246-.315c.023-.035.081-.058.128-.058h4.172c.046 0 .058.035.035.07l-.199.303c-.023.036-.082.07-.117.07zM.047 11.306c-.047 0-.059-.023-.035-.058l.245-.316c.023-.035.082-.058.129-.058h5.328c.047 0 .07.035.058.07l-.093.28c-.012.047-.058.07-.105.07zm2.828 1.075c-.047 0-.059-.035-.035-.07l.163-.292c.023-.035.07-.07.117-.07h2.337c.047 0 .07.035.07.082l-.023.28c0 .047-.047.082-.082.082zm12.129-2.36c-.736.187-1.239.327-1.963.514-.176.046-.187.058-.339-.117-.176-.199-.304-.327-.548-.444-.737-.362-1.45-.257-2.115.175-.795.514-1.204 1.274-1.192 2.22.011.935.654 1.706 1.577 1.835.795.105 1.46-.175 1.987-.77.105-.13.199-.27.328-.456H10.18c-.245 0-.304-.152-.222-.35.152-.362.432-.97.596-1.274a.315.315 0 01.292-.187h4.253c-.023.316-.023.631-.07.947a4.983 4.983 0 01-.958 2.29c-.841 1.11-1.94 1.8-3.33 1.986-1.145.152-2.209-.07-3.143-.77-.865-.655-1.356-1.52-1.484-2.595-.152-1.274.222-2.419.993-3.424.83-1.086 1.928-1.776 3.272-2.02 1.098-.2 2.15-.07 3.096.571.62.41 1.063.947 1.356 1.602.058.082.023.117-.07.14z" />
             </svg>
           }
-          title="Go"
-          description="Go compiler and tools"
+          title={t('runtime.go.title')}
+          description={t('runtime.go.description')}
           disabled={true}
         >
           <div className="text-sm text-muted-foreground">
-            Go runtime configuration coming soon.
+            {t('runtime.go.comingSoon')}
           </div>
         </RuntimeSection>
 
@@ -802,12 +807,12 @@ export function AgentsRuntimeTab() {
               <path d="M23.687 11.709l-.995-.616a13.559 13.559 0 00-.028-.29l.855-.79a.249.249 0 00-.106-.42l-1.103-.303a10.245 10.245 0 00-.084-.283l.68-.943a.249.249 0 00-.168-.393l-1.137-.124a12.15 12.15 0 00-.136-.27l.476-1.072a.249.249 0 00-.226-.351l-1.143.06a7.847 7.847 0 00-.183-.248l.254-1.168a.249.249 0 00-.278-.294l-1.118.238a9.778 9.778 0 00-.224-.219l.02-1.22a.249.249 0 00-.32-.229l-1.063.41a8.94 8.94 0 00-.26-.183l-.216-1.168a.249.249 0 00-.356-.153l-.98.567a9.582 9.582 0 00-.291-.14l-.443-1.085a.249.249 0 00-.381-.094l-.869.708a8.869 8.869 0 00-.313-.09l-.654-.97a.249.249 0 00-.395-.027l-.731.831a9.95 9.95 0 00-.326-.034l-.848-.826a.249.249 0 00-.396.044l-.571.932a9.27 9.27 0 00-.33.024l-1.017-.658a.249.249 0 00-.385.121l-.394 1.005a9.402 9.402 0 00-.325.08l-1.156-.469a.249.249 0 00-.361.19l-.199 1.048a8.746 8.746 0 00-.311.132l-1.262-.264a.249.249 0 00-.325.247l.004 1.058a8.17 8.17 0 00-.29.18l-1.332-.048a.249.249 0 00-.28.297l.202 1.036a8.464 8.464 0 00-.26.222l-1.362.174a.249.249 0 00-.225.335l.394.983a9.162 9.162 0 00-.222.259l-1.351.394a.249.249 0 00-.164.36l.575.899a10.963 10.963 0 00-.175.29l-1.298.605a.249.249 0 00-.096.374l.74.782a9.026 9.026 0 00-.122.313l-1.203.8a.249.249 0 00-.026.38l.885.639a9.812 9.812 0 00-.063.325l-1.071.976a.249.249 0 00.045.375l1.004.47a8.284 8.284 0 000 .327l-1.003.469a.249.249 0 00-.046.376l1.072.976c.017.11.038.218.062.325l-.885.639a.249.249 0 00.025.38l1.203.8c.037.105.078.21.122.313l-.74.783a.249.249 0 00.097.373l1.297.605c.055.097.113.194.175.29l-.575.898a.249.249 0 00.164.361l1.351.395c.072.087.146.173.222.258l-.394.983a.249.249 0 00.225.336l1.363.173c.084.075.17.15.259.222l-.201 1.036a.249.249 0 00.279.297l1.332-.048c.095.062.191.122.29.18l-.004 1.058a.249.249 0 00.325.247l1.262-.264c.102.046.206.09.31.132l.2 1.048a.249.249 0 00.36.19l1.156-.47c.107.029.215.055.325.08l.394 1.006a.249.249 0 00.385.12l1.017-.657c.109.01.219.018.33.024l.57.932a.249.249 0 00.397.044l.848-.826c.108 0 .217-.02.326-.034l.731.831a.249.249 0 00.395-.027l.655-.97c.104-.027.209-.057.313-.09l.868.708a.249.249 0 00.382-.094l.442-1.085c.097-.045.194-.091.291-.14l.98.567a.249.249 0 00.356-.153l.216-1.168c.088-.058.174-.12.26-.183l1.063.41a.249.249 0 00.319-.228l-.02-1.221c.076-.071.151-.145.224-.219l1.118.238a.249.249 0 00.278-.294l-.254-1.167c.063-.081.124-.164.183-.248l1.144.06a.249.249 0 00.226-.352l-.476-1.072c.048-.088.093-.179.136-.27l1.138-.123a.249.249 0 00.168-.393l-.68-.943c.03-.094.058-.188.084-.283l1.103-.303a.249.249 0 00.106-.42l-.855-.79c.013-.096.022-.193.028-.29l.995-.616a.249.249 0 000-.424z" />
             </svg>
           }
-          title="Rust"
-          description="Rust compiler and Cargo"
+          title={t('runtime.rust.title')}
+          description={t('runtime.rust.description')}
           disabled={true}
         >
           <div className="text-sm text-muted-foreground">
-            Rust runtime configuration coming soon.
+            {t('runtime.rust.comingSoon')}
           </div>
         </RuntimeSection>
       </div>

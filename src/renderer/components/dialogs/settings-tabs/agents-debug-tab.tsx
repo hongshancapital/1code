@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { Button } from "../../ui/button"
 import { Switch } from "../../ui/switch"
 import { trpc } from "../../../lib/trpc"
@@ -58,6 +59,7 @@ function unloadReactScan(): void {
 }
 
 export function AgentsDebugTab() {
+  const { t } = useTranslation("settings")
   const [copiedPath, setCopiedPath] = useState(false)
   const [copiedInfo, setCopiedInfo] = useState(false)
   const [reactScanEnabled, setReactScanEnabled] = useState(false)
@@ -78,10 +80,10 @@ export function AgentsDebugTab() {
   const setOfflineSimulationMutation = trpc.debug.setOfflineSimulation.useMutation({
     onSuccess: (data) => {
       refetchOfflineSimulation()
-      toast.success(data.enabled ? "Offline simulation enabled" : "Offline simulation disabled", {
+      toast.success(data.enabled ? t('debug.toast.offlineSimEnabled') : t('debug.toast.offlineSimDisabled'), {
         description: data.enabled
-          ? "App will behave as if offline"
-          : "Network detection restored to normal"
+          ? t('debug.toast.offlineSimEnabledDesc')
+          : t('debug.toast.offlineSimDisabledDesc')
       })
     },
     onError: (error) => toast.error(error.message),
@@ -95,7 +97,7 @@ export function AgentsDebugTab() {
   // Mutations
   const clearChatsMutation = trpc.debug.clearChats.useMutation({
     onSuccess: () => {
-      toast.success("All chats cleared")
+      toast.success(t('debug.toast.allChatsCleared'))
       refetchDb()
     },
     onError: (error) => toast.error(error.message),
@@ -105,7 +107,7 @@ export function AgentsDebugTab() {
     onSuccess: () => {
       // Clear localStorage (onboarding state, preferences, etc.)
       localStorage.clear()
-      toast.success("All data cleared. Reloading...")
+      toast.success(t('debug.toast.allDataCleared'))
       setTimeout(() => window.location.reload(), 500)
     },
     onError: (error) => toast.error(error.message),
@@ -118,7 +120,7 @@ export function AgentsDebugTab() {
     localStorage.removeItem("onboarding:anthropic-completed")
     localStorage.removeItem("onboarding:api-key-completed")
     localStorage.removeItem("onboarding:litellm-completed")
-    toast.success("Onboarding reset. Reloading...")
+    toast.success(t('debug.toast.onboardingReset'))
     setTimeout(() => window.location.reload(), 500)
   }
 
@@ -142,7 +144,7 @@ export function AgentsDebugTab() {
     }
     await navigator.clipboard.writeText(JSON.stringify(info, null, 2))
     setCopiedInfo(true)
-    toast.success("Debug info copied to clipboard")
+    toast.success(t('debug.toast.debugInfoCopied'))
     setTimeout(() => setCopiedInfo(false), 2000)
   }
 
@@ -159,15 +161,15 @@ export function AgentsDebugTab() {
         await loadReactScan()
         localStorage.setItem(REACT_SCAN_STORAGE_KEY, "true")
         setReactScanEnabled(true)
-        toast.success("React Scan enabled", {
-          description: "Reload the page to see re-render highlights",
+        toast.success(t('debug.toast.reactScanEnabled'), {
+          description: t('debug.toast.reactScanEnabledDesc'),
         })
       } else {
         unloadReactScan()
         localStorage.removeItem(REACT_SCAN_STORAGE_KEY)
         setReactScanEnabled(false)
-        toast.success("React Scan disabled", {
-          description: "Reload the page to fully remove it",
+        toast.success(t('debug.toast.reactScanDisabled'), {
+          description: t('debug.toast.reactScanDisabledDesc'),
         })
       }
     } catch (error) {
@@ -194,9 +196,9 @@ export function AgentsDebugTab() {
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div>
-          <h3 className="text-lg font-semibold mb-1">Debug</h3>
+          <h3 className="text-lg font-semibold mb-1">{t('debug.title')}</h3>
           <p className="text-sm text-muted-foreground">
-            System information and developer tools
+            {t('debug.description')}
           </p>
         </div>
       )}
@@ -204,28 +206,28 @@ export function AgentsDebugTab() {
       {/* System Info */}
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          System Info
+          {t('debug.systemInfo.title')}
         </h4>
         <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow label="Version" value={systemInfo?.version} isLoading={isLoading} />
+          <InfoRow label={t('debug.systemInfo.version')} value={systemInfo?.version} isLoading={isLoading} />
           <InfoRow
-            label="Platform"
+            label={t('debug.systemInfo.platform')}
             value={systemInfo ? `${systemInfo.platform} (${systemInfo.arch})` : undefined}
             isLoading={isLoading}
           />
           <InfoRow
-            label="Dev Mode"
-            value={systemInfo?.isDev ? "Yes" : "No"}
+            label={t('debug.systemInfo.devMode')}
+            value={systemInfo?.isDev ? t('debug.systemInfo.yes') : t('debug.systemInfo.no')}
             isLoading={isLoading}
           />
           <InfoRow
-            label="Protocol"
-            value={systemInfo?.protocolRegistered ? "Registered" : "Not registered"}
+            label={t('debug.systemInfo.protocol')}
+            value={systemInfo?.protocolRegistered ? t('debug.systemInfo.registered') : t('debug.systemInfo.notRegistered')}
             isLoading={isLoading}
             status={systemInfo?.protocolRegistered ? "success" : "warning"}
           />
           <div className="flex items-center justify-between p-3">
-            <span className="text-sm text-muted-foreground">userData</span>
+            <span className="text-sm text-muted-foreground">{t('debug.systemInfo.userData')}</span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-mono truncate max-w-[200px]">
                 {isLoading ? "..." : systemInfo?.userDataPath}
@@ -251,12 +253,12 @@ export function AgentsDebugTab() {
       {/* DB Stats */}
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Database
+          {t('debug.database.title')}
         </h4>
         <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow label="Projects" value={dbStats?.projects?.toString()} isLoading={isLoading} />
-          <InfoRow label="Chats" value={dbStats?.chats?.toString()} isLoading={isLoading} />
-          <InfoRow label="Sub-chats" value={dbStats?.subChats?.toString()} isLoading={isLoading} />
+          <InfoRow label={t('debug.database.projects')} value={dbStats?.projects?.toString()} isLoading={isLoading} />
+          <InfoRow label={t('debug.database.chats')} value={dbStats?.chats?.toString()} isLoading={isLoading} />
+          <InfoRow label={t('debug.database.subChats')} value={dbStats?.subChats?.toString()} isLoading={isLoading} />
         </div>
       </div>
 
@@ -264,16 +266,16 @@ export function AgentsDebugTab() {
       {isDev && (
         <div className="flex flex-col gap-3">
           <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            Developer Tools
+            {t('debug.devTools.title')}
           </h4>
           <div className="rounded-lg border bg-muted/30 divide-y">
             <div className="flex items-center justify-between p-3">
               <div className="flex items-center gap-2">
                 <Scan className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <span className="text-sm">React Scan</span>
+                  <span className="text-sm">{t('debug.devTools.reactScan')}</span>
                   <p className="text-xs text-muted-foreground">
-                    Highlight component re-renders
+                    {t('debug.devTools.reactScanDesc')}
                   </p>
                 </div>
               </div>
@@ -287,9 +289,9 @@ export function AgentsDebugTab() {
               <div className="flex items-center gap-2">
                 <WifiOff className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <span className="text-sm">Simulate Offline</span>
+                  <span className="text-sm">{t('debug.devTools.simulateOffline')}</span>
                   <p className="text-xs text-muted-foreground">
-                    Test offline mode without disconnecting
+                    {t('debug.devTools.simulateOfflineDesc')}
                   </p>
                 </div>
               </div>
@@ -305,9 +307,9 @@ export function AgentsDebugTab() {
               <div className="flex items-center gap-2">
                 <FileJson className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <span className="text-sm">Show Message JSON</span>
+                  <span className="text-sm">{t('debug.devTools.showMessageJson')}</span>
                   <p className="text-xs text-muted-foreground">
-                    Display raw JSON below each message in chat
+                    {t('debug.devTools.showMessageJsonDesc')}
                   </p>
                 </div>
               </div>
@@ -323,7 +325,7 @@ export function AgentsDebugTab() {
       {/* Quick Actions */}
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Quick Actions
+          {t('debug.quickActions.title')}
         </h4>
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -333,11 +335,11 @@ export function AgentsDebugTab() {
             disabled={openFolderMutation.isPending}
           >
             <FolderOpen className="h-4 w-4 mr-2" />
-            Open userData
+            {t('debug.quickActions.openUserData')}
           </Button>
           <Button variant="outline" size="sm" onClick={handleOpenDevTools}>
             <Terminal className="h-4 w-4 mr-2" />
-            DevTools
+            {t('debug.quickActions.devTools')}
           </Button>
           <Button
             variant="outline"
@@ -345,7 +347,7 @@ export function AgentsDebugTab() {
             onClick={() => window.location.reload()}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Reload
+            {t('debug.quickActions.reload')}
           </Button>
           <Button
             variant="outline"
@@ -358,7 +360,7 @@ export function AgentsDebugTab() {
             ) : (
               <Copy className="h-4 w-4 mr-2" />
             )}
-            Copy Info
+            {t('debug.quickActions.copyInfo')}
           </Button>
         </div>
       </div>
@@ -366,7 +368,7 @@ export function AgentsDebugTab() {
       {/* Toast Testing */}
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Toast Testing
+          {t('debug.toastTesting.title')}
         </h4>
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -382,28 +384,28 @@ export function AgentsDebugTab() {
               })
             }
           >
-            Info + Undo
+            {t('debug.toastTesting.infoUndo')}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => toast.success("Success!", { description: "Operation completed" })}
           >
-            Success
+            {t('debug.toastTesting.success')}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => toast.error("Error", { description: "Something went wrong" })}
           >
-            Error
+            {t('debug.toastTesting.error')}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => toast("Default toast", { description: "This is a description" })}
           >
-            Default
+            {t('debug.toastTesting.default')}
           </Button>
           <Button
             variant="outline"
@@ -413,7 +415,7 @@ export function AgentsDebugTab() {
               setTimeout(() => toast.dismiss(id), 3000)
             }}
           >
-            Loading
+            {t('debug.toastTesting.loading')}
           </Button>
           <Button
             variant="outline"
@@ -425,7 +427,7 @@ export function AgentsDebugTab() {
               }, 2000)
             }}
           >
-            Promise
+            {t('debug.toastTesting.promise')}
           </Button>
         </div>
       </div>
@@ -433,47 +435,45 @@ export function AgentsDebugTab() {
       {/* Data Management */}
       <div className="flex flex-col gap-3">
         <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          Data Management
+          {t('debug.dataManagement.title')}
         </h4>
         <div className="grid grid-cols-3 gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("Clear all chats? Projects will be kept.")) {
+              if (confirm(t('debug.dataManagement.confirmClearChats'))) {
                 clearChatsMutation.mutate()
               }
             }}
             disabled={clearChatsMutation.isPending}
           >
-            {clearChatsMutation.isPending ? "..." : "Clear Chats"}
+            {clearChatsMutation.isPending ? "..." : t('debug.dataManagement.clearChats')}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("Reset onboarding? You will see the welcome screen again.")) {
+              if (confirm(t('debug.dataManagement.confirmResetOnboarding'))) {
                 handleResetOnboarding()
               }
             }}
           >
-            Reset Onboarding
+            {t('debug.dataManagement.resetOnboarding')}
           </Button>
           <Button
             variant="destructive"
             size="sm"
             onClick={() => {
               if (
-                confirm(
-                  "Reset everything? This will clear all data and log you out.",
-                )
+                confirm(t('debug.dataManagement.confirmResetAll'))
               ) {
                 clearAllDataMutation.mutate()
               }
             }}
             disabled={clearAllDataMutation.isPending}
           >
-            {clearAllDataMutation.isPending ? "..." : "Reset All"}
+            {clearAllDataMutation.isPending ? "..." : t('debug.dataManagement.resetAll')}
           </Button>
         </div>
       </div>

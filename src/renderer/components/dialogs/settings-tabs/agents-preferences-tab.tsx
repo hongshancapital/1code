@@ -1,5 +1,6 @@
 import { useAtom } from "jotai"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   analyticsOptOutAtom,
   askUserQuestionTimeoutAtom,
@@ -8,12 +9,14 @@ import {
   defaultAgentModeAtom,
   desktopNotificationsEnabledAtom,
   extendedThinkingEnabledAtom,
+  languagePreferenceAtom,
   soundNotificationsEnabledAtom,
   preferredEditorAtom,
   type AgentMode,
   type AskUserQuestionTimeout,
   type AutoAdvanceTarget,
   type CtrlTabTarget,
+  type LanguagePreference,
 } from "../../../lib/atoms"
 import { APP_META, type ExternalApp } from "../../../../shared/external-apps"
 
@@ -143,6 +146,7 @@ function useIsNarrowScreen(): boolean {
 }
 
 export function AgentsPreferencesTab() {
+  const { t } = useTranslation("settings")
   const [thinkingEnabled, setThinkingEnabled] = useAtom(
     extendedThinkingEnabledAtom,
   )
@@ -152,8 +156,9 @@ export function AgentsPreferencesTab() {
   const [ctrlTabTarget, setCtrlTabTarget] = useAtom(ctrlTabTargetAtom)
   const [autoAdvanceTarget, setAutoAdvanceTarget] = useAtom(autoAdvanceTargetAtom)
   const [defaultAgentMode, setDefaultAgentMode] = useAtom(defaultAgentModeAtom)
-const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuestionTimeoutAtom)
+  const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuestionTimeoutAtom)
   const [preferredEditor, setPreferredEditor] = useAtom(preferredEditorAtom)
+  const [languagePreference, setLanguagePreference] = useAtom(languagePreferenceAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
   // Co-authored-by setting from Claude settings.json
@@ -186,12 +191,45 @@ const [askUserQuestionTimeout, setAskUserQuestionTimeout] = useAtom(askUserQuest
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div className="flex flex-col gap-1.5 text-center sm:text-left">
-          <h3 className="text-sm font-semibold text-foreground">Preferences</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t("preferences.title")}</h3>
           <p className="text-xs text-muted-foreground">
-            Configure Claude's behavior and features
+            {t("preferences.description")}
           </p>
         </div>
       )}
+
+      {/* Language */}
+      <div className="bg-background rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t("preferences.language.title")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("preferences.language.description")}
+            </span>
+          </div>
+          <Select
+            value={languagePreference}
+            onValueChange={(value: LanguagePreference) => setLanguagePreference(value)}
+          >
+            <SelectTrigger className="w-auto px-2">
+              <span className="text-xs">
+                {languagePreference === "system"
+                  ? t("preferences.language.system")
+                  : languagePreference === "en"
+                    ? "English"
+                    : "中文"}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system">{t("preferences.language.system")}</SelectItem>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="zh">中文</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Agent Behavior */}
       <div className="bg-background rounded-lg border border-border overflow-hidden">

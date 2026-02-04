@@ -1,12 +1,14 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { BarChart3, ChevronDown, ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Plus, RefreshCw } from "lucide-react"
+import { BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Loader2, MoreHorizontal, Plus, RefreshCw, User } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { UsageDetailsDialog } from "./usage-details-dialog"
 import {
   agentsSettingsDialogOpenAtom,
   anthropicOnboardingCompletedAtom,
   autoOfflineModeAtom,
+  billingMethodAtom,
   customClaudeConfigAtom,
   openaiApiKeyAtom,
   showOfflineModeFeaturesAtom,
@@ -30,6 +32,9 @@ import { Switch } from "../../ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../ui/tooltip"
 import { cn } from "../../../lib/utils"
 
+// Authentication method type: null = OAuth, "litellm", "custom"
+type AuthMethod = "oauth" | "litellm" | "custom"
+
 // LiteLLM model type
 type LiteLLMModel = {
   id: string
@@ -38,46 +43,279 @@ type LiteLLMModel = {
   owned_by: string
 }
 
-// Mode Switcher component
-function ModeSwitcher({
-  mode,
-  onModeChange,
-  litellmAvailable,
+// OAuth Section - shows account connection status
+function OAuthSection() {
+  const { t } = useTranslation('settings')
+  const { data: activeAccount, isLoading } = trpc.anthropicAccounts.getActive.useQuery()
+  const setAnthropicOnboardingCompleted = useSetAtom(anthropicOnboardingCompletedAtom)
+  const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
+  const setBillingMethod = useSetAtom(billingMethodAtom)
+
+  const handleConnect = () => {
+    setSettingsOpen(false)
+    setBillingMethod("claude-subscription")  // 设置 billingMethod 以触发 onboarding 页面
+    setAnthropicOnboardingCompleted(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="text-sm">{t('models.auth.oauth.checking')}</span>
+      </div>
+    )
+  }
+
+  if (activeAccount) {
+    return (
+      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md mt-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <div className="text-sm font-medium">
+              {activeAccount.displayName || activeAccount.email || t('models.auth.oauth.title')}
+            </div>
+            <div className="text-xs text-muted-foreground">{t('models.auth.oauth.connected')}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open("https://claude.ai/settings/usage", "_blank")}
+            className="text-muted-foreground"
+          >
+            <ExternalLink className="w-3 h-3 mr-1" />
+            {t('models.usage.viewDetails')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleConnect}>
+            {t('models.auth.oauth.reconnect')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3">
+      <Button onClick={handleConnect} className="w-full">
+        {t('models.auth.oauth.connect')}
+      </Button>
+    </div>
+  )
+}
+
+// LiteLLM Section - model selector
+function LiteLLMSection() {
+  const { t } = useTranslation('settings')
+  const [litellmSelectedModel, setLitellmSelectedModel] = useAtom(litellmSelectedModelAtom)
+  const { data: litellmConfig } = trpc.litellm.getConfig.useQuery()
+  const { data: litellmModelsData, isLoading: isLoadingModels, refetch: refetchModels } = trpc.litellm.getModels.useQuery(undefined, {
+    enabled: litellmConfig?.available === true,
+  })
+
+  const litellmModels = litellmModelsData?.models || []
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Label className="text-xs text-muted-foreground">{t('models.auth.litellm.selectModel')}</Label>
+        <button
+          onClick={() => refetchModels()}
+          disabled={isLoadingModels}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          title="Refresh model list"
+        >
+          <RefreshCw className={cn("w-3 h-3", isLoadingModels && "animate-spin")} />
+        </button>
+      </div>
+      {isLoadingModels ? (
+        <div className="flex items-center justify-center h-9 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          {t('models.auth.litellm.loading')}
+        </div>
+      ) : litellmModels.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm focus:outline-hidden focus:ring-1 focus:ring-ring"
+            >
+              <span className={cn(!litellmSelectedModel && "text-muted-foreground")}>
+                {litellmSelectedModel || t('models.auth.litellm.selectPlaceholder')}
+              </span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-full max-h-64 overflow-y-auto">
+            {litellmModels.map((m) => (
+              <DropdownMenuItem
+                key={m.id}
+                onClick={() => {
+                  setLitellmSelectedModel(m.id)
+                  toast.success(`Model set to ${m.id}`)
+                }}
+                className={cn(litellmSelectedModel === m.id && "bg-accent")}
+              >
+                <span className="truncate">{m.id}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div className="text-sm text-muted-foreground p-2 bg-muted/30 rounded">
+          {litellmModelsData?.error || t('models.auth.litellm.noModels')}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Custom API Section - manual configuration
+function CustomAPISection() {
+  const { t } = useTranslation('settings')
+  const [storedConfig, setStoredConfig] = useAtom(customClaudeConfigAtom)
+  const [model, setModel] = useState(storedConfig.model)
+  const [baseUrl, setBaseUrl] = useState(storedConfig.baseUrl)
+  const [token, setToken] = useState(storedConfig.token)
+
+  const savedConfigRef = useRef(storedConfig)
+
+  // Sync from storage
+  useEffect(() => {
+    setModel(storedConfig.model)
+    setBaseUrl(storedConfig.baseUrl)
+    setToken(storedConfig.token)
+  }, [storedConfig.model, storedConfig.baseUrl, storedConfig.token])
+
+  const handleBlurSave = useCallback(() => {
+    const trimmedModel = model.trim()
+    const trimmedBaseUrl = baseUrl.trim()
+    const trimmedToken = token.trim()
+
+    if (trimmedModel && trimmedBaseUrl && trimmedToken) {
+      const next: CustomClaudeConfig = {
+        model: trimmedModel,
+        token: trimmedToken,
+        baseUrl: trimmedBaseUrl,
+      }
+      if (
+        next.model !== savedConfigRef.current.model ||
+        next.token !== savedConfigRef.current.token ||
+        next.baseUrl !== savedConfigRef.current.baseUrl
+      ) {
+        setStoredConfig(next)
+        savedConfigRef.current = next
+      }
+    } else if (!trimmedModel && !trimmedBaseUrl && !trimmedToken) {
+      const EMPTY_CONFIG = { model: "", token: "", baseUrl: "" }
+      if (savedConfigRef.current.model || savedConfigRef.current.token || savedConfigRef.current.baseUrl) {
+        setStoredConfig(EMPTY_CONFIG)
+        savedConfigRef.current = EMPTY_CONFIG
+      }
+    }
+  }, [model, baseUrl, token, setStoredConfig])
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div>
+        <Label className="text-xs text-muted-foreground">{t('models.auth.custom.baseUrl')}</Label>
+        <Input
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          onBlur={handleBlurSave}
+          placeholder="https://api.anthropic.com"
+          className="mt-1"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground">{t('models.auth.custom.apiToken')}</Label>
+        <Input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          onBlur={handleBlurSave}
+          placeholder="sk-ant-..."
+          className="mt-1"
+        />
+      </div>
+      <div>
+        <Label className="text-xs text-muted-foreground">{t('models.auth.custom.model')}</Label>
+        <Input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          onBlur={handleBlurSave}
+          placeholder="claude-sonnet-4-20250514"
+          className="mt-1"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Auth Method Card component
+function AuthMethodCard({
+  id,
+  title,
+  description,
+  isSelected,
+  onSelect,
+  children,
+  disabled,
+  disabledReason,
 }: {
-  mode: OverrideModelMode
-  onModeChange: (mode: OverrideModelMode) => void
-  litellmAvailable: boolean
+  id: AuthMethod
+  title: string
+  description: string
+  isSelected: boolean
+  onSelect: () => void
+  children?: React.ReactNode
+  disabled?: boolean
+  disabledReason?: string
 }) {
   return (
-    <div className="flex rounded-lg border border-border overflow-hidden">
-      <button
-        onClick={() => litellmAvailable && onModeChange("litellm")}
-        disabled={!litellmAvailable}
-        className={cn(
-          "flex-1 px-4 py-2 text-sm font-medium transition-colors",
-          mode === "litellm"
-            ? "bg-primary text-primary-foreground"
-            : litellmAvailable
-              ? "bg-muted/30 text-muted-foreground hover:bg-muted/50"
-              : "bg-muted/10 text-muted-foreground/50 cursor-not-allowed"
-        )}
-      >
-        LiteLLM
-        {!litellmAvailable && (
-          <span className="ml-1 text-xs">(Not configured)</span>
-        )}
-      </button>
-      <button
-        onClick={() => onModeChange("custom")}
-        className={cn(
-          "flex-1 px-4 py-2 text-sm font-medium transition-colors",
-          mode === "custom"
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
-        )}
-      >
-        Custom
-      </button>
+    <div
+      className={cn(
+        "relative rounded-lg border p-4 transition-colors cursor-pointer",
+        isSelected
+          ? "border-primary bg-primary/5"
+          : disabled
+            ? "border-border bg-muted/20 cursor-not-allowed opacity-60"
+            : "border-border hover:border-primary/50 hover:bg-muted/30"
+      )}
+      onClick={() => !disabled && onSelect()}
+    >
+      <div className="flex items-start gap-3">
+        {/* Radio indicator */}
+        <div
+          className={cn(
+            "mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+            isSelected
+              ? "border-primary bg-primary"
+              : disabled
+                ? "border-muted-foreground/30"
+                : "border-muted-foreground/50"
+          )}
+        >
+          {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn("font-medium text-sm", disabled && "text-muted-foreground")}>
+              {title}
+            </span>
+            {disabled && disabledReason && (
+              <span className="text-xs text-muted-foreground">({disabledReason})</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+
+          {/* Expanded content when selected */}
+          {isSelected && children}
+        </div>
+      </div>
     </div>
   )
 }
@@ -113,14 +351,9 @@ function useIsNarrowScreen(): boolean {
   return isNarrow
 }
 
-const EMPTY_CONFIG: CustomClaudeConfig = {
-  model: "",
-  token: "",
-  baseUrl: "",
-}
-
 // GitHub-style contribution heatmap component (auto-fit width with navigation)
 function ContributionHeatmap() {
+  const { t } = useTranslation('settings')
   const { data: activity } = trpc.usage.getDailyActivity.useQuery()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [numWeeks, setNumWeeks] = useState(20) // Default, will be calculated
@@ -294,7 +527,7 @@ function ContributionHeatmap() {
 
       {/* Header with navigation */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{totalContributions.toLocaleString()} contributions</span>
+        <span>{totalContributions.toLocaleString()} {t('models.usage.contributions')}</span>
         <div className="flex items-center gap-1">
           <button
             onClick={goBack}
@@ -358,8 +591,8 @@ function ContributionHeatmap() {
                   const tooltipContent = (
                     <div className="space-y-0.5">
                       <div className="font-medium">{day.date}</div>
-                      <div>{day.count} requests</div>
-                      <div>{formatTokenCount(day.totalTokens)} tokens</div>
+                      <div>{day.count} {t('models.usage.requests')}</div>
+                      <div>{formatTokenCount(day.totalTokens)} {t('models.usage.tokens')}</div>
                       <div>{formatCost(day.totalCostUsd)}{isEasterEgg ? " 🎉" : ""}</div>
                     </div>
                   )
@@ -406,93 +639,15 @@ function ContributionHeatmap() {
   )
 }
 
-// Account row component
-function AccountRow({
-  account,
-  isActive,
-  onSetActive,
-  onRename,
-  onRemove,
-  isLoading,
-}: {
-  account: {
-    id: string
-    displayName: string | null
-    email: string | null
-    connectedAt: string | null
-  }
-  isActive: boolean
-  onSetActive: () => void
-  onRename: () => void
-  onRemove: () => void
-  isLoading: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between p-3 hover:bg-muted/50">
-      <div className="flex items-center gap-3">
-        <div>
-          <div className="text-sm font-medium">
-            {account.displayName || "Anthropic Account"}
-          </div>
-          {account.email && (
-            <div className="text-xs text-muted-foreground">{account.email}</div>
-          )}
-          {!account.email && account.connectedAt && (
-            <div className="text-xs text-muted-foreground">
-              Connected{" "}
-              {new Date(account.connectedAt).toLocaleDateString(undefined, {
-                dateStyle: "short",
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {!isActive && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onSetActive}
-            disabled={isLoading}
-          >
-            Switch
-          </Button>
-        )}
-        {isActive && (
-          <Badge variant="secondary" className="text-xs">
-            Active
-          </Badge>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon" variant="ghost" className="h-7 w-7">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onRename}>Rename</DropdownMenuItem>
-            <DropdownMenuItem
-              className="data-[highlighted]:bg-red-500/15 data-[highlighted]:text-red-400"
-              onClick={onRemove}
-            >
-              Remove
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  )
-}
-
 // Usage Statistics Section component
 function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }) {
+  const { t } = useTranslation('settings')
   const { data: summary, isLoading } = trpc.usage.getSummary.useQuery()
 
   if (isLoading) {
     return (
       <div className="bg-background rounded-lg border border-border p-4 text-center text-sm text-muted-foreground">
-        Loading usage statistics...
+        {t('models.usage.loading')}
       </div>
     )
   }
@@ -506,7 +661,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-3 rounded-lg bg-muted/30">
-            <div className="text-xs text-muted-foreground mb-1">Today</div>
+            <div className="text-xs text-muted-foreground mb-1">{t('models.usage.today')}</div>
             <div className="text-lg font-semibold">
               {formatTokenCount(summary?.today?.totalTokens || 0)}
             </div>
@@ -515,7 +670,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
             </div>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <div className="text-xs text-muted-foreground mb-1">This Week</div>
+            <div className="text-xs text-muted-foreground mb-1">{t('models.usage.week')}</div>
             <div className="text-lg font-semibold">
               {formatTokenCount(summary?.week?.totalTokens || 0)}
             </div>
@@ -524,7 +679,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
             </div>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <div className="text-xs text-muted-foreground mb-1">This Month</div>
+            <div className="text-xs text-muted-foreground mb-1">{t('models.usage.month')}</div>
             <div className="text-lg font-semibold">
               {formatTokenCount(summary?.month?.totalTokens || 0)}
             </div>
@@ -533,7 +688,7 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
             </div>
           </div>
           <div className="p-3 rounded-lg bg-muted/30">
-            <div className="text-xs text-muted-foreground mb-1">All Time</div>
+            <div className="text-xs text-muted-foreground mb-1">{t('models.usage.allTime')}</div>
             <div className="text-lg font-semibold">
               {formatTokenCount(summary?.total?.totalTokens || 0)}
             </div>
@@ -547,157 +702,22 @@ function UsageStatisticsSection({ onViewDetails }: { onViewDetails: () => void }
       <div className="bg-muted p-3 rounded-b-lg flex justify-end border-t">
         <Button size="sm" variant="outline" onClick={onViewDetails}>
           <BarChart3 className="h-3 w-3 mr-1" />
-          View Details
+          {t('models.usage.viewDetails')}
         </Button>
       </div>
     </div>
   )
 }
 
-// Anthropic accounts section component
-function AnthropicAccountsSection() {
-  const { data: accounts, isLoading: isAccountsLoading, refetch: refetchList } =
-    trpc.anthropicAccounts.list.useQuery(undefined, {
-      refetchOnMount: true,
-      staleTime: 0,
-    })
-  const { data: activeAccount, refetch: refetchActive } =
-    trpc.anthropicAccounts.getActive.useQuery(undefined, {
-      refetchOnMount: true,
-      staleTime: 0,
-    })
-  const { data: claudeCodeIntegration } = trpc.claudeCode.getIntegration.useQuery()
-  const trpcUtils = trpc.useUtils()
-
-  // Auto-migrate legacy account if needed
-  const migrateLegacy = trpc.anthropicAccounts.migrateLegacy.useMutation({
-    onSuccess: async () => {
-      await refetchList()
-      await refetchActive()
-    },
-  })
-
-  // Trigger migration if: no accounts, not loading, has legacy connection, not already migrating
-  useEffect(() => {
-    if (
-      !isAccountsLoading &&
-      accounts?.length === 0 &&
-      claudeCodeIntegration?.isConnected &&
-      !migrateLegacy.isPending &&
-      !migrateLegacy.isSuccess
-    ) {
-      migrateLegacy.mutate()
-    }
-  }, [isAccountsLoading, accounts, claudeCodeIntegration, migrateLegacy])
-
-  const setActiveMutation = trpc.anthropicAccounts.setActive.useMutation({
-    onSuccess: () => {
-      trpcUtils.anthropicAccounts.list.invalidate()
-      trpcUtils.anthropicAccounts.getActive.invalidate()
-      trpcUtils.claudeCode.getIntegration.invalidate()
-      toast.success("Account switched")
-    },
-    onError: (err) => {
-      toast.error(`Failed to switch account: ${err.message}`)
-    },
-  })
-
-  const renameMutation = trpc.anthropicAccounts.rename.useMutation({
-    onSuccess: () => {
-      trpcUtils.anthropicAccounts.list.invalidate()
-      trpcUtils.anthropicAccounts.getActive.invalidate()
-      toast.success("Account renamed")
-    },
-    onError: (err) => {
-      toast.error(`Failed to rename account: ${err.message}`)
-    },
-  })
-
-  const removeMutation = trpc.anthropicAccounts.remove.useMutation({
-    onSuccess: () => {
-      trpcUtils.anthropicAccounts.list.invalidate()
-      trpcUtils.anthropicAccounts.getActive.invalidate()
-      trpcUtils.claudeCode.getIntegration.invalidate()
-      toast.success("Account removed")
-    },
-    onError: (err) => {
-      toast.error(`Failed to remove account: ${err.message}`)
-    },
-  })
-
-  const handleRename = (accountId: string, currentName: string | null) => {
-    const newName = window.prompt(
-      "Enter new name for this account:",
-      currentName || "Anthropic Account"
-    )
-    if (newName && newName.trim()) {
-      renameMutation.mutate({ accountId, displayName: newName.trim() })
-    }
-  }
-
-  const handleRemove = (accountId: string, displayName: string | null) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to remove "${displayName || "this account"}"? You will need to re-authenticate to use it again.`
-    )
-    if (confirmed) {
-      removeMutation.mutate({ accountId })
-    }
-  }
-
-  const isLoading =
-    setActiveMutation.isPending ||
-    renameMutation.isPending ||
-    removeMutation.isPending
-
-  // Don't show section if no accounts
-  if (!isAccountsLoading && (!accounts || accounts.length === 0)) {
-    return null
-  }
-
-  return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden divide-y divide-border">
-        {isAccountsLoading ? (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            Loading accounts...
-          </div>
-        ) : (
-          accounts?.map((account) => (
-            <AccountRow
-              key={account.id}
-              account={account}
-              isActive={activeAccount?.id === account.id}
-              onSetActive={() => setActiveMutation.mutate({ accountId: account.id })}
-              onRename={() => handleRename(account.id, account.displayName)}
-              onRemove={() => handleRemove(account.id, account.displayName)}
-              isLoading={isLoading}
-            />
-          ))
-        )}
-    </div>
-  )
-}
-
 export function AgentsModelsTab() {
-  // Custom model config state
-  const [storedConfig, setStoredConfig] = useAtom(customClaudeConfigAtom)
-  const [model, setModel] = useState(storedConfig.model)
-  const [baseUrl, setBaseUrl] = useState(storedConfig.baseUrl)
-  const [token, setToken] = useState(storedConfig.token)
-
-  // Override mode state
+  const { t } = useTranslation('settings')
+  // Override mode state: null = OAuth, "litellm", "custom"
   const [overrideMode, setOverrideMode] = useAtom(overrideModelModeAtom)
   const [litellmSelectedModel, setLitellmSelectedModel] = useAtom(litellmSelectedModelAtom)
 
   const [autoOffline, setAutoOffline] = useAtom(autoOfflineModeAtom)
   const [usageDetailsOpen, setUsageDetailsOpen] = useState(false)
-  const setAnthropicOnboardingCompleted = useSetAtom(
-    anthropicOnboardingCompletedAtom,
-  )
-  const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const isNarrowScreen = useIsNarrowScreen()
-  const { data: claudeCodeIntegration, isLoading: isClaudeCodeLoading } =
-    trpc.claudeCode.getIntegration.useQuery()
-  const isClaudeCodeConnected = claudeCodeIntegration?.isConnected
 
   // Get Ollama status
   const { data: ollamaStatus } = trpc.ollama.getStatus.useQuery(undefined, {
@@ -715,91 +735,41 @@ export function AgentsModelsTab() {
 
   // LiteLLM config from backend (env-based)
   const { data: litellmConfig } = trpc.litellm.getConfig.useQuery()
-  const { data: litellmModelsData, isLoading: isLoadingModels, refetch: refetchModels } = trpc.litellm.getModels.useQuery(undefined, {
+  const { data: litellmModelsData } = trpc.litellm.getModels.useQuery(undefined, {
     enabled: litellmConfig?.available === true,
   })
 
   const litellmAvailable = litellmConfig?.available === true
-  const litellmModels = litellmModelsData?.models || []
 
-  // Auto-select LiteLLM mode if available and no mode selected
-  useEffect(() => {
-    if (overrideMode === null && litellmAvailable) {
-      setOverrideMode("litellm")
+  // Convert overrideMode to authMethod for UI
+  const authMethod: AuthMethod = overrideMode === null ? "oauth" : overrideMode as AuthMethod
+
+  // Handle auth method change
+  const handleAuthMethodChange = (method: AuthMethod) => {
+    const newMode = method === "oauth" ? null : method
+    setOverrideMode(newMode)
+    if (method === "oauth") {
+      toast.success("Using Anthropic Account")
+    } else if (method === "litellm") {
+      toast.success("Using LiteLLM Proxy")
+    } else {
+      toast.success("Using Custom API")
     }
-  }, [overrideMode, litellmAvailable, setOverrideMode])
+  }
 
-  // Auto-select default model if available and no model selected
+  // Auto-select default model if LiteLLM and no model selected
   useEffect(() => {
     if (overrideMode === "litellm" && litellmModelsData?.defaultModel && !litellmSelectedModel) {
       setLitellmSelectedModel(litellmModelsData.defaultModel)
     }
   }, [overrideMode, litellmModelsData?.defaultModel, litellmSelectedModel, setLitellmSelectedModel])
 
-  // Sync custom config from storage
-  useEffect(() => {
-    setModel(storedConfig.model)
-    setBaseUrl(storedConfig.baseUrl)
-    setToken(storedConfig.token)
-  }, [storedConfig.model, storedConfig.baseUrl, storedConfig.token])
-
   useEffect(() => {
     setOpenaiKey(storedOpenAIKey)
   }, [storedOpenAIKey])
 
-  const savedConfigRef = useRef(storedConfig)
-
-  const handleBlurSave = useCallback(() => {
-    const trimmedModel = model.trim()
-    const trimmedBaseUrl = baseUrl.trim()
-    const trimmedToken = token.trim()
-
-    // Only save if all fields are filled
-    if (trimmedModel && trimmedBaseUrl && trimmedToken) {
-      const next: CustomClaudeConfig = {
-        model: trimmedModel,
-        token: trimmedToken,
-        baseUrl: trimmedBaseUrl,
-      }
-      if (
-        next.model !== savedConfigRef.current.model ||
-        next.token !== savedConfigRef.current.token ||
-        next.baseUrl !== savedConfigRef.current.baseUrl
-      ) {
-        setStoredConfig(next)
-        savedConfigRef.current = next
-      }
-    } else if (!trimmedModel && !trimmedBaseUrl && !trimmedToken) {
-      // All cleared — reset
-      if (savedConfigRef.current.model || savedConfigRef.current.token || savedConfigRef.current.baseUrl) {
-        setStoredConfig(EMPTY_CONFIG)
-        savedConfigRef.current = EMPTY_CONFIG
-      }
-    }
-  }, [model, baseUrl, token, setStoredConfig])
-
-  const handleReset = () => {
-    setStoredConfig(EMPTY_CONFIG)
-    savedConfigRef.current = EMPTY_CONFIG
-    setModel("")
-    setBaseUrl("")
-    setToken("")
-    toast.success("Model settings reset")
-  }
-
-  const canReset = Boolean(model.trim() || baseUrl.trim() || token.trim())
-
-  const handleClaudeCodeSetup = () => {
-    // Don't disconnect - just open onboarding to add a new account
-    // The previous code was calling disconnectClaudeCode.mutate() which
-    // deleted the active account when users tried to add a new one
-    setSettingsOpen(false)
-    setAnthropicOnboardingCompleted(false)
-  }
-
   // OpenAI key handlers
   const trimmedOpenAIKey = openaiKey.trim()
-  const canSaveOpenAI = trimmedOpenAIKey !== storedOpenAIKey
   const canResetOpenAI = !!trimmedOpenAIKey
 
   const handleSaveOpenAI = async () => {
@@ -837,9 +807,9 @@ export function AgentsModelsTab() {
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div className="flex flex-col space-y-1.5 text-center sm:text-left">
-          <h3 className="text-sm font-semibold text-foreground">Models</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('models.title')}</h3>
           <p className="text-xs text-muted-foreground">
-            Configure model overrides and Claude Code authentication
+            {t('models.description')}
           </p>
         </div>
       )}
@@ -848,7 +818,7 @@ export function AgentsModelsTab() {
       {showOfflineFeatures && (
         <div className="space-y-2">
           <div className="pb-2">
-            <h4 className="text-sm font-medium text-foreground">Offline Mode</h4>
+            <h4 className="text-sm font-medium text-foreground">{t('models.offline.title')}</h4>
           </div>
 
           <div className="bg-background rounded-lg border border-border overflow-hidden">
@@ -857,24 +827,24 @@ export function AgentsModelsTab() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <span className="text-sm font-medium text-foreground">
-                    Ollama Status
+                    {t('models.offline.ollamaStatus.title')}
                   </span>
                   <p className="text-xs text-muted-foreground">
                     {ollamaStatus?.ollama.available
-                      ? `Running - ${ollamaStatus.ollama.models.length} model${ollamaStatus.ollama.models.length !== 1 ? 's' : ''} installed`
-                      : 'Not running or not installed'}
+                      ? `${t('models.offline.ollamaStatus.running')} - ${t('models.offline.ollamaStatus.modelsInstalled', { count: ollamaStatus.ollama.models.length })}`
+                      : t('models.offline.ollamaStatus.notRunning')}
                   </p>
                   {ollamaStatus?.ollama.recommendedModel && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Recommended: {ollamaStatus.ollama.recommendedModel}
+                      {t('models.offline.ollamaStatus.recommended', { model: ollamaStatus.ollama.recommendedModel })}
                     </p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   {ollamaStatus?.ollama.available ? (
-                    <span className="text-green-600 text-sm font-medium">● Available</span>
+                    <span className="text-green-600 text-sm font-medium">● {t('models.offline.ollamaStatus.available')}</span>
                   ) : (
-                    <span className="text-muted-foreground text-sm">○ Unavailable</span>
+                    <span className="text-muted-foreground text-sm">○ {t('models.offline.ollamaStatus.unavailable')}</span>
                   )}
                 </div>
               </div>
@@ -883,10 +853,10 @@ export function AgentsModelsTab() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <span className="text-sm font-medium text-foreground">
-                    Auto Offline Mode
+                    {t('models.offline.autoOffline.title')}
                   </span>
                   <p className="text-xs text-muted-foreground">
-                    Automatically use Ollama when internet is unavailable
+                    {t('models.offline.autoOffline.description')}
                   </p>
                 </div>
                 <Switch
@@ -898,11 +868,11 @@ export function AgentsModelsTab() {
               {/* Info message */}
               {!ollamaStatus?.ollama.available && (
                 <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
-                  <p className="font-medium mb-1">To enable offline mode:</p>
+                  <p className="font-medium mb-1">{t('models.offline.setupInstructions.title')}</p>
                   <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>Install Ollama from <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline">ollama.com</a></li>
-                    <li>Run: <code className="bg-background px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></li>
-                    <li>Ollama will run automatically in the background</li>
+                    <li>{t('models.offline.setupInstructions.step1')} <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline">ollama.com</a></li>
+                    <li>{t('models.offline.setupInstructions.step2')} <code className="bg-background px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></li>
+                    <li>{t('models.offline.setupInstructions.step3')}</li>
                   </ol>
                 </div>
               )}
@@ -911,220 +881,62 @@ export function AgentsModelsTab() {
         </div>
       )}
 
-      {/* Anthropic Accounts Section */}
-      <div className="space-y-2">
-        <div className="pb-2 flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-medium text-foreground">
-              Anthropic Accounts
-            </h4>
-            <p className="text-xs text-muted-foreground">
-              Manage your Claude API accounts
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleClaudeCodeSetup}
-            disabled={isClaudeCodeLoading}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            {isClaudeCodeConnected ? "Add" : "Connect"}
-          </Button>
-        </div>
+      {/* Authentication Method Section - Three options */}
+      <div className="space-y-3">
+        {/* OAuth Option */}
+        <AuthMethodCard
+          id="oauth"
+          title={t('models.auth.oauth.title')}
+          description={t('models.auth.oauth.description')}
+          isSelected={authMethod === "oauth"}
+          onSelect={() => handleAuthMethodChange("oauth")}
+        >
+          <OAuthSection />
+        </AuthMethodCard>
 
-        <AnthropicAccountsSection />
+        {/* LiteLLM Option */}
+        <AuthMethodCard
+          id="litellm"
+          title={t('models.auth.litellm.title')}
+          description={t('models.auth.litellm.description')}
+          isSelected={authMethod === "litellm"}
+          onSelect={() => handleAuthMethodChange("litellm")}
+          disabled={!litellmAvailable}
+          disabledReason={t('models.auth.litellm.notConfigured')}
+        >
+          <LiteLLMSection />
+        </AuthMethodCard>
+
+        {/* Custom API Option */}
+        <AuthMethodCard
+          id="custom"
+          title={t('models.auth.custom.title')}
+          description={t('models.auth.custom.description')}
+          isSelected={authMethod === "custom"}
+          onSelect={() => handleAuthMethodChange("custom")}
+        >
+          <CustomAPISection />
+        </AuthMethodCard>
       </div>
 
       {/* Usage Statistics Section */}
       <div className="space-y-2">
         <div className="pb-2">
           <h4 className="text-sm font-medium text-foreground">
-            Usage Statistics
+            {t('models.usage.title')}
           </h4>
           <p className="text-xs text-muted-foreground">
-            Track your token usage and estimated costs
+            {t('models.usage.description')}
           </p>
         </div>
 
         <UsageStatisticsSection onViewDetails={() => setUsageDetailsOpen(true)} />
       </div>
 
-      <div className="space-y-2">
-        <div className="pb-2">
-          <h4 className="text-sm font-medium text-foreground">
-            Override Model
-          </h4>
-          <p className="text-xs text-muted-foreground">
-            Use a custom model to override default settings
-          </p>
-        </div>
-
-        {/* Mode Switcher */}
-        <ModeSwitcher
-          mode={overrideMode}
-          onModeChange={(newMode) => {
-            setOverrideMode(newMode)
-            if (newMode === "litellm" && litellmSelectedModel) {
-              toast.success(`Model set to ${litellmSelectedModel}`)
-            } else if (newMode === "custom" && model) {
-              toast.success(`Model set to ${model}`)
-            } else if (newMode) {
-              toast.success("Model override enabled")
-            }
-          }}
-          litellmAvailable={litellmAvailable}
-        />
-
-        {/* LiteLLM Mode Content */}
-        {overrideMode === "litellm" && (
-          <div className="bg-background rounded-lg border border-border overflow-hidden">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">Select Model</Label>
-                  <button
-                    onClick={() => refetchModels()}
-                    disabled={isLoadingModels}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                    title="Refresh model list"
-                  >
-                    <RefreshCw className={cn("w-3 h-3", isLoadingModels && "animate-spin")} />
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Available models from LiteLLM proxy
-                </p>
-              </div>
-              <div className="shrink-0 w-80">
-                {isLoadingModels ? (
-                  <div className="flex items-center justify-center h-9 text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Loading...
-                  </div>
-                ) : litellmModels.length > 0 ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="flex items-center justify-between w-full h-9 px-3 rounded-md border border-input bg-transparent text-sm focus:outline-hidden focus:ring-1 focus:ring-ring"
-                      >
-                        <span className={cn(!litellmSelectedModel && "text-muted-foreground")}>
-                          {litellmSelectedModel || "Select a model..."}
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-80 max-h-64 overflow-y-auto">
-                      {litellmModels.map((m) => (
-                        <DropdownMenuItem
-                          key={m.id}
-                          onClick={() => {
-                            setLitellmSelectedModel(m.id)
-                            toast.success(`Model set to ${m.id}`)
-                          }}
-                          className={cn(litellmSelectedModel === m.id && "bg-accent")}
-                        >
-                          <span className="truncate">{m.id}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    {litellmModelsData?.error || "No models available"}
-                  </div>
-                )}
-                {litellmModels.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {litellmModels.length} model{litellmModels.length !== 1 ? "s" : ""} available
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Custom Mode Content */}
-        {overrideMode === "custom" && (
-          <div className="bg-background rounded-lg border border-border overflow-hidden">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex-1">
-                <Label className="text-sm font-medium">Base URL</Label>
-                <p className="text-xs text-muted-foreground">
-                  API endpoint address
-                </p>
-              </div>
-              <div className="shrink-0 w-80">
-                <Input
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  onBlur={handleBlurSave}
-                  className="w-full"
-                  placeholder="https://api.anthropic.com"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <div className="flex-1">
-                <Label className="text-sm font-medium">API Token</Label>
-                <p className="text-xs text-muted-foreground">
-                  Authentication token
-                </p>
-              </div>
-              <div className="shrink-0 w-80">
-                <Input
-                  type="password"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  onBlur={handleBlurSave}
-                  className="w-full"
-                  placeholder="sk-ant-..."
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <div className="flex-1">
-                <Label className="text-sm font-medium">Model Name</Label>
-                <p className="text-xs text-muted-foreground">
-                  Model identifier
-                </p>
-              </div>
-              <div className="shrink-0 w-80">
-                <Input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  onBlur={handleBlurSave}
-                  className="w-full"
-                  placeholder="claude-sonnet-4-20250514"
-                />
-              </div>
-            </div>
-
-            {/* Reset button at the bottom */}
-            {canReset && (
-              <div className="flex justify-end p-4 border-t border-border bg-muted/30">
-                <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10">
-                  Reset
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* No mode selected hint */}
-        {!overrideMode && (
-          <div className="bg-muted/30 rounded-lg border border-border p-4 text-center text-sm text-muted-foreground">
-            Select a mode above to configure a custom model
-          </div>
-        )}
-      </div>
-
       {/* OpenAI API Key for Voice Input */}
       <div className="space-y-2">
         <div className="pb-2 flex items-center justify-between">
-          <h4 className="text-sm font-medium text-foreground">Voice Input</h4>
+          <h4 className="text-sm font-medium text-foreground">{t('models.voice.title')}</h4>
           {canResetOpenAI && (
             <Button
               variant="ghost"
@@ -1133,7 +945,7 @@ export function AgentsModelsTab() {
               disabled={setOpenAIKeyMutation.isPending}
               className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
             >
-              Remove
+              {t('models.voice.openaiKey.remove')}
             </Button>
           )}
         </div>
@@ -1141,9 +953,9 @@ export function AgentsModelsTab() {
         <div className="bg-background rounded-lg border border-border overflow-hidden">
           <div className="flex items-center justify-between gap-6 p-4">
             <div className="flex-1">
-              <Label className="text-sm font-medium">OpenAI API Key</Label>
+              <Label className="text-sm font-medium">{t('models.voice.openaiKey.title')}</Label>
               <p className="text-xs text-muted-foreground">
-                Required for voice transcription (Whisper API). Free users need their own key.
+                {t('models.voice.openaiKey.description')}
               </p>
             </div>
             <div className="shrink-0 w-80">

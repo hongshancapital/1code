@@ -102,22 +102,22 @@ function PluginDetail({
         {/* Info */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label>Version</Label>
+            <Label>{t('plugins.detail.version')}</Label>
             <p className="text-sm text-foreground font-mono">{plugin.version}</p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Source</Label>
+            <Label>{t('plugins.detail.source')}</Label>
             <p className="text-sm text-foreground font-mono">{plugin.source}</p>
           </div>
           {plugin.homepage && (
             <div className="flex flex-col gap-1.5">
-              <Label>Homepage</Label>
+              <Label>{t('plugins.detail.homepage')}</Label>
               <a href={plugin.homepage} target="_blank" rel="noopener noreferrer" className="block text-sm text-blue-400 hover:underline break-all">{plugin.homepage}</a>
             </div>
           )}
           {plugin.tags && plugin.tags.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <Label>Tags</Label>
+              <Label>{t('plugins.detail.tags')}</Label>
               <div className="flex flex-wrap gap-1">
                 {plugin.tags.map((tag) => (
                   <span key={tag} className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tag}</span>
@@ -130,7 +130,7 @@ function PluginDetail({
         {/* Components — clickable, navigate to respective tabs */}
         {plugin.components.commands.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Label>Commands ({plugin.components.commands.length})</Label>
+            <Label>{t('plugins.detail.commands', { count: plugin.components.commands.length })}</Label>
             <div className="flex flex-col gap-1">
               {plugin.components.commands.map((cmd) => (
                 <button
@@ -154,7 +154,7 @@ function PluginDetail({
 
         {plugin.components.skills.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Label>Skills ({plugin.components.skills.length})</Label>
+            <Label>{t('plugins.detail.skills', { count: plugin.components.skills.length })}</Label>
             <div className="flex flex-col gap-1">
               {plugin.components.skills.map((skill) => (
                 <button
@@ -178,7 +178,7 @@ function PluginDetail({
 
         {plugin.components.agents.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Label>Agents ({plugin.components.agents.length})</Label>
+            <Label>{t('plugins.detail.agents', { count: plugin.components.agents.length })}</Label>
             <div className="flex flex-col gap-1">
               {plugin.components.agents.map((agent) => (
                 <button
@@ -202,7 +202,7 @@ function PluginDetail({
 
         {plugin.components.mcpServers.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Label>MCP Servers ({plugin.components.mcpServers.length})</Label>
+            <Label>{t('plugins.detail.mcpServers', { count: plugin.components.mcpServers.length })}</Label>
             <div className="flex flex-col gap-1">
               {plugin.components.mcpServers.map((serverName) => {
                 const serverStatus = mcpServerStatuses[serverName]
@@ -228,10 +228,10 @@ function PluginDetail({
                         disabled={isAuthenticating}
                         onClick={() => onMcpAuth(serverName)}
                       >
-                        {isAuthenticating ? <Loader2 className="h-3 w-3 animate-spin" /> : "Sign in"}
+                        {isAuthenticating ? <Loader2 className="h-3 w-3 animate-spin" /> : t('plugins.detail.signIn')}
                       </Button>
                     ) : isConnected ? (
-                      <span className="text-[11px] text-emerald-500 shrink-0">Connected</span>
+                      <span className="text-[11px] text-emerald-500 shrink-0">{t('plugins.detail.connected')}</span>
                     ) : serverStatus ? (
                       <span className="text-[11px] text-muted-foreground shrink-0">{serverStatus.status}</span>
                     ) : null}
@@ -281,6 +281,7 @@ function PluginListItem({
 
 // --- Main Component ---
 export function AgentsPluginsTab() {
+  const { t } = useTranslation("settings")
   const [selectedPluginSource, setSelectedPluginSource] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -327,15 +328,15 @@ export function AgentsPluginsTab() {
         projectPath: "__global__",
       })
       if (result.success) {
-        toast.success(`${serverName} authenticated`)
+        toast.success(t('plugins.toast.authSuccess', { name: serverName }))
         await refetchMcp()
       } else {
-        toast.error(result.error || "Authentication failed")
+        toast.error(result.error || t('plugins.toast.authFailed'))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Authentication failed")
+      toast.error(error instanceof Error ? error.message : t('plugins.toast.authFailed'))
     }
-  }, [startOAuthMutation, refetchMcp])
+  }, [startOAuthMutation, refetchMcp, t])
 
   const setPluginEnabledMutation = trpc.claudeSettings.setPluginEnabled.useMutation()
 
@@ -421,7 +422,7 @@ export function AgentsPluginsTab() {
         }
       }
 
-      toast.success(enabled ? "Plugin enabled" : "Plugin disabled", {
+      toast.success(enabled ? t('plugins.toast.enabled') : t('plugins.toast.disabled'), {
         description: formatPluginName(plugin.name),
       })
       await refetch()
@@ -451,7 +452,7 @@ export function AgentsPluginsTab() {
           <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
-              placeholder="Search plugins..."
+              placeholder={t('plugins.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
@@ -462,19 +463,19 @@ export function AgentsPluginsTab() {
           <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-xs text-muted-foreground">Loading...</p>
+                <p className="text-xs text-muted-foreground">{t('plugins.loading')}</p>
               </div>
             ) : plugins.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <PluginFilledIcon className="h-8 w-8 text-border mb-3" />
-                <p className="text-sm text-muted-foreground mb-1">No plugins</p>
+                <p className="text-sm text-muted-foreground mb-1">{t('plugins.noPlugins')}</p>
                 <p className="text-[11px] text-muted-foreground/70">
-                  Install plugins to ~/.claude/plugins/
+                  {t('plugins.installHint')}
                 </p>
               </div>
             ) : filteredPlugins.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <p className="text-xs text-muted-foreground">No results found</p>
+                <p className="text-xs text-muted-foreground">{t('plugins.noResults')}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -482,7 +483,7 @@ export function AgentsPluginsTab() {
                 {enabledPlugins.length > 0 && (
                   <div>
                     <p className="sticky top-0 z-10 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1.5 mb-1 bg-muted/80 backdrop-blur-sm rounded-md">
-                      Enabled
+                      {t('plugins.sections.enabled')}
                     </p>
                     <div className="flex flex-col gap-0.5">
                       {enabledPlugins.map((plugin) => (
@@ -532,18 +533,19 @@ export function AgentsPluginsTab() {
             mcpServerStatuses={mcpServerStatuses}
             onMcpAuth={handleMcpAuth}
             isAuthenticating={startOAuthMutation.isPending}
+            t={t}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <PluginFilledIcon className="h-12 w-12 text-border mb-4" />
             <p className="text-sm text-muted-foreground">
               {plugins.length > 0
-                ? "Select a plugin to view details"
-                : "No plugins installed"}
+                ? t('plugins.selectToView')
+                : t('plugins.noPluginsInstalled')}
             </p>
             {plugins.length === 0 && (
               <p className="text-xs text-muted-foreground/70 mt-2">
-                Install plugins to ~/.claude/plugins/marketplaces/
+                {t('plugins.installMarketplaceHint')}
               </p>
             )}
           </div>
