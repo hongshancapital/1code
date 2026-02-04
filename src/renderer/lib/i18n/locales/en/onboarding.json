@@ -1,0 +1,97 @@
+{
+  "welcome": {
+    "title": "Welcome to Hóng",
+    "subtitle": "Your AI-powered coding assistant",
+    "divider": "Connect to Claude",
+    "continueButton": "Get Started"
+  },
+  "billing": {
+    "title": "Connect to Claude",
+    "subtitle": "Choose how you'd like to connect your AI provider.",
+    "claudeSubscription": {
+      "title": "Claude Pro/Max",
+      "subtitle": "Use your Claude subscription for unlimited access."
+    },
+    "apiKey": {
+      "title": "Anthropic API Key",
+      "subtitle": "Pay-as-you-go with your own API key."
+    },
+    "litellm": {
+      "title": "LiteLLM Proxy",
+      "subtitle": "Connect to LiteLLM with model selection."
+    },
+    "customModel": {
+      "title": "Custom Model",
+      "subtitle": "Use a custom base URL and model."
+    },
+    "recommended": "Recommended",
+    "requiresLogin": "Requires login"
+  },
+  "anthropic": {
+    "title": "Connect Claude Code",
+    "subtitle": "Connect your Claude Code subscription to get started",
+    "existingCredentials": "Existing Claude Code credentials found",
+    "authButton": "Auth with Anthropic",
+    "useExistingToken": "Use existing token",
+    "codePlaceholder": "Paste your authentication code here...",
+    "tabOpened": "A new tab has opened for authentication.",
+    "didntOpen": "Didn't open? Click here",
+    "tryAgain": "Try Again",
+    "errors": {
+      "startFailed": "Failed to start authentication",
+      "getUrlFailed": "Failed to get OAuth URL",
+      "submitFailed": "Failed to submit code",
+      "accountNotFound": "Account not found after authentication. Please try again."
+    }
+  },
+  "apiKey": {
+    "title": "Enter API Key",
+    "subtitlePrefix": "Get your API key from ",
+    "consoleLink": "console.anthropic.com",
+    "placeholder": "sk-ant-...",
+    "hint": "Your API key starts with sk-ant-"
+  },
+  "customModel": {
+    "title": "Configure Custom Model",
+    "subtitle": "Enter your custom model configuration",
+    "modelLabel": "Model name",
+    "modelPlaceholder": "claude-sonnet-4-20250514",
+    "modelHint": "Model identifier for API requests",
+    "tokenLabel": "API token",
+    "tokenHint": "Your API key or token",
+    "baseUrlLabel": "Base URL",
+    "baseUrlPlaceholder": "https://api.anthropic.com",
+    "baseUrlHint": "API endpoint URL"
+  },
+  "litellm": {
+    "title": "Connect to LiteLLM",
+    "subtitle": "Configure your LiteLLM proxy connection and select a model.",
+    "baseUrlLabel": "LiteLLM Base URL",
+    "baseUrlPlaceholder": "http://localhost:4000",
+    "baseUrlHint": "The URL of your LiteLLM proxy server",
+    "apiKeyLabel": "API Key",
+    "optional": "(optional)",
+    "apiKeyPlaceholder": "sk-...",
+    "apiKeyHint": "Required if your LiteLLM proxy has authentication enabled",
+    "modelLabel": "Model",
+    "refresh": "Refresh",
+    "noModels": "No models available",
+    "enterUrl": "Enter a base URL to load available models",
+    "modelsAvailable": "{{count}} model(s) available",
+    "connectionFailed": "Failed to connect to LiteLLM",
+    "missingUrl": "Please enter a base URL"
+  },
+  "selectRepo": {
+    "title": "Select a repository",
+    "subtitle": "Choose a local folder to start working with",
+    "selectFolder": "Select folder",
+    "cloneFromGithub": "Clone from GitHub"
+  },
+  "common": {
+    "back": "Back",
+    "continue": "Continue",
+    "connect": "Connect",
+    "skip": "Skip",
+    "quit": "Quit"
+  }
+}

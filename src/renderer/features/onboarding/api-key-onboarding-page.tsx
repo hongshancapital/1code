@@ -2,7 +2,8 @@
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useState, useEffect } from "react"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { IconSpinner, KeyFilledIcon, SettingsFilledIcon } from "../../components/ui/icons"
 import { Input } from "../../components/ui/input"
@@ -23,6 +24,7 @@ const isValidApiKey = (key: string) => {
 }
 
 export function ApiKeyOnboardingPage() {
+  const { t } = useTranslation('onboarding')
   const [storedConfig, setStoredConfig] = useAtom(customClaudeConfigAtom)
   const billingMethod = useAtomValue(billingMethodAtom)
   const setBillingMethod = useSetAtom(billingMethodAtom)
@@ -52,6 +54,10 @@ export function ApiKeyOnboardingPage() {
 
   const handleBack = () => {
     setBillingMethod(null)
+  }
+
+  const handleQuit = () => {
+    window.desktopApi?.windowClose()
   }
 
   // Submit for API key mode (simple - just the key)
@@ -130,6 +136,16 @@ export function ApiKeyOnboardingPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
 
+        {/* Quit button - fixed in top right corner */}
+        <button
+          onClick={handleQuit}
+          className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          <X className="h-3.5 w-3.5" />
+          {t('common.quit')}
+        </button>
+
         <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
           {/* Header with dual icons */}
           <div className="text-center flex flex-col gap-4">
@@ -143,17 +159,17 @@ export function ApiKeyOnboardingPage() {
             </div>
             <div className="flex flex-col gap-1">
               <h1 className="text-base font-semibold tracking-tight">
-                Enter API Key
+                {t('apiKey.title')}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Get your API key from{" "}
+                {t('apiKey.subtitlePrefix')}
                 <a
                   href="https://console.anthropic.com"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-foreground hover:underline"
                 >
-                  console.anthropic.com
+                  {t('apiKey.consoleLink')}
                 </a>
               </p>
             </div>
@@ -166,7 +182,7 @@ export function ApiKeyOnboardingPage() {
                 value={apiKey}
                 onChange={handleApiKeyChange}
                 onKeyDown={handleApiKeyKeyDown}
-                placeholder="sk-ant-..."
+                placeholder={t('apiKey.placeholder')}
                 className="font-mono text-center pr-10"
                 autoFocus
                 disabled={isSubmitting}
@@ -178,7 +194,7 @@ export function ApiKeyOnboardingPage() {
               )}
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Your API key starts with sk-ant-
+              {t('apiKey.hint')}
             </p>
           </div>
         </div>
@@ -203,6 +219,16 @@ export function ApiKeyOnboardingPage() {
         <ChevronLeft className="h-5 w-5" />
       </button>
 
+      {/* Quit button - fixed in top right corner */}
+      <button
+        onClick={handleQuit}
+        className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('common.quit')}
+      </button>
+
       <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header with dual icons */}
         <div className="text-center flex flex-col gap-4">
@@ -216,10 +242,10 @@ export function ApiKeyOnboardingPage() {
           </div>
           <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
-              Configure Custom Model
+              {t('customModel.title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Enter your custom model configuration
+              {t('customModel.subtitle')}
             </p>
           </div>
         </div>
@@ -228,43 +254,43 @@ export function ApiKeyOnboardingPage() {
         <div className="flex flex-col gap-4">
           {/* Model Name */}
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">Model name</Label>
+            <Label className="text-sm font-medium">{t('customModel.modelLabel')}</Label>
             <Input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="claude-sonnet-4-20250514"
+              placeholder={t('customModel.modelPlaceholder')}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
-              Model identifier for API requests
+              {t('customModel.modelHint')}
             </p>
           </div>
 
           {/* API Token */}
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">API token</Label>
+            <Label className="text-sm font-medium">{t('customModel.tokenLabel')}</Label>
             <Input
               type="password"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="sk-ant-..."
+              placeholder={t('apiKey.placeholder')}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
-              Your API key or token
+              {t('customModel.tokenHint')}
             </p>
           </div>
 
           {/* Base URL */}
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium">Base URL</Label>
+            <Label className="text-sm font-medium">{t('customModel.baseUrlLabel')}</Label>
             <Input
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.anthropic.com"
+              placeholder={t('customModel.baseUrlPlaceholder')}
               className="w-full"
             />
-            <p className="text-xs text-muted-foreground">API endpoint URL</p>
+            <p className="text-xs text-muted-foreground">{t('customModel.baseUrlHint')}</p>
           </div>
         </div>
 
@@ -278,7 +304,7 @@ export function ApiKeyOnboardingPage() {
               "opacity-50 cursor-not-allowed"
           )}
         >
-          {isSubmitting ? <IconSpinner className="h-4 w-4" /> : "Continue"}
+          {isSubmitting ? <IconSpinner className="h-4 w-4" /> : t('common.continue')}
         </button>
       </div>
     </div>

@@ -1,8 +1,9 @@
 "use client"
 
 import { useSetAtom } from "jotai"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { ClaudeCodeIcon, IconSpinner } from "../../components/ui/icons"
 import { Input } from "../../components/ui/input"
@@ -33,6 +34,7 @@ type AuthFlowState =
   | { step: "error"; message: string }
 
 export function AnthropicOnboardingPage() {
+  const { t } = useTranslation('onboarding')
   const [flowState, setFlowState] = useState<AuthFlowState>({ step: "idle" })
   const [authCode, setAuthCode] = useState("")
   const [userClickedConnect, setUserClickedConnect] = useState(false)
@@ -51,13 +53,18 @@ export function AnthropicOnboardingPage() {
     setBillingMethod(null)
   }
 
+  const handleQuit = () => {
+    window.desktopApi?.windowClose()
+  }
+
   const formatTokenPreview = (token: string) => {
     const trimmed = token.trim()
     if (trimmed.length <= 16) return trimmed
     return `${trimmed.slice(0, 19)}...${trimmed.slice(-6)}`
   }
 
-  // tRPC mutations
+  // tRPC mutations and utils
+  const utils = trpc.useUtils()
   const startAuthMutation = trpc.claudeCode.startAuth.useMutation()
   const submitCodeMutation = trpc.claudeCode.submitCode.useMutation()
   const openOAuthUrlMutation = trpc.claudeCode.openOAuthUrl.useMutation()
@@ -217,7 +224,16 @@ export function AnthropicOnboardingPage() {
         sessionId,
         code: code.trim(),
       })
-      // Success - mark onboarding as completed
+
+      // 验证账号是否真的被存储到数据库
+      await utils.anthropicAccounts.getActive.invalidate()
+      const activeAccount = await utils.anthropicAccounts.getActive.fetch()
+
+      if (!activeAccount) {
+        throw new Error("Account not found after authentication. Please try again.")
+      }
+
+      // 只有在数据库验证成功后才标记完成
       setAnthropicOnboardingCompleted(true)
     } catch (err) {
       setFlowState({
@@ -270,6 +286,16 @@ export function AnthropicOnboardingPage() {
         <ChevronLeft className="h-5 w-5" />
       </button>
 
+      {/* Quit button - fixed in top right corner */}
+      <button
+        onClick={handleQuit}
+        className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('common.quit')}
+      </button>
+
       <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header with dual icons */}
         <div className="text-center flex flex-col gap-4">
@@ -283,10 +309,10 @@ export function AnthropicOnboardingPage() {
           </div>
           <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
-              Connect Claude Code
+              {t('anthropic.title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Connect your Claude Code subscription to get started
+              {t('anthropic.subtitle')}
             </p>
           </div>
         </div>
@@ -298,7 +324,7 @@ export function AnthropicOnboardingPage() {
             <div className="flex flex-col gap-4 w-full">
               <div className="p-4 bg-muted/50 border border-border rounded-lg">
                 <p className="text-sm font-medium">
-                  Existing Claude Code credentials found
+                  {t('anthropic.existingCredentials')}
                 </p>
                 {existingToken && (
                   <pre className="mt-2 px-2.5 py-2 text-xs text-foreground whitespace-pre-wrap wrap-break-word font-mono bg-background/60 rounded border border-border/60">
@@ -319,7 +345,7 @@ export function AnthropicOnboardingPage() {
                   disabled={isUsingExistingToken}
                   className="h-8 px-3 flex-1 bg-muted text-foreground rounded-lg text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-muted/80 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
-                  Auth with Anthropic
+                  {t('anthropic.authButton')}
                 </button>
                 <button
                   onClick={handleUseExistingToken}
@@ -329,7 +355,7 @@ export function AnthropicOnboardingPage() {
                   {isUsingExistingToken ? (
                     <IconSpinner className="h-4 w-4" />
                   ) : (
-                    "Use existing token"
+                    t('anthropic.useExistingToken')
                   )}
                 </button>
               </div>
@@ -350,7 +376,7 @@ export function AnthropicOnboardingPage() {
                 {userClickedConnect && isLoadingAuth ? (
                   <IconSpinner className="h-4 w-4" />
                 ) : (
-                  "Connect"
+                  t('common.connect')
                 )}
               </button>
             )}
@@ -366,7 +392,7 @@ export function AnthropicOnboardingPage() {
                   value={authCode}
                   onChange={handleCodeChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Paste your authentication code here..."
+                  placeholder={t('anthropic.codePlaceholder')}
                   className="font-mono text-center pr-10"
                   autoFocus
                   disabled={isSubmitting}
@@ -378,7 +404,7 @@ export function AnthropicOnboardingPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                A new tab has opened for authentication.
+                {t('anthropic.tabOpened')}
                 {savedOauthUrl && (
                   <>
                     {" "}
@@ -386,7 +412,7 @@ export function AnthropicOnboardingPage() {
                       onClick={handleOpenFallbackUrl}
                       className="text-primary hover:underline"
                     >
-                      Didn't open? Click here
+                      {t('anthropic.didntOpen')}
                     </button>
                   </>
                 )}
@@ -404,7 +430,7 @@ export function AnthropicOnboardingPage() {
                 onClick={handleConnectClick}
                 className="w-full h-8 px-3 bg-muted text-foreground rounded-lg text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-muted/80 active:scale-[0.97] flex items-center justify-center"
               >
-                Try Again
+                {t('anthropic.tryAgain')}
               </button>
             </div>
           )}

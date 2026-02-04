@@ -2,7 +2,8 @@
 
 import { useAtom, useSetAtom } from "jotai"
 import { useState, useEffect } from "react"
-import { ArrowLeft, Loader2, RefreshCw, AlertCircle } from "lucide-react"
+import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -23,6 +24,7 @@ type LiteLLMModel = {
 }
 
 export function LiteLLMOnboardingPage() {
+  const { t } = useTranslation('onboarding')
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const [litellmConfig, setLitellmConfig] = useAtom(litellmConfigAtom)
   const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
@@ -44,7 +46,7 @@ export function LiteLLMOnboardingPage() {
   const fetchModels = async () => {
     const normalizedUrl = normalizeUrl(baseUrl)
     if (!normalizedUrl) {
-      setModelsError("Please enter a base URL")
+      setModelsError(t('litellm.missingUrl'))
       return
     }
 
@@ -81,7 +83,7 @@ export function LiteLLMOnboardingPage() {
       }
     } catch (error) {
       console.error("[LiteLLM] Failed to fetch models:", error)
-      setModelsError(error instanceof Error ? error.message : "Failed to connect to LiteLLM")
+      setModelsError(error instanceof Error ? error.message : t('litellm.connectionFailed'))
       setModels([])
     } finally {
       setIsLoadingModels(false)
@@ -101,6 +103,10 @@ export function LiteLLMOnboardingPage() {
 
   const handleBack = () => {
     setBillingMethod(null)
+  }
+
+  const handleQuit = () => {
+    window.desktopApi?.windowClose()
   }
 
   const handleContinue = () => {
@@ -133,6 +139,16 @@ export function LiteLLMOnboardingPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
+      {/* Quit button - fixed in top right corner */}
+      <button
+        onClick={handleQuit}
+        className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('common.quit')}
+      </button>
+
       <div className="w-full max-w-[480px] flex flex-col gap-6 px-4">
         {/* Back button */}
         <button
@@ -140,16 +156,16 @@ export function LiteLLMOnboardingPage() {
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back
+          {t('common.back')}
         </button>
 
         {/* Header */}
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold tracking-tight">
-            Connect to LiteLLM
+            {t('litellm.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Configure your LiteLLM proxy connection and select a model.
+            {t('litellm.subtitle')}
           </p>
         </div>
 
@@ -158,36 +174,36 @@ export function LiteLLMOnboardingPage() {
           {/* Base URL */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="baseUrl" className="text-sm font-medium">
-              LiteLLM Base URL
+              {t('litellm.baseUrlLabel')}
             </Label>
             <Input
               id="baseUrl"
               type="url"
-              placeholder="http://localhost:4000"
+              placeholder={t('litellm.baseUrlPlaceholder')}
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               className="h-10"
             />
             <p className="text-xs text-muted-foreground">
-              The URL of your LiteLLM proxy server
+              {t('litellm.baseUrlHint')}
             </p>
           </div>
 
           {/* API Key (optional) */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="apiKey" className="text-sm font-medium">
-              API Key <span className="text-muted-foreground">(optional)</span>
+              {t('litellm.apiKeyLabel')} <span className="text-muted-foreground">{t('litellm.optional')}</span>
             </Label>
             <Input
               id="apiKey"
               type="password"
-              placeholder="sk-..."
+              placeholder={t('litellm.apiKeyPlaceholder')}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               className="h-10"
             />
             <p className="text-xs text-muted-foreground">
-              Required if your LiteLLM proxy has authentication enabled
+              {t('litellm.apiKeyHint')}
             </p>
           </div>
 
@@ -195,7 +211,7 @@ export function LiteLLMOnboardingPage() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="model" className="text-sm font-medium">
-                Model
+                {t('litellm.modelLabel')}
               </Label>
               <button
                 onClick={fetchModels}
@@ -203,7 +219,7 @@ export function LiteLLMOnboardingPage() {
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={cn("w-3 h-3", isLoadingModels && "animate-spin")} />
-                Refresh
+                {t('litellm.refresh')}
               </button>
             </div>
 
@@ -231,17 +247,17 @@ export function LiteLLMOnboardingPage() {
               </select>
             ) : hasLoadedModels ? (
               <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground text-center">
-                No models available
+                {t('litellm.noModels')}
               </div>
             ) : (
               <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground text-center">
-                Enter a base URL to load available models
+                {t('litellm.enterUrl')}
               </div>
             )}
 
             {models.length > 0 && (
               <p className="text-xs text-muted-foreground">
-                {models.length} model{models.length !== 1 ? "s" : ""} available
+                {t('litellm.modelsAvailable', { count: models.length })}
               </p>
             )}
           </div>
@@ -253,7 +269,7 @@ export function LiteLLMOnboardingPage() {
           disabled={!canContinue}
           className="w-full h-10"
         >
-          Continue
+          {t('common.continue')}
         </Button>
       </div>
     </div>

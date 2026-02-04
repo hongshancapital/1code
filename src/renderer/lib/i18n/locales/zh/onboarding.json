@@ -1,0 +1,97 @@
+{
+  "welcome": {
+    "title": "欢迎使用 Hóng",
+    "subtitle": "您的 AI 编码助手",
+    "divider": "连接到 Claude",
+    "continueButton": "开始使用"
+  },
+  "billing": {
+    "title": "连接到 Claude",
+    "subtitle": "选择您希望连接 AI 提供商的方式。",
+    "claudeSubscription": {
+      "title": "Claude Pro/Max",
+      "subtitle": "使用您的 Claude 订阅获得无限访问。"
+    },
+    "apiKey": {
+      "title": "Anthropic API 密钥",
+      "subtitle": "使用您自己的 API 密钥按量付费。"
+    },
+    "litellm": {
+      "title": "LiteLLM 代理",
+      "subtitle": "连接到 LiteLLM 并选择模型。"
+    },
+    "customModel": {
+      "title": "自定义模型",
+      "subtitle": "使用自定义的基础 URL 和模型。"
+    },
+    "recommended": "推荐",
+    "requiresLogin": "需要登录"
+  },
+  "anthropic": {
+    "title": "连接 Claude Code",
+    "subtitle": "连接您的 Claude Code 订阅以开始使用",
+    "existingCredentials": "发现已有的 Claude Code 凭据",
+    "authButton": "通过 Anthropic 认证",
+    "useExistingToken": "使用已有令牌",
+    "codePlaceholder": "在此粘贴您的认证码...",
+    "tabOpened": "已打开新标签页进行认证。",
+    "didntOpen": "没有打开？点击这里",
+    "tryAgain": "重试",
+    "errors": {
+      "startFailed": "启动认证失败",
+      "getUrlFailed": "获取 OAuth URL 失败",
+      "submitFailed": "提交认证码失败",
+      "accountNotFound": "认证后未找到账户，请重试。"
+    }
+  },
+  "apiKey": {
+    "title": "输入 API 密钥",
+    "subtitlePrefix": "从 ",
+    "consoleLink": "console.anthropic.com",
+    "placeholder": "sk-ant-...",
+    "hint": "您的 API 密钥以 sk-ant- 开头"
+  },
+  "customModel": {
+    "title": "配置自定义模型",
+    "subtitle": "输入您的自定义模型配置",
+    "modelLabel": "模型名称",
+    "modelPlaceholder": "claude-sonnet-4-20250514",
+    "modelHint": "用于 API 请求的模型标识符",
+    "tokenLabel": "API 令牌",
+    "tokenHint": "您的 API 密钥或令牌",
+    "baseUrlLabel": "基础 URL",
+    "baseUrlPlaceholder": "https://api.anthropic.com",
+    "baseUrlHint": "API 端点 URL"
+  },
+  "litellm": {
+    "title": "连接到 LiteLLM",
+    "subtitle": "配置您的 LiteLLM 代理连接并选择模型。",
+    "baseUrlLabel": "LiteLLM 基础 URL",
+    "baseUrlPlaceholder": "http://localhost:4000",
+    "baseUrlHint": "您的 LiteLLM 代理服务器的 URL",
+    "apiKeyLabel": "API 密钥",
+    "optional": "（可选）",
+    "apiKeyPlaceholder": "sk-...",
+    "apiKeyHint": "如果您的 LiteLLM 代理启用了认证则需要填写",
+    "modelLabel": "模型",
+    "refresh": "刷新",
+    "noModels": "没有可用的模型",
+    "enterUrl": "输入基础 URL 以加载可用模型",
+    "modelsAvailable": "{{count}} 个模型可用",
+    "connectionFailed": "连接 LiteLLM 失败",
+    "missingUrl": "请输入基础 URL"
+  },
+  "selectRepo": {
+    "title": "选择仓库",
+    "subtitle": "选择一个本地文件夹开始工作",
+    "selectFolder": "选择文件夹",
+    "cloneFromGithub": "从 GitHub 克隆"
+  },
+  "common": {
+    "back": "返回",
+    "continue": "继续",
+    "connect": "连接",
+    "skip": "跳过",
+    "quit": "退出"
+  }
+}

@@ -2,8 +2,9 @@
 
 import { useAtomValue, useSetAtom } from "jotai"
 import { useState } from "react"
-import { Check, Lock } from "lucide-react"
+import { Check, Lock, X } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 import { ClaudeCodeIcon, KeyFilledIcon, SettingsFilledIcon, LiteLLMIcon } from "../../components/ui/icons"
 import { authSkippedAtom, billingMethodAtom, type BillingMethod } from "../../lib/atoms"
@@ -17,37 +18,40 @@ type BillingOption = {
   icon: React.ReactNode
 }
 
-const billingOptions: BillingOption[] = [
+const getBillingOptions = (t: (key: string) => string): BillingOption[] => [
   {
     id: "claude-subscription",
-    title: "Claude Pro/Max",
-    subtitle: "Use your Claude subscription for unlimited access.",
+    title: t('billing.claudeSubscription.title'),
+    subtitle: t('billing.claudeSubscription.subtitle'),
     recommended: true,
     icon: <ClaudeCodeIcon className="w-5 h-5" />,
   },
   {
     id: "api-key",
-    title: "Anthropic API Key",
-    subtitle: "Pay-as-you-go with your own API key.",
+    title: t('billing.apiKey.title'),
+    subtitle: t('billing.apiKey.subtitle'),
     icon: <KeyFilledIcon className="w-5 h-5" />,
   },
   {
     id: "litellm",
-    title: "LiteLLM Proxy",
-    subtitle: "Connect to LiteLLM with model selection.",
+    title: t('billing.litellm.title'),
+    subtitle: t('billing.litellm.subtitle'),
     icon: <LiteLLMIcon className="w-5 h-5" />,
   },
   {
     id: "custom-model",
-    title: "Custom Model",
-    subtitle: "Use a custom base URL and model.",
+    title: t('billing.customModel.title'),
+    subtitle: t('billing.customModel.subtitle'),
     icon: <SettingsFilledIcon className="w-5 h-5" />,
   },
 ]
 
 export function BillingMethodPage() {
+  const { t } = useTranslation('onboarding')
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const isAuthSkipped = useAtomValue(authSkippedAtom)
+
+  const billingOptions = getBillingOptions(t)
 
   // Default to api-key if auth was skipped, otherwise claude-subscription
   const [selectedOption, setSelectedOption] =
@@ -56,9 +60,9 @@ export function BillingMethodPage() {
   const handleOptionClick = (optionId: Exclude<BillingMethod, null>) => {
     // Claude subscription requires login
     if (optionId === "claude-subscription" && isAuthSkipped) {
-      toast.error("Claude 订阅需要登录", {
+      toast.error(t('billing.requiresLogin'), {
         action: {
-          label: "登录",
+          label: t('common.connect'),
           onClick: () => window.desktopApi?.startAuthFlow()
         }
       })
@@ -71,6 +75,10 @@ export function BillingMethodPage() {
     setBillingMethod(selectedOption)
   }
 
+  const handleQuit = () => {
+    window.desktopApi?.windowClose()
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-background select-none">
       {/* Draggable title bar area */}
@@ -79,14 +87,24 @@ export function BillingMethodPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
+      {/* Quit button - fixed in top right corner */}
+      <button
+        onClick={handleQuit}
+        className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('common.quit')}
+      </button>
+
       <div className="w-full max-w-[440px] flex flex-col gap-8 px-4">
         {/* Header */}
         <div className="text-center flex flex-col gap-1">
           <h1 className="text-base font-semibold tracking-tight">
-            Connect to Claude
+            {t('billing.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Choose how you'd like to connect your AI provider.
+            {t('billing.subtitle')}
           </p>
         </div>
 
@@ -138,12 +156,12 @@ export function BillingMethodPage() {
                       <span className={cn("text-sm font-medium", isDisabled && "text-muted-foreground")}>{option.title}</span>
                       {option.recommended && !isDisabled && (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          Recommended
+                          {t('billing.recommended')}
                         </span>
                       )}
                       {isDisabled && (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          需要登录
+                          {t('billing.requiresLogin')}
                         </span>
                       )}
                     </div>
@@ -162,7 +180,7 @@ export function BillingMethodPage() {
           onClick={handleContinue}
           className="w-full h-8 px-3 bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-[background-color,transform] duration-150 hover:bg-primary/90 active:scale-[0.97] shadow-[0_0_0_0.5px_rgb(23,23,23),inset_0_0_0_1px_rgba(255,255,255,0.14)] dark:shadow-[0_0_0_0.5px_rgb(23,23,23),inset_0_0_0_1px_rgba(255,255,255,0.14)] flex items-center justify-center"
         >
-          Continue
+          {t('common.continue')}
         </button>
       </div>
     </div>
