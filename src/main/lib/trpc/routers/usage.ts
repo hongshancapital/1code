@@ -343,6 +343,35 @@ export const usageRouter = router({
     }),
 
   /**
+   * Get yesterday's usage grouped by hour (for bar chart)
+   */
+  getYesterdayHourly: publicProcedure.query(() => {
+    const db = getDatabase()
+    const now = new Date()
+
+    // Yesterday's start and end (using local time)
+    const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+    const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    return db
+      .select({
+        hour: sql<string>`strftime('%H', datetime(${modelUsage.createdAt}, 'unixepoch', 'localtime'))`.as("hour"),
+        totalTokens: sql<number>`coalesce(sum(${modelUsage.totalTokens}), 0)`,
+        inputTokens: sql<number>`coalesce(sum(${modelUsage.inputTokens}), 0)`,
+        outputTokens: sql<number>`coalesce(sum(${modelUsage.outputTokens}), 0)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(modelUsage)
+      .where(and(
+        gte(modelUsage.createdAt, yesterdayStart),
+        lte(modelUsage.createdAt, yesterdayEnd)
+      ))
+      .groupBy(sql`strftime('%H', datetime(${modelUsage.createdAt}, 'unixepoch', 'localtime'))`)
+      .orderBy(sql`hour`)
+      .all()
+  }),
+
+  /**
    * Get recent usage records (paginated)
    */
   getRecent: publicProcedure

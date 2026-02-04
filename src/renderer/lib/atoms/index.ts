@@ -268,7 +268,7 @@ export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
 // LiteLLM selected model (when using internal LiteLLM proxy from env)
 export const litellmSelectedModelAtom = atomWithStorage<string>(
   "agents:litellm-selected-model",
-  "claude-opus-4-5-20251101", // Default model
+  "claude-sonnet-4-20250514", // Default to Sonnet (not Opus)
   undefined,
   { getOnInit: true },
 )
@@ -490,11 +490,21 @@ export const betaKanbanEnabledAtom = atomWithStorage<boolean>(
 
 // Beta: Enable Automations & Inbox
 // When enabled, shows Automations and Inbox navigation in sidebar
-export const betaAutomationsEnabledAtom = atomWithStorage<boolean>(
+// Note: This feature is dev-only - in production, it's always disabled regardless of storage value
+import { isFeatureAvailable } from "../feature-flags"
+
+// Internal storage atom
+const _betaAutomationsEnabledStorageAtom = atomWithStorage<boolean>(
   "preferences:beta-automations-enabled",
   false, // Default OFF
   undefined,
   { getOnInit: true },
+)
+
+// Public atom - enforces dev-only restriction
+export const betaAutomationsEnabledAtom = atom(
+  (get) => isFeatureAvailable("automations") ? get(_betaAutomationsEnabledStorageAtom) : false,
+  (_get, set, value: boolean) => set(_betaAutomationsEnabledStorageAtom, value)
 )
 
 // Beta: Enable Tasks functionality in Claude Code SDK
@@ -939,6 +949,19 @@ export const mcpApprovalDialogOpenAtom = atom<boolean>(false)
 export const pendingMcpApprovalsAtom = atom<PendingMcpApproval[]>([])
 
 // ============================================
+// LANGUAGE SETTINGS
+// ============================================
+
+export type LanguagePreference = "system" | "en" | "zh"
+
+export const languagePreferenceAtom = atomWithStorage<LanguagePreference>(
+  "preferences:language",
+  "system",
+  undefined,
+  { getOnInit: true },
+)
+
+// ============================================
 // RUNTIME INIT BANNER ATOMS
 // ============================================
 
@@ -947,6 +970,49 @@ export const pendingMcpApprovalsAtom = atom<PendingMcpApproval[]>([])
 export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
   "onboarding:runtime-init-banner-dismissed",
   false,
+  undefined,
+  { getOnInit: true },
+)
+
+// ============================================
+// GROUPING ATOMS (for workspace/subchat grouping)
+// ============================================
+
+export {
+  // Types
+  type WorkspaceGroupMode,
+  type SubChatGroupMode,
+  // View toggle atoms
+  workspaceGroupedViewAtom,
+  subChatGroupedViewAtom,
+  // Mode atoms
+  workspaceGroupModeAtom,
+  subChatGroupModeAtom,
+  // Collapsed groups
+  workspaceCollapsedGroupsAtom,
+  subChatCollapsedGroupsAtom,
+  // Dialog state
+  manageTagsDialogOpenAtom,
+} from "./grouping"
+
+// ============================================
+// USER PERSONALIZATION ATOMS
+// ============================================
+
+/**
+ * User personalization settings for AI to recognize the user
+ * Injected into system prompt when sending messages
+ */
+export interface UserPersonalization {
+  /** Claude's preferred name for the user (max 50 chars) */
+  preferredName: string
+  /** Personal preferences for AI responses (max 1000 chars) */
+  personalPreferences: string
+}
+
+export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
+  "profile:user-personalization",
+  { preferredName: "", personalPreferences: "" },
   undefined,
   { getOnInit: true },
 )
