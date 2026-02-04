@@ -1,0 +1,85 @@
+{
+  "workspaces": {
+    "new": "新建工作区",
+    "title": "工作区",
+    "pinned": "已固定的工作区",
+    "recent": "最近的工作区",
+    "search": "搜索工作区...",
+    "startNew": "开始新的工作区",
+    "archive": "归档工作区",
+    "archiving": "归档中...",
+    "archiveAll": "归档以下所有",
+    "archiveOthers": "归档其他",
+    "pin": "固定工作区",
+    "unpin": "取消固定工作区",
+    "pinCount": "固定 {{count}} 个工作区",
+    "pinCount_other": "固定 {{count}} 个工作区",
+    "unpinCount": "取消固定 {{count}} 个工作区",
+    "unpinCount_other": "取消固定 {{count}} 个工作区",
+    "archiveCount": "归档 {{count}} 个工作区",
+    "archiveCount_other": "归档 {{count}} 个工作区",
+    "rename": "重命名工作区",
+    "copyBranch": "复制分支名称",
+    "fork": "本地分叉",
+    "openNewWindow": "在新窗口中打开",
+    "export": {
+      "title": "导出工作区",
+      "markdown": "下载为 Markdown",
+      "json": "下载为 JSON",
+      "text": "下载为文本",
+      "copyMarkdown": "复制为 Markdown",
+      "copyJson": "复制为 JSON",
+      "copyText": "复制为文本"
+    }
+  },
+  "chats": {
+    "new": "新对话",
+    "title": "对话",
+    "pinned": "已固定的对话",
+    "recent": "最近的对话",
+    "search": "搜索对话...",
+    "createNew": "创建新对话",
+    "noResults": "无结果",
+    "tryDifferent": "尝试不同的搜索词",
+    "history": "对话历史",
+    "draft": "草稿",
+    "deleteDraft": "删除草稿",
+    "pinCount": "固定 {{count}} 个对话",
+    "pinCount_other": "固定 {{count}} 个对话",
+    "unpinCount": "取消固定 {{count}} 个对话",
+    "unpinCount_other": "取消固定 {{count}} 个对话",
+    "archiveCount": "归档 {{count}} 个对话",
+    "archiveCount_other": "归档 {{count}} 个对话",
+    "closeSidebar": "关闭侧边栏",
+    "closeChatsPane": "关闭对话面板",
+    "openChatsSidebar": "打开对话侧边栏"
+  },
+  "navigation": {
+    "home": "首页",
+    "inbox": "收件箱",
+    "automations": "自动化",
+    "settings": "设置",
+    "help": "帮助"
+  },
+  "multiSelect": {
+    "selected": "已选择 {{count}} 个",
+    "cancel": "取消"
+  },
+  "drafts": {
+    "title": "草稿"
+  },
+  "archive": {
+    "title": "归档",
+    "agent": "归档代理",
+    "agentQuestion": "您要归档代理",
+    "agentRestore": "吗？您可以稍后从历史记录中恢复。",
+    "thisAgent": "此代理"
+  },
+  "kanban": "看板视图",
+  "sections": {
+    "today": "今天",
+    "yesterday": "昨天",
+    "thisWeek": "本周",
+    "older": "更早"
+  }
+}

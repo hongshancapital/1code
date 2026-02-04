@@ -1,0 +1,633 @@
+{
+  "preferences": {
+    "title": "Preferences",
+    "description": "Configure Claude's behavior and features",
+    "language": {
+      "title": "Language",
+      "description": "Choose your preferred language",
+      "system": "Follow System"
+    },
+    "extendedThinking": {
+      "title": "Extended Thinking",
+      "description": "Enable deeper reasoning with more thinking tokens (uses more credits).",
+      "note": "Disables response streaming."
+    },
+    "aiQuestionTimeout": {
+      "title": "AI Question Timeout",
+      "description": "How long to wait for your response when AI asks a question",
+      "noTimeout": "No timeout",
+      "seconds": "{{count}} seconds",
+      "minute": "1 minute",
+      "minutes": "{{count}} minutes"
+    },
+    "defaultMode": {
+      "title": "Default Mode",
+      "description": "Mode for new agents (Plan = read-only, Agent = can edit)",
+      "agent": "Agent",
+      "plan": "Plan"
+    },
+    "coAuthored": {
+      "title": "Include Co-Authored-By",
+      "description": "Add \"Co-authored-by: Claude\" to git commits made by Claude"
+    },
+    "notifications": {
+      "desktop": {
+        "title": "Desktop Notifications",
+        "description": "Show system notifications when agent needs input or completes work"
+      },
+      "sound": {
+        "title": "Sound Notifications",
+        "description": "Play a sound when agent completes work while you're away"
+      }
+    },
+    "navigation": {
+      "quickSwitch": {
+        "title": "Quick Switch",
+        "description": "What {{key}} switches between",
+        "workspaces": "Workspaces",
+        "agents": "Agents"
+      },
+      "autoAdvance": {
+        "title": "Auto-advance",
+        "description": "Where to go after archiving a workspace",
+        "next": "Go to next workspace",
+        "previous": "Go to previous workspace",
+        "close": "Close workspace"
+      },
+      "preferredEditor": {
+        "title": "Preferred Editor",
+        "description": "Default app for opening workspaces"
+      }
+    },
+    "privacy": {
+      "analytics": {
+        "title": "Share Usage Analytics",
+        "description": "Help us improve by sharing anonymous usage data. We only track feature usage and app performance–never your code, prompts, or messages."
+      }
+    }
+  },
+  "appearance": {
+    "title": "Appearance",
+    "description": "Customize the look and feel of the interface",
+    "theme": {
+      "title": "Interface theme",
+      "description": "Select or customize your interface color scheme",
+      "system": "System preference",
+      "light": {
+        "title": "Light",
+        "description": "Theme to use for light system appearance"
+      },
+      "dark": {
+        "title": "Dark",
+        "description": "Theme to use for dark system appearance"
+      },
+      "fromEditors": "From editors",
+      "loading": "Loading themes from editors...",
+      "select": "Select"
+    },
+    "display": {
+      "workspaceIcon": {
+        "title": "Workspace icon",
+        "description": "Show project icon in the sidebar workspace list"
+      },
+      "expandTodo": {
+        "title": "Always expand to-do list",
+        "description": "Show the full to-do list instead of compact view"
+      }
+    }
+  },
+  "models": {
+    "title": "Models",
+    "description": "Choose how to connect to Claude",
+    "offline": {
+      "title": "Offline Mode",
+      "ollamaStatus": {
+        "title": "Ollama Status",
+        "running": "Running",
+        "notRunning": "Not running or not installed",
+        "modelsInstalled": "{{count}} model(s) installed",
+        "recommended": "Recommended: {{model}}",
+        "available": "Available",
+        "unavailable": "Unavailable"
+      },
+      "autoOffline": {
+        "title": "Auto Offline Mode",
+        "description": "Automatically use Ollama when internet is unavailable"
+      },
+      "setupInstructions": {
+        "title": "To enable offline mode:",
+        "step1": "Install Ollama from",
+        "step2": "Run:",
+        "step3": "Ollama will run automatically in the background"
+      }
+    },
+    "auth": {
+      "title": "Authentication",
+      "description": "Choose how to connect to Claude",
+      "oauth": {
+        "title": "Anthropic Account",
+        "description": "Use your Claude Pro, Max, Team, or Enterprise subscription",
+        "connected": "Connected",
+        "reconnect": "Reconnect",
+        "connect": "Connect Account",
+        "checking": "Checking connection..."
+      },
+      "litellm": {
+        "title": "LiteLLM Proxy",
+        "description": "Connect through a LiteLLM proxy server",
+        "notConfigured": "Not configured",
+        "selectModel": "Select Model",
+        "selectPlaceholder": "Select a model...",
+        "loading": "Loading...",
+        "noModels": "No models available. Check LiteLLM configuration."
+      },
+      "custom": {
+        "title": "Custom API",
+        "description": "Use a custom API endpoint with your own credentials",
+        "baseUrl": "Base URL",
+        "baseUrlPlaceholder": "https://api.anthropic.com",
+        "apiToken": "API Token",
+        "apiTokenPlaceholder": "sk-ant-...",
+        "model": "Model",
+        "modelPlaceholder": "claude-sonnet-4-20250514"
+      }
+    },
+    "usage": {
+      "title": "Usage Statistics",
+      "description": "Track your token usage and estimated costs",
+      "today": "Today",
+      "week": "This Week",
+      "month": "This Month",
+      "allTime": "All Time",
+      "contributions": "contributions",
+      "requests": "requests",
+      "tokens": "tokens",
+      "viewDetails": "View Details",
+      "loading": "Loading usage statistics..."
+    },
+    "voice": {
+      "title": "Voice Input",
+      "openaiKey": {
+        "title": "OpenAI API Key",
+        "description": "Required for voice transcription (Whisper API). Free users need their own key.",
+        "placeholder": "sk-...",
+        "remove": "Remove"
+      }
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "searchPlaceholder": "Search skills...",
+    "createTooltip": "Create new skill",
+    "loading": "Loading...",
+    "emptyState": "No skills",
+    "noResults": "No results found",
+    "selectToView": "Select a skill to view details",
+    "noSkillsFound": "No skills found",
+    "createFirst": "Create your first skill",
+    "sections": {
+      "user": "User",
+      "project": "Project",
+      "plugin": "Plugin",
+      "builtin": "Built-in"
+    },
+    "badges": {
+      "builtin": "BUILT-IN",
+      "plugin": "PLUGIN"
+    },
+    "detail": {
+      "readOnly": {
+        "builtin": "Built-in skills are read-only",
+        "plugin": "Plugin skills are read-only"
+      },
+      "description": "Description",
+      "descriptionPlaceholder": "Skill description...",
+      "usage": "Usage",
+      "instructions": "Instructions",
+      "instructionsPlaceholder": "Skill instructions (markdown)...",
+      "noInstructions": "No instructions",
+      "defaultPrompt": "Default Prompt",
+      "contents": "Contents",
+      "editMarkdown": "Edit markdown",
+      "previewMarkdown": "Preview markdown"
+    },
+    "form": {
+      "title": "New Skill",
+      "nameLabel": "Name",
+      "namePlaceholder": "my-skill",
+      "nameHint": "Lowercase letters, numbers, and hyphens",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What this skill does...",
+      "scopeLabel": "Scope",
+      "scopeUser": "User (~/.claude/skills/)",
+      "scopeProject": "Project (.claude/skills/)",
+      "instructionsLabel": "Instructions",
+      "instructionsPlaceholder": "Skill instructions (markdown)...",
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating...",
+      "save": "Save",
+      "saving": "Saving..."
+    }
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "searchPlaceholder": "Search servers...",
+    "addTooltip": "Add MCP server",
+    "emptyState": "No servers",
+    "noResults": "No results found",
+    "selectToView": "Select a server to view details",
+    "noServersConfigured": "No MCP servers configured",
+    "addFirst": "Add your first server",
+    "requiresLogin": "Requires login",
+    "tools": "tool",
+    "tools_plural": "tools",
+    "status": {
+      "connected": "Connected",
+      "failed": "Failed",
+      "needsAuth": "Needs Auth",
+      "needsLogin": "Needs Login",
+      "pending": "Connecting..."
+    },
+    "detail": {
+      "noTools": "No tools",
+      "authenticate": "Authenticate",
+      "reconnect": "Reconnect",
+      "requiresLoginNotice": "This MCP server requires authentication. Please sign in to your account to access it.",
+      "connection": "Connection",
+      "type": "Type",
+      "url": "URL",
+      "command": "Command",
+      "args": "Args",
+      "env": "Env",
+      "error": "Error",
+      "toolsCount": "Tools ({{count}})"
+    },
+    "form": {
+      "title": "New MCP Server",
+      "nameLabel": "Name",
+      "namePlaceholder": "my-server",
+      "transportLabel": "Transport",
+      "transportStdio": "stdio (local command)",
+      "transportHttp": "HTTP (SSE)",
+      "commandLabel": "Command",
+      "commandPlaceholder": "npx, python, node...",
+      "argsLabel": "Arguments",
+      "argsPlaceholder": "-m mcp_server --port 3000",
+      "argsHint": "Space-separated arguments",
+      "urlLabel": "URL",
+      "urlPlaceholder": "http://localhost:3000/sse",
+      "scopeLabel": "Scope",
+      "scopeGlobal": "Global (~/.claude.json)",
+      "scopeProject": "Project",
+      "cancel": "Cancel",
+      "add": "Add",
+      "adding": "Adding..."
+    }
+  },
+  "runtime": {
+    "title": "Runtime Settings",
+    "description": "Configure runtime environments for running and debugging scripts",
+    "commonTools": {
+      "title": "Common Tools",
+      "description": "CLI tools that enhance Hóng functionality",
+      "hint": "These tools improve search, file operations, and developer experience",
+      "refresh": "Refresh",
+      "detecting": "Detecting tools...",
+      "noTools": "No tools detected",
+      "install": "Install",
+      "notInstalled": "Not installed",
+      "installNote": "Note: Installation requires Homebrew on macOS, apt on Linux, or winget/Scoop on Windows. You can also copy the command and run it in your terminal."
+    },
+    "nodejs": {
+      "title": "Node.js / JavaScript",
+      "description": "Node.js, Bun, and package managers",
+      "preferredRuntime": {
+        "title": "Preferred Runtime",
+        "auto": "Auto-detect",
+        "node": "Node.js",
+        "bun": "Bun",
+        "hint": "Auto-detect will choose based on project configuration"
+      },
+      "nodeSection": "Node.js",
+      "nodeRuntime": "Node runtime",
+      "bunSection": "Bun",
+      "bunRuntime": "Bun runtime",
+      "packageManager": {
+        "title": "Package Manager",
+        "default": "Default Package Manager",
+        "auto": "Auto-detect",
+        "hint": "Auto-detect will choose based on the project's lock file"
+      },
+      "debug": {
+        "title": "Debug Settings",
+        "port": "Default Debug Port",
+        "portHint": "Port used for Node.js inspector when running in debug mode (default: 9229)"
+      }
+    },
+    "python": {
+      "title": "Python",
+      "description": "Python interpreter and package managers",
+      "hint": "Python runtime and package management tools",
+      "detecting": "Detecting Python tools...",
+      "noTools": "No Python tools detected"
+    },
+    "go": {
+      "title": "Go",
+      "description": "Go compiler and tools",
+      "comingSoon": "Go runtime configuration coming soon."
+    },
+    "rust": {
+      "title": "Rust",
+      "description": "Rust compiler and Cargo",
+      "comingSoon": "Rust runtime configuration coming soon."
+    },
+    "pathRow": {
+      "notFound": "Not found",
+      "notInstalled": "Not installed",
+      "reset": "Reset",
+      "setCustomPath": "Set custom path"
+    }
+  },
+  "beta": {
+    "title": "Beta Features",
+    "description": "Enable experimental features. These may be unstable or change without notice.",
+    "rollback": {
+      "title": "Rollback",
+      "description": "Allow rolling back to previous messages and restoring files."
+    },
+    "offlineMode": {
+      "title": "Offline Mode",
+      "description": "Enable offline mode UI and Ollama integration."
+    },
+    "kanban": {
+      "title": "Kanban Board",
+      "description": "View workspaces as a Kanban board organized by status."
+    },
+    "automations": {
+      "title": "Automations & Inbox",
+      "description": "Automate workflows with GitHub and Linear triggers, and manage inbox notifications.",
+      "requiresPaid": "Requires a paid plan. Upgrade to enable automations and inbox."
+    },
+    "tasks": {
+      "title": "Agent Tasks",
+      "description": "Enable Task instead of legacy Todo system."
+    },
+    "offlineSettings": {
+      "title": "Offline Mode Settings",
+      "ollamaStatus": "Ollama Status",
+      "model": "Model",
+      "modelHint": "Select which model to use for offline mode",
+      "selectModel": "Select model",
+      "autoOffline": "Auto Offline Mode",
+      "autoOfflineHint": "Automatically use Ollama when internet is unavailable",
+      "setupTitle": "Setup Instructions:",
+      "setupStep1": "Install Ollama {{version}}+ from",
+      "setupStep2": "Pull the recommended model:",
+      "setupStep3": "Ollama will run automatically in the background"
+    },
+    "updates": {
+      "title": "Updates",
+      "description": "Check for new versions manually (bypasses CDN cache)",
+      "earlyAccess": {
+        "title": "Early Access",
+        "description": "Receive beta versions before they're released to everyone. Beta versions may be less stable."
+      },
+      "version": {
+        "current": "Current: v{{version}}",
+        "checking": "Checking for updates...",
+        "available": "Update available: v{{version}}",
+        "upToDate": "You're on the latest version",
+        "error": "Failed to check (dev mode?)",
+        "idle": "Click to check for updates"
+      },
+      "checkNow": "Check Now"
+    }
+  },
+  "keyboard": {
+    "title": "Keyboard",
+    "description": "Configure keyboard shortcuts"
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "Manage your account and personalization settings",
+    "account": {
+      "title": "Account",
+      "signInPrompt": "Sign in to enable HongShan Lite enhanced features.",
+      "signIn": "Sign in",
+      "signOut": "Sign out",
+      "fullName": "Full Name",
+      "fullNameDescription": "This is your display name",
+      "fullNamePlaceholder": "Enter your name",
+      "email": "Email",
+      "emailDescription": "Your account email"
+    },
+    "personalization": {
+      "title": "Personalization",
+      "preferredName": {
+        "label": "What should Claude call you?",
+        "description": "A nickname or preferred name",
+        "placeholder": "e.g., Chris"
+      },
+      "preferences": {
+        "label": "Personal preferences",
+        "description": "Any preferences Claude should consider in responses (learning style, communication preferences, etc.)",
+        "placeholder": "e.g., I prefer concise explanations with code examples. I find analogies helpful when learning new concepts."
+      }
+    }
+  },
+  "projects": {
+    "title": "Projects",
+    "description": "Manage your local projects"
+  },
+  "customAgents": {
+    "title": "Custom Agents",
+    "description": "Create and manage custom AI agents",
+    "searchPlaceholder": "Search agents...",
+    "createTooltip": "Create new agent",
+    "loading": "Loading...",
+    "noAgents": "No agents",
+    "createAgent": "Create agent",
+    "noResults": "No results found",
+    "sections": {
+      "user": "User",
+      "project": "Project"
+    },
+    "detail": {
+      "save": "Save",
+      "saving": "Saving...",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Agent description...",
+      "modelLabel": "Model",
+      "modelInherit": "Inherit from parent",
+      "allowedTools": "Allowed Tools",
+      "disallowedTools": "Disallowed Tools",
+      "systemPrompt": "System Prompt",
+      "systemPromptPlaceholder": "System prompt for this agent..."
+    },
+    "create": {
+      "title": "New Agent",
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating...",
+      "nameLabel": "Name",
+      "namePlaceholder": "my-agent",
+      "nameHint": "Lowercase letters, numbers, and hyphens",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What this agent does...",
+      "modelLabel": "Model",
+      "scopeLabel": "Scope",
+      "scopeUser": "User (~/.claude/agents/)",
+      "scopeProject": "Project (.claude/agents/)",
+      "systemPromptLabel": "System Prompt",
+      "systemPromptPlaceholder": "You are a specialized agent that..."
+    },
+    "empty": {
+      "selectAgent": "Select an agent to view details",
+      "noAgentsFound": "No custom agents found",
+      "createFirst": "Create your first agent"
+    },
+    "toast": {
+      "created": "Agent created",
+      "saved": "Agent saved",
+      "createFailed": "Failed to create",
+      "saveFailed": "Failed to save",
+      "pluginReadOnly": "Cannot modify plugin agent",
+      "pluginReadOnlyDesc": "Plugin agents are read-only"
+    }
+  },
+  "plugins": {
+    "title": "Plugins",
+    "description": "Manage installed plugins",
+    "searchPlaceholder": "Search plugins...",
+    "loading": "Loading...",
+    "noPlugins": "No plugins",
+    "installHint": "Install plugins to ~/.claude/plugins/",
+    "noResults": "No results found",
+    "selectToView": "Select a plugin to view details",
+    "noPluginsInstalled": "No plugins installed",
+    "installMarketplaceHint": "Install plugins to ~/.claude/plugins/marketplaces/",
+    "sections": {
+      "enabled": "Enabled"
+    },
+    "detail": {
+      "active": "Active",
+      "version": "Version",
+      "source": "Source",
+      "homepage": "Homepage",
+      "tags": "Tags",
+      "commands": "Commands ({{count}})",
+      "skills": "Skills ({{count}})",
+      "agents": "Agents ({{count}})",
+      "mcpServers": "MCP Servers ({{count}})",
+      "signIn": "Sign in",
+      "connected": "Connected"
+    },
+    "toast": {
+      "enabled": "Plugin enabled",
+      "disabled": "Plugin disabled",
+      "authSuccess": "{{name}} authenticated",
+      "authFailed": "Authentication failed"
+    }
+  },
+  "keyboard": {
+    "title": "Keyboard",
+    "description": "Configure keyboard shortcuts",
+    "searchPlaceholder": "Search shortcuts...",
+    "pressKeys": "Press keys...",
+    "notSet": "Not set",
+    "resetTo": "Reset to",
+    "clickToRecord": "Click to record a new shortcut",
+    "noShortcutsFound": "No shortcuts found",
+    "resetAllToDefaults": "Reset all to defaults",
+    "selectToCustomize": "Select a shortcut to customize",
+    "shortcutSuffix": "shortcut",
+    "conflictMessage": "\"{{label}}\" already uses this shortcut"
+  },
+  "debug": {
+    "title": "Debug",
+    "description": "System information and developer tools",
+    "systemInfo": {
+      "title": "System Info",
+      "version": "Version",
+      "platform": "Platform",
+      "devMode": "Dev Mode",
+      "protocol": "Protocol",
+      "registered": "Registered",
+      "notRegistered": "Not registered",
+      "userData": "userData",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "database": {
+      "title": "Database",
+      "projects": "Projects",
+      "chats": "Chats",
+      "subChats": "Sub-chats"
+    },
+    "devTools": {
+      "title": "Developer Tools",
+      "reactScan": "React Scan",
+      "reactScanDesc": "Highlight component re-renders",
+      "simulateOffline": "Simulate Offline",
+      "simulateOfflineDesc": "Test offline mode without disconnecting",
+      "showMessageJson": "Show Message JSON",
+      "showMessageJsonDesc": "Display raw JSON below each message in chat"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "openUserData": "Open userData",
+      "devTools": "DevTools",
+      "reload": "Reload",
+      "copyInfo": "Copy Info"
+    },
+    "toastTesting": {
+      "title": "Toast Testing",
+      "infoUndo": "Info + Undo",
+      "success": "Success",
+      "error": "Error",
+      "default": "Default",
+      "loading": "Loading",
+      "promise": "Promise"
+    },
+    "dataManagement": {
+      "title": "Data Management",
+      "clearChats": "Clear Chats",
+      "resetOnboarding": "Reset Onboarding",
+      "resetAll": "Reset All",
+      "confirmClearChats": "Clear all chats? Projects will be kept.",
+      "confirmResetOnboarding": "Reset onboarding? You will see the welcome screen again.",
+      "confirmResetAll": "Reset everything? This will clear all data and log you out."
+    },
+    "toast": {
+      "allChatsCleared": "All chats cleared",
+      "onboardingReset": "Onboarding reset. Reloading...",
+      "allDataCleared": "All data cleared. Reloading...",
+      "debugInfoCopied": "Debug info copied to clipboard",
+      "reactScanEnabled": "React Scan enabled",
+      "reactScanEnabledDesc": "Reload the page to see re-render highlights",
+      "reactScanDisabled": "React Scan disabled",
+      "reactScanDisabledDesc": "Reload the page to fully remove it",
+      "offlineSimEnabled": "Offline simulation enabled",
+      "offlineSimEnabledDesc": "App will behave as if offline",
+      "offlineSimDisabled": "Offline simulation disabled",
+      "offlineSimDisabledDesc": "Network detection restored to normal"
+    }
+  },
+  "sidebar": {
+    "back": "Back",
+    "profile": "Profile",
+    "preferences": "Preferences",
+    "appearance": "Appearance",
+    "keyboard": "Keyboard",
+    "beta": "Beta",
+    "projects": "Projects",
+    "models": "Models",
+    "skills": "Skills",
+    "customAgents": "Custom Agents",
+    "mcpServers": "MCP Servers",
+    "plugins": "Plugins",
+    "debug": "Debug",
+    "runtime": "Runtime"
+  }
+}

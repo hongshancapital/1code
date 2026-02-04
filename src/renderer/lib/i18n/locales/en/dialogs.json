@@ -1,0 +1,32 @@
+{
+  "auth": {
+    "title": "Claude Code",
+    "connectSubscription": "Connect your Claude Code subscription",
+    "connect": "Connect",
+    "codePlaceholder": "Paste your authentication code here...",
+    "continue": "Continue",
+    "tabOpened": "A new tab has opened for authentication.",
+    "didntOpen": "Didn't open? Click here",
+    "tryAgain": "Try Again",
+    "customModel": "Set a custom model in Settings"
+  },
+  "mcpApproval": {
+    "title": "MCP Server Approval",
+    "description": "A plugin wants to connect to an MCP server",
+    "plugin": "Plugin",
+    "server": "Server",
+    "command": "Command",
+    "url": "URL",
+    "morePending": "+{{count}} more approval(s) pending",
+    "dontAllow": "Don't Allow",
+    "allowAll": "Allow All",
+    "allow": "Allow"
+  },
+  "confirm": {
+    "title": "Confirm",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "discard": "Discard"
+  }
+}

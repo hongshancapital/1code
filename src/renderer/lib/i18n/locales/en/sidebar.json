@@ -1,0 +1,85 @@
+{
+  "workspaces": {
+    "new": "New workspace",
+    "title": "Workspaces",
+    "pinned": "Pinned workspaces",
+    "recent": "Recent workspaces",
+    "search": "Search workspaces...",
+    "startNew": "Start a new workspace",
+    "archive": "Archive workspace",
+    "archiving": "Archiving...",
+    "archiveAll": "Archive all below",
+    "archiveOthers": "Archive others",
+    "pin": "Pin workspace",
+    "unpin": "Unpin workspace",
+    "pinCount": "Pin {{count}} workspace",
+    "pinCount_other": "Pin {{count}} workspaces",
+    "unpinCount": "Unpin {{count}} workspace",
+    "unpinCount_other": "Unpin {{count}} workspaces",
+    "archiveCount": "Archive {{count}} workspace",
+    "archiveCount_other": "Archive {{count}} workspaces",
+    "rename": "Rename workspace",
+    "copyBranch": "Copy branch name",
+    "fork": "Fork Locally",
+    "openNewWindow": "Open in new window",
+    "export": {
+      "title": "Export workspace",
+      "markdown": "Download as Markdown",
+      "json": "Download as JSON",
+      "text": "Download as Text",
+      "copyMarkdown": "Copy as Markdown",
+      "copyJson": "Copy as JSON",
+      "copyText": "Copy as Text"
+    }
+  },
+  "chats": {
+    "new": "New Chat",
+    "title": "Chats",
+    "pinned": "Pinned Chats",
+    "recent": "Recent chats",
+    "search": "Search chats...",
+    "createNew": "Create a new chat",
+    "noResults": "No results",
+    "tryDifferent": "Try a different search term",
+    "history": "Chat history",
+    "draft": "Draft",
+    "deleteDraft": "Delete draft",
+    "pinCount": "Pin {{count}} chat",
+    "pinCount_other": "Pin {{count}} chats",
+    "unpinCount": "Unpin {{count}} chat",
+    "unpinCount_other": "Unpin {{count}} chats",
+    "archiveCount": "Archive {{count}} chat",
+    "archiveCount_other": "Archive {{count}} chats",
+    "closeSidebar": "Close sidebar",
+    "closeChatsPane": "Close chats pane",
+    "openChatsSidebar": "Open chats sidebar"
+  },
+  "navigation": {
+    "home": "Home",
+    "inbox": "Inbox",
+    "automations": "Automations",
+    "settings": "Settings",
+    "help": "Help"
+  },
+  "multiSelect": {
+    "selected": "{{count}} selected",
+    "cancel": "Cancel"
+  },
+  "drafts": {
+    "title": "Drafts"
+  },
+  "archive": {
+    "title": "Archive",
+    "agent": "Archive agent",
+    "agentQuestion": "Do you want to archive agent",
+    "agentRestore": "? You can restore it from history later.",
+    "thisAgent": "this agent"
+  },
+  "kanban": "Kanban View",
+  "sections": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "thisWeek": "This Week",
+    "older": "Older"
+  }
+}

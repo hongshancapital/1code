@@ -1,0 +1,32 @@
+{
+  "auth": {
+    "title": "Claude Code",
+    "connectSubscription": "连接您的 Claude Code 订阅",
+    "connect": "连接",
+    "codePlaceholder": "在此粘贴您的认证码...",
+    "continue": "继续",
+    "tabOpened": "已打开新标签页进行认证。",
+    "didntOpen": "没有打开？点击这里",
+    "tryAgain": "重试",
+    "customModel": "在设置中配置自定义模型"
+  },
+  "mcpApproval": {
+    "title": "MCP 服务器批准",
+    "description": "一个插件想要连接到 MCP 服务器",
+    "plugin": "插件",
+    "server": "服务器",
+    "command": "命令",
+    "url": "URL",
+    "morePending": "还有 {{count}} 个批准待处理",
+    "dontAllow": "不允许",
+    "allowAll": "全部允许",
+    "allow": "允许"
+  },
+  "confirm": {
+    "title": "确认",
+    "cancel": "取消",
+    "confirm": "确认",
+    "delete": "删除",
+    "discard": "丢弃"
+  }
+}

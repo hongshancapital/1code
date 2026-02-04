@@ -1,0 +1,53 @@
+{
+  "input": {
+    "placeholder": "Plan, @ for context, / for commands",
+    "placeholderStreaming": "Add to the queue"
+  },
+  "mode": {
+    "agent": "Agent",
+    "plan": "Plan",
+    "agentTooltip": "Apply changes directly without a plan",
+    "planTooltip": "Create a plan before making changes"
+  },
+  "model": {
+    "thinking": "Thinking",
+    "litellm": "LiteLLM",
+    "custom": "Custom",
+    "noModelSelected": "No model selected",
+    "noModelConfigured": "No model configured",
+    "selectModel": "Select model",
+    "recommended": "recommended"
+  },
+  "newChat": {
+    "title": "New Chat",
+    "placeholder": "What would you like to work on?",
+    "submit": "Start"
+  },
+  "errors": {
+    "createFailed": "Failed to create chat",
+    "switchModeFailed": "Failed to switch to chat mode",
+    "updateModeFailed": "Failed to update project mode",
+    "initFailed": "Failed to initialize chat mode",
+    "openFolderFailed": "Failed to open folder: {{error}}"
+  },
+  "voice": {
+    "recordingTooShort": "Recording too short, ignoring",
+    "startFailed": "Failed to start recording",
+    "transcriptionFailed": "Transcription failed"
+  },
+  "actions": {
+    "stop": "Stop",
+    "retry": "Retry",
+    "copy": "Copy",
+    "approve": "Approve",
+    "reject": "Reject",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "status": {
+    "streaming": "Claude is thinking...",
+    "waiting": "Waiting for response...",
+    "completed": "Completed",
+    "failed": "Failed"
+  }
+}

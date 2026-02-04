@@ -1,0 +1,53 @@
+{
+  "input": {
+    "placeholder": "计划，@ 添加上下文，/ 使用命令",
+    "placeholderStreaming": "添加到队列"
+  },
+  "mode": {
+    "agent": "Agent",
+    "plan": "Plan",
+    "agentTooltip": "直接应用更改，无需计划",
+    "planTooltip": "在更改前先创建计划"
+  },
+  "model": {
+    "thinking": "思考中",
+    "litellm": "LiteLLM",
+    "custom": "自定义",
+    "noModelSelected": "未选择模型",
+    "noModelConfigured": "未配置模型",
+    "selectModel": "选择模型",
+    "recommended": "推荐"
+  },
+  "newChat": {
+    "title": "新对话",
+    "placeholder": "您想处理什么？",
+    "submit": "开始"
+  },
+  "errors": {
+    "createFailed": "创建对话失败",
+    "switchModeFailed": "切换到对话模式失败",
+    "updateModeFailed": "更新项目模式失败",
+    "initFailed": "初始化对话模式失败",
+    "openFolderFailed": "打开文件夹失败：{{error}}"
+  },
+  "voice": {
+    "recordingTooShort": "录音太短，已忽略",
+    "startFailed": "开始录音失败",
+    "transcriptionFailed": "转录失败"
+  },
+  "actions": {
+    "stop": "停止",
+    "retry": "重试",
+    "copy": "复制",
+    "approve": "批准",
+    "reject": "拒绝",
+    "expand": "展开",
+    "collapse": "收起"
+  },
+  "status": {
+    "streaming": "Claude 正在思考...",
+    "waiting": "等待响应...",
+    "completed": "已完成",
+    "failed": "失败"
+  }
+}

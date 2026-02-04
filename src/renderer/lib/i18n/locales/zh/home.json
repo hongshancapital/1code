@@ -1,0 +1,86 @@
+{
+  "greetings": {
+    "morning": {
+      "weekday": [
+        "早上好！准备好创造点什么了吗？",
+        "早安！今天想做些什么？",
+        "早上好！让今天变得高效吧。"
+      ],
+      "weekend": [
+        "早上好！周末愉快！",
+        "早安！周末写写代码？"
+      ]
+    },
+    "afternoon": {
+      "weekday": [
+        "下午好！今天过得怎么样？",
+        "下午好！在忙什么呢？",
+        "嗨！准备好下午的编程了吗？"
+      ],
+      "weekend": [
+        "下午好！周末放松一下？",
+        "下午好！有什么个人项目吗？"
+      ]
+    },
+    "evening": {
+      "weekday": [
+        "晚上好！准备收工了吗？",
+        "晚上好！今天快结束了？",
+        "晚上好！有什么想法吗？"
+      ],
+      "weekend": [
+        "晚上好！放松一下吧？",
+        "晚上好！今晚有什么有趣的项目吗？"
+      ]
+    },
+    "night": {
+      "weekday": [
+        "加班呢？让我帮你更快完成。",
+        "夜猫子模式启动！",
+        "熬夜工作？我来帮你。"
+      ],
+      "weekend": [
+        "深夜编程？我来帮你。",
+        "熬夜加班中？",
+        "夜间编程时间！开始吧！"
+      ]
+    }
+  },
+  "actions": {
+    "newChat": "新建对话",
+    "newChatDesc": "开始一段对话",
+    "viewAll": "查看全部"
+  },
+  "stats": {
+    "recentWorkspaces": "活跃工作区",
+    "recentChats": "最近对话",
+    "last7Days": "最近 7 天",
+    "totalAutomations": "自动化总数",
+    "active": "活跃",
+    "paused": "已暂停",
+    "inboxItems": "收件箱项目"
+  },
+  "sections": {
+    "recentChats": "最近的对话",
+    "inbox": "收件箱",
+    "automations": "自动化"
+  },
+  "empty": {
+    "recentChats": "暂无最近的对话",
+    "inboxItems": "暂无收件箱项目",
+    "automations": "暂无自动化"
+  },
+  "quickInput": {
+    "placeholder": "你想完成什么？"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}}分钟前",
+    "hoursAgo": "{{count}}小时前",
+    "daysAgo": "{{count}}天前"
+  },
+  "aria": {
+    "backToChats": "返回对话列表",
+    "openSidebar": "打开侧边栏"
+  }
+}

@@ -1,0 +1,633 @@
+{
+  "preferences": {
+    "title": "偏好设置",
+    "description": "配置 Claude 的行为和功能",
+    "language": {
+      "title": "语言",
+      "description": "选择您偏好的语言",
+      "system": "跟随系统"
+    },
+    "extendedThinking": {
+      "title": "深度思考",
+      "description": "启用更深层的推理，使用更多思考令牌（消耗更多额度）。",
+      "note": "将禁用响应流式输出。"
+    },
+    "aiQuestionTimeout": {
+      "title": "AI 问题超时",
+      "description": "AI 提问时等待您回复的时间",
+      "noTimeout": "无超时",
+      "seconds": "{{count}} 秒",
+      "minute": "1 分钟",
+      "minutes": "{{count}} 分钟"
+    },
+    "defaultMode": {
+      "title": "默认模式",
+      "description": "新 Agent 的默认模式（Plan = 只读，Agent = 可编辑）",
+      "agent": "Agent",
+      "plan": "Plan"
+    },
+    "coAuthored": {
+      "title": "包含合作者署名",
+      "description": "在 Claude 创建的 git 提交中添加 \"Co-authored-by: Claude\""
+    },
+    "notifications": {
+      "desktop": {
+        "title": "桌面通知",
+        "description": "当 Agent 需要输入或完成工作时显示系统通知"
+      },
+      "sound": {
+        "title": "声音通知",
+        "description": "当您离开时 Agent 完成工作时播放提示音"
+      }
+    },
+    "navigation": {
+      "quickSwitch": {
+        "title": "快速切换",
+        "description": "{{key}} 切换的内容",
+        "workspaces": "工作区",
+        "agents": "Agent"
+      },
+      "autoAdvance": {
+        "title": "自动前进",
+        "description": "归档工作区后的去向",
+        "next": "前往下一个工作区",
+        "previous": "前往上一个工作区",
+        "close": "关闭工作区"
+      },
+      "preferredEditor": {
+        "title": "首选编辑器",
+        "description": "打开工作区的默认应用"
+      }
+    },
+    "privacy": {
+      "analytics": {
+        "title": "分享使用分析",
+        "description": "通过分享匿名使用数据帮助我们改进。我们只追踪功能使用和应用性能，绝不会访问您的代码、提示词或消息。"
+      }
+    }
+  },
+  "appearance": {
+    "title": "外观",
+    "description": "自定义界面的外观和感觉",
+    "theme": {
+      "title": "界面主题",
+      "description": "选择或自定义您的界面配色方案",
+      "system": "跟随系统",
+      "light": {
+        "title": "浅色",
+        "description": "系统浅色外观使用的主题"
+      },
+      "dark": {
+        "title": "深色",
+        "description": "系统深色外观使用的主题"
+      },
+      "fromEditors": "来自编辑器",
+      "loading": "正在从编辑器加载主题...",
+      "select": "选择"
+    },
+    "display": {
+      "workspaceIcon": {
+        "title": "工作区图标",
+        "description": "在侧边栏工作区列表中显示项目图标"
+      },
+      "expandTodo": {
+        "title": "始终展开待办列表",
+        "description": "显示完整的待办列表而非紧凑视图"
+      }
+    }
+  },
+  "models": {
+    "title": "模型",
+    "description": "选择如何连接到 Claude",
+    "offline": {
+      "title": "离线模式",
+      "ollamaStatus": {
+        "title": "Ollama 状态",
+        "running": "运行中",
+        "notRunning": "未运行或未安装",
+        "modelsInstalled": "已安装 {{count}} 个模型",
+        "recommended": "推荐：{{model}}",
+        "available": "可用",
+        "unavailable": "不可用"
+      },
+      "autoOffline": {
+        "title": "自动离线模式",
+        "description": "当网络不可用时自动使用 Ollama"
+      },
+      "setupInstructions": {
+        "title": "要启用离线模式：",
+        "step1": "从以下地址安装 Ollama",
+        "step2": "运行：",
+        "step3": "Ollama 将在后台自动运行"
+      }
+    },
+    "auth": {
+      "title": "认证",
+      "description": "选择如何连接到 Claude",
+      "oauth": {
+        "title": "Anthropic 账户",
+        "description": "使用您的 Claude Pro、Max、Team 或 Enterprise 订阅",
+        "connected": "已连接",
+        "reconnect": "重新连接",
+        "connect": "连接账户",
+        "checking": "正在检查连接..."
+      },
+      "litellm": {
+        "title": "LiteLLM 代理",
+        "description": "通过 LiteLLM 代理服务器连接",
+        "notConfigured": "未配置",
+        "selectModel": "选择模型",
+        "selectPlaceholder": "选择模型...",
+        "loading": "加载中...",
+        "noModels": "没有可用的模型。请检查 LiteLLM 配置。"
+      },
+      "custom": {
+        "title": "自定义 API",
+        "description": "使用自定义 API 端点和您自己的凭据",
+        "baseUrl": "基础 URL",
+        "baseUrlPlaceholder": "https://api.anthropic.com",
+        "apiToken": "API 令牌",
+        "apiTokenPlaceholder": "sk-ant-...",
+        "model": "模型",
+        "modelPlaceholder": "claude-sonnet-4-20250514"
+      }
+    },
+    "usage": {
+      "title": "使用统计",
+      "description": "追踪您的令牌使用和预估成本",
+      "today": "今天",
+      "week": "本周",
+      "month": "本月",
+      "allTime": "全部",
+      "contributions": "贡献",
+      "requests": "请求",
+      "tokens": "令牌",
+      "viewDetails": "查看用量",
+      "loading": "正在加载使用统计..."
+    },
+    "voice": {
+      "title": "语音输入",
+      "openaiKey": {
+        "title": "OpenAI API 密钥",
+        "description": "语音转录（Whisper API）所需。免费用户需要自己的密钥。",
+        "placeholder": "sk-...",
+        "remove": "移除"
+      }
+    }
+  },
+  "skills": {
+    "title": "技能",
+    "searchPlaceholder": "搜索技能...",
+    "createTooltip": "创建新技能",
+    "loading": "加载中...",
+    "emptyState": "没有技能",
+    "noResults": "未找到结果",
+    "selectToView": "选择一个技能查看详情",
+    "noSkillsFound": "未找到技能",
+    "createFirst": "创建您的第一个技能",
+    "sections": {
+      "user": "用户",
+      "project": "项目",
+      "plugin": "插件",
+      "builtin": "内置"
+    },
+    "badges": {
+      "builtin": "内置",
+      "plugin": "插件"
+    },
+    "detail": {
+      "readOnly": {
+        "builtin": "内置技能为只读",
+        "plugin": "插件技能为只读"
+      },
+      "description": "描述",
+      "descriptionPlaceholder": "技能描述...",
+      "usage": "用法",
+      "instructions": "指令",
+      "instructionsPlaceholder": "技能指令（markdown）...",
+      "noInstructions": "没有指令",
+      "defaultPrompt": "默认提示",
+      "contents": "内容",
+      "editMarkdown": "编辑 markdown",
+      "previewMarkdown": "预览 markdown"
+    },
+    "form": {
+      "title": "新技能",
+      "nameLabel": "名称",
+      "namePlaceholder": "my-skill",
+      "nameHint": "小写字母、数字和连字符",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "这个技能做什么...",
+      "scopeLabel": "范围",
+      "scopeUser": "用户 (~/.claude/skills/)",
+      "scopeProject": "项目 (.claude/skills/)",
+      "instructionsLabel": "指令",
+      "instructionsPlaceholder": "技能指令（markdown）...",
+      "cancel": "取消",
+      "create": "创建",
+      "creating": "创建中...",
+      "save": "保存",
+      "saving": "保存中..."
+    }
+  },
+  "mcp": {
+    "title": "MCP 服务器",
+    "searchPlaceholder": "搜索服务器...",
+    "addTooltip": "添加 MCP 服务器",
+    "emptyState": "没有服务器",
+    "noResults": "未找到结果",
+    "selectToView": "选择一个服务器查看详情",
+    "noServersConfigured": "未配置 MCP 服务器",
+    "addFirst": "添加您的第一个服务器",
+    "requiresLogin": "需要登录",
+    "tools": "工具",
+    "tools_plural": "工具",
+    "status": {
+      "connected": "已连接",
+      "failed": "失败",
+      "needsAuth": "需要认证",
+      "needsLogin": "需要登录",
+      "pending": "连接中..."
+    },
+    "detail": {
+      "noTools": "没有工具",
+      "authenticate": "认证",
+      "reconnect": "重新连接",
+      "requiresLoginNotice": "此 MCP 服务器需要认证。请登录您的账户以访问。",
+      "connection": "连接",
+      "type": "类型",
+      "url": "URL",
+      "command": "命令",
+      "args": "参数",
+      "env": "环境变量",
+      "error": "错误",
+      "toolsCount": "工具 ({{count}})"
+    },
+    "form": {
+      "title": "新 MCP 服务器",
+      "nameLabel": "名称",
+      "namePlaceholder": "my-server",
+      "transportLabel": "传输方式",
+      "transportStdio": "stdio（本地命令）",
+      "transportHttp": "HTTP (SSE)",
+      "commandLabel": "命令",
+      "commandPlaceholder": "npx, python, node...",
+      "argsLabel": "参数",
+      "argsPlaceholder": "-m mcp_server --port 3000",
+      "argsHint": "空格分隔的参数",
+      "urlLabel": "URL",
+      "urlPlaceholder": "http://localhost:3000/sse",
+      "scopeLabel": "范围",
+      "scopeGlobal": "全局 (~/.claude.json)",
+      "scopeProject": "项目",
+      "cancel": "取消",
+      "add": "添加",
+      "adding": "添加中..."
+    }
+  },
+  "runtime": {
+    "title": "运行时设置",
+    "description": "配置用于运行和调试脚本的运行时环境",
+    "commonTools": {
+      "title": "常用工具",
+      "description": "增强 Hóng 功能的命令行工具",
+      "hint": "这些工具改善搜索、文件操作和开发体验",
+      "refresh": "刷新",
+      "detecting": "正在检测工具...",
+      "noTools": "未检测到工具",
+      "install": "安装",
+      "notInstalled": "未安装",
+      "installNote": "注意：安装需要 macOS 上的 Homebrew、Linux 上的 apt 或 Windows 上的 winget/Scoop。您也可以复制命令并在终端中运行。"
+    },
+    "nodejs": {
+      "title": "Node.js / JavaScript",
+      "description": "Node.js、Bun 和包管理器",
+      "preferredRuntime": {
+        "title": "首选运行时",
+        "auto": "自动检测",
+        "node": "Node.js",
+        "bun": "Bun",
+        "hint": "自动检测将根据项目配置选择"
+      },
+      "nodeSection": "Node.js",
+      "nodeRuntime": "Node 运行时",
+      "bunSection": "Bun",
+      "bunRuntime": "Bun 运行时",
+      "packageManager": {
+        "title": "包管理器",
+        "default": "默认包管理器",
+        "auto": "自动检测",
+        "hint": "自动检测将根据项目的锁文件选择"
+      },
+      "debug": {
+        "title": "调试设置",
+        "port": "默认调试端口",
+        "portHint": "调试模式下 Node.js 检查器使用的端口（默认：9229）"
+      }
+    },
+    "python": {
+      "title": "Python",
+      "description": "Python 解释器和包管理器",
+      "hint": "Python 运行时和包管理工具",
+      "detecting": "正在检测 Python 工具...",
+      "noTools": "未检测到 Python 工具"
+    },
+    "go": {
+      "title": "Go",
+      "description": "Go 编译器和工具",
+      "comingSoon": "Go 运行时配置即将推出。"
+    },
+    "rust": {
+      "title": "Rust",
+      "description": "Rust 编译器和 Cargo",
+      "comingSoon": "Rust 运行时配置即将推出。"
+    },
+    "pathRow": {
+      "notFound": "未找到",
+      "notInstalled": "未安装",
+      "reset": "重置",
+      "setCustomPath": "设置自定义路径"
+    }
+  },
+  "beta": {
+    "title": "测试功能",
+    "description": "启用实验性功能。这些功能可能不稳定或随时更改。",
+    "rollback": {
+      "title": "回滚",
+      "description": "允许回滚到之前的消息并恢复文件。"
+    },
+    "offlineMode": {
+      "title": "离线模式",
+      "description": "启用离线模式界面和 Ollama 集成。"
+    },
+    "kanban": {
+      "title": "看板",
+      "description": "以按状态组织的看板形式查看工作区。"
+    },
+    "automations": {
+      "title": "自动化和收件箱",
+      "description": "使用 GitHub 和 Linear 触发器自动化工作流程，并管理收件箱通知。",
+      "requiresPaid": "需要付费计划。升级以启用自动化和收件箱。"
+    },
+    "tasks": {
+      "title": "Agent 任务",
+      "description": "启用任务系统替代旧版待办事项系统。"
+    },
+    "offlineSettings": {
+      "title": "离线模式设置",
+      "ollamaStatus": "Ollama 状态",
+      "model": "模型",
+      "modelHint": "选择离线模式使用的模型",
+      "selectModel": "选择模型",
+      "autoOffline": "自动离线模式",
+      "autoOfflineHint": "当网络不可用时自动使用 Ollama",
+      "setupTitle": "设置说明：",
+      "setupStep1": "从以下地址安装 Ollama {{version}}+",
+      "setupStep2": "拉取推荐的模型：",
+      "setupStep3": "Ollama 将在后台自动运行"
+    },
+    "updates": {
+      "title": "更新",
+      "description": "手动检查新版本（绕过 CDN 缓存）",
+      "earlyAccess": {
+        "title": "抢先体验",
+        "description": "在正式发布前接收测试版本。测试版本可能不太稳定。"
+      },
+      "version": {
+        "current": "当前：v{{version}}",
+        "checking": "正在检查更新...",
+        "available": "有可用更新：v{{version}}",
+        "upToDate": "您已是最新版本",
+        "error": "检查失败（开发模式？）",
+        "idle": "点击检查更新"
+      },
+      "checkNow": "立即检查"
+    }
+  },
+  "keyboard": {
+    "title": "快捷键",
+    "description": "配置键盘快捷键"
+  },
+  "profile": {
+    "title": "个人资料",
+    "description": "管理您的账户和个性化设置",
+    "account": {
+      "title": "账户",
+      "signInPrompt": "登录以启用红杉数字系统（HongShan Lite）增强功能。",
+      "signIn": "登录",
+      "signOut": "退出登录",
+      "fullName": "姓名",
+      "fullNameDescription": "您的显示名称",
+      "fullNamePlaceholder": "输入您的姓名",
+      "email": "邮箱",
+      "emailDescription": "您的账户邮箱"
+    },
+    "personalization": {
+      "title": "个性化",
+      "preferredName": {
+        "label": "Claude 应该如何称呼您？",
+        "description": "一个昵称或首选称呼",
+        "placeholder": "例如：小明"
+      },
+      "preferences": {
+        "label": "个人偏好",
+        "description": "Claude 在回复时应考虑的任何偏好（学习风格、沟通偏好等）",
+        "placeholder": "例如：我喜欢简洁的解释配合代码示例。学习新概念时，类比对我特别有帮助。"
+      }
+    }
+  },
+  "projects": {
+    "title": "项目",
+    "description": "管理您的本地项目"
+  },
+  "customAgents": {
+    "title": "自定义 Agent",
+    "description": "创建和管理自定义 AI Agent",
+    "searchPlaceholder": "搜索 Agent...",
+    "createTooltip": "创建新 Agent",
+    "loading": "加载中...",
+    "noAgents": "暂无 Agent",
+    "createAgent": "创建 Agent",
+    "noResults": "未找到结果",
+    "sections": {
+      "user": "用户",
+      "project": "项目"
+    },
+    "detail": {
+      "save": "保存",
+      "saving": "保存中...",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "Agent 描述...",
+      "modelLabel": "模型",
+      "modelInherit": "继承父级",
+      "allowedTools": "允许的工具",
+      "disallowedTools": "禁用的工具",
+      "systemPrompt": "系统提示词",
+      "systemPromptPlaceholder": "此 Agent 的系统提示词..."
+    },
+    "create": {
+      "title": "新建 Agent",
+      "cancel": "取消",
+      "create": "创建",
+      "creating": "创建中...",
+      "nameLabel": "名称",
+      "namePlaceholder": "my-agent",
+      "nameHint": "小写字母、数字和连字符",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "这个 Agent 的功能...",
+      "modelLabel": "模型",
+      "scopeLabel": "作用域",
+      "scopeUser": "用户 (~/.claude/agents/)",
+      "scopeProject": "项目 (.claude/agents/)",
+      "systemPromptLabel": "系统提示词",
+      "systemPromptPlaceholder": "你是一个专门的 Agent，负责..."
+    },
+    "empty": {
+      "selectAgent": "选择一个 Agent 查看详情",
+      "noAgentsFound": "未找到自定义 Agent",
+      "createFirst": "创建你的第一个 Agent"
+    },
+    "toast": {
+      "created": "Agent 已创建",
+      "saved": "Agent 已保存",
+      "createFailed": "创建失败",
+      "saveFailed": "保存失败",
+      "pluginReadOnly": "无法修改插件 Agent",
+      "pluginReadOnlyDesc": "插件 Agent 是只读的"
+    }
+  },
+  "plugins": {
+    "title": "插件",
+    "description": "管理已安装的插件",
+    "searchPlaceholder": "搜索插件...",
+    "loading": "加载中...",
+    "noPlugins": "暂无插件",
+    "installHint": "安装插件到 ~/.claude/plugins/",
+    "noResults": "未找到结果",
+    "selectToView": "选择一个插件查看详情",
+    "noPluginsInstalled": "未安装插件",
+    "installMarketplaceHint": "安装插件到 ~/.claude/plugins/marketplaces/",
+    "sections": {
+      "enabled": "已启用"
+    },
+    "detail": {
+      "active": "启用",
+      "version": "版本",
+      "source": "来源",
+      "homepage": "主页",
+      "tags": "标签",
+      "commands": "命令 ({{count}})",
+      "skills": "技能 ({{count}})",
+      "agents": "Agent ({{count}})",
+      "mcpServers": "MCP 服务器 ({{count}})",
+      "signIn": "登录",
+      "connected": "已连接"
+    },
+    "toast": {
+      "enabled": "插件已启用",
+      "disabled": "插件已禁用",
+      "authSuccess": "{{name}} 认证成功",
+      "authFailed": "认证失败"
+    }
+  },
+  "keyboard": {
+    "title": "快捷键",
+    "description": "配置键盘快捷键",
+    "searchPlaceholder": "搜索快捷键...",
+    "pressKeys": "请按下按键...",
+    "notSet": "未设置",
+    "resetTo": "重置为",
+    "clickToRecord": "点击以录制新快捷键",
+    "noShortcutsFound": "未找到快捷键",
+    "resetAllToDefaults": "全部重置为默认",
+    "selectToCustomize": "选择一个快捷键进行自定义",
+    "shortcutSuffix": "快捷键",
+    "conflictMessage": "\"{{label}}\" 已使用此快捷键"
+  },
+  "debug": {
+    "title": "调试",
+    "description": "系统信息和开发者工具",
+    "systemInfo": {
+      "title": "系统信息",
+      "version": "版本",
+      "platform": "平台",
+      "devMode": "开发模式",
+      "protocol": "协议",
+      "registered": "已注册",
+      "notRegistered": "未注册",
+      "userData": "用户数据",
+      "yes": "是",
+      "no": "否"
+    },
+    "database": {
+      "title": "数据库",
+      "projects": "项目",
+      "chats": "对话",
+      "subChats": "子对话"
+    },
+    "devTools": {
+      "title": "开发者工具",
+      "reactScan": "React Scan",
+      "reactScanDesc": "高亮组件重渲染",
+      "simulateOffline": "模拟离线",
+      "simulateOfflineDesc": "无需断网即可测试离线模式",
+      "showMessageJson": "显示消息 JSON",
+      "showMessageJsonDesc": "在聊天消息下方显示原始 JSON"
+    },
+    "quickActions": {
+      "title": "快捷操作",
+      "openUserData": "打开用户数据",
+      "devTools": "开发工具",
+      "reload": "重新加载",
+      "copyInfo": "复制信息"
+    },
+    "toastTesting": {
+      "title": "Toast 测试",
+      "infoUndo": "信息 + 撤销",
+      "success": "成功",
+      "error": "错误",
+      "default": "默认",
+      "loading": "加载中",
+      "promise": "Promise"
+    },
+    "dataManagement": {
+      "title": "数据管理",
+      "clearChats": "清除对话",
+      "resetOnboarding": "重置引导",
+      "resetAll": "重置全部",
+      "confirmClearChats": "清除所有对话？项目将被保留。",
+      "confirmResetOnboarding": "重置引导？您将再次看到欢迎页面。",
+      "confirmResetAll": "重置所有数据？这将清除所有数据并退出登录。"
+    },
+    "toast": {
+      "allChatsCleared": "所有对话已清除",
+      "onboardingReset": "引导已重置，正在重新加载...",
+      "allDataCleared": "所有数据已清除，正在重新加载...",
+      "debugInfoCopied": "调试信息已复制到剪贴板",
+      "reactScanEnabled": "React Scan 已启用",
+      "reactScanEnabledDesc": "重新加载页面以查看重渲染高亮",
+      "reactScanDisabled": "React Scan 已禁用",
+      "reactScanDisabledDesc": "重新加载页面以完全移除",
+      "offlineSimEnabled": "离线模拟已启用",
+      "offlineSimEnabledDesc": "应用将表现为离线状态",
+      "offlineSimDisabled": "离线模拟已禁用",
+      "offlineSimDisabledDesc": "网络检测已恢复正常"
+    }
+  },
+  "sidebar": {
+    "back": "返回",
+    "profile": "个人资料",
+    "preferences": "偏好设置",
+    "appearance": "外观",
+    "keyboard": "快捷键",
+    "beta": "测试功能",
+    "projects": "项目",
+    "models": "模型",
+    "skills": "技能",
+    "customAgents": "自定义 Agent",
+    "mcpServers": "MCP 服务器",
+    "plugins": "插件",
+    "debug": "调试",
+    "runtime": "运行时"
+  }
+}

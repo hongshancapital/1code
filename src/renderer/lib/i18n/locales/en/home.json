@@ -1,0 +1,86 @@
+{
+  "greetings": {
+    "morning": {
+      "weekday": [
+        "Good morning! Ready to build something great?",
+        "Rise and shine! What shall we create today?",
+        "Morning! Let's make today productive."
+      ],
+      "weekend": [
+        "Good morning! Enjoying your weekend?",
+        "Morning! Weekend coding session?"
+      ]
+    },
+    "afternoon": {
+      "weekday": [
+        "Good afternoon! How's your day going?",
+        "Afternoon! What are you working on?",
+        "Hey there! Ready for some afternoon coding?"
+      ],
+      "weekend": [
+        "Good afternoon! Relaxing weekend?",
+        "Afternoon! Got any side projects?"
+      ]
+    },
+    "evening": {
+      "weekday": [
+        "Good evening! Wrapping up for the day?",
+        "Evening! Almost done for today?",
+        "Evening vibes! What's on your mind?"
+      ],
+      "weekend": [
+        "Good evening! Winding down?",
+        "Evening! Any fun projects tonight?"
+      ]
+    },
+    "night": {
+      "weekday": [
+        "Working late? Let me help you finish faster.",
+        "Night owl mode activated!",
+        "Burning the midnight oil? I'm here to help."
+      ],
+      "weekend": [
+        "Late night hacking? I'm here to help.",
+        "Burning the midnight oil?",
+        "Night coding session? Let's go!"
+      ]
+    }
+  },
+  "actions": {
+    "newChat": "New Chat",
+    "newChatDesc": "Start a conversation",
+    "viewAll": "View all"
+  },
+  "stats": {
+    "recentWorkspaces": "Active Workspaces",
+    "recentChats": "Recent Chats",
+    "last7Days": "Last 7 days",
+    "totalAutomations": "Total Automations",
+    "active": "Active",
+    "paused": "Paused",
+    "inboxItems": "Inbox Items"
+  },
+  "sections": {
+    "recentChats": "Recent Chats",
+    "inbox": "Inbox",
+    "automations": "Automations"
+  },
+  "empty": {
+    "recentChats": "No recent chats",
+    "inboxItems": "No inbox items yet",
+    "automations": "No automations yet"
+  },
+  "quickInput": {
+    "placeholder": "What do you want to get done?"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  },
+  "aria": {
+    "backToChats": "Back to chats",
+    "openSidebar": "Open sidebar"
+  }
+}
