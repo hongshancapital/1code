@@ -13,8 +13,6 @@ import { cn } from "../../../lib/utils"
 // ============================================================================
 
 interface RuntimeSectionProps {
-  /** Unique identifier for the section */
-  id: string
   /** Icon to display in the header */
   icon: React.ReactNode
   /** Section title */
@@ -34,7 +32,6 @@ interface RuntimeSectionProps {
 // ============================================================================
 
 export function RuntimeSection({
-  id,
   icon,
   title,
   description,

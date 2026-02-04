@@ -138,7 +138,7 @@ function ProjectGeneralTab({ projectId }: { projectId: string }) {
   const utils = trpc.useUtils()
 
   // Get config for selected project
-  const { data: configData, refetch: refetchConfig } =
+  const { data: configData } =
     trpc.worktreeConfig.get.useQuery(
       { projectId },
       { enabled: !!projectId },

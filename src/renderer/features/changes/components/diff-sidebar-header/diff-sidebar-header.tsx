@@ -20,9 +20,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "../../../../components/ui/tooltip";
-import { IconCloseSidebarRight, IconFetch, IconForcePush, IconSpinner, AgentIcon, CircleFilterIcon, IconReview, ExternalLinkIcon } from "../../../../components/ui/icons";
+import { IconCloseSidebarRight, IconFetch, IconForcePush, IconSpinner, IconReview, ExternalLinkIcon } from "../../../../components/ui/icons";
 import { DiffViewModeSwitcher } from "./diff-view-mode-switcher";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { HiArrowPath, HiChevronDown } from "react-icons/hi2";
 import { LuGitBranch } from "react-icons/lu";
 import {
@@ -163,7 +163,6 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 	onRefreshDiff,
 }: DiffSidebarHeaderProps) {
 	// Responsive breakpoints - progressive disclosure
-	const isCompact = sidebarWidth < 350;
 	const showViewModeToggle = sidebarWidth >= 450; // Show Split/Unified toggle
 	const showReviewButton = sidebarWidth >= 550; // Show Review button
 

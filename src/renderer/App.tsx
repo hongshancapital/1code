@@ -1,4 +1,4 @@
-import { Provider as JotaiProvider, useAtomValue, useSetAtom } from "jotai"
+import { Provider as JotaiProvider, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ThemeProvider, useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { I18nextProvider } from "react-i18next"
@@ -26,6 +26,7 @@ import {
   litellmOnboardingCompletedAtom,
   litellmSelectedModelAtom,
   overrideModelModeAtom,
+  welcomeNameInputCompletedAtom,
 } from "./lib/atoms"
 import i18n from "./lib/i18n"
 import { appStore } from "./lib/jotai-store"
@@ -88,6 +89,7 @@ function AppContent() {
   const setLitellmSelectedModel = useSetAtom(litellmSelectedModelAtom)
   const setAuthSkipped = useSetAtom(authSkippedAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const [welcomeNameInputCompleted, setWelcomeNameInputCompleted] = useAtom(welcomeNameInputCompletedAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
 
   // Track if auth check has completed
@@ -269,11 +271,17 @@ function AppContent() {
   const showLoadingScene = !loadingSceneComplete
   const isLoading = !initialDataLoaded
 
+  // Show name input on first launch (name not yet asked)
+  // This is independent of billingMethod - we always want to ask for name on first launch
+  const showNameInput = !welcomeNameInputCompleted
+
   // Loading scene 作为覆盖层，后面的内容正常渲染
   const loadingOverlay = showLoadingScene ? (
     <LoadingScene
       isLoading={isLoading}
       loadingStatus={loadingStatus}
+      showNameInput={showNameInput}
+      onNameInputComplete={() => setWelcomeNameInputCompleted(true)}
       onLoadingComplete={() => setLoadingSceneComplete(true)}
     />
   ) : null

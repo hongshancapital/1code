@@ -481,7 +481,7 @@ async function saveTokensToClaudeJson(
 }
 
 export function cancelAllPendingOAuth(): void {
-  for (const [state, pending] of pendingOAuthFlows) {
+  for (const [, pending] of pendingOAuthFlows) {
     clearTimeout(pending.timeoutId);
     pending.resolve({ success: false, error: 'Cancelled' });
   }

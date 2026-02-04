@@ -36,9 +36,9 @@ function getFileIcon(filename: string) {
 }
 
 export function AgentFileItem({
-  id,
+  id: _id,
   filename,
-  url,
+  url: _url,
   size,
   isLoading = false,
   onRemove,

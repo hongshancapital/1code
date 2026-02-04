@@ -38,7 +38,6 @@ export function OpenLocallyDialog({
   onClose,
   remoteChat,
   matchingProjects,
-  allProjects,
   remoteSubChatId,
 }: OpenLocallyDialogProps) {
   const [mounted, setMounted] = useState(false)

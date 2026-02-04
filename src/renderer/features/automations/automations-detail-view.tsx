@@ -11,7 +11,6 @@ import {
 } from "../agents/atoms"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
 import { IconSpinner, IconChevronDown, ExternalLinkIcon } from "../../components/ui/icons"
-import { Logo } from "../../components/ui/logo"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import {
   ArrowLeft,
@@ -23,15 +22,6 @@ import { Badge } from "../../components/ui/badge"
 import { cn } from "../../lib/utils"
 import { trpc } from "../../lib/trpc"
 
-// Type definitions for automation data
-interface AutomationExecution {
-  id: string
-  status: string
-  external_id?: string
-  external_url?: string
-  error_message?: string
-  created_at: string
-}
 import { Switch } from "../../components/ui/switch"
 import {
   Select,
@@ -61,7 +51,6 @@ import {
   GITHUB_TRIGGER_OPTIONS,
   LINEAR_TRIGGER_OPTIONS,
   CLAUDE_MODELS,
-  getTriggerLabel,
   PlatformIcon,
   type Platform,
   type TriggerType,
@@ -113,9 +102,7 @@ export function AutomationsDetailView() {
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setAutomationDetailId = useSetAtom(automationDetailIdAtom)
   const setTemplateParams = useSetAtom(automationTemplateParamsAtom)
-  const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
-  const setMobileViewMode = useSetAtom(agentsMobileViewModeAtom)
-  const isMobile = useIsMobile()
+  const [_sidebarOpen, _setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
 
   const isCreateMode = automationId === "new"
 
@@ -177,7 +164,7 @@ export function AutomationsDetailView() {
   }, [automationsList, automationId])
 
   // Fetch executions for Past Runs
-  const { data: executionsData, isFetching: isFetchingMoreExecutions } = trpc.automations.listExecutions.useQuery(
+  const { data: executionsData, isFetching: _isFetchingMoreExecutions } = trpc.automations.listExecutions.useQuery(
     { automationId: automationId!, limit: 20 },
     { enabled: !isCreateMode && !!automationId }
   )
@@ -195,7 +182,6 @@ export function AutomationsDetailView() {
   }, [executionsData])
 
   const totalExecutions = allExecutions.length
-  const hasMoreExecutions = false // 本地版暂不支持分页
 
   // ============================================================================
   // GitHub/Linear connection status - stubbed for local version

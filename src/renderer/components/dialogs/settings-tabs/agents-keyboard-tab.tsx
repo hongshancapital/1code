@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import { RotateCcw, Settings2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { CmdIcon, OptionIcon, ShiftIcon, ControlIcon } from "../../ui/icons"

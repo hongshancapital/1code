@@ -2,7 +2,6 @@ import { AuthStore, AuthData, AuthUser, AuthProviderType } from "./auth-store"
 import { app, BrowserWindow } from "electron"
 import { getEnv, getApiOrigin } from "./lib/env"
 import {
-  AuthProvider,
   PkceState,
   getCurrentProvider,
   getProvider,
@@ -167,15 +166,13 @@ async function fetchUserFromApi(accessToken: string): Promise<AuthUser | null> {
 export class AuthManager {
   private store: AuthStore
   private refreshTimer?: NodeJS.Timeout
-  private isDev: boolean
   private onTokenRefresh?: (authData: AuthData) => void
 
   // PKCE state for ongoing auth flow
   private pkceState: PkceState | null = null
 
-  constructor(isDev: boolean = false) {
+  constructor(_isDev: boolean = false) {
     this.store = new AuthStore(app.getPath("userData"))
-    this.isDev = isDev
 
     // Log detected auth provider on startup
     const detectedProvider = getEffectiveAuthProvider()
@@ -193,16 +190,6 @@ export class AuthManager {
    */
   setOnTokenRefresh(callback: (authData: AuthData) => void): void {
     this.onTokenRefresh = callback
-  }
-
-  /**
-   * Get device info for logging/debugging
-   */
-  private getDeviceInfo(): string {
-    const platform = process.platform
-    const arch = process.arch
-    const version = app.getVersion()
-    return `Hong Desktop ${version} (${platform} ${arch})`
   }
 
   /**

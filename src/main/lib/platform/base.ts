@@ -92,7 +92,6 @@ export abstract class BasePlatformProvider implements PlatformProvider {
 
   buildEnvironment(baseEnv?: Record<string, string>): Record<string, string> {
     const envConfig = this.getEnvironmentConfig()
-    const pathConfig = this.getPathConfig()
     const home = this.getHome()
     const user = this.getUsername()
 

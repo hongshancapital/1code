@@ -6,6 +6,6 @@ interface LogoProps extends React.SVGProps<SVGSVGElement> {
 }
 
 // TODO: Replace with Hóng logo
-export function Logo({ fill = "currentColor", className, ...props }: LogoProps) {
+export function Logo({ }: LogoProps) {
   return null
 }

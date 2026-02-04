@@ -202,7 +202,7 @@ function highlightTextInDom(
     if (fragments.length > 0) {
       const parent = textNode.parentNode
       if (parent) {
-        fragments.forEach((frag, i) => {
+        fragments.forEach((frag, _i) => {
           if (typeof frag === "string") {
             parent.insertBefore(document.createTextNode(frag), textNode)
           } else {

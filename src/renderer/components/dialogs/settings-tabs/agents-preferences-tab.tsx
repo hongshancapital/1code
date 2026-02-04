@@ -107,7 +107,6 @@ const JETBRAINS: EditorOption[] = [
 ]
 import vscodeBaseIcon from "../../../assets/app-icons/vscode.svg"
 import jetbrainsBaseIcon from "../../../assets/app-icons/jetbrains.svg"
-import { Kbd } from "../../ui/kbd"
 import {
   Select,
   SelectContent,

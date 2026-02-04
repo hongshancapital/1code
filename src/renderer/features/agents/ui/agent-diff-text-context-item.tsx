@@ -36,8 +36,8 @@ interface AgentDiffTextContextItemProps {
 }
 
 export function AgentDiffTextContextItem({
-  text,
-  preview,
+  text: _text,
+  preview: _preview,
   filePath,
   lineNumber,
   lineType,

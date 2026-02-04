@@ -212,7 +212,7 @@ export class AzureProvider implements AuthProvider {
     }
   }
 
-  async refresh(refreshToken: string): Promise<TokenResponse | null> {
+  async refresh(_refreshToken: string): Promise<TokenResponse | null> {
     console.log("[Azure] Refreshing token using MSAL...")
 
     const msal = getMsalInstance()

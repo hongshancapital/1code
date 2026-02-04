@@ -13,7 +13,7 @@ interface ProjectPluginsTabProps {
   projectPath: string | null
 }
 
-export function ProjectPluginsTab({ projectId, projectPath }: ProjectPluginsTabProps) {
+export function ProjectPluginsTab({ }: ProjectPluginsTabProps) {
   const setActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
 
   // Fetch all plugins

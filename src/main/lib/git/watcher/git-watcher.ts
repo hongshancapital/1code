@@ -41,49 +41,6 @@ interface GitWatcherConfig {
 	ignorePatterns?: string[];
 }
 
-const DEFAULT_IGNORE_PATTERNS = [
-	// Node/JS
-	"**/node_modules/**",
-	"**/dist/**",
-	"**/build/**",
-	"**/out/**",
-	"**/.next/**",
-	"**/.turbo/**",
-	"**/.cache/**",
-	"**/coverage/**",
-	"**/*.log",
-	"**/.DS_Store",
-	"**/package-lock.json",
-	"**/pnpm-lock.yaml",
-	"**/yarn.lock",
-	"**/.env*",
-	"**/*.map",
-	"**/*.d.ts",
-	// Rust
-	"**/target/**",
-	// Python
-	"**/__pycache__/**",
-	"**/.pytest_cache/**",
-	"**/*.pyc",
-	// Go/PHP
-	"**/vendor/**",
-	// Java/Kotlin
-	"**/.gradle/**",
-	"**/*.class",
-	// IDE
-	"**/.idea/**",
-	"**/.vscode/**",
-	// iOS
-	"**/Pods/**",
-	// C/C++
-	"**/*.o",
-	"**/*.obj",
-	// Temporary files
-	"**/*.swp",
-	"**/*.swo",
-	"**/*~",
-];
-
 /**
  * GitWatcher monitors a worktree directory for file changes using chokidar.
  * Changes are batched and debounced to avoid overwhelming the renderer with events.

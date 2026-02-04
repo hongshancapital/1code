@@ -13,8 +13,6 @@ import {
   selectedAgentChatIdAtom,
   selectedChatIsRemoteAtom,
   previousAgentChatIdAtom,
-  selectedDraftIdAtom,
-  showNewChatFormAtom,
   agentsMobileViewModeAtom,
   agentsPreviewSidebarOpenAtom,
   agentsSidebarOpenAtom,

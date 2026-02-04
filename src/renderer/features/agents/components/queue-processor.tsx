@@ -9,7 +9,6 @@ import { agentChatStore } from "../stores/agent-chat-store"
 import { trackMessageSent } from "../../../lib/analytics"
 import { appStore } from "../../../lib/jotai-store"
 import { loadingSubChatsAtom, setLoading, clearLoading } from "../atoms"
-import type { AgentQueueItem } from "../lib/queue-utils"
 
 // Delay between processing queue items (ms)
 const QUEUE_PROCESS_DELAY = 1000

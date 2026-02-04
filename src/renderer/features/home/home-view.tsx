@@ -7,7 +7,7 @@ import {
   agentsMobileViewModeAtom,
   selectedAgentChatIdAtom,
 } from "../agents/atoms"
-import { betaAutomationsEnabledAtom } from "../../lib/atoms"
+import { betaAutomationsEnabledAtom, isDesktopAtom, isFullscreenAtom } from "../../lib/atoms"
 import { trpc } from "../../lib/trpc"
 import { IconSpinner } from "../../components/ui/icons"
 import { MessageCircle, Inbox as InboxIcon, Zap, AlignJustify } from "lucide-react"
@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next"
 import { useTypingGreeting } from "./use-greeting"
 import { UsageBarChart } from "./usage-bar-chart"
 import { NewChatForm } from "../agents/main/new-chat-form"
+import { AgentsHeaderControls } from "../agents/ui/agents-header-controls"
 
 // Format relative time helper (returns key and count for translation)
 function getRelativeTimeKey(date: Date): { key: string; count?: number; fallback?: string } {
@@ -49,6 +50,8 @@ export function HomeView() {
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
   const setMobileViewMode = useSetAtom(agentsMobileViewModeAtom)
   const isMobile = useIsMobile()
+  const isDesktop = useAtomValue(isDesktopAtom)
+  const isFullscreen = useAtomValue(isFullscreenAtom)
 
   // Beta features flag
   const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
@@ -117,20 +120,43 @@ export function HomeView() {
   const isLoading = chatsLoading || (automationsEnabled && (automationsLoading || inboxLoading))
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden relative">
+      {/* Draggable area for window movement - covers header area (hidden in fullscreen/mobile) */}
+      {isDesktop && !isFullscreen && !isMobile && (
+        <div
+          className="absolute top-0 left-0 right-0 h-12 z-10"
+          style={{
+            WebkitAppRegion: "drag",
+          } as React.CSSProperties}
+        />
+      )}
+      {/* Header bar with sidebar toggle - matches NewChatForm layout */}
+      <div
+        className="shrink-0 flex items-center bg-background p-1.5 relative z-20"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+      >
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          {isMobile ? (
+            <button
+              onClick={handleSidebarToggle}
+              className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+              aria-label={t("aria.backToChats")}
+            >
+              <AlignJustify className="h-4 w-4" />
+            </button>
+          ) : (
+            <AgentsHeaderControls
+              isSidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen(true)}
+            />
+          )}
+        </div>
+      </div>
+
       {/* Section 1: Header with dynamic greeting */}
-      <div className="shrink-0 px-4 md:px-6 pt-6">
+      <div className="shrink-0 px-4 md:px-6 pt-4">
         <div className={isMobile ? "max-w-full" : "max-w-3xl mx-auto"}>
-          <div className="mb-6 flex items-center gap-3">
-            {(!sidebarOpen || isMobile) && (
-              <button
-                onClick={handleSidebarToggle}
-                className="h-7 w-7 p-0 flex items-center justify-center hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0 rounded-md text-muted-foreground hover:text-foreground"
-                aria-label={isMobile ? t("aria.backToChats") : t("aria.openSidebar")}
-              >
-                <AlignJustify className="h-4 w-4" />
-              </button>
-            )}
+          <div className="mb-6">
             <div className="min-h-[40px] flex items-center">
               <h1 className="text-xl md:text-2xl font-medium text-foreground">
                 {displayText}

@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react"
-import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { useTranslation } from "react-i18next"
 import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/tooltip"
 import {
   backgroundTasksAtomFamily,
-  runningTasksCountAtomFamily,
 } from "@/features/agents/atoms/background-tasks"
 import type { BackgroundTask, BackgroundTaskStatus } from "@/features/agents/types/background-task"
 import { trpc } from "@/lib/trpc"
@@ -46,10 +45,6 @@ const statusIcons: Record<BackgroundTaskStatus, React.ReactNode> = {
 
 function generateTerminalId(): string {
   return crypto.randomUUID().slice(0, 8)
-}
-
-function generatePaneId(chatId: string, terminalId: string): string {
-  return `${chatId}:term:${terminalId}`
 }
 
 const TaskListItem = memo(function TaskListItem({
@@ -267,7 +262,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
   subChatId,
   chatId,
   cwd,
-  workspaceId,
+  workspaceId: _workspaceId,
   onKillTask,
 }: BackgroundTasksWidgetProps) {
   const { t } = useTranslation("sidebar")

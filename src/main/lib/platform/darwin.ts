@@ -71,8 +71,6 @@ export class DarwinPlatformProvider extends BasePlatformProvider {
   }
 
   getEnvironmentConfig(): EnvironmentConfig {
-    const home = this.getHome()
-
     return {
       homeVar: "HOME",
       userVar: "USER",

@@ -5,7 +5,6 @@ import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import {
 	assertRegisteredWorktree,
-	getRegisteredChat,
 	gitSwitchBranch,
 } from "./security";
 import { createGit, createGitForNetwork, withGitLock, withLockRetry } from "./git-factory";
@@ -71,7 +70,6 @@ export const createBranchesRouter = () => {
 				}),
 			)
 			.mutation(async ({ input }): Promise<{ success: boolean }> => {
-				const chat = getRegisteredChat(input.worktreePath);
 				await gitSwitchBranch(input.worktreePath, input.branch);
 
 				// Update the branch in the chat record

@@ -634,8 +634,6 @@ export const AgentsMentionsEditor = memo(
           NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
         )
         let node: Node | null = walker.nextNode()
-        let lastTextNode: Text | null = null
-        let lastTextNodeOffset = 0
 
         while (node) {
           if (node.nodeType === Node.TEXT_NODE) {
@@ -649,8 +647,6 @@ export const AgentsMentionsEditor = memo(
               sel.addRange(range)
               return
             }
-            lastTextNode = textNode
-            lastTextNodeOffset = nodeLength
             currentOffset += nodeLength
           } else if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement

@@ -134,13 +134,9 @@ export class HistoryWriter {
  * Reads terminal history from disk.
  */
 export class HistoryReader {
-  private workspaceId: string
-  private paneId: string
   private filePath: string
 
   constructor(workspaceId: string, paneId: string) {
-    this.workspaceId = workspaceId
-    this.paneId = paneId
     this.filePath = getHistoryPath(workspaceId, paneId)
   }
 

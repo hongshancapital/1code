@@ -27,7 +27,6 @@ import { trpc } from "@/lib/trpc"
 import type { TerminalInstance, RunConfig } from "./types"
 
 // Animation constants
-const PANEL_ANIMATION_DURATION_SECONDS = 0 // Disabled for performance
 const PANEL_ANIMATION_DURATION_MS = 0
 const ANIMATION_BUFFER_MS = 50 // Small buffer to ensure DOM layout is complete before xterm init
 
@@ -79,7 +78,7 @@ export function TerminalBottomPanel({
   workspaceId,
   tabId,
   initialCommands,
-  projectPath,
+  projectPath: _projectPath,
 }: TerminalBottomPanelProps) {
   const [isOpen, setIsOpen] = useAtom(terminalSidebarOpenAtom)
   const [allTerminals, setAllTerminals] = useAtom(terminalsAtom)
@@ -164,7 +163,7 @@ export function TerminalBottomPanel({
   }, [setAllTerminals, setAllActiveIds])
 
   // Create a new run terminal - stable callback
-  const createRunTerminal = useCallback((runConfig: RunConfig) => {
+  const _createRunTerminal = useCallback((runConfig: RunConfig) => {
     const currentChatId = chatIdRef.current
     const currentTerminals = terminalsRef.current
 

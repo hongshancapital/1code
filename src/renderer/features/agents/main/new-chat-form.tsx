@@ -1772,7 +1772,7 @@ export function NewChatForm({
           {!hideTitle && !embedded && (
             <div className="text-center mb-2">
               <h1 className="text-2xl md:text-4xl font-medium tracking-tight">
-                What do you want to get done?
+                {t("newChat.pageTitle")}
               </h1>
             </div>
           )}
@@ -1800,7 +1800,7 @@ export function NewChatForm({
               >
                 <div className="border bg-input-background relative z-10 p-2 rounded-xl opacity-60">
                   <div className="p-1 min-h-[44px] text-sm text-muted-foreground">
-                    Select a folder to start chatting...
+                    {t("newChat.selectFolder")}
                   </div>
                   <div className="flex items-center justify-between w-full pt-1">
                     <button
@@ -1812,7 +1812,7 @@ export function NewChatForm({
                       className="flex items-center gap-1.5 px-2 py-1 text-sm text-primary hover:text-primary/80 transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-primary/10 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      <span>{openFolder.isPending ? "Opening..." : "Select Folder"}</span>
+                      <span>{openFolder.isPending ? t("newChat.opening") : t("newChat.selectFolderButton")}</span>
                     </button>
                   </div>
                 </div>

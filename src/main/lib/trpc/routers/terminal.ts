@@ -134,7 +134,7 @@ export const terminalRouter = router({
 	/**
 	 * Get workspace cwd for terminal initialization
 	 */
-	getWorkspaceCwd: publicProcedure.input(z.string()).query(({ input }) => {
+	getWorkspaceCwd: publicProcedure.input(z.string()).query((_opts) => {
 		// For now, just return null - the workspace path comes from the chat/project
 		// In the future this could look up the workspace's root directory
 		return null

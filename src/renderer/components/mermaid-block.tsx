@@ -5,7 +5,6 @@ import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pa
 import { cn } from "../lib/utils"
 import {
   Dialog,
-  DialogContent,
   DialogPortal,
   DialogTitle,
 } from "./ui/dialog"

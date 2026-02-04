@@ -39,7 +39,6 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip"
 import { Kbd } from "../../../components/ui/kbd"
-import { getShortcutKey } from "../../../lib/utils/platform"
 import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
 import {
   ContextMenu,
@@ -189,8 +188,8 @@ export function SubChatSelector({
   canOpenPreview = false,
   onOpenDiff,
   canOpenDiff = false,
-  isDiffSidebarOpen = false,
-  diffStats,
+  isDiffSidebarOpen: _isDiffSidebarOpen = false,
+  diffStats: _diffStats,
   onOpenTerminal,
   canOpenTerminal = false,
   isTerminalOpen = false,
@@ -329,7 +328,7 @@ export function SubChatSelector({
   }, [])
 
   const onCloseTabsToRight = useCallback(
-    (subChatId: string, visualIndex: number) => {
+    (_subChatId: string, visualIndex: number) => {
       const state = useAgentSubChatStore.getState()
 
       // Use visual order from sorted openSubChats, not storage order

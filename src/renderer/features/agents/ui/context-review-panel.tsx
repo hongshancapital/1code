@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo } from "react"
 import { X, MessageSquare, Trash2, FileCode } from "lucide-react"
 import { createPortal } from "react-dom"
 import { Button } from "../../../components/ui/button"
-import { cn } from "../../../lib/utils"
 import type { DiffTextContext } from "../lib/queue-utils"
 
 interface ContextReviewPanelProps {

@@ -36,9 +36,7 @@ import {
 } from "lucide-react"
 import {
   ClipboardIcon,
-  ExternalLinkIcon,
   FolderIcon,
-  UndoIcon,
 } from "../../../components/ui/icons"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getFileIconByExtension } from "../mentions/agents-file-mention"
@@ -53,7 +51,6 @@ import {
 import { Button } from "../../../components/ui/button"
 import {
   IconSpinner,
-  PullRequestIcon,
   IconChatBubble,
   ExpandIcon,
   CollapseIcon,
@@ -76,7 +73,6 @@ import {
 const useIsHydrated = () => true // Desktop is always hydrated
 import { cn } from "../../../lib/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
-import { api } from "../../../lib/mock-api"
 import { trpcClient } from "../../../lib/trpc"
 // [CLOUD DISABLED] Remote API - disabled until cloud backend is available
 // import { remoteApi } from "../../../lib/remote-api"
@@ -92,18 +88,13 @@ const remoteApi: DisabledRemoteApi = {
   getSandboxFile: async () => { throw new Error("Cloud features disabled") },
   getSandboxDiff: async () => { throw new Error("Cloud features disabled") },
 }
-import {
-  getDiffHighlighter,
-  setDiffViewTheme,
-  type DiffHighlighter,
-} from "../../../lib/themes/diff-view-highlighter"
 // Comment feature imports
 import { CommentGutterLayer } from "../../comments/components/comment-gutter-layer"
 import { pendingCommentsAtomFamily } from "../../comments/atoms"
 import type { ReviewComment } from "../../comments/types"
 // New review system imports
 import { useDocumentComments } from "../hooks/use-document-comments"
-import { reviewCommentsAtomFamily, type DocumentComment } from "../atoms/review-atoms"
+import { reviewCommentsAtomFamily } from "../atoms/review-atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 export type DiffViewMode = "unified" | "split"
 
@@ -155,7 +146,7 @@ class DiffErrorBoundary extends Component<
     return null
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(_error: Error, _errorInfo: ErrorInfo) {
     // Error already captured in state, no need to log
   }
 
@@ -591,7 +582,6 @@ const FileDiffCard = memo(function FileDiffCard({
 }: FileDiffCardProps) {
   const diffCardRef = useRef<HTMLDivElement>(null)
   const diffContentRef = useRef<HTMLDivElement>(null)
-  const prevExpandedRef = useRef(isFullExpanded)
 
   // Build FileDiffMetadata from file content (enables clickable "N unmodified lines" sections)
   // Computed whenever fileContent is available, not just when fully expanded
@@ -691,12 +681,6 @@ const FileDiffCard = memo(function FileDiffCard({
   const handleRevealInFinder = () => {
     if (absolutePath) {
       openInFinderMutation(absolutePath)
-    }
-  }
-
-  const handleOpenInEditor = () => {
-    if (absolutePath && worktreePath) {
-      openInEditorMutation({ path: absolutePath, cwd: worktreePath })
     }
   }
 
@@ -1095,14 +1079,14 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
       subChatId: subChatIdProp,
       sandboxId,
       worktreePath,
-      repository,
+      repository: _repository,
       onStatsChange,
       initialDiff,
       initialParsedFiles,
       prefetchedFileContents,
-      showFooter = true,
-      onCreatePr: externalOnCreatePr,
-      isCreatingPr: externalIsCreatingPr,
+      showFooter: _showFooter = true,
+      onCreatePr: _externalOnCreatePr,
+      isCreatingPr: _externalIsCreatingPr,
       isMobile = false,
       onClose,
       onCollapsedStateChange,
@@ -1278,8 +1262,6 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
 
     // Height for collapsed header (file name + stats)
     const COLLAPSED_HEIGHT = 44
-    // Estimated height for expanded diff
-    const EXPANDED_HEIGHT_ESTIMATE = 300
 
     // Fetch diff on mount (only if initialDiff not provided)
     useEffect(() => {

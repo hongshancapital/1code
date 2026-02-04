@@ -65,7 +65,7 @@ export const tagsRouter = router({
       z.object({
         id: z.string(),
         name: z.string().min(1).max(50).optional(),
-        color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+        color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
         icon: z.string().nullable().optional(),
         sortOrder: z.number().optional(),
       }),

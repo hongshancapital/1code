@@ -14,7 +14,7 @@ interface ProjectSkillsTabProps {
   projectPath: string | null
 }
 
-export function ProjectSkillsTab({ projectId, projectPath }: ProjectSkillsTabProps) {
+export function ProjectSkillsTab({ projectPath }: ProjectSkillsTabProps) {
   const setActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
 
   // Fetch skills for the project

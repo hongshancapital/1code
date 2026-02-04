@@ -3,7 +3,7 @@
  * Provides type safety for local and remote chat data
  */
 
-import type { Chat, Project, SubChat } from "../../../main/lib/db/schema"
+import type { Chat } from "../../../main/lib/db/schema"
 
 /**
  * Transformed sub-chat with parsed messages

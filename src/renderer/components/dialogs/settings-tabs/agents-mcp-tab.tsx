@@ -328,8 +328,6 @@ export function AgentsMcpTab() {
     projectPath: string | null
   } | null>(null)
 
-  const updateMutation = trpc.claude.updateMcpServer.useMutation()
-
   // Focus search on "/" hotkey
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -352,8 +350,7 @@ export function AgentsMcpTab() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
-  const _isRefreshing = isLoadingConfig || isManualRefreshing // TODO: use for refresh indicator
+  const [, setIsManualRefreshing] = useState(false)
 
   const startOAuthMutation = trpc.claude.startMcpOAuth.useMutation()
   // [STUB] testMcpConnections is not yet implemented in the router
@@ -496,33 +493,6 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Authentication failed"
-      toast.error(message)
-    }
-  }
-
-  const getScopeFromGroup = (groupName: string): ScopeType => {
-    if (groupName.toLowerCase().includes("global") || groupName.toLowerCase().includes("user")) {
-      return "global"
-    }
-    return "project"
-  }
-
-  const isEditableGroup = (groupName: string): boolean => {
-    // Plugin-managed servers are not directly editable
-    return !groupName.toLowerCase().includes("plugin")
-  }
-
-  const handleToggleEnabled = async (server: McpServer, group: { groupName: string; projectPath: string | null }, enabled: boolean) => {
-    try {
-      await updateMutation.mutateAsync({
-        name: server.name,
-        scope: getScopeFromGroup(group.groupName),
-        projectPath: group.projectPath ?? undefined,
-        disabled: !enabled,
-      })
-      await handleRefresh(true)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to toggle server"
       toast.error(message)
     }
   }

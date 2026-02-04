@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { Sparkles, Code, MessageCircle } from "lucide-react"
+
 import { cn } from "../../../lib/utils"
 import type { ProjectMode } from "../atoms"
 
@@ -42,30 +43,6 @@ interface ModeOption {
 // Streaming Slogan Hook
 // ============================================================================
 
-const CHAT_SLOGANS = [
-  "Just chat, no project needed",
-  "Your AI conversation partner",
-  "Ideas flow freely here",
-  "Simple, focused conversations",
-  "Chat first, code later",
-]
-
-const COWORK_SLOGANS = [
-  "AI as your collaboration partner",
-  "Focus on ideas, deliver results",
-  "Simplify workflow, unleash creativity",
-  "From concept to delivery, seamlessly",
-  "You describe, AI builds",
-]
-
-const CODING_SLOGANS = [
-  "Code with confidence, Git has your back",
-  "Branch management at your fingertips",
-  "Your professional coding companion",
-  "Diff views and code review made easy",
-  "Worktree isolation for safe experiments",
-]
-
 interface UseStreamingSloganOptions {
   mode: ProjectMode
   isActive: boolean
@@ -79,6 +56,7 @@ function useStreamingSlogan({
   typingSpeed = 30,
   startDelay = 200,
 }: UseStreamingSloganOptions) {
+  const { t } = useTranslation("chat")
   const [displayText, setDisplayText] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
@@ -89,14 +67,15 @@ function useStreamingSlogan({
   const lastModeRef = useRef<ProjectMode | null>(null)
 
   const selectRandomSlogan = useCallback((targetMode: ProjectMode) => {
-    const slogans = targetMode === "chat"
-      ? CHAT_SLOGANS
+    const sloganKey = targetMode === "chat"
+      ? "slogan.chat"
       : targetMode === "cowork"
-        ? COWORK_SLOGANS
-        : CODING_SLOGANS
+        ? "slogan.cowork"
+        : "slogan.coding"
+    const slogans = t(sloganKey, { returnObjects: true }) as string[]
     const randomIndex = Math.floor(Math.random() * slogans.length)
     return slogans[randomIndex]
-  }, [])
+  }, [t])
 
   const typeNextChar = useCallback(() => {
     const targetText = selectedSloganRef.current

@@ -1063,7 +1063,6 @@ export async function getWorktreeDiff(
 	try {
 		const git = simpleGit(worktreePath);
 		const status = await git.status();
-		const currentBranch = status.current;
 
 		// Has uncommitted changes - diff against HEAD
 		if (!status.isClean()) {

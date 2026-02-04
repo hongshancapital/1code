@@ -96,6 +96,13 @@ export function RuntimeInitBanner() {
     }
   }, [toolsData, installingCategory, allSatisfied, missingCategories, installMutation])
 
+  // Get current installing tool name - must be before conditional returns
+  const installingTool = useMemo(() => {
+    if (!installingCategory || !toolsData?.categories) return null
+    const category = toolsData.categories.find((c) => c.category === installingCategory)
+    return category?.recommendedTool?.displayName || null
+  }, [installingCategory, toolsData])
+
   // Don't show if dismissed
   if (dismissed) {
     return null
@@ -110,13 +117,6 @@ export function RuntimeInitBanner() {
     setDesktopView("settings")
     handleDismiss()
   }
-
-  // Get current installing tool name
-  const installingTool = useMemo(() => {
-    if (!installingCategory || !toolsData?.categories) return null
-    const category = toolsData.categories.find((c) => c.category === installingCategory)
-    return category?.recommendedTool?.displayName || null
-  }, [installingCategory, toolsData])
 
   // Loading state
   if (isLoading) {

@@ -25,8 +25,35 @@
   },
   "newChat": {
     "title": "New Chat",
+    "pageTitle": "What do you want to get done?",
     "placeholder": "What would you like to work on?",
-    "submit": "Start"
+    "submit": "Start",
+    "selectFolder": "Select a folder to start chatting...",
+    "selectFolderButton": "Select Folder",
+    "opening": "Opening..."
+  },
+  "slogan": {
+    "chat": [
+      "Just chat, no project needed",
+      "Your AI conversation partner",
+      "Ideas flow freely here",
+      "Simple, focused conversations",
+      "Chat first, code later"
+    ],
+    "cowork": [
+      "AI as your collaboration partner",
+      "Focus on ideas, deliver results",
+      "Simplify workflow, unleash creativity",
+      "From concept to delivery, seamlessly",
+      "You describe, AI builds"
+    ],
+    "coding": [
+      "Code with confidence, Git has your back",
+      "Branch management at your fingertips",
+      "Your professional coding companion",
+      "Diff views and code review made easy",
+      "Worktree isolation for safe experiments"
+    ]
   },
   "errors": {
     "createFailed": "Failed to create chat",

@@ -58,35 +58,6 @@ export function setUserOpenAIKey(key: string | null): void {
   cachedOpenAIKey = undefined
 }
 
-// Cache for user plan (to avoid repeated API calls)
-let cachedUserPlan: { plan: string; status: string | null; fetchedAt: number } | null = null
-const PLAN_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
-
-/**
- * Fetch and cache user's subscription plan
- * @deprecated Auth manager removed - always returns null
- */
-async function getUserPlan(): Promise<{ plan: string; status: string | null } | null> {
-  return null
-}
-
-/**
- * Check if user has paid subscription (onecode_pro or onecode_max with active status)
- */
-async function hasPaidSubscription(): Promise<boolean> {
-  const planData = await getUserPlan()
-  if (!planData) return false
-
-  const paidPlans = ["onecode_pro", "onecode_max"]
-  return paidPlans.includes(planData.plan) && planData.status === "active"
-}
-
-/**
- * Clear plan cache (for testing or when subscription changes)
- */
-export function clearPlanCache(): void {
-  cachedUserPlan = null
-}
 
 /**
  * Get OpenAI API key from multiple sources (priority order):
@@ -159,18 +130,6 @@ function getOpenAIApiKey(): string | null {
  */
 export function clearOpenAIKeyCache(): void {
   cachedOpenAIKey = undefined
-}
-
-/**
- * Transcribe audio using Hóng backend (for authenticated users)
- * @deprecated Auth manager removed - always throws error
- */
-async function transcribeViaBackend(
-  _audioBuffer: Buffer,
-  _format: string,
-  _language?: string
-): Promise<string> {
-  throw new Error("Backend transcription not available - auth manager removed")
 }
 
 /**
@@ -336,9 +295,6 @@ export const voiceRouter = router({
       }
 
       setUserOpenAIKey(key || null)
-
-      // Clear plan cache so isAvailable re-evaluates
-      clearPlanCache()
 
       return { success: true }
     }),

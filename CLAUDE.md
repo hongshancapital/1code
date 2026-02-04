@@ -52,59 +52,63 @@ bun run db:push          # Push schema directly (dev only)
 ```
 src/
 ├── main/                    # Electron main process
-│   ├── index.ts             # App entry, window lifecycle
+│   ├── index.ts             # App entry, protocol handlers, OAuth flows
 │   ├── auth-manager.ts      # OAuth flow, token refresh
 │   ├── auth-store.ts        # Encrypted credential storage (safeStorage)
 │   ├── windows/main.ts      # Window creation, IPC handlers
 │   └── lib/
 │       ├── db/              # Drizzle + SQLite
 │       │   ├── index.ts     # DB init, auto-migrate on startup
-│       │   ├── schema/      # Drizzle table definitions
+│       │   ├── schema/      # Drizzle table definitions (12 tables)
 │       │   └── utils.ts     # ID generation
-│       ├── git/             # Git operations (status, diff, staging, worktree, stash)
-│       ├── lsp/             # Language Server Protocol integration
+│       ├── git/             # Git operations
+│       │   ├── index.ts     # createGitRouter() factory
+│       │   ├── git-factory.ts  # simple-git instance with lock
+│       │   ├── watcher/     # File change watcher (chokidar)
+│       │   ├── github/      # GitHub PR integration
+│       │   └── security/    # Path validation, command sanitization
+│       ├── lsp/             # Language Server Protocol
 │       │   ├── manager.ts   # LSP session management (tsserver, tsgo)
 │       │   └── types.ts     # LSP type definitions
-│       └── trpc/routers/    # tRPC routers
+│       ├── automation/      # Cron-based automations
+│       │   └── engine.ts    # Singleton scheduler + executor
+│       ├── mcp/             # MCP servers
+│       │   └── artifact-server.ts  # Artifact tracking MCP
+│       ├── plugins/         # Plugin discovery
+│       │   └── index.ts     # ~/.claude/plugins/ scanner
+│       └── trpc/routers/    # tRPC routers (27 total)
 │
 ├── preload/                 # IPC bridge (context isolation)
 │   └── index.ts             # Exposes desktopApi + tRPC bridge
 │
 └── renderer/                # React 19 UI
-    ├── App.tsx              # Root with providers, mode switch (Cowork/Agents)
+    ├── App.tsx              # Root with providers, onboarding flow
     ├── features/
-    │   ├── agents/          # Main chat interface (shared by both modes)
+    │   ├── agents/          # Main chat interface
     │   │   ├── main/        # active-chat.tsx, new-chat-form.tsx
     │   │   ├── ui/          # Tool renderers, sub-chat components
     │   │   ├── commands/    # Slash commands (/plan, /agent, /clear)
-    │   │   ├── atoms/       # Jotai atoms for agent state
+    │   │   ├── atoms.ts     # Core agent state atoms
     │   │   └── stores/      # Zustand store for sub-chats
-    │   ├── cowork/          # Cowork mode layout and components
-    │   │   ├── cowork-layout.tsx      # Main layout (sidebar + chat + right panel)
-    │   │   ├── file-tree-panel.tsx    # Project file browser with lazy loading
-    │   │   ├── file-preview/          # Multi-format preview with Monaco editor
-    │   │   │   ├── code-editor.tsx    # Monaco editor with LSP integration
-    │   │   │   └── text-preview.tsx   # Read-only text preview
-    │   │   ├── atoms.ts               # Cowork state (artifacts, editor mode, content search)
-    │   │   └── use-artifacts-listener.ts  # IPC listener for file changes
-    │   ├── comments/        # Code review comment system
-    │   │   ├── atoms.ts     # Comment state with localStorage persistence
-    │   │   ├── types.ts     # ReviewComment, CommentThread, LineRange types
-    │   │   └── components/  # Gutter layer, indicators, input
+    │   ├── cowork/          # Cowork mode layout
+    │   │   ├── cowork-layout.tsx   # Main layout (sidebar + chat + right panel)
+    │   │   ├── file-tree-panel.tsx # Project file browser with lazy loading
+    │   │   ├── file-preview/       # Multi-format preview with Monaco
+    │   │   └── atoms.ts            # Cowork state
+    │   ├── automations/     # Automation UI
+    │   │   └── _components/ # Automation cards, templates
+    │   ├── comments/        # Code review comments
     │   ├── runner/          # Script runner integration
-    │   │   ├── run-config-selector.tsx # Package.json script selector
-    │   │   └── use-run-session-listener.ts # Terminal session management
-    │   ├── terminal/        # Integrated terminal
-    │   ├── changes/         # Git changes panel (staging, commit, history)
+    │   ├── terminal/        # Integrated PTY terminal
+    │   ├── changes/         # Git changes panel
     │   ├── sidebar/         # Chat list, archive, navigation
-    │   └── layout/          # Agents mode layout with resizable panels
-    ├── components/ui/       # Radix UI wrappers (button, dialog, etc.)
+    │   ├── layout/          # Layout components (agents/cowork modes)
+    │   ├── onboarding/      # Onboarding pages
+    │   └── settings/        # Settings panels
+    ├── components/ui/       # Radix UI wrappers
     └── lib/
         ├── atoms/           # Global Jotai atoms
-        │   ├── index.ts     # Core atoms (selectedProject, selectedChat)
-        │   └── runner.ts    # Script runner state atoms
         ├── lsp/             # LSP client hook
-        │   └── use-lsp-client.ts  # Monaco LSP integration
         ├── stores/          # Global Zustand stores
         └── trpc.ts          # tRPC client
 ```
@@ -116,12 +120,27 @@ src/
 **Schema:** `src/main/lib/db/schema/index.ts`
 
 ```typescript
-// Main tables:
-projects           → id, name, path, mode, git remote info, timestamps
-chats              → id, name, projectId, worktree/branch fields, PR tracking
-sub_chats          → id, name, chatId, sessionId, streamId, mode, messages (JSON)
-claude_code_credentials → OAuth token storage (encrypted)
-model_usage        → Token usage tracking per API call
+// Core tables:
+projects              → id, name, path, mode, featureConfig, iconPath, isPlayground, git info
+chats                 → id, name, projectId, worktreePath, branch, baseBranch, prUrl, prNumber, tagId
+sub_chats             → id, name, chatId, sessionId, streamId, mode, messages (JSON)
+model_usage           → Token usage tracking per API call
+
+// Multi-account support:
+anthropicAccounts     → id, email, displayName, oauthToken (encrypted), lastUsedAt
+anthropicSettings     → singleton row, activeAccountId
+
+// Automations:
+automations           → id, name, triggers (JSON cron), agentPrompt, actions, modelId
+automationExecutions  → id, automationId, status, triggeredBy, result, token usage
+
+// Workspace tags (macOS-style):
+workspaceTags         → id, name, color (#hex), icon (Lucide name), sortOrder
+chatTags              → M:N relation (chatId, tagId)
+subChatTags           → M:N relation (subChatId, tagId)
+
+// Legacy (deprecated):
+claude_code_credentials → Use anthropicAccounts instead
 ```
 
 **Auto-migration:** On app start, `initDatabase()` runs migrations from `drizzle/` folder (dev) or `resources/migrations` (packaged).
@@ -135,11 +154,29 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 | `projects` | CRUD for local project folders |
 | `chats` | Chat/sub-chat management |
 | `claude` | Claude SDK integration (streaming, session resume) |
+| `claudeCode` | Claude Code SDK binary integration |
+| `claudeSettings` | Claude model/agent configuration |
+| `anthropicAccounts` | Multi-account OAuth management |
 | `files` | File operations (read, write, search, listDirectory) |
-| `changes` | Git operations (status, diff, stage, commit) |
+| `changes` | Git operations via `createGitRouter()` |
 | `lsp` | Language Server Protocol (completions, hover, diagnostics) |
 | `runner` | Runtime detection, script execution |
 | `terminal` | PTY terminal management |
+| `ollama` | Local Ollama model support |
+| `litellm` | LiteLLM proxy for multiple LLM providers |
+| `voice` | Voice input processing |
+| `automations` | Cron-triggered AI workflows |
+| `tags` | Workspace tags CRUD and associations |
+| `skills` | Claude SDK skill discovery and sync |
+| `plugins` | Plugin discovery and MCP server configuration |
+| `agents` | Agent model configuration |
+| `editor` | Monaco editor integration |
+| `worktreeConfig` | Git worktree isolation settings |
+| `sandboxImport` | Sandbox project import |
+| `commands` | Custom command system |
+| `usage` | Token usage queries |
+| `external` | External service integrations |
+| `debug` | Debug info (dev only) |
 
 ## Key Patterns
 
@@ -155,6 +192,21 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - Two modes: "plan" (read-only) and "agent" (full permissions)
 - Session resume via `sessionId` stored in SubChat
 - Message streaming via tRPC subscription (`claude.onMessage`)
+- Multi-account support via `anthropicAccounts` table (quick account switching)
+
+### Automations Engine
+- Located in `src/main/lib/automation/engine.ts` (singleton pattern)
+- Cron-based triggers using `node-cron`
+- AI processing with configurable model and prompt
+- Actions: currently supports "inbox" (creates message in Inbox Chat)
+- Execution tracking with token usage statistics
+- Startup check for missed cron tasks
+
+### MCP & Plugin System
+- Plugin discovery from `~/.claude/plugins/marketplaces/`
+- MCP server configuration merges: built-in + plugins + Claude API defaults
+- Artifact MCP Server (`src/main/lib/mcp/artifact-server.ts`) tracks file/URL contexts
+- 30-second cache for plugin metadata to reduce FS access
 
 ### LSP Integration
 - **Manager** (`src/main/lib/lsp/manager.ts`): Manages tsserver/tsgo processes
@@ -177,7 +229,20 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 ### Artifacts Tracking
 - `useArtifactsListener` hook listens for `file-changed` IPC events
 - Each artifact tracks contexts: files read (Read/Glob/Grep) and URLs visited
-- Stored per subChatId in localStorage
+- Stored per subChatId via Artifact MCP Server (`{userData}/artifacts/{subChatId}.json`)
+
+### Authentication Flow
+- Multiple auth methods: Anthropic OAuth (default), Okta SAML (enterprise), API Key
+- PKCE protection with state parameter for CSRF prevention
+- Tokens encrypted with Electron `safeStorage` and stored in SQLite
+- Deep links: `hong://` (production), `hong-dev://` (development)
+- Okta uses dedicated callback server for SAML flow
+
+### Git Security Layer
+- Path validation (`src/main/lib/git/security/path-validation.ts`) prevents directory traversal
+- Command validation (`git-commands.ts`) sanitizes inputs
+- Secure FS operations (`secure-fs.ts`) for file operations
+- Git factory (`git-factory.ts`) creates `simple-git` instances with lock mechanism
 
 ## Tech Stack
 
@@ -187,9 +252,12 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 | UI | React 19, TypeScript 5.4.5, Tailwind CSS |
 | Components | Radix UI, Lucide icons, Motion, Sonner |
 | State | Jotai, Zustand, React Query |
-| Backend | tRPC, Drizzle ORM, better-sqlite3 |
-| Editor | Monaco Editor with LSP |
-| AI | @anthropic-ai/claude-code |
+| Backend | tRPC + superjson, Drizzle ORM, better-sqlite3 |
+| Editor | Monaco Editor 0.55.1 with LSP |
+| Terminal | xterm.js with addons (canvas, fit, search) |
+| AI | @anthropic-ai/claude-code, @anthropic-ai/claude-agent-sdk |
+| Scheduling | node-cron (for automations) |
+| i18n | i18next |
 | Package Manager | bun |
 
 ## File Naming
@@ -204,11 +272,14 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - `electron.vite.config.ts` - Build config (main/preload/renderer entries)
 - `src/main/lib/db/schema/index.ts` - Drizzle schema (source of truth)
 - `src/main/lib/lsp/manager.ts` - LSP session management
+- `src/main/lib/automation/engine.ts` - Automation execution engine
+- `src/main/lib/plugins/index.ts` - Plugin discovery and MCP configuration
 - `src/renderer/features/agents/main/active-chat.tsx` - Main chat component
+- `src/renderer/features/agents/atoms.ts` - Core agent state atoms
 - `src/renderer/features/cowork/atoms.ts` - Cowork state (artifacts, editor, search)
 - `src/renderer/features/comments/atoms.ts` - Code review comment state
 - `src/renderer/lib/lsp/use-lsp-client.ts` - Monaco LSP integration
-- `src/main/lib/trpc/routers/index.ts` - All tRPC routers
+- `src/main/lib/trpc/routers/index.ts` - All tRPC routers (27 routers)
 
 ## Debugging First Install Issues
 
@@ -273,22 +344,28 @@ bun run dist:manifest      # Generate latest-mac.yml manifests
 
 **Done:**
 - Drizzle ORM with auto-migration
-- tRPC routers (17 routers covering all features)
+- tRPC routers (27 routers covering all features)
 - Cowork mode with simplified UI (default)
 - File tree panel with lazy loading
-- Artifacts tracking with context
+- Artifacts tracking with context (via Artifact MCP Server)
 - Multi-format file preview (text, image, PDF, video, audio, Office)
 - Task progress panel
 - Monaco code editor with LSP integration (TS/JS)
 - Code review comment system (Diff View + File Preview)
 - Script runner integration with runtime detection
-- Git operations (status, diff, staging, stash)
+- Git operations (status, diff, staging, stash, worktree)
 - Model usage tracking
+- Multi-account Anthropic OAuth support
+- Workspace tags (macOS Finder-style colored tags)
+- Automations framework (cron triggers + AI processing + Inbox executor)
+- Plugin and MCP server system
+- LiteLLM and Ollama integration for local/alternative models
+- Voice input support
+- i18n support (Chinese/English)
 
 **In Progress:**
 - GitHub PR integration for comments
 - tsgo experimental backend support
 
 **Planned:**
-- Git worktree per chat (isolation)
 - Full feature parity with web app

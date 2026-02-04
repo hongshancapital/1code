@@ -344,16 +344,6 @@ export function AgentsAppearanceTab() {
     [setSystemDarkThemeId, resolvedTheme, selectedThemeId],
   )
 
-  // Group imported themes by type
-  const importedDarkThemes = useMemo(
-    () => importedThemes.filter((t) => t.type === "dark"),
-    [importedThemes],
-  )
-  const importedLightThemes = useMemo(
-    () => importedThemes.filter((t) => t.type === "light"),
-    [importedThemes],
-  )
-
   // Re-apply theme when system preference changes
   useEffect(() => {
     if (selectedThemeId === null && mounted) {

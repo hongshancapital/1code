@@ -33,21 +33,21 @@ import { ChangesFileFilter, type SubChatFilterItem } from "./components/changes-
 import { CommitInput } from "./components/commit-input";
 import { HistoryView, type CommitInfo } from "./components/history-view";
 import { getStatusIndicator } from "./utils/status";
-import { GitPullRequest, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import type { ChangedFile as HistoryChangedFile } from "../../../shared/changes-types";
-import { viewedFilesAtomFamily, type ViewedFileState } from "../agents/atoms";
+import { viewedFilesAtomFamily } from "../agents/atoms";
 import { Kbd } from "../../components/ui/kbd";
 
 // Memoized file item component with context menu to prevent re-renders
 const ChangesFileItemWithContext = memo(function ChangesFileItemWithContext({
 	file,
-	category,
+	category: _category,
 	isSelected,
 	isChecked,
 	isViewed,
 	isHighlighted,
 	highlightedCount,
-	highlightedPaths,
+	highlightedPaths: _highlightedPaths,
 	index,
 	onSelect,
 	onDoubleClick,
@@ -256,7 +256,7 @@ export function ChangesView({
 	selectedFilePath,
 	onFileSelect: onFileSelectProp,
 	onFileOpenPinned,
-	onCreatePr,
+	onCreatePr: _onCreatePr,
 	onCommitSuccess,
 	subChats = [],
 	initialSubChatFilter = null,
@@ -293,7 +293,7 @@ export function ChangesView({
 		},
 	);
 
-	const { pr, refetch: refetchPRStatus } = usePRStatus({
+	const { pr: _pr, refetch: refetchPRStatus } = usePRStatus({
 		worktreePath,
 		refetchInterval: 10000,
 	});
@@ -814,11 +814,6 @@ export function ChangesView({
 	const handleRevealInFinder = (filePath: string) => {
 		const absolutePath = `${worktreePath}/${filePath}`;
 		openInFinderMutation.mutate(absolutePath);
-	};
-
-	const handleOpenInEditor = (filePath: string) => {
-		const absolutePath = `${worktreePath}/${filePath}`;
-		openInEditorMutation.mutate({ path: absolutePath, cwd: worktreePath });
 	};
 
 	const handleOpenInPreferredEditor = (filePath: string) => {

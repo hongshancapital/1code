@@ -1,7 +1,5 @@
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { FolderOpen } from "lucide-react"
-import { showOfflineModeFeaturesAtom } from "../../../lib/atoms"
 import {
   Popover,
   PopoverContent,
@@ -18,8 +16,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "../../../components/ui/dialog"
 import { Input } from "../../../components/ui/input"
 import { Button } from "../../../components/ui/button"
@@ -39,13 +35,6 @@ export function ProjectSelector() {
   // Get current project mode (cowork/coding)
   const currentProjectMode = useAtomValue(currentProjectModeAtom)
   const isCoworkMode = currentProjectMode === "cowork"
-
-  // Check if offline mode is enabled and if we're actually offline
-  const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
-  const { data: ollamaStatus } = trpc.ollama.getStatus.useQuery(undefined, {
-    enabled: showOfflineFeatures,
-  })
-  const isOffline = showOfflineFeatures && ollamaStatus ? !ollamaStatus.internet.online : false
 
   // Fetch projects from DB
   const { data: projects, isLoading: isLoadingProjects } = trpc.projects.list.useQuery()

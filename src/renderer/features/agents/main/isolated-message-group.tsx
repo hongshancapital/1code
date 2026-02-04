@@ -11,7 +11,7 @@ import {
   isStreamingAtom,
 } from "../stores/message-store"
 import { MemoizedAssistantMessages } from "./messages-list"
-import { extractTextMentions, TextMentionBlocks, TextMentionBlock } from "../mentions/render-file-mentions"
+import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
 import { AgentImageItem } from "../ui/agent-image-item"
 
 // ============================================================================

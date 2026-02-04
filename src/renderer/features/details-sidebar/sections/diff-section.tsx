@@ -46,14 +46,14 @@ function getFileDir(path: string): string {
 }
 
 export function DiffSection({
-  chatId,
-  isDiffSidebarOpen,
+  chatId: _chatId,
+  isDiffSidebarOpen: _isDiffSidebarOpen,
   setIsDiffSidebarOpen,
   diffStats,
   parsedFileDiffs,
   onCommit,
   isCommitting = false,
-  isExpanded = false,
+  isExpanded: _isExpanded = false,
 }: DiffSectionProps) {
   const hasChanges = diffStats && diffStats.fileCount > 0
   const files = parsedFileDiffs || []

@@ -12,7 +12,6 @@ import { Label } from "../../../ui/label"
 import { Switch } from "../../../ui/switch"
 import { trpc } from "../../../../lib/trpc"
 import { toast } from "sonner"
-import { cn } from "../../../../lib/utils"
 import { Eye, EyeOff, Trash2 } from "lucide-react"
 import { DeleteServerConfirm } from "./delete-server-confirm"
 import { StatusDot, getStatusText } from "./mcp-server-row"
@@ -55,7 +54,6 @@ export function EditMcpServerDialog({
 
   if (!server) return null
 
-  const isConnected = server.status === "connected"
   const hasTools = server.tools.length > 0
 
   const handleToggleEnabled = async (enabled: boolean) => {

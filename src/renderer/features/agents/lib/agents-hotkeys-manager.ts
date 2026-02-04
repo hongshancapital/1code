@@ -18,45 +18,6 @@ import { getResolvedHotkey, type ShortcutActionId } from "../../../lib/hotkeys"
 // ACTION ID MAPPING
 // ============================================================================
 
-/**
- * Maps shortcut registry IDs to agent action IDs
- * This allows the shortcut system to work with the existing action system
- */
-const SHORTCUT_TO_ACTION_MAP: Record<ShortcutActionId, string> = {
-  "show-shortcuts": "open-shortcuts",
-  "open-settings": "open-settings",
-  "toggle-sidebar": "toggle-sidebar",
-  "toggle-details": "toggle-details",
-  "undo-archive": "undo-archive",
-  "new-workspace": "create-new-agent",
-  "search-workspaces": "search-workspaces",
-  "archive-workspace": "archive-workspace",
-  "quick-switch-workspaces": "quick-switch-workspaces",
-  "new-agent": "create-new-agent",
-  "search-chats": "search-chats",
-  "search-in-chat": "toggle-chat-search",
-  "archive-agent": "archive-agent",
-  "quick-switch-agents": "quick-switch-agents",
-  "prev-agent": "prev-agent",
-  "next-agent": "next-agent",
-  "focus-input": "focus-input",
-  "toggle-focus": "toggle-focus",
-  "stop-generation": "stop-generation",
-  "switch-model": "switch-model",
-  "toggle-terminal": "toggle-terminal",
-  "open-diff": "open-diff",
-  "create-pr": "create-pr",
-  "file-search": "file-search",
-  "voice-input": "voice-input", // Handled directly in chat-input-area.tsx
-  "open-in-editor": "open-in-editor",
-  "open-file-in-editor": "open-file-in-editor",
-}
-
-// Reverse mapping: action ID -> shortcut ID
-const ACTION_TO_SHORTCUT_MAP: Record<string, ShortcutActionId> = Object.fromEntries(
-  Object.entries(SHORTCUT_TO_ACTION_MAP).map(([k, v]) => [v, k as ShortcutActionId])
-) as Record<string, ShortcutActionId>
-
 // ============================================================================
 // HOTKEY MATCHING
 // ============================================================================

@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Loader2, MoreHorizontal, Plus, RefreshCw, User } from "lucide-react"
+import { BarChart3, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Loader2, RefreshCw, User } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -15,10 +15,8 @@ import {
   overrideModelModeAtom,
   litellmSelectedModelAtom,
   type CustomClaudeConfig,
-  type OverrideModelMode,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
-import { Badge } from "../../ui/badge"
 import { Button } from "../../ui/button"
 import {
   DropdownMenu,
@@ -34,14 +32,6 @@ import { cn } from "../../../lib/utils"
 
 // Authentication method type: null = OAuth, "litellm", "custom"
 type AuthMethod = "oauth" | "litellm" | "custom"
-
-// LiteLLM model type
-type LiteLLMModel = {
-  id: string
-  object: string
-  created: number
-  owned_by: string
-}
 
 // OAuth Section - shows account connection status
 function OAuthSection() {
@@ -256,7 +246,6 @@ function CustomAPISection() {
 
 // Auth Method Card component
 function AuthMethodCard({
-  id,
   title,
   description,
   isSelected,
@@ -265,7 +254,6 @@ function AuthMethodCard({
   disabled,
   disabledReason,
 }: {
-  id: AuthMethod
   title: string
   description: string
   isSelected: boolean

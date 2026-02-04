@@ -248,7 +248,7 @@ const sizeStyles: Record<
 
 // Custom code component that uses our theme system
 function createCodeComponent(codeTheme: string, size: MarkdownSize, styles: typeof sizeStyles.md, isStreaming: boolean = false) {
-  return function CodeComponent({ className, children, node, ...props }: any) {
+  return function CodeComponent({ className, children }: any) {
     const match = /language-(\w+)/.exec(className || "")
     const language = match ? match[1] : undefined
     const codeContent = String(children)
@@ -545,12 +545,10 @@ const MemoizedMarkdownBlock = memo(
   function MemoizedMarkdownBlock({
     content,
     size,
-    className,
     codeTheme,
   }: {
     content: string
     size: MarkdownSize
-    className?: string
     codeTheme: string
   }) {
     // Don't render empty blocks

@@ -43,14 +43,12 @@ import {
 } from "../agents/stores/sub-chat-store"
 import { useShallow } from "zustand/react/shallow"
 import {
-  PlusIcon,
   ArchiveIcon,
   IconDoubleChevronLeft,
   IconSpinner,
   LoadingDot,
   PlanIcon,
   AgentIcon,
-  IconOpenSidebar,
   ClockIcon,
   QuestionIcon,
 } from "../../components/ui/icons"
@@ -60,7 +58,7 @@ import {
   TooltipTrigger,
 } from "../../components/ui/tooltip"
 import { Kbd } from "../../components/ui/kbd"
-import { isDesktopApp, getShortcutKey } from "../../lib/utils/platform"
+import { isDesktopApp } from "../../lib/utils/platform"
 import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
 import { TrafficLightSpacer } from "../agents/components/traffic-light-spacer"
 import { PopoverTrigger } from "../../components/ui/popover"
@@ -90,7 +88,6 @@ import { SearchCombobox } from "../../components/ui/search-combobox"
 import { SubChatContextMenu } from "../agents/ui/sub-chat-context-menu"
 import { SubChatHoverPreview } from "../agents/ui/sub-chat-hover-preview"
 import { formatTimeAgo } from "../agents/utils/format-time-ago"
-import { pluralize } from "../agents/utils/pluralize"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useSubChatDraftsCache, getSubChatDraftKey } from "../agents/lib/drafts"
 import { Checkbox } from "../../components/ui/checkbox"
@@ -198,7 +195,7 @@ interface AgentsSubChatsSidebarProps {
 
 export function AgentsSubChatsSidebar({
   onClose,
-  isMobile = false,
+  isMobile: _isMobile = false,
   onBackToChats,
   isSidebarOpen = false,
   isLoading = false,
@@ -1211,7 +1208,7 @@ export function AgentsSubChatsSidebar({
                         </h3>
                       </div>
                       <div className="list-none p-0 m-0 mb-3">
-                        {pinnedChats.map((subChat, index) => {
+                        {pinnedChats.map((subChat) => {
                           const isSubChatLoading = loadingChatIds.has(
                             subChat.id,
                           )
@@ -1511,7 +1508,7 @@ export function AgentsSubChatsSidebar({
                         </h3>
                       </div>
                       <div className="list-none p-0 m-0">
-                        {unpinnedChats.map((subChat, index) => {
+                        {unpinnedChats.map((subChat) => {
                           const isSubChatLoading = loadingChatIds.has(
                             subChat.id,
                           )

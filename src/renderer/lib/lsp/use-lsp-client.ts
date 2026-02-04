@@ -11,14 +11,6 @@ import type * as Monaco from "monaco-editor"
 import { trpc, trpcClient } from "../trpc"
 import { selectedProjectAtom } from "../atoms"
 
-// Languages that support LSP
-const LSP_SUPPORTED_LANGUAGES = new Set([
-  "typescript",
-  "javascript",
-  "typescriptreact",
-  "javascriptreact",
-])
-
 // Map Monaco language IDs to our LSP language types
 function mapMonacoLanguage(
   monacoLang: string
@@ -133,7 +125,6 @@ export function useLSPClient({
 
   // Mutations
   const startMutation = trpc.lsp.start.useMutation()
-  const stopMutation = trpc.lsp.stop.useMutation()
   const openFileMutation = trpc.lsp.openFile.useMutation()
   const updateFileMutation = trpc.lsp.updateFile.useMutation()
   const closeFileMutation = trpc.lsp.closeFile.useMutation()
@@ -321,7 +312,7 @@ export function useLSPClient({
 
       // Hover provider
       const hoverProvider = monaco.languages.registerHoverProvider(language, {
-        async provideHover(model, position) {
+        async provideHover(_model, position) {
           // Wait for file to be open in tsserver
           if (!fileOpenRef.current) {
             return null
@@ -386,7 +377,7 @@ export function useLSPClient({
           signatureHelpTriggerCharacters: ["(", ","],
           signatureHelpRetriggerCharacters: [","],
 
-          async provideSignatureHelp(model, position) {
+          async provideSignatureHelp(_model, position) {
             // Wait for file to be open in tsserver
             if (!fileOpenRef.current) {
               return null
@@ -444,7 +435,7 @@ export function useLSPClient({
       const definitionProvider = monaco.languages.registerDefinitionProvider(
         language,
         {
-          async provideDefinition(model, position) {
+          async provideDefinition(_model, position) {
             // Wait for file to be open in tsserver
             if (!fileOpenRef.current) {
               return null
@@ -485,7 +476,7 @@ export function useLSPClient({
       const referencesProvider = monaco.languages.registerReferenceProvider(
         language,
         {
-          async provideReferences(model, position, context) {
+          async provideReferences(_model, position, _context) {
             // Wait for file to be open in tsserver
             if (!fileOpenRef.current) {
               return null

@@ -18,7 +18,7 @@ import {
   type UIMessageChunk,
 } from "../../claude"
 import { getEnv } from "../../env"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateClaudeConfigAtomic, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
@@ -56,16 +56,6 @@ interface SdkStreamMessage {
     content?: Array<{ type?: string; text?: string }>
   }
   [key: string]: unknown
-}
-
-/**
- * Type for usage tracking from SDK messages
- */
-interface SdkUsage {
-  input_tokens?: number
-  output_tokens?: number
-  cache_creation_input_tokens?: number
-  cache_read_input_tokens?: number
 }
 
 /**
@@ -2086,7 +2076,6 @@ ${prompt}
             }
 
             let messageCount = 0
-            let lastError: Error | null = null
             let firstMessageReceived = false
             // Track last assistant message UUID for rollback support
             // Only assigned to metadata AFTER the stream completes (not during generation)
@@ -2157,7 +2146,6 @@ ${prompt}
                   const messageText = sdkMsg.message?.content?.[0]?.text
                   const errorValue = typeof sdkMsg.error === 'string' ? sdkMsg.error : sdkMsg.error?.message
                   const sdkError = messageText || errorValue || "Unknown SDK error"
-                  lastError = new Error(sdkError)
 
                   // Detailed SDK error logging in main process
                   console.error(`[CLAUDE SDK ERROR] ========================================`)

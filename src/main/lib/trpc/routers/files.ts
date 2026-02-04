@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
 import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises"
-import { join, relative, basename, posix, extname } from "node:path"
+import { join, relative, basename, posix } from "node:path"
 import { spawn } from "node:child_process"
 import { platform } from "node:os"
 import { app } from "electron"

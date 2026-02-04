@@ -2,9 +2,9 @@
 
 import { useAtomValue } from "jotai"
 import { ListTree } from "lucide-react"
-import { memo, useCallback, useContext, useMemo, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 
-import { CollapseIcon, ExpandIcon, IconTextUndo, PlanIcon } from "../../../components/ui/icons"
+import { CollapseIcon, ExpandIcon, IconTextUndo } from "../../../components/ui/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
 import { isRollingBackAtom, rollbackHandlerAtom } from "../stores/message-store"
@@ -282,7 +282,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
   status,
   isMobile,
   subChatId,
-  chatId,
+  chatId: _chatId,
   sandboxSetupStatus = "ready",
 }: AssistantMessageItemProps) {
   const onRollback = useAtomValue(rollbackHandlerAtom)

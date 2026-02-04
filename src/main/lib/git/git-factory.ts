@@ -96,17 +96,6 @@ export async function withGitLock<T>(
 }
 
 /**
- * Known lock files that git creates during operations
- */
-const GIT_LOCK_FILES = [
-	".git/index.lock",
-	".git/config.lock",
-	".git/HEAD.lock",
-	".git/refs/heads/*.lock",
-	".git/shallow.lock",
-];
-
-/**
  * Checks for and removes stale git lock files.
  * A lock file is considered stale if it's older than the specified max age.
  *
@@ -249,8 +238,6 @@ export async function getRepositoryState(worktreePath: string): Promise<{
 	const git = createGit(worktreePath);
 	const status = await git.status();
 
-	// Check for state indicators via git status
-	const isRebasing = status.current?.includes("(no branch") || false;
 	const hasConflicts = status.conflicted.length > 0;
 
 	// More accurate state detection via git internals

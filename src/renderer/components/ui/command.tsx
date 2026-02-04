@@ -241,7 +241,7 @@ interface CommandItemProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const CommandItem = React.forwardRef<HTMLDivElement, CommandItemProps>(
-  ({ className, onSelect, value, onMouseEnter, ...props }, ref) => {
+  ({ className, onSelect, value, onMouseEnter, ...props }, _ref) => {
     const context = React.useContext(CommandContext)
     const itemRef = React.useRef<HTMLDivElement>(null)
     

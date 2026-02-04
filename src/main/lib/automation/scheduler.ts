@@ -20,7 +20,7 @@ export class SchedulerService {
   registerCronTrigger(
     automationId: string,
     expression: string,
-    strict: boolean,
+    _strict: boolean,
   ): void {
     const task = cron.schedule(
       expression,
@@ -114,7 +114,7 @@ export class SchedulerService {
    * 判断是否应该触发错过的任务
    */
   private shouldTriggerMissed(
-    expression: string,
+    _expression: string,
     lastTriggeredAt: Date | null,
     now: Date,
   ): boolean {

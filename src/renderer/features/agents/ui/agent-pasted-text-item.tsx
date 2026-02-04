@@ -34,8 +34,8 @@ interface AgentPastedTextItemProps {
 }
 
 export function AgentPastedTextItem({
-  filePath,
-  filename,
+  filePath: _filePath,
+  filename: _filename,
   size,
   preview,
   onRemove,

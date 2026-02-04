@@ -1,14 +1,12 @@
-import { useAtom, useAtomValue } from "jotai"
+import { useAtom } from "jotai"
 import {
   RefreshCw,
   FolderOpen,
   Check,
   X,
   Terminal,
-  Hexagon,
   Download,
   Wrench,
-  ExternalLink,
   Loader2,
   Copy,
   CheckCircle,
@@ -29,18 +27,6 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { trpc } from "../../../lib/trpc"
 
-// Tool info type from backend
-interface ToolInfoDisplay {
-  name: string
-  displayName: string
-  category: string
-  installed: boolean
-  version: string | null
-  path: string | null
-  installCommand: string | null
-  description: string
-  required: boolean
-}
 import {
   packageManagerAtom,
   runtimePathsAtom,

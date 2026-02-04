@@ -31,7 +31,7 @@ function McpStatusDot({ status }: { status: string }) {
   )
 }
 
-export function ProjectMcpTab({ projectId, projectPath }: ProjectMcpTabProps) {
+export function ProjectMcpTab({ projectPath }: ProjectMcpTabProps) {
   const setActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
 
