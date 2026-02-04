@@ -425,13 +425,13 @@
     "personalization": {
       "title": "Personalization",
       "preferredName": {
-        "label": "What should Claude call you?",
+        "label": "What should the agent call you?",
         "description": "A nickname or preferred name",
         "placeholder": "e.g., Chris"
       },
       "preferences": {
         "label": "Personal preferences",
-        "description": "Any preferences Claude should consider in responses (learning style, communication preferences, etc.)",
+        "description": "Any preferences the agent should consider in responses (learning style, communication preferences, etc.)",
         "placeholder": "e.g., I prefer concise explanations with code examples. I find analogies helpful when learning new concepts."
       }
     }

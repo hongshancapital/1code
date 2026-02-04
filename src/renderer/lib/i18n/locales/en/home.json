@@ -4,45 +4,129 @@
       "weekday": [
         "Good morning! Ready to build something great?",
         "Rise and shine! What shall we create today?",
-        "Morning! Let's make today productive."
+        "Morning! Let's make today productive.",
+        "Good morning! Fresh coffee and fresh code?",
+        "Morning! Time to turn ideas into reality.",
+        "Hey! Perfect time for a new project.",
+        "Good morning! What's the plan today?",
+        "Morning energy! Let's get things done.",
+        "Rise and code! What are we building?",
+        "Good morning! Ready for some magic?",
+        "New day, new possibilities!",
+        "Morning! The code awaits.",
+        "Good morning! Let's create something awesome.",
+        "Hey! Early bird gets the feature shipped.",
+        "Morning sunshine! What's on the agenda?",
+        "Good morning! Your IDE missed you.",
+        "Fresh start! What are we tackling?",
+        "Morning! Ready to make things happen?"
       ],
       "weekend": [
         "Good morning! Enjoying your weekend?",
-        "Morning! Weekend coding session?"
+        "Morning! Weekend coding session?",
+        "Hey! Saturday morning vibes.",
+        "Good morning! Time for passion projects?",
+        "Weekend morning! Build something fun?",
+        "Morning! Perfect time for experiments.",
+        "Lazy morning? Or coding morning?",
+        "Weekend vibes! What sounds fun?",
+        "Good morning! No deadlines, just creativity.",
+        "Morning! Time to explore new ideas?"
       ]
     },
     "afternoon": {
       "weekday": [
         "Good afternoon! How's your day going?",
         "Afternoon! What are you working on?",
-        "Hey there! Ready for some afternoon coding?"
+        "Hey there! Ready for some afternoon coding?",
+        "Good afternoon! Making progress?",
+        "Hey! Need a hand with anything?",
+        "Afternoon! Let's tackle that next feature.",
+        "Good afternoon! Ideas brewing?",
+        "Hey! Time to ship something?",
+        "Afternoon energy! What's next?",
+        "Good afternoon! What can we build together?",
+        "Halfway through! Keep the momentum.",
+        "Afternoon check-in! How can I help?",
+        "Hey! Crushing it today?",
+        "Good afternoon! Let's keep building.",
+        "Afternoon! Ready for round two?",
+        "Hey there! What's cooking in the code?",
+        "Good afternoon! Progress feels good.",
+        "Afternoon vibes! What's the focus?"
       ],
       "weekend": [
         "Good afternoon! Relaxing weekend?",
-        "Afternoon! Got any side projects?"
+        "Afternoon! Got any side projects?",
+        "Hey! Weekend project time?",
+        "Good afternoon! Learning something new?",
+        "Afternoon! Perfect for tinkering.",
+        "Weekend afternoon! Time to experiment?",
+        "Hey! Building anything cool?",
+        "Good afternoon! Hobby coding time?",
+        "Afternoon! What passion project awaits?"
       ]
     },
     "evening": {
       "weekday": [
         "Good evening! Wrapping up for the day?",
         "Evening! Almost done for today?",
-        "Evening vibes! What's on your mind?"
+        "Evening vibes! What's on your mind?",
+        "Hey! One more feature before dinner?",
+        "Good evening! Final sprint of the day?",
+        "Evening! Time to polish that code?",
+        "Good evening! Need help finishing up?",
+        "Hey there! End-of-day productivity?",
+        "Evening! Let's close some tickets.",
+        "Good evening! Winding down or ramping up?",
+        "Evening check-in! How's it going?",
+        "Hey! Almost there for today.",
+        "Good evening! A few more tweaks?",
+        "Evening! The finish line is near.",
+        "Hey! Time to tie up loose ends?",
+        "Good evening! Let's wrap this up nicely."
       ],
       "weekend": [
         "Good evening! Winding down?",
-        "Evening! Any fun projects tonight?"
+        "Evening! Any fun projects tonight?",
+        "Hey! Weekend hacking session?",
+        "Good evening! Building cool stuff?",
+        "Evening! Time for side projects?",
+        "Weekend evening! Creative mode on?",
+        "Hey! What's the evening plan?",
+        "Good evening! Relaxed coding time?",
+        "Evening vibes! What sounds fun?"
       ]
     },
     "night": {
       "weekday": [
         "Working late? Let me help you finish faster.",
         "Night owl mode activated!",
-        "Burning the midnight oil? I'm here to help."
+        "Burning the midnight oil? I'm here to help.",
+        "Late night? Let's make it count.",
+        "Night shift! What are we debugging?",
+        "Hey night owl! Need a coding buddy?",
+        "Late night crunch? I've got your back.",
+        "Quiet hours, best for coding!",
+        "The night is young! What are we building?",
+        "Late night inspiration struck?",
+        "Hey! Best ideas come at night.",
+        "Night mode! Let's be productive.",
+        "Midnight coding? Count me in.",
+        "The world sleeps, we code.",
+        "Late night focus time!"
       ],
       "weekend": [
         "Late night hacking? I'm here to help.",
         "Burning the midnight oil?",
-        "Night coding session? Let's go!"
+        "Night coding session? Let's go!",
+        "Weekend night owl mode!",
+        "Late night inspiration? Let's build!",
+        "Night vibes! Perfect for deep work.",
+        "Weekend nights are for passion projects!",
+        "Hey! The best code is written at night.",
+        "Night time creativity! What's the plan?",
+        "Late night weekend vibes!"
       ]
     }
   },
@@ -71,7 +155,8 @@
     "automations": "No automations yet"
   },
   "quickInput": {
-    "placeholder": "What do you want to get done?"
+    "placeholder": "What do you want to get done?",
+    "startNewTopic": "Start a new conversation"
   },
   "time": {
     "justNow": "just now",
@@ -82,5 +167,19 @@
   "aria": {
     "backToChats": "Back to chats",
     "openSidebar": "Open sidebar"
+  },
+  "usage": {
+    "yesterdayTitle": "Yesterday's Activity",
+    "totalTokens": "{{count}} tokens",
+    "noData": [
+      "No activity yesterday",
+      "Yesterday was a rest day",
+      "A quiet day yesterday",
+      "Taking a break is good too!",
+      "The code rested well yesterday",
+      "Ready to make today count?",
+      "Fresh start today!",
+      "Yesterday: recharging mode"
+    ]
   }
 }

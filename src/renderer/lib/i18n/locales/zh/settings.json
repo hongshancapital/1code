@@ -425,13 +425,13 @@
     "personalization": {
       "title": "个性化",
       "preferredName": {
-        "label": "Claude 应该如何称呼您？",
+        "label": "Agent 应该如何称呼您？",
         "description": "一个昵称或首选称呼",
         "placeholder": "例如：小明"
       },
       "preferences": {
         "label": "个人偏好",
-        "description": "Claude 在回复时应考虑的任何偏好（学习风格、沟通偏好等）",
+        "description": "Agent 在回复时应考虑的任何偏好（学习风格、沟通偏好等）",
         "placeholder": "例如：我喜欢简洁的解释配合代码示例。学习新概念时，类比对我特别有帮助。"
       }
     }
