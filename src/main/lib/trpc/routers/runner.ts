@@ -215,20 +215,20 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "curl -LsSf https://astral.sh/uv/install.sh | sh",
     },
   },
-  // Go Tools (coming soon, but detect if installed)
-  {
-    name: "go",
-    displayName: "Go",
-    category: "go",
-    description: "Go programming language",
-    required: false,
-    versionParser: (output) => output.replace(/^go version go/, "").split(" ")[0],
-    installCommands: {
-      darwin: "brew install go",
-      win32: "winget install GoLang.Go",
-      linux: "sudo apt install golang-go",
-    },
-  },
+  // Go Tools - commented out until Go runtime support is implemented
+  // {
+  //   name: "go",
+  //   displayName: "Go",
+  //   category: "go",
+  //   description: "Go programming language",
+  //   required: false,
+  //   versionParser: (output) => output.replace(/^go version go/, "").split(" ")[0],
+  //   installCommands: {
+  //     darwin: "brew install go",
+  //     win32: "winget install GoLang.Go",
+  //     linux: "sudo apt install golang-go",
+  //   },
+  // },
 ]
 
 // ============================================================================

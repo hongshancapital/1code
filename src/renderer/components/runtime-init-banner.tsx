@@ -1,4 +1,4 @@
-import { useAtom, useSetAtom, useAtomValue } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { CheckCircle, AlertCircle, Settings, X, ChevronDown, ChevronUp, Download, Loader2 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "./ui/button"
@@ -10,7 +10,8 @@ import {
   desktopViewAtom,
 } from "../lib/atoms"
 import { trpc } from "../lib/trpc"
-import { cn } from "../lib/utils"
+
+const AUTO_DISMISS_DELAY = 3000 // 3 seconds
 
 export function RuntimeInitBanner() {
   const [dismissed, setDismissed] = useAtom(runtimeInitBannerDismissedAtom)
@@ -18,6 +19,7 @@ export function RuntimeInitBanner() {
   const setDesktopView = useSetAtom(desktopViewAtom)
   const [expanded, setExpanded] = useState(false)
   const [installingTool, setInstallingTool] = useState<string | null>(null)
+  const [countdown, setCountdown] = useState(AUTO_DISMISS_DELAY / 1000)
 
   // Detect tools query
   const {
@@ -58,6 +60,23 @@ export function RuntimeInitBanner() {
     }
   }, [toolsData])
 
+  // Auto-dismiss countdown for success state
+  useEffect(() => {
+    if (!allInstalled || !toolsData || dismissed) return
+
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          setDismissed(true)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [allInstalled, toolsData, dismissed, setDismissed])
+
   // Don't show if dismissed
   if (dismissed) {
     return null
@@ -81,7 +100,7 @@ export function RuntimeInitBanner() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-bottom-2 min-w-[300px]">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[300px]">
         <IconSpinner className="h-4 w-4 text-muted-foreground" />
         <div className="flex-1">
           <div className="text-foreground font-medium">Setting up Claude's workspace...</div>
@@ -91,15 +110,16 @@ export function RuntimeInitBanner() {
     )
   }
 
-  // All tools installed - brief success message
+  // All tools installed - brief success message with auto-dismiss
   if (allInstalled && toolsData) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-bottom-2">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2">
         <CheckCircle className="h-4 w-4 text-green-500" />
         <span className="text-foreground">Environment ready!</span>
+        <span className="text-xs text-muted-foreground">{countdown}s</span>
         <button
           onClick={handleDismiss}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted ml-2"
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
           aria-label="Dismiss"
         >
           <X className="h-3.5 w-3.5" />
@@ -110,7 +130,7 @@ export function RuntimeInitBanner() {
 
   // Some tools missing
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col rounded-lg border border-border bg-popover text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-bottom-2 min-w-[320px] max-w-[400px]">
+    <div className="fixed top-4 right-4 z-50 flex flex-col rounded-lg border border-border bg-popover text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[320px] max-w-[400px]">
       {/* Header */}
       <div className="flex items-center gap-3 p-3">
         <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0" />
