@@ -360,10 +360,6 @@
       "title": "离线模式",
       "description": "启用离线模式界面和 Ollama 集成。"
     },
-    "kanban": {
-      "title": "看板",
-      "description": "以按状态组织的看板形式查看工作区。"
-    },
     "automations": {
       "title": "自动化和收件箱",
       "description": "使用 GitHub 和 Linear 触发器自动化工作流程，并管理收件箱通知。",
@@ -558,7 +554,6 @@
       "search-workspaces": "搜索工作区",
       "archive-workspace": "归档当前工作区",
       "quick-switch-workspaces": "快速切换工作区",
-      "open-kanban": "打开看板",
       "new-agent": "创建新 Agent",
       "search-chats": "搜索对话",
       "search-in-chat": "在当前对话中搜索",

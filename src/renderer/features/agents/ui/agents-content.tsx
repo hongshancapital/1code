@@ -30,12 +30,10 @@ import {
   subChatsQuickSwitchOpenAtom,
   subChatsQuickSwitchSelectedIndexAtom,
   ctrlTabTargetAtom,
-  betaKanbanEnabledAtom,
   betaAutomationsEnabledAtom,
   chatSourceModeAtom,
 } from "../../../lib/atoms"
 import { NewChatForm } from "../main/new-chat-form"
-import { KanbanView } from "../../kanban"
 import { AutomationsView, AutomationsDetailView, InboxView } from "../../automations"
 import { HomeView } from "../../home/home-view"
 import { ChatView } from "../main/active-chat"
@@ -52,18 +50,19 @@ import {
   type SubChatMeta,
 } from "../stores/sub-chat-store"
 import { useShallow } from "zustand/react/shallow"
-import { motion, AnimatePresence } from "motion/react"
+// motion and AnimatePresence removed - not currently used
+// import { motion, AnimatePresence } from "motion/react"
 // import { ResizableSidebar } from "@/app/(alpha)/canvas/[id]/{components}/resizable-sidebar"
 import { ResizableSidebar } from "../../../components/ui/resizable-sidebar"
 // import { useClerk, useUser } from "@clerk/nextjs"
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null }) // Desktop mock
-import { Button } from "../../../components/ui/button"
-import { AlignJustify } from "lucide-react"
+// Button and AlignJustify removed - not currently used
+// import { Button } from "../../../components/ui/button"
+// import { AlignJustify } from "lucide-react"
 import { AgentsQuickSwitchDialog } from "../components/agents-quick-switch-dialog"
 import { SubChatsQuickSwitchDialog } from "../components/subchats-quick-switch-dialog"
 import { SubChatCollapsedIndicator } from "./sub-chat-collapsed-indicator"
-import { isDesktopApp } from "../../../lib/utils/platform"
 import { SettingsContent } from "../../settings/settings-content"
 // Desktop mock
 const useIsAdmin = () => false
@@ -75,13 +74,10 @@ export function AgentsContent() {
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const chatSourceMode = useAtomValue(chatSourceModeAtom)
-  const selectedDraftId = useAtomValue(selectedDraftIdAtom)
-  const showNewChatForm = useAtomValue(showNewChatFormAtom)
-  const betaKanbanEnabled = useAtomValue(betaKanbanEnabledAtom)
   const betaAutomationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
-  const [previewSidebarOpen, setPreviewSidebarOpen] = useAtom(
+  const [, setPreviewSidebarOpen] = useAtom(
     agentsPreviewSidebarOpenAtom,
   )
   const [mobileViewMode, setMobileViewMode] = useAtom(agentsMobileViewModeAtom)
@@ -101,7 +97,7 @@ export function AgentsContent() {
 
   const hasOpenedSubChatsSidebar = useRef(false)
   const wasSubChatsSidebarOpen = useRef(false)
-  const [shouldAnimateSubChatsSidebar, setShouldAnimateSubChatsSidebar] =
+  const [, setShouldAnimateSubChatsSidebar] =
     useState(subChatsSidebarMode !== "sidebar")
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -151,12 +147,11 @@ export function AgentsContent() {
   subChatQuickSwitchSelectedIndexRef.current = subChatQuickSwitchSelectedIndex
 
   // Get sub-chats from store with shallow comparison
-  const { allSubChats, openSubChatIds, activeSubChatId, setActiveSubChat } = useAgentSubChatStore(
+  const { allSubChats, openSubChatIds, activeSubChatId } = useAgentSubChatStore(
     useShallow((state) => ({
       allSubChats: state.allSubChats,
       openSubChatIds: state.openSubChatIds,
       activeSubChatId: state.activeSubChatId,
-      setActiveSubChat: state.setActiveSubChat,
     }))
   )
 
@@ -202,7 +197,7 @@ export function AgentsContent() {
   )
 
   // Track previous chat ID for navigation after archive
-  const [previousChatId, setPreviousChatId] = useAtom(previousAgentChatIdAtom)
+  const [, setPreviousChatId] = useAtom(previousAgentChatIdAtom)
   const prevSelectedChatIdRef = useRef<string | null>(null)
 
   // Update previousChatId when selectedChatId changes

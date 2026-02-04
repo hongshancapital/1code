@@ -128,23 +128,6 @@ const toggleChatSearchAction: AgentActionDefinition = {
   },
 }
 
-const openKanbanAction: AgentActionDefinition = {
-  id: "open-kanban",
-  label: "Open Kanban board",
-  description: "Open the Kanban board view",
-  category: "view",
-  hotkey: "cmd+shift+k",
-  handler: async (context) => {
-    // Clear selected chat, draft, and new form state to show Kanban view
-    context.setSelectedChatId?.(null)
-    context.setSelectedDraftId?.(null)
-    context.setShowNewChatForm?.(false)
-    // Clear automations/inbox view
-    context.setDesktopView?.(null)
-    return { success: true }
-  },
-}
-
 const openAutomationsAction: AgentActionDefinition = {
   id: "open-automations",
   label: "Automations",
@@ -220,7 +203,6 @@ export const AGENT_ACTIONS: Record<string, AgentActionDefinition> = {
   "open-settings": openSettingsAction,
   "toggle-sidebar": toggleSidebarAction,
   "toggle-chat-search": toggleChatSearchAction,
-  "open-kanban": openKanbanAction,
   "open-automations": openAutomationsAction,
   "open-inbox": openInboxAction,
   "open-in-editor": openInEditorAction,

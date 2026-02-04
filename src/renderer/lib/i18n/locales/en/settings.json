@@ -360,10 +360,6 @@
       "title": "Offline Mode",
       "description": "Enable offline mode UI and Ollama integration."
     },
-    "kanban": {
-      "title": "Kanban Board",
-      "description": "View workspaces as a Kanban board organized by status."
-    },
     "automations": {
       "title": "Automations & Inbox",
       "description": "Automate workflows with GitHub and Linear triggers, and manage inbox notifications.",
@@ -558,7 +554,6 @@
       "search-workspaces": "Search workspaces",
       "archive-workspace": "Archive current workspace",
       "quick-switch-workspaces": "Quick switch workspaces",
-      "open-kanban": "Open Kanban board",
       "new-agent": "Create new agent",
       "search-chats": "Search chats",
       "search-in-chat": "Search text in current chat",

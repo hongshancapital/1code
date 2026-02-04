@@ -10,7 +10,6 @@ import { cn } from "../../lib/utils"
 import { useSetAtom, useAtom, useAtomValue } from "jotai"
 import {
   autoAdvanceTargetAtom,
-  createTeamDialogOpenAtom,
   agentsSettingsDialogActiveTabAtom,
   agentsSidebarOpenAtom,
   agentsHelpPopoverOpenAtom,
@@ -24,15 +23,11 @@ import {
   isFullscreenAtom,
   showOfflineModeFeaturesAtom,
   chatSourceModeAtom,
-  selectedTeamIdAtom,
-  type ChatSourceMode,
   type SettingsTab,
   showWorkspaceIconAtom,
-  betaKanbanEnabledAtom,
   betaAutomationsEnabledAtom,
   // Grouping atoms
   workspaceGroupedViewAtom,
-  workspaceGroupModeAtom,
   manageTagsDialogOpenAtom,
 } from "../../lib/atoms"
 // [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
@@ -84,9 +79,8 @@ const useRenameRemoteChat = () => ({
   mutateAsync: async (_data: { chatId: string; name: string }) => {}
 })
 import { ArchivePopover } from "../agents/ui/archive-popover"
-import { ChevronDown, MoreHorizontal, Columns3, Mail, ArrowUpRight, MessageCircle } from "lucide-react"
+import { ChevronDown, Mail, MessageCircle } from "lucide-react"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
-import { useQuery } from "@tanstack/react-query"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../lib/remote-trpc"
 // import { useRouter } from "next/navigation" // Desktop doesn't use next/navigation
@@ -132,8 +126,6 @@ import {
   SettingsIcon,
   PlusIcon,
   ProfileIcon,
-  PublisherStudioIcon,
-  SearchIcon,
   GitHubLogo,
   LoadingDot,
   ArchiveIcon,
@@ -141,11 +133,9 @@ import {
   QuestionCircleIcon,
   QuestionIcon,
   KeyboardIcon,
-  TicketIcon,
   CloudIcon,
   FolderFilledIcon,
 } from "../../components/ui/icons"
-import { Logo } from "../../components/ui/logo"
 import { Input } from "../../components/ui/input"
 import { Button } from "../../components/ui/button"
 import {
@@ -157,7 +147,6 @@ import {
   loadingSubChatsAtom,
   agentsUnseenChangesAtom,
   archivePopoverOpenAtom,
-  agentsDebugModeAtom,
   selectedProjectAtom,
   justCreatedIdsAtom,
   undoStackAtom,
@@ -171,10 +160,9 @@ import { NetworkStatus } from "../../components/ui/network-status"
 import { useAgentSubChatStore, OPEN_SUB_CHATS_CHANGE_EVENT } from "../agents/stores/sub-chat-store"
 import { getWindowId } from "../../contexts/WindowContext"
 import { AgentsHelpPopover } from "../agents/components/agents-help-popover"
-import { getShortcutKey, isDesktopApp } from "../../lib/utils/platform"
+import { isDesktopApp } from "../../lib/utils/platform"
 import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
-import { pluralize } from "../agents/utils/pluralize"
-import { useNewChatDrafts, deleteNewChatDraft, type NewChatDraft } from "../agents/lib/drafts"
+import { useNewChatDrafts, deleteNewChatDraft } from "../agents/lib/drafts"
 import {
   TrafficLightSpacer,
   TrafficLights,
@@ -183,11 +171,11 @@ import { useHotkeys } from "react-hotkeys-hook"
 import { Checkbox } from "../../components/ui/checkbox"
 import { useHaptic } from "./hooks/use-haptic"
 import { TypewriterText } from "../../components/ui/typewriter-text"
-import { exportChat, copyChat, type ExportFormat } from "../agents/lib/export-chat"
+import { exportChat, copyChat } from "../agents/lib/export-chat"
 // Grouping components
 import { GroupedChatList } from "./components/grouped-chat-list"
 import { GroupingToggle } from "./components/grouping-toggle"
-import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon, isPresetTagId } from "./components/tag-selector-submenu"
+import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "./components/tag-selector-submenu"
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 
 // Feedback mailto link
@@ -484,7 +472,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   chatName,
   chatBranch,
   chatUpdatedAt,
-  chatProjectId,
+  chatProjectId: _chatProjectId,
   chatTagId,
   globalIndex,
   isSelected,
@@ -524,7 +512,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   onBulkPin,
   onBulkUnpin,
   onBulkArchive,
-  archivePending,
+  archivePending: _archivePending,
   archiveBatchPending,
   nameRefCallback,
   formatTime,
@@ -1192,47 +1180,6 @@ const ArchiveButton = memo(forwardRef<HTMLButtonElement, React.ButtonHTMLAttribu
   }
 ))
 
-// Isolated Kanban Button - clears selection to show Kanban view
-const KanbanButton = memo(function KanbanButton() {
-  const kanbanEnabled = useAtomValue(betaKanbanEnabledAtom)
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
-  const setSelectedDraftId = useSetAtom(selectedDraftIdAtom)
-  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
-  const setDesktopView = useSetAtom(desktopViewAtom)
-
-  // Resolved hotkey for tooltip (respects custom bindings)
-  const openKanbanHotkey = useResolvedHotkeyDisplay("open-kanban")
-
-  const handleClick = useCallback(() => {
-    // Clear selected chat, draft, and new form state to show Kanban view
-    setSelectedChatId(null)
-    setSelectedDraftId(null)
-    setShowNewChatForm(false)
-    setDesktopView(null) // Clear automations/inbox view
-  }, [setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
-
-  // Hide button if feature is disabled
-  if (!kanbanEnabled) return null
-
-  return (
-    <Tooltip delayDuration={500}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={handleClick}
-          className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.97] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
-        >
-          <Columns3 className="h-4 w-4" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        Kanban View
-        {openKanbanHotkey && <Kbd>{openKanbanHotkey}</Kbd>}
-      </TooltipContent>
-    </Tooltip>
-  )
-})
-
 // Custom SVG icons matching web's icons.tsx
 // Home icon for navigation
 function SidebarHomeIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -1331,7 +1278,6 @@ const InboxButton = memo(function InboxButton() {
   const setSelectedDraftId = useSetAtom(selectedDraftIdAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
-  const teamId = useAtomValue(selectedTeamIdAtom)
 
   // [CLOUD DISABLED] Remote inbox unread count - disabled until cloud backend is available
   // const { data: unreadData } = useQuery({
@@ -1935,7 +1881,7 @@ const HelpSection = memo(function HelpSection({ isMobile }: HelpSectionProps) {
 
 export function AgentsSidebar({
   userId = "demo-user-id",
-  clerkUser = null,
+  clerkUser: _clerkUser = null,
   desktopUser = {
     id: "demo-user-id",
     email: "demo@example.com",
@@ -1999,8 +1945,6 @@ export function AgentsSidebar({
 
   // Grouping view state
   const isGroupedView = useAtomValue(workspaceGroupedViewAtom)
-  const groupMode = useAtomValue(workspaceGroupModeAtom)
-
   // Haptic feedback
   const { trigger: triggerHaptic } = useHaptic()
 
@@ -2053,12 +1997,8 @@ export function AgentsSidebar({
       setDesktopViewForSettings(null)
     }
   }, [setDesktopViewForSettings, setSidebarOpenForSettings])
-  const { isLoaded: isAuthLoaded } = useCombinedAuth()
+  const { isLoaded: _isAuthLoaded } = useCombinedAuth()
   const [showAuthDialog, setShowAuthDialog] = useState(false)
-  const setCreateTeamDialogOpen = useSetAtom(createTeamDialogOpenAtom)
-
-  // Debug mode for testing first-time user experience
-  const debugMode = useAtomValue(agentsDebugModeAtom)
 
   // Sidebar appearance settings
   const showWorkspaceIcon = useAtomValue(showWorkspaceIconAtom)
@@ -2071,7 +2011,6 @@ export function AgentsSidebar({
 
   // Keep chatSourceModeAtom for backwards compatibility (used in other places)
   const [chatSourceMode, setChatSourceMode] = useAtom(chatSourceModeAtom)
-  const teamId = useAtomValue(selectedTeamIdAtom)
 
   // Subchat sidebar mode - need to set to "sidebar" when clicking Chats
   const setSubChatsSidebarMode = useSetAtom(agentsSubChatsSidebarModeAtom)
@@ -2100,8 +2039,6 @@ export function AgentsSidebar({
 
   // Mutation to get or create the single playground chat
   const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
-
-  const trpcUtils = trpc.useUtils()
 
   // Handle clicking the Chats button - enter chat mode with playground project
   const handleChatsClick = useCallback(async () => {
@@ -2158,7 +2095,7 @@ export function AgentsSidebar({
   }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
 
   // Fetch user's teams (same as web) - always enabled to allow merged list
-  const { data: teams, isLoading: isTeamsLoading, isError: isTeamsError } = useUserTeams(true)
+  const { data: _teams, isLoading: _isTeamsLoading, isError: _isTeamsError } = useUserTeams(true)
 
   // Fetch remote sandbox chats (same as web) - requires teamId
   const { data: remoteChats } = useRemoteChats()
@@ -2303,7 +2240,7 @@ export function AgentsSidebar({
   const { data: projects } = trpc.projects.list.useQuery()
 
   // Auto-import hook for "Open Locally" functionality
-  const { getMatchingProjects, autoImport, isImporting } = useAutoImport()
+  const { getMatchingProjects, autoImport, isImporting: _isImporting } = useAutoImport()
 
   // Create map for quick project lookup by id
   const projectsMap = useMemo(() => {
@@ -2644,9 +2581,6 @@ export function AgentsSidebar({
     }
   }, [selectedChatIds, clearChatSelection])
 
-  // Get clerk username
-  const clerkUsername = clerkUser?.username
-
   // Filter and separate pinned/unpinned agents
   const { pinnedAgents, unpinnedAgents, filteredChats } = useMemo(() => {
     if (!agentChats)
@@ -2919,18 +2853,6 @@ export function AgentsSidebar({
       }
     }
   }, [focusedChatIndex, filteredChats.length])
-
-  const handleNewAgent = () => {
-    triggerHaptic("light")
-    setSelectedChatId(null)
-    setSelectedDraftId(null) // Clear selected draft so form starts empty
-    setShowNewChatForm(true) // Explicitly show new chat form
-    setDesktopView(null) // Clear automations/inbox view
-    // On mobile, switch to chat mode to show NewChatForm
-    if (isMobileFullscreen && onChatSelect) {
-      onChatSelect()
-    }
-  }
 
   const handleChatClick = useCallback((
     chatId: string,
@@ -3946,7 +3868,6 @@ export function AgentsSidebar({
                 </Tooltip>
 
                 <HelpSection isMobile={isMobileFullscreen} />
-                <KanbanButton />
                 <ArchiveSection archivedChatsCount={archivedChatsCount} />
 
                 {/* Spacer */}

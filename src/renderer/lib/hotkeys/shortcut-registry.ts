@@ -75,12 +75,6 @@ export const ALL_SHORTCUT_ACTIONS: ShortcutAction[] = [
     isDynamic: true,
     dynamicDescription: "Controlled by Ctrl+Tab preference",
   },
-  {
-    id: "open-kanban",
-    label: "Open Kanban board",
-    category: "workspaces",
-    defaultKeys: ["cmd", "shift", "K"],
-  },
 
   // ============================================
   // AGENTS

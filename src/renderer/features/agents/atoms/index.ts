@@ -40,8 +40,7 @@ export const previousAgentChatIdAtom = atom<string | null>(null)
 // Reset to null when "New Workspace" is clicked or chat is created
 export const selectedDraftIdAtom = atom<string | null>(null)
 
-// Show new chat form explicitly - true by default so new users see the form, not kanban
-// Set to false when kanban is explicitly opened (via hotkey or button)
+// Show new chat form explicitly - true by default so new users see the form
 // Set to true when "New Workspace" is clicked
 export const showNewChatFormAtom = atom<boolean>(true)
 
@@ -975,7 +974,7 @@ export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
 
 // Desktop view mode - takes priority over chat-based rendering
 // "home" = default home dashboard view
-// null = chat-based rendering (chat/new-chat/kanban)
+// null = chat-based rendering (chat/new-chat)
 export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
 export const desktopViewAtom = atom<DesktopView>("home")
 

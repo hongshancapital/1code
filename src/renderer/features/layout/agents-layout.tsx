@@ -12,7 +12,6 @@ import {
   anthropicOnboardingCompletedAtom,
   authSkippedAtom,
   customHotkeysAtom,
-  betaKanbanEnabledAtom,
 } from "../../lib/atoms"
 import {
   setTrafficLightRequestAtom,
@@ -103,7 +102,6 @@ export function AgentsLayout() {
   const [selectedProject, setSelectedProject] = useAtom(selectedProjectAtom)
   const setSelectedDraftId = useSetAtom(selectedDraftIdAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
-  const betaKanbanEnabled = useAtomValue(betaKanbanEnabledAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setAnthropicOnboardingCompleted = useSetAtom(
     anthropicOnboardingCompletedAtom
@@ -282,7 +280,6 @@ export function AgentsLayout() {
     toggleChatSearch,
     selectedChatId,
     customHotkeysConfig,
-    betaKanbanEnabled,
   })
 
   const handleCloseSidebar = useCallback(() => {

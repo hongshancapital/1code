@@ -13,7 +13,6 @@ export type ShortcutActionId =
   | "search-workspaces"
   | "archive-workspace"
   | "quick-switch-workspaces"
-  | "open-kanban"
   // Agents
   | "new-agent"
   | "search-chats"

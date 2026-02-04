@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next"
 import {
   autoOfflineModeAtom,
   betaAutomationsEnabledAtom,
-  betaKanbanEnabledAtom,
   betaUpdatesEnabledAtom,
   enableTasksAtom,
   historyEnabledAtom,
@@ -66,7 +65,6 @@ export function AgentsBetaTab() {
   const [showOfflineFeatures, setShowOfflineFeatures] = useAtom(showOfflineModeFeaturesAtom)
   const [autoOffline, setAutoOffline] = useAtom(autoOfflineModeAtom)
   const [selectedOllamaModel, setSelectedOllamaModel] = useAtom(selectedOllamaModelAtom)
-  const [kanbanEnabled, setKanbanEnabled] = useAtom(betaKanbanEnabledAtom)
   const [automationsEnabled, setAutomationsEnabled] = useAtom(betaAutomationsEnabledAtom)
   const [enableTasks, setEnableTasks] = useAtom(enableTasksAtom)
   const [betaUpdatesEnabled, setBetaUpdatesEnabled] = useAtom(betaUpdatesEnabledAtom)
@@ -173,22 +171,6 @@ export function AgentsBetaTab() {
           <Switch
             checked={showOfflineFeatures}
             onCheckedChange={setShowOfflineFeatures}
-          />
-        </div>
-
-        {/* Kanban Board Toggle */}
-        <div className="flex items-center justify-between p-4 border-t border-border">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-foreground">
-              {t('beta.kanban.title')}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {t('beta.kanban.description')}
-            </span>
-          </div>
-          <Switch
-            checked={kanbanEnabled}
-            onCheckedChange={setKanbanEnabled}
           />
         </div>
 

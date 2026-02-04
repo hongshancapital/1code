@@ -32,13 +32,6 @@ export const FEATURE_FLAGS = {
     beta: true,      // beta 功能
     description: "Background automations and inbox for scheduled tasks",
   },
-  /** Kanban 看板功能 */
-  kanban: {
-    name: "Kanban Board",
-    devOnly: true,
-    beta: true,
-    description: "Visual kanban board for task management",
-  },
   /** Offline 模式 */
   offline: {
     name: "Offline Mode",

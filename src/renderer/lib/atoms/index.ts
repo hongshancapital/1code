@@ -480,15 +480,6 @@ export const betaGitFeaturesEnabledAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
-// Beta: Enable Kanban board view
-// When enabled, shows Kanban button in sidebar to view workspaces as a board
-export const betaKanbanEnabledAtom = atomWithStorage<boolean>(
-  "preferences:beta-kanban-enabled",
-  false, // Default OFF
-  undefined,
-  { getOnInit: true },
-)
-
 // Beta: Enable Automations & Inbox
 // When enabled, shows Automations and Inbox navigation in sidebar
 // Note: This feature is dev-only - in production, it's always disabled regardless of storage value
@@ -847,6 +838,15 @@ export const apiKeyOnboardingCompletedAtom = atomWithStorage<boolean>(
 // Whether auth was skipped (user chose "Skip for now" on login page)
 // This is synced from main process on app load
 export const authSkippedAtom = atom<boolean>(false)
+
+// Whether user has completed or skipped the welcome name input
+// This is shown on first app launch during the loading scene
+export const welcomeNameInputCompletedAtom = atomWithStorage<boolean>(
+  "onboarding:welcome-name-completed",
+  false,
+  undefined,
+  { getOnInit: true },
+)
 
 // ============================================
 // SESSION INFO ATOMS (MCP, Plugins, Tools)
