@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useAtom } from "jotai"
 import { ChevronLeft } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 import { IconSpinner, GitHubIcon } from "../../components/ui/icons"
 import { Logo } from "../../components/ui/logo"
@@ -11,6 +12,7 @@ import { trpc } from "../../lib/trpc"
 import { selectedProjectAtom } from "../agents/atoms"
 
 export function SelectRepoPage() {
+  const { t } = useTranslation('onboarding')
   const [, setSelectedProject] = useAtom(selectedProjectAtom)
   const [showClonePage, setShowClonePage] = useState(false)
   const [githubUrl, setGithubUrl] = useState("")
@@ -194,10 +196,10 @@ export function SelectRepoPage() {
           </div>
           <div className="flex flex-col gap-1">
             <h1 className="text-base font-semibold tracking-tight">
-              Select a repository
+              {t('selectRepo.title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Choose a local folder to start working with
+              {t('selectRepo.subtitle')}
             </p>
           </div>
         </div>
@@ -212,7 +214,7 @@ export function SelectRepoPage() {
             {openFolder.isPending ? (
               <IconSpinner className="h-4 w-4" />
             ) : (
-              "Select folder"
+              t('selectRepo.selectFolder')
             )}
           </button>
           <button
@@ -223,7 +225,7 @@ export function SelectRepoPage() {
             {cloneFromGitHub.isPending ? (
               <IconSpinner className="h-4 w-4" />
             ) : (
-              "Clone from GitHub"
+              t('selectRepo.cloneFromGithub')
             )}
           </button>
         </div>
