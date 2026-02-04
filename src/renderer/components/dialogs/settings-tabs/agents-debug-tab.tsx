@@ -5,7 +5,7 @@ import { Button } from "../../ui/button"
 import { Switch } from "../../ui/switch"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson } from "lucide-react"
+import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database } from "lucide-react"
 import { showMessageJsonAtom } from "../../../features/agents/atoms"
 
 // Hook to detect narrow screen
@@ -120,6 +120,19 @@ export function AgentsDebugTab() {
       localStorage.clear()
       toast.success(t('debug.toast.factoryResetComplete'))
       // The main process will navigate to login.html, no need to reload here
+    },
+    onError: (error) => toast.error(error.message),
+  })
+
+  // Copy production database to dev (dev only)
+  const copyProductionDbMutation = trpc.debug.copyProductionDb.useMutation({
+    onSuccess: (data) => {
+      toast.success(t('debug.toast.productionDbCopied'), {
+        description: t('debug.toast.productionDbCopiedDesc'),
+      })
+      refetchDb()
+      // Reload to pick up new data
+      setTimeout(() => window.location.reload(), 1000)
     },
     onError: (error) => toast.error(error.message),
   })
@@ -328,6 +341,29 @@ export function AgentsDebugTab() {
                 checked={showMessageJson}
                 onCheckedChange={setShowMessageJson}
               />
+            </div>
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-2">
+                <Database className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <span className="text-sm">{t('debug.devTools.copyProductionDb')}</span>
+                  <p className="text-xs text-muted-foreground">
+                    {t('debug.devTools.copyProductionDbDesc')}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (confirm(t('debug.devTools.confirmCopyProductionDb'))) {
+                    copyProductionDbMutation.mutate()
+                  }
+                }}
+                disabled={copyProductionDbMutation.isPending}
+              >
+                {copyProductionDbMutation.isPending ? "..." : t('debug.devTools.copyButton')}
+              </Button>
             </div>
           </div>
         </div>

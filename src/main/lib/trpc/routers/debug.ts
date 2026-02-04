@@ -1,10 +1,11 @@
 import { router, publicProcedure } from "../index"
-import { getDatabase, projects, chats, subChats } from "../../db"
+import { getDatabase, closeDatabase, initDatabase, projects, chats, subChats } from "../../db"
 import { app, shell, BrowserWindow, session } from "electron"
 import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
 import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
+import { existsSync, copyFileSync, mkdirSync } from "fs"
 
 // Protocol constant (must match main/index.ts)
 const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
@@ -182,5 +183,72 @@ export const debugRouter = router({
 
     console.log("[Debug] Factory reset complete")
     return { success: true }
+  }),
+
+  /**
+   * Copy production database to development environment (dev only)
+   * This allows testing with real data from the release version
+   */
+  copyProductionDb: publicProcedure.mutation(async () => {
+    // Only allow in dev mode
+    if (!IS_DEV) {
+      throw new Error("This operation is only available in development mode")
+    }
+
+    // Determine production app data path
+    // Production app name is "hong-desktop", dev is "Agents Dev"
+    const userDataPath = app.getPath("userData") // e.g., ~/Library/Application Support/Agents Dev
+    const appSupportPath = join(userDataPath, "..") // ~/Library/Application Support
+
+    // Production database path - try multiple possible locations
+    const possibleProductionPaths = [
+      join(appSupportPath, "hong-desktop", "data", "agents.db"),  // Current production
+      join(appSupportPath, "Hong Cowork", "data", "agents.db"),   // Legacy name
+      join(appSupportPath, "Hong", "data", "agents.db"),          // Alternative name
+    ]
+
+    const productionDbPath = possibleProductionPaths.find(p => existsSync(p))
+
+    if (!productionDbPath) {
+      throw new Error(`Production database not found. Searched paths:\n${possibleProductionPaths.join("\n")}`)
+    }
+
+    // Target path (dev database)
+    const devDataDir = join(userDataPath, "data")
+    const devDbPath = join(devDataDir, "agents.db")
+
+    // Ensure data directory exists
+    if (!existsSync(devDataDir)) {
+      mkdirSync(devDataDir, { recursive: true })
+    }
+
+    // Close current database connection
+    closeDatabase()
+
+    // Copy production db to dev
+    try {
+      copyFileSync(productionDbPath, devDbPath)
+      console.log(`[Debug] Copied production DB from ${productionDbPath} to ${devDbPath}`)
+
+      // Also copy WAL files if they exist (for consistency)
+      const walPath = productionDbPath + "-wal"
+      const shmPath = productionDbPath + "-shm"
+      if (existsSync(walPath)) {
+        copyFileSync(walPath, devDbPath + "-wal")
+      }
+      if (existsSync(shmPath)) {
+        copyFileSync(shmPath, devDbPath + "-shm")
+      }
+    } catch (error) {
+      // Re-initialize database even on error
+      initDatabase()
+      throw error
+    }
+
+    // Re-initialize database with new file
+    initDatabase()
+
+    console.log("[Debug] Production database copied to dev environment")
+    return { success: true, sourcePath: productionDbPath, targetPath: devDbPath }
   }),
 })

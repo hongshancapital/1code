@@ -602,7 +602,11 @@
       "simulateOffline": "Simulate Offline",
       "simulateOfflineDesc": "Test offline mode without disconnecting",
       "showMessageJson": "Show Message JSON",
-      "showMessageJsonDesc": "Display raw JSON below each message in chat"
+      "showMessageJsonDesc": "Display raw JSON below each message in chat",
+      "copyProductionDb": "Copy Production DB",
+      "copyProductionDbDesc": "Copy database from release version for testing",
+      "confirmCopyProductionDb": "Copy production database? This will replace your current dev database.",
+      "copyButton": "Copy"
     },
     "quickActions": {
       "title": "Quick Actions",
@@ -645,7 +649,9 @@
       "offlineSimEnabled": "Offline simulation enabled",
       "offlineSimEnabledDesc": "App will behave as if offline",
       "offlineSimDisabled": "Offline simulation disabled",
-      "offlineSimDisabledDesc": "Network detection restored to normal"
+      "offlineSimDisabledDesc": "Network detection restored to normal",
+      "productionDbCopied": "Production database copied",
+      "productionDbCopiedDesc": "Reloading with new data..."
     }
   },
   "sidebar": {

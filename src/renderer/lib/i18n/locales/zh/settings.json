@@ -602,7 +602,11 @@
       "simulateOffline": "模拟离线",
       "simulateOfflineDesc": "无需断网即可测试离线模式",
       "showMessageJson": "显示消息 JSON",
-      "showMessageJsonDesc": "在聊天消息下方显示原始 JSON"
+      "showMessageJsonDesc": "在聊天消息下方显示原始 JSON",
+      "copyProductionDb": "复制生产数据库",
+      "copyProductionDbDesc": "从发布版本复制数据库用于测试",
+      "confirmCopyProductionDb": "复制生产数据库？这将替换当前的开发数据库。",
+      "copyButton": "复制"
     },
     "quickActions": {
       "title": "快捷操作",
@@ -645,7 +649,9 @@
       "offlineSimEnabled": "离线模拟已启用",
       "offlineSimEnabledDesc": "应用将表现为离线状态",
       "offlineSimDisabled": "离线模拟已禁用",
-      "offlineSimDisabledDesc": "网络检测已恢复正常"
+      "offlineSimDisabledDesc": "网络检测已恢复正常",
+      "productionDbCopied": "生产数据库已复制",
+      "productionDbCopiedDesc": "正在使用新数据重新加载..."
     }
   },
   "sidebar": {
