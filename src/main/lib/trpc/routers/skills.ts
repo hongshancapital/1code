@@ -105,8 +105,56 @@ function getFileType(filename: string): SkillFile["type"] {
 }
 
 /**
+ * Recursively walk a directory and collect all files
+ * Returns files with their relative paths using forward slashes
+ */
+async function walkDirectory(
+  dirPath: string,
+  baseDir: string,
+  relativePath: string = ""
+): Promise<SkillFile[]> {
+  const files: SkillFile[] = []
+
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue
+
+      const fullPath = path.join(dirPath, entry.name)
+      // Use forward slash for display, regardless of OS
+      const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name
+
+      if (entry.isFile()) {
+        try {
+          const stat = await fs.stat(fullPath)
+          files.push({
+            name: entryRelativePath,
+            // Use path.join for actual file path (OS-specific)
+            path: [baseDir, ...entryRelativePath.split("/")].join(path.sep),
+            type: getFileType(entry.name),
+            size: formatFileSize(stat.size),
+          })
+        } catch {
+          // Skip files we can't stat
+        }
+      } else if (entry.isDirectory()) {
+        // Recursively walk subdirectory
+        const subFiles = await walkDirectory(fullPath, baseDir, entryRelativePath)
+        files.push(...subFiles)
+      }
+    }
+  } catch (err) {
+    console.error(`[skills] Failed to walk directory ${dirPath}:`, err)
+  }
+
+  return files
+}
+
+/**
  * Scan skill directory for sub-directories and their files
  * Excludes SKILL.md and agents/ directory (handled separately)
+ * Recursively walks all subdirectories
  */
 async function scanSkillContents(skillDir: string): Promise<SkillDirectory[]> {
   const directories: SkillDirectory[] = []
@@ -120,31 +168,9 @@ async function scanSkillContents(skillDir: string): Promise<SkillDirectory[]> {
       if (entry.name === "agents" || entry.name.startsWith(".")) continue
 
       const dirPath = path.join(skillDir, entry.name)
-      const files: SkillFile[] = []
 
-      try {
-        const fileEntries = await fs.readdir(dirPath, { withFileTypes: true })
-
-        for (const fileEntry of fileEntries) {
-          if (!fileEntry.isFile()) continue
-          if (fileEntry.name.startsWith(".")) continue
-
-          const filePath = path.join(dirPath, fileEntry.name)
-          try {
-            const stat = await fs.stat(filePath)
-            files.push({
-              name: fileEntry.name,
-              path: path.join(entry.name, fileEntry.name),
-              type: getFileType(fileEntry.name),
-              size: formatFileSize(stat.size),
-            })
-          } catch {
-            // Skip files we can't stat
-          }
-        }
-      } catch {
-        // Skip directories we can't read
-      }
+      // Recursively walk the entire directory tree
+      const files = await walkDirectory(dirPath, entry.name)
 
       if (files.length > 0) {
         directories.push({
@@ -153,8 +179,8 @@ async function scanSkillContents(skillDir: string): Promise<SkillDirectory[]> {
         })
       }
     }
-  } catch {
-    // Return empty if we can't read the directory
+  } catch (err) {
+    console.error(`[skills] Failed to scan skill contents ${skillDir}:`, err)
   }
 
   return directories.sort((a, b) => a.name.localeCompare(b.name))
@@ -171,6 +197,26 @@ export function getBuiltinSkillsPath(): string {
   }
   // Development: __dirname is out/main, go up 2 levels to project root
   return path.join(__dirname, "../../resources/skills")
+}
+
+/**
+ * Recursively copy a directory
+ */
+async function copyDirectoryRecursive(src: string, dest: string): Promise<void> {
+  await fs.mkdir(dest, { recursive: true })
+
+  const entries = await fs.readdir(src, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+
+    if (entry.isDirectory()) {
+      await copyDirectoryRecursive(srcPath, destPath)
+    } else {
+      await fs.copyFile(srcPath, destPath)
+    }
+  }
 }
 
 /**
@@ -208,16 +254,15 @@ export async function syncBuiltinSkillsToUserDir(): Promise<void> {
       const skillMdPath = path.join(sourceDir, "SKILL.md")
       await fs.access(skillMdPath)
 
-      // Create target directory
-      await fs.mkdir(targetDir, { recursive: true })
-
-      // Copy SKILL.md (and any other files)
-      const files = await fs.readdir(sourceDir)
-      for (const file of files) {
-        const srcFile = path.join(sourceDir, file)
-        const dstFile = path.join(targetDir, file)
-        await fs.copyFile(srcFile, dstFile)
+      // Remove existing target directory to ensure clean sync
+      try {
+        await fs.rm(targetDir, { recursive: true, force: true })
+      } catch {
+        // Ignore if doesn't exist
       }
+
+      // Recursively copy entire skill directory
+      await copyDirectoryRecursive(sourceDir, targetDir)
 
       // Add .hong marker to identify builtin skills synced by Hong
       await fs.writeFile(path.join(targetDir, ".hong"), "", "utf-8")
