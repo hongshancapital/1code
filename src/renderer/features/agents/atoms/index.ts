@@ -974,9 +974,10 @@ export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
 )
 
 // Desktop view mode - takes priority over chat-based rendering
-// null = default behavior (chat/new-chat/kanban)
+// "home" = default home dashboard view
+// null = chat-based rendering (chat/new-chat/kanban)
 export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
-export const desktopViewAtom = atom<DesktopView>(null)
+export const desktopViewAtom = atom<DesktopView>("home")
 
 // Automations sidebar width (for the list panel in automations view)
 export const automationsSidebarWidthAtom = atomWithStorage<number>(

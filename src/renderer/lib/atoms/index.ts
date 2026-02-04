@@ -266,9 +266,10 @@ export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
 )
 
 // LiteLLM selected model (when using internal LiteLLM proxy from env)
+// Default is empty - will be populated from backend's defaultModel when first queried
 export const litellmSelectedModelAtom = atomWithStorage<string>(
   "agents:litellm-selected-model",
-  "claude-sonnet-4-20250514", // Default to Sonnet (not Opus)
+  "", // Empty - will be set from backend's intelligent default selection
   undefined,
   { getOnInit: true },
 )

@@ -107,7 +107,7 @@ import {
   PromptInputActions,
   PromptInputContextItems,
 } from "../../../components/ui/prompt-input"
-import { agentsSidebarOpenAtom, agentsUnseenChangesAtom, agentsSubChatsSidebarModeAtom } from "../atoms"
+import { agentsSidebarOpenAtom, agentsUnseenChangesAtom, agentsSubChatsSidebarModeAtom, desktopViewAtom } from "../atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentSendButton } from "../components/agent-send-button"
 import { formatTimeAgo } from "../utils/format-time-ago"
@@ -200,6 +200,7 @@ export function NewChatForm({
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
+  const setDesktopView = useSetAtom(desktopViewAtom)
   const [selectedDraftId, setSelectedDraftId] = useAtom(selectedDraftIdAtom)
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
 
@@ -1006,6 +1007,8 @@ export function NewChatForm({
       // New chats are always local
       setSelectedChatIsRemote(false)
       setChatSourceMode("local")
+      // Clear home view to show the chat
+      setDesktopView(null)
       // Track this chat and its first subchat as just created for typewriter effect
       const ids = [data.id]
       if (data.subChats?.[0]?.id) {
@@ -1310,6 +1313,20 @@ export function NewChatForm({
         setSelectedChatId(playgroundChat.id)
         setSelectedChatIsRemote(false)
         setChatSourceMode("local")
+        // Clear home view to show the chat
+        setDesktopView(null)
+
+        // Ensure playground project is set so ChatsButton shows as active
+        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
+        if (playground) {
+          setSelectedProject({
+            id: playground.id,
+            name: playground.name,
+            path: playground.path,
+            mode: "chat",
+            isPlayground: true,
+          })
+        }
 
         // Invalidate sidebar list
         utils.chats.listPlayground.invalidate()
@@ -1417,6 +1434,7 @@ export function NewChatForm({
     setSelectedChatId,
     setSelectedChatIsRemote,
     setChatSourceMode,
+    setDesktopView,
     setJustCreatedIds,
     utils,
     // Note: clearImages, clearFiles, clearPastedTexts, clearCurrentDraft are stable refs from hooks
