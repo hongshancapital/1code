@@ -314,7 +314,6 @@ export function ChangesView({
 
 	// External actions
 	const openInFinderMutation = trpc.external.openInFinder.useMutation();
-	const openInEditorMutation = trpc.external.openFileInEditor.useMutation();
 	const openInAppMutation = trpc.external.openInApp.useMutation();
 
 	// Preferred editor

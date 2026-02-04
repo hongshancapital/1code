@@ -7,9 +7,7 @@ import {
   automationDetailIdAtom,
   automationTemplateParamsAtom,
   agentsSidebarOpenAtom,
-  agentsMobileViewModeAtom,
 } from "../agents/atoms"
-import { useIsMobile } from "../../lib/hooks/use-mobile"
 import { IconSpinner, IconChevronDown, ExternalLinkIcon } from "../../components/ui/icons"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import {

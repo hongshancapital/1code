@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { AnimatePresence, motion } from "motion/react"
 import { Sparkles, Code, MessageCircle } from "lucide-react"
 

@@ -275,7 +275,7 @@ interface ContentSearchResultItemProps {
   onSelect: (path: string, line: number) => void
 }
 
-function ContentSearchResultItem({ result, projectPath, query, onSelect }: ContentSearchResultItemProps) {
+function ContentSearchResultItem({ result, projectPath: _projectPath, query, onSelect }: ContentSearchResultItemProps) {
   const FileIcon = getFileIconByExtension(result.file) ?? FileText
 
   // Highlight matching text in the line

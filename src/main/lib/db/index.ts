@@ -135,6 +135,17 @@ export function initDatabase() {
     console.log("[DB] Workspace tags tables check:", error.message)
   }
 
+  // Ensure stats_json column exists on sub_chats table (for preview optimization)
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN stats_json TEXT`)
+    console.log("[DB] Added stats_json column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] stats_json column check:", error.message)
+    }
+  }
+
   // Ensure automations tables exist (for automation engine)
   try {
     sqlite.exec(`

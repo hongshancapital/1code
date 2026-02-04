@@ -126,7 +126,7 @@ export function AgentsDebugTab() {
 
   // Copy production database to dev (dev only)
   const copyProductionDbMutation = trpc.debug.copyProductionDb.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       toast.success(t('debug.toast.productionDbCopied'), {
         description: t('debug.toast.productionDbCopiedDesc'),
       })

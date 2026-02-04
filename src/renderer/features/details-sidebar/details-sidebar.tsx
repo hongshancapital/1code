@@ -109,7 +109,7 @@ export function DetailsSidebar({
   isDiffSidebarOpen,
   diffDisplayMode,
   canOpenDiff,
-  setIsDiffSidebarOpen,
+  setIsDiffSidebarOpen: _setIsDiffSidebarOpen,
   diffStats,
   parsedFileDiffs,
   onCommit,

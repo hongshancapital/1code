@@ -112,18 +112,6 @@ function getStatusVerb(status: TodoItem["status"], content: string): string {
   }
 }
 
-// Get icon component for status
-function getStatusIconComponent(status: TodoItem["status"]) {
-  switch (status) {
-    case "completed":
-      return CheckIcon
-    case "in_progress":
-      return IconSpinner
-    default:
-      return Circle
-  }
-}
-
 // Pie-style progress circle - fills sectors like pizza slices
 const ProgressCircle = ({
   completed,

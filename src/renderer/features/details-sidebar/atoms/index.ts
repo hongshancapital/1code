@@ -172,9 +172,6 @@ export type OverviewSection = "info" | "plan" | "terminal" | "diff" | "artifacts
 // Default expanded sections
 const DEFAULT_EXPANDED_SECTIONS: OverviewSection[] = ["info", "plan", "terminal"]
 
-// Default expanded sections for cowork mode
-const DEFAULT_COWORK_EXPANDED_SECTIONS: OverviewSection[] = ["artifacts", "explorer"]
-
 // Section expand states (per workspace) - stores array of expanded section IDs
 const sectionExpandStorageAtom = atomWithStorage<
   Record<string, OverviewSection[]>

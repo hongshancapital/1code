@@ -46,10 +46,6 @@ export function AutomationsView() {
   // Fetch automations via local tRPC
   const { data: automationsData, isLoading } = trpc.automations.list.useQuery()
 
-  // [CLOUD DISABLED] GitHub and Linear integration - stubbed for now
-  const githubStatus: { isConnected: boolean } | undefined = undefined
-  const linearStatus: { isConnected: boolean } | undefined = undefined
-
   const automations = automationsData ?? []
 
   // Filter automations by search query

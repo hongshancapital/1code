@@ -4,7 +4,7 @@ import { X, ExternalLink, Maximize2, Minimize2, Pencil, Save, Eye } from "lucide
 import { cn } from "../../../lib/utils"
 import { isMacOS } from "../../../lib/utils/platform"
 import { Button } from "../../../components/ui/button"
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../../../components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
   AlertDialog,
@@ -68,7 +68,7 @@ interface FilePreviewDialogProps {
 }
 
 export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
-  const [open, setOpen] = useAtom(filePreviewOpenAtom)
+  const [open, _setOpen] = useAtom(filePreviewOpenAtom)
   const [filePath, setFilePath] = useAtom(filePreviewPathAtom)
   const [displayMode, setDisplayMode] = useAtom(filePreviewDisplayModeAtom)
   const [scrollToLine, setScrollToLine] = useAtom(filePreviewLineAtom)

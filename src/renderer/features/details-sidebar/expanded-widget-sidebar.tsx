@@ -60,7 +60,7 @@ export function ExpandedWidgetSidebar({
   planPath,
   planRefetchTrigger,
   activeSubChatId,
-  canOpenDiff,
+  canOpenDiff: _canOpenDiff,
   isDiffSidebarOpen,
   setIsDiffSidebarOpen,
   diffStats,

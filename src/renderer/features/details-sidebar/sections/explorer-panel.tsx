@@ -25,7 +25,7 @@ interface ExplorerPanelProps {
 }
 
 export const ExplorerPanel = memo(function ExplorerPanel({
-  chatId,
+  chatId: _chatId,
   worktreePath,
   isOpen,
   onClose,

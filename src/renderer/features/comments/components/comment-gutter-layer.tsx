@@ -88,7 +88,7 @@ export const CommentGutterLayer = memo(function CommentGutterLayer({
   diffViewContainerRef,
   comments,
   diffMode,
-  onContextCommentClick,
+  onContextCommentClick: _onContextCommentClick,
   onDeleteContextComment,
   onDeleteReviewComment,
 }: CommentGutterLayerProps) {

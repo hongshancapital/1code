@@ -135,7 +135,7 @@ export const AgentQueueIndicator = memo(function AgentQueueIndicator({
   onRemoveItem,
   onSendNow,
   onRestoreItem,
-  isStreaming = false,
+  isStreaming: _isStreaming = false,
   hasStatusCardBelow = false,
 }: AgentQueueIndicatorProps) {
   // Load expanded state from localStorage (window-scoped)

@@ -16,7 +16,6 @@ import {
 import { useCommentActions } from "../hooks/use-comment-actions"
 import {
   formatCommentsForAI,
-  formatCommentSummary,
   isCommentsTooLong,
 } from "../utils/format-for-ai"
 import type { ReviewComment } from "../types"

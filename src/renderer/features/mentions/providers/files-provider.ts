@@ -5,7 +5,6 @@
  * Provides file and folder search with icons and relevance sorting.
  */
 
-import { FolderOpen as FolderOpenIcon, Files as FilesIcon } from "lucide-react"
 import { trpcClient } from "../../../lib/trpc"
 import {
   createMentionProvider,

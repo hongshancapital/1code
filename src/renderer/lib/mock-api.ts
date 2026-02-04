@@ -4,7 +4,7 @@
  */
 
 import { useMemo } from "react"
-import { trpc, trpcClient } from "./trpc"
+import { trpc } from "./trpc"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFn = (...args: any[]) => any
@@ -242,7 +242,7 @@ export const api = {
     // Desktop stubs - not needed for local development
     createAgentPr: {
       useMutation: (opts?: { onSuccess?: AnyFn; onError?: AnyFn }) => ({
-        mutate: (_args?: AnyObj, callbacks?: { onSuccess?: AnyFn }) => {
+        mutate: (_args?: AnyObj, _callbacks?: { onSuccess?: AnyFn }) => {
           // Desktop: PR creation not implemented yet
           opts?.onError?.(new Error("PR creation not available in desktop app"))
         },

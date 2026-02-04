@@ -39,7 +39,7 @@ export function AgentPreview({
   chatId,
   sandboxId,
   port,
-  repository,
+  repository: _repository,
   hideHeader = false,
   onClose,
   isMobile = false,

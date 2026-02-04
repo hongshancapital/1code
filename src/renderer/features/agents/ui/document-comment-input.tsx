@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "../../../lib/utils"
-import { Pencil, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import type { DocumentType, DocumentComment } from "../atoms/review-atoms"
 
 interface DocumentCommentInputProps {

@@ -1,4 +1,4 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { ChevronDown, Play, Bug, Square, Loader2, Hexagon } from "lucide-react"
 import {
   useState,
@@ -114,7 +114,7 @@ export const RunConfigSelector = forwardRef<
   const debugPort = useAtomValue(defaultDebugPortAtom)
 
   // Get package.json scripts - refetch when projectPath changes
-  const { data: packageData, isLoading: isLoadingScripts } =
+  const { data: packageData, isLoading: _isLoadingScripts } =
     trpc.runner.getPackageScripts.useQuery(
       { projectPath },
       {

@@ -676,7 +676,7 @@ export const importedThemesAtom = atomWithStorage<VSCodeFullTheme[]>(
  * All available full themes (built-in + imported + discovered)
  * This is a derived atom that combines all theme sources
  */
-export const allFullThemesAtom = atom<VSCodeFullTheme[]>((get) => {
+export const allFullThemesAtom = atom<VSCodeFullTheme[]>((_get) => {
   // This will be populated by the theme provider
   // For now, return empty - will be set imperatively
   return []

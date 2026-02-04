@@ -26,7 +26,7 @@ interface ExplorerSectionProps {
  */
 export const ExplorerSection = memo(function ExplorerSection({
   worktreePath,
-  isExpanded = false,
+  isExpanded: _isExpanded = false,
   onFileSelect,
 }: ExplorerSectionProps) {
   if (!worktreePath) {

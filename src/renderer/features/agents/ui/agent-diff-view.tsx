@@ -626,7 +626,6 @@ const FileDiffCard = memo(function FileDiffCard({
 
   // tRPC mutations for file operations
   const openInFinderMutation = trpcClient.external.openInFinder.mutate
-  const openInEditorMutation = trpcClient.external.openFileInEditor.mutate
   const openInAppMutation = trpcClient.external.openInApp.mutate
 
   // Preferred editor

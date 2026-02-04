@@ -8,7 +8,6 @@ import {
   workspaceCollapsedGroupsAtom,
 } from "../../../lib/atoms"
 import { GroupHeader, type GroupInfo } from "./group-header"
-import { cn } from "../../../lib/utils"
 import { PRESET_TAGS, getPresetTag, isPresetTagId } from "./tag-selector-submenu"
 
 // Type for chat items - matches the unified chat type in agents-sidebar
@@ -68,7 +67,7 @@ export const GroupedChatList = memo(function GroupedChatList({
   projectsMap,
   renderGroupChats,
   ungroupedTitle = "未分组",
-  isMultiSelectMode = false,
+  isMultiSelectMode: _isMultiSelectMode = false,
 }: GroupedChatListProps) {
   const groupMode = useAtomValue(workspaceGroupModeAtom)
   const [collapsedGroups, setCollapsedGroups] = useAtom(workspaceCollapsedGroupsAtom)

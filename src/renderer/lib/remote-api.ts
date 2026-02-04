@@ -2,7 +2,6 @@
  * Remote API - wrapper around tRPC client for web backend
  * Provides clean interface for fetching remote sandbox data
  */
-import { remoteTrpc } from "./remote-trpc"
 
 // API base URL - dynamically fetched from main process
 let API_BASE: string | null = null

@@ -24,7 +24,7 @@ import {
 } from "./atoms"
 import { codingTerminalPanelHeightAtom } from "@/features/agents/atoms"
 import { trpc } from "@/lib/trpc"
-import type { TerminalInstance, RunConfig } from "./types"
+import type { TerminalInstance } from "./types"
 
 // Animation constants
 const PANEL_ANIMATION_DURATION_MS = 0
@@ -161,53 +161,6 @@ export function TerminalBottomPanel({
       [currentChatId]: id,
     }))
   }, [setAllTerminals, setAllActiveIds])
-
-  // Create a new run terminal - stable callback
-  const _createRunTerminal = useCallback((runConfig: RunConfig) => {
-    const currentChatId = chatIdRef.current
-    const currentTerminals = terminalsRef.current
-
-    // Check if a run terminal with the same script already exists
-    const existingRun = currentTerminals.find(
-      t => t.type === "run" && t.runConfig?.scriptName === runConfig.scriptName
-    )
-
-    if (existingRun) {
-      // Switch to existing run terminal instead of creating a new one
-      setAllActiveIds((prev) => ({
-        ...prev,
-        [currentChatId]: existingRun.id,
-      }))
-      return existingRun.id
-    }
-
-    const id = generateTerminalId()
-    const paneId = generatePaneId(currentChatId, id, "run")
-
-    const newTerminal: TerminalInstance = {
-      id,
-      paneId,
-      name: runConfig.scriptName,
-      createdAt: Date.now(),
-      type: "run",
-      runConfig,
-      status: "running",
-    }
-
-    setAllTerminals((prev) => ({
-      ...prev,
-      [currentChatId]: [...(prev[currentChatId] || []), newTerminal],
-    }))
-
-    // Set as active and open panel
-    setAllActiveIds((prev) => ({
-      ...prev,
-      [currentChatId]: id,
-    }))
-    setIsOpen(true)
-
-    return id
-  }, [setAllTerminals, setAllActiveIds, setIsOpen])
 
   // Update run terminal status
   const updateRunStatus = useCallback((terminalId: string, status: "idle" | "running" | "stopped") => {

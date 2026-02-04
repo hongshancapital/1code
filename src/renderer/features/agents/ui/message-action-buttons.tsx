@@ -29,7 +29,7 @@ interface CopyButtonProps {
 
 export const CopyButton = memo(function CopyButton({
   text,
-  isMobile = false,
+  isMobile: _isMobile = false,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
   const { trigger: triggerHaptic } = useHaptic()

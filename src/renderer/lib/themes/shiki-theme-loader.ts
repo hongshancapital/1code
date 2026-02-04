@@ -233,18 +233,6 @@ export async function ensureThemeLoaded(themeId: string): Promise<void> {
 }
 
 /**
- * Check if a theme is available (loaded or can be loaded)
- */
-function isThemeAvailable(themeId: string): boolean {
-  return (
-    isShikiBundledTheme(themeId) ||
-    fullThemesCache.has(themeId) ||
-    !!getBuiltinThemeById(themeId) ||
-    isBuiltinTheme(themeId)
-  )
-}
-
-/**
  * Highlight code with a specific theme
  * Uses custom themes with tokenColors when available, otherwise maps to bundled themes
  * Results are cached to prevent re-highlighting when switching tabs

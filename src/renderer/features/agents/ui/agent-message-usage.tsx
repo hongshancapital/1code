@@ -48,7 +48,7 @@ function formatDuration(ms: number): string {
 export const AgentMessageUsage = memo(function AgentMessageUsage({
   metadata,
   isStreaming = false,
-  isMobile = false,
+  isMobile: _isMobile = false,
 }: AgentMessageUsageProps) {
   if (!metadata || isStreaming) return null
 

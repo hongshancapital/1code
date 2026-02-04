@@ -14,7 +14,7 @@ interface ReviewPanelProps {
 }
 
 export function ReviewPanel({
-  chatId,
+  chatId: _chatId,
   subChatId,
   onSubmit,
   onCancel,

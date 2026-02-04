@@ -1,6 +1,6 @@
 "use client"
 
-import React, { memo, useCallback } from "react"
+import { memo, useCallback } from "react"
 import { useAtom } from "jotai"
 import { useTranslation } from "react-i18next"
 import { Layers, List, FolderTree, Tags } from "lucide-react"
@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuLabel,
 } from "../../../components/ui/dropdown-menu"
 import {
   workspaceGroupedViewAtom,

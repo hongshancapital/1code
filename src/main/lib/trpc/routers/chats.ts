@@ -34,6 +34,120 @@ function getFallbackName(userMessage: string): string {
   return trimmed.substring(0, 25) + "..."
 }
 
+// Type definitions for sub-chat preview stats
+interface SubChatPreviewInput {
+  messageId: string
+  index: number
+  content: string
+  mode: string
+  fileCount: number
+  additions: number
+  deletions: number
+  totalTokens: number
+}
+
+interface SubChatPreviewStats {
+  inputs: SubChatPreviewInput[]
+}
+
+/**
+ * Compute preview stats from messages JSON without loading token usage from DB.
+ * Token usage will be filled in separately when needed.
+ * This is used by updateSubChatMessages to pre-compute stats on save.
+ */
+function computePreviewStatsFromMessages(
+  messagesJson: string,
+  subChatMode: string
+): SubChatPreviewStats {
+  const messages = JSON.parse(messagesJson || "[]") as Array<{
+    id: string
+    role: string
+    parts?: Array<{
+      type: string
+      text?: string
+      input?: { file_path?: string; old_string?: string; new_string?: string; content?: string }
+    }>
+  }>
+
+  const inputs: SubChatPreviewInput[] = []
+  let currentMode = subChatMode || "agent"
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (!msg || msg.role !== "user") continue
+
+    // Extract user input text
+    const textPart = msg.parts?.find((p) => p.type === "text")
+    const content = textPart?.text || ""
+
+    // Detect mode switches via /plan or /agent commands
+    const trimmedContent = content.trim().toLowerCase()
+    if (trimmedContent === "/plan" || trimmedContent.startsWith("/plan ")) {
+      currentMode = "plan"
+    } else if (trimmedContent === "/agent" || trimmedContent.startsWith("/agent ")) {
+      currentMode = "agent"
+    }
+
+    // Count file changes in subsequent assistant messages
+    let additions = 0
+    let deletions = 0
+    const modifiedFiles = new Set<string>()
+    let isPlanModeResponse = false
+
+    // Find next user message index
+    let nextUserIndex = messages.length
+    for (let j = i + 1; j < messages.length; j++) {
+      if (messages[j]?.role === "user") {
+        nextUserIndex = j
+        break
+      }
+    }
+
+    for (let j = i + 1; j < nextUserIndex; j++) {
+      const assistantMsg = messages[j]
+      if (!assistantMsg || assistantMsg.role !== "assistant") continue
+
+      for (const part of assistantMsg.parts || []) {
+        if (part.type === "tool-Edit" || part.type === "tool-Write") {
+          const filePath = part.input?.file_path
+          if (filePath) modifiedFiles.add(filePath)
+
+          if (part.type === "tool-Edit" && part.input) {
+            const oldLines = (part.input.old_string || "").split("\n").length
+            const newLines = (part.input.new_string || "").split("\n").length
+            if (newLines > oldLines) {
+              additions += newLines - oldLines
+            } else {
+              deletions += oldLines - newLines
+            }
+          } else if (part.type === "tool-Write" && part.input?.content) {
+            additions += (part.input.content || "").split("\n").length
+          }
+        }
+
+        if (part.type === "tool-ExitPlanMode" || part.type === "ExitPlanMode") {
+          isPlanModeResponse = true
+        }
+      }
+    }
+
+    const messageMode = isPlanModeResponse ? "plan" : currentMode
+
+    inputs.push({
+      messageId: msg.id,
+      index: inputs.length + 1,
+      content: content.slice(0, 60),
+      mode: messageMode,
+      fileCount: modifiedFiles.size,
+      additions,
+      deletions,
+      totalTokens: 0, // Will be filled from model_usage table when reading
+    })
+  }
+
+  return { inputs }
+}
+
 export const chatsRouter = router({
   /**
    * List all non-archived chats (optionally filter by project)
@@ -697,14 +811,33 @@ export const chatsRouter = router({
 
   /**
    * Update sub-chat messages
+   * Also pre-computes preview stats to avoid parsing large JSON on read
    */
   updateSubChatMessages: publicProcedure
     .input(z.object({ id: z.string(), messages: z.string() }))
     .mutation(({ input }) => {
       const db = getDatabase()
+
+      // Get current subChat mode for stats computation
+      const existingSubChat = db
+        .select({ mode: subChats.mode })
+        .from(subChats)
+        .where(eq(subChats.id, input.id))
+        .get()
+
+      // Compute preview stats from messages
+      const stats = computePreviewStatsFromMessages(
+        input.messages,
+        existingSubChat?.mode || "agent"
+      )
+
       return db
         .update(subChats)
-        .set({ messages: input.messages, updatedAt: new Date() })
+        .set({
+          messages: input.messages,
+          statsJson: JSON.stringify(stats),
+          updatedAt: new Date(),
+        })
         .where(eq(subChats.id, input.id))
         .returning()
         .get()
@@ -1711,171 +1844,87 @@ export const chatsRouter = router({
 
   /**
    * Get sub-chat preview data for hover popup
-   * Parses messages to extract user inputs with file changes and token usage
+   * Uses pre-computed statsJson when available to avoid parsing large messages JSON
+   * Falls back to computing stats on-the-fly for records without statsJson (migration)
    */
   getSubChatPreview: publicProcedure
     .input(z.object({ subChatId: z.string() }))
     .query(({ input }) => {
       const db = getDatabase()
+
+      // Only select metadata fields, not the full messages JSON
       const subChat = db
-        .select()
+        .select({
+          id: subChats.id,
+          name: subChats.name,
+          mode: subChats.mode,
+          statsJson: subChats.statsJson,
+          messages: subChats.messages, // Still needed for fallback
+        })
         .from(subChats)
         .where(eq(subChats.id, input.subChatId))
         .get()
 
       if (!subChat) return null
 
-      // 从 model_usage 表获取该 subChat 的所有 token 使用记录
+      // Try to use pre-computed stats first
+      let inputs: SubChatPreviewInput[]
+
+      if (subChat.statsJson) {
+        // Use pre-computed stats (fast path)
+        try {
+          const stats = JSON.parse(subChat.statsJson) as SubChatPreviewStats
+          inputs = stats.inputs || []
+        } catch {
+          // Fallback to computing on-the-fly if JSON is invalid
+          const computed = computePreviewStatsFromMessages(
+            subChat.messages || "[]",
+            subChat.mode || "agent"
+          )
+          inputs = computed.inputs
+        }
+      } else {
+        // No pre-computed stats (old records) - compute on-the-fly
+        // This will happen for existing records until they're updated
+        const computed = computePreviewStatsFromMessages(
+          subChat.messages || "[]",
+          subChat.mode || "agent"
+        )
+        inputs = computed.inputs
+      }
+
+      // Fetch token usage from model_usage table and merge into inputs
+      // This is still needed because token usage is stored separately
       const usageRecords = db
-        .select()
+        .select({
+          totalTokens: modelUsage.totalTokens,
+          mode: modelUsage.mode,
+        })
         .from(modelUsage)
         .where(eq(modelUsage.subChatId, input.subChatId))
         .orderBy(modelUsage.createdAt)
         .all()
 
-      // 计算总 token 使用量
-      let totalSubChatTokens = 0
-      const usageModes: string[] = []
-      for (const record of usageRecords) {
-        totalSubChatTokens += record.totalTokens || 0
-        if (record.mode) usageModes.push(record.mode)
+      // Distribute token usage to inputs (1:1 mapping by order)
+      // If usage records show plan mode, update the input's mode accordingly
+      for (let i = 0; i < inputs.length && i < usageRecords.length; i++) {
+        const record = usageRecords[i]
+        if (record) {
+          inputs[i]!.totalTokens = record.totalTokens || 0
+          if (record.mode === "plan" && inputs[i]) {
+            inputs[i]!.mode = "plan"
+          }
+        }
       }
 
-      const messages = JSON.parse(subChat.messages || "[]") as Array<{
-        id: string
-        role: string
-        parts?: Array<{
-          type: string
-          text?: string
-          input?: { file_path?: string; old_string?: string; new_string?: string; content?: string }
-          output?: { additions?: number; deletions?: number }
-        }>
-        metadata?: {
-          inputTokens?: number
-          outputTokens?: number
-          totalTokens?: number
+      // If there are more usage records than inputs (shouldn't happen normally),
+      // sum the remaining into the last input
+      if (usageRecords.length > inputs.length && inputs.length > 0) {
+        let extraTokens = 0
+        for (let i = inputs.length; i < usageRecords.length; i++) {
+          extraTokens += usageRecords[i]?.totalTokens || 0
         }
-      }>
-
-      const inputs: Array<{
-        messageId: string
-        index: number
-        content: string
-        mode: string
-        fileCount: number
-        additions: number
-        deletions: number
-        totalTokens: number
-      }> = []
-
-      // 跟踪当前模式状态，用于检测每条消息的模式
-      let currentMode: string = subChat.mode || "agent"
-      let usageIndex = 0
-
-      for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i]
-        if (!msg || msg.role !== "user") continue
-
-        // 提取用户输入文本
-        const textPart = msg.parts?.find((p) => p.type === "text")
-        const content = textPart?.text || ""
-
-        // 检测用户是否通过 /plan 或 /agent 命令切换模式
-        const trimmedContent = content.trim().toLowerCase()
-        if (trimmedContent === "/plan" || trimmedContent.startsWith("/plan ")) {
-          currentMode = "plan"
-        } else if (trimmedContent === "/agent" || trimmedContent.startsWith("/agent ")) {
-          currentMode = "agent"
-        }
-
-        // 统计后续 assistant 消息的 token 和文件变更
-        let additions = 0
-        let deletions = 0
-        const modifiedFiles = new Set<string>()
-        let isPlanModeResponse = false
-
-        // 找到下一个 user 消息的索引
-        let nextUserIndex = messages.length
-        for (let j = i + 1; j < messages.length; j++) {
-          if (messages[j]?.role === "user") {
-            nextUserIndex = j
-            break
-          }
-        }
-
-        for (let j = i + 1; j < nextUserIndex; j++) {
-          const assistantMsg = messages[j]
-          if (!assistantMsg || assistantMsg.role !== "assistant") continue
-
-          // 文件变更统计和模式检测
-          for (const part of assistantMsg.parts || []) {
-            if (part.type === "tool-Edit" || part.type === "tool-Write") {
-              const filePath = part.input?.file_path
-              if (filePath) modifiedFiles.add(filePath)
-
-              // 计算行数变更
-              if (part.type === "tool-Edit" && part.input) {
-                const oldLines = (part.input.old_string || "").split("\n").length
-                const newLines = (part.input.new_string || "").split("\n").length
-                if (newLines > oldLines) {
-                  additions += newLines - oldLines
-                } else {
-                  deletions += oldLines - newLines
-                }
-              } else if (part.type === "tool-Write" && part.input?.content) {
-                additions += (part.input.content || "").split("\n").length
-              }
-            }
-
-            // 检测 ExitPlanMode 或 tool-ExitPlanMode，说明这是 plan 模式的响应
-            if (part.type === "tool-ExitPlanMode" || part.type === "ExitPlanMode") {
-              isPlanModeResponse = true
-            }
-          }
-        }
-
-        // 从 model_usage 表获取该输入对应的 token 数据
-        // 策略：按顺序消费 usageRecords，直到遇到下一个用户输入
-        let totalTokens = 0
-        while (usageIndex < usageRecords.length) {
-          const record = usageRecords[usageIndex]
-          // 消费这条记录
-          totalTokens += record?.totalTokens || 0
-          // 从 model_usage 的 mode 字段判断模式
-          if (record?.mode === "plan") {
-            isPlanModeResponse = true
-          }
-          usageIndex++
-
-          // 如果还有更多用户输入，只消费一条 usage 记录
-          // 因为通常一个用户输入对应一次 API 调用
-          // 但如果是最后一个用户输入，消费所有剩余记录
-          if (i < messages.length - 1) {
-            // 检查是否还有下一个用户消息
-            let hasMoreUserMessages = false
-            for (let k = i + 1; k < messages.length; k++) {
-              if (messages[k]?.role === "user") {
-                hasMoreUserMessages = true
-                break
-              }
-            }
-            if (hasMoreUserMessages) break
-          }
-        }
-
-        // 确定最终模式：如果检测到 ExitPlanMode 或 usage 记录标记为 plan，则是 plan 模式
-        const messageMode = isPlanModeResponse ? "plan" : currentMode
-
-        inputs.push({
-          messageId: msg.id,
-          index: inputs.length + 1,
-          content: content.slice(0, 60),
-          mode: messageMode,
-          fileCount: modifiedFiles.size,
-          additions,
-          deletions,
-          totalTokens,
-        })
+        inputs[inputs.length - 1]!.totalTokens += extraTokens
       }
 
       return {

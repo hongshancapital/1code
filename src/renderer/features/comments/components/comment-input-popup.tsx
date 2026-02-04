@@ -30,7 +30,7 @@ export function CommentInputPopup({
   lineRange,
   anchorRect,
   selectedCode,
-  source,
+  source: _source,
   onSubmit,
   onCancel,
 }: CommentInputPopupProps) {

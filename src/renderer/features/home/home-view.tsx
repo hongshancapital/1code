@@ -117,8 +117,6 @@ export function HomeView() {
     setDesktopView(null)
   }, [setSelectedChatId, setDesktopView])
 
-  const isLoading = chatsLoading || (automationsEnabled && (automationsLoading || inboxLoading))
-
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
       {/* Draggable area for window movement - covers header area (hidden in fullscreen/mobile) */}

@@ -86,6 +86,9 @@ export const subChats = sqliteTable("sub_chats", {
   streamId: text("stream_id"), // Track in-progress streams
   mode: text("mode").notNull().default("agent"), // "plan" | "agent"
   messages: text("messages").notNull().default("[]"), // JSON array
+  // Pre-computed stats for preview (avoids parsing large messages JSON)
+  // Format: { inputs: Array<{ messageId, index, content, mode, fileCount, additions, deletions, totalTokens }> }
+  statsJson: text("stats_json"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),

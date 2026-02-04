@@ -1,6 +1,6 @@
 "use client"
 
-import React, { memo, useCallback } from "react"
+import { memo, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { Check, Tag, Plus, type LucideIcon } from "lucide-react"
 import * as LucideIcons from "lucide-react"

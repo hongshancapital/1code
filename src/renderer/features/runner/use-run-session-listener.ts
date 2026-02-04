@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useAtom } from "jotai"
 import { trpc } from "../../lib/trpc"
-import { runSessionsAtom, type RunSession } from "../../lib/atoms/runner"
+import { runSessionsAtom } from "../../lib/atoms/runner"
 
 /**
  * Hook to listen for terminal exit events and update run session state.

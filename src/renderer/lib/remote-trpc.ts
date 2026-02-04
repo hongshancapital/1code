@@ -8,7 +8,6 @@
 import { createTRPCClient, httpLink } from "@trpc/client"
 // [CLOUD DISABLED] Stub type for disabled cloud features
 // import type { AppRouter } from "../../../../web/server/api/root"
-type AppRouter = Record<string, never>
 import SuperJSON from "superjson"
 
 // Placeholder URL - actual base is fetched dynamically from main process

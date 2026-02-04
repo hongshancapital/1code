@@ -195,7 +195,7 @@ export const pendingFileReferenceAtom = atom<PendingFileReference | null>(null)
 // File preview dialog open state (derived from path)
 export const filePreviewOpenAtom = atom(
   (get) => get(filePreviewPathAtom) !== null,
-  (get, set, open: boolean) => {
+  (_get, set, open: boolean) => {
     if (!open) {
       set(filePreviewPathAtom, null)
     }

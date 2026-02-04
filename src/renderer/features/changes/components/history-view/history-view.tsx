@@ -2,9 +2,8 @@ import { memo, useMemo, useCallback, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { trpc } from "../../../../lib/trpc";
 import { formatRelativeDate } from "../../utils/date";
-import { FileText, ArrowUp } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { cn } from "../../../../lib/utils";
-import { getStatusIndicator } from "../../utils/status";
 import type { ChangedFile } from "../../../../../shared/changes-types";
 import {
 	ContextMenu,
@@ -246,44 +245,5 @@ const HistoryCommitItem = memo(function HistoryCommitItem({
 				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>
-	);
-});
-
-const _CommitFileItem = memo(function _CommitFileItem({
-	file,
-	isSelected,
-	onClick,
-}: {
-	file: ChangedFile;
-	isSelected: boolean;
-	onClick: () => void;
-}) {
-	const fileName = file.path.split("/").pop() || file.path;
-	const dirPath = file.path.includes("/")
-		? file.path.substring(0, file.path.lastIndexOf("/"))
-		: "";
-
-	return (
-		<div
-			className={cn(
-				"flex items-center gap-2 px-2 py-1 cursor-pointer transition-colors",
-				"hover:bg-muted/80",
-				isSelected && "bg-muted",
-			)}
-			onClick={onClick}
-		>
-			<FileText className="size-3.5 text-muted-foreground shrink-0 ml-5" />
-			<div className="flex-1 min-w-0 flex items-center overflow-hidden">
-				{dirPath && (
-					<span className="text-xs text-muted-foreground truncate shrink min-w-0">
-						{dirPath}/
-					</span>
-				)}
-				<span className="text-xs font-medium shrink-0 whitespace-nowrap">
-					{fileName}
-				</span>
-			</div>
-			<div className="shrink-0">{getStatusIndicator(file.status)}</div>
-		</div>
 	);
 });

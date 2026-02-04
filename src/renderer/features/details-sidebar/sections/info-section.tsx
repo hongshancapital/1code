@@ -130,7 +130,7 @@ function PropertyRow({
 export const InfoSection = memo(function InfoSection({
   chatId,
   worktreePath,
-  isExpanded = false,
+  isExpanded: _isExpanded = false,
   remoteInfo,
 }: InfoSectionProps) {
   const { t } = useTranslation("sidebar")
@@ -204,13 +204,6 @@ export const InfoSection = memo(function InfoSection({
         ? remoteInfo.repository
         : `https://github.com/${remoteInfo.repository}`
       window.desktopApi.openExternal(repoUrl)
-    }
-  }
-
-  const handleOpenSandbox = () => {
-    if (remoteInfo?.sandboxId) {
-      const sandboxUrl = `https://3003-${remoteInfo.sandboxId}.e2b.app`
-      window.desktopApi.openExternal(sandboxUrl)
     }
   }
 
