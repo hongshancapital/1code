@@ -14,6 +14,11 @@ import {
   customHotkeysAtom,
   betaKanbanEnabledAtom,
 } from "../../lib/atoms"
+import {
+  setTrafficLightRequestAtom,
+  removeTrafficLightRequestAtom,
+  TRAFFIC_LIGHT_PRIORITIES,
+} from "../../lib/atoms/traffic-light"
 import { selectedAgentChatIdAtom, selectedProjectAtom, selectedDraftIdAtom, showNewChatFormAtom, currentProjectModeAtom, enabledWidgetsAtom, desktopViewAtom, fileSearchDialogOpenAtom } from "../agents/atoms"
 import { trpc } from "../../lib/trpc"
 import { useAgentsHotkeys } from "../agents/lib/agents-hotkeys-manager"
@@ -145,16 +150,20 @@ export function AgentsLayout() {
   ])
 
   // Show/hide native traffic lights based on sidebar state
+  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
+  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
+
   useEffect(() => {
     if (!isDesktop) return
-    if (
-      typeof window === "undefined" ||
-      !window.desktopApi?.setTrafficLightVisibility
-    )
-      return
 
-    window.desktopApi.setTrafficLightVisibility(sidebarOpen)
-  }, [sidebarOpen, isDesktop])
+    setTrafficLightRequest({
+      requester: "sidebar",
+      visible: sidebarOpen,
+      priority: TRAFFIC_LIGHT_PRIORITIES.SIDEBAR,
+    })
+
+    return () => removeTrafficLightRequest("sidebar")
+  }, [sidebarOpen, isDesktop, setTrafficLightRequest, removeTrafficLightRequest])
 
   const setChatId = useAgentSubChatStore((state) => state.setChatId)
 

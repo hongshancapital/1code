@@ -1,6 +1,7 @@
 import { Provider as JotaiProvider, useAtomValue, useSetAtom } from "jotai"
 import { ThemeProvider, useTheme } from "next-themes"
 import { useEffect, useMemo, useState } from "react"
+import { I18nextProvider } from "react-i18next"
 import { toast, Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
@@ -8,6 +9,7 @@ import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext
 import { selectedProjectAtom, selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { AgentsLayout } from "./features/layout/agents-layout"
+import { useTrafficLightSync } from "./lib/hooks/use-traffic-light-sync"
 import {
   AnthropicOnboardingPage,
   ApiKeyOnboardingPage,
@@ -20,9 +22,11 @@ import {
   apiKeyOnboardingCompletedAtom,
   authSkippedAtom,
   billingMethodAtom,
+  languagePreferenceAtom,
   litellmOnboardingCompletedAtom,
   overrideModelModeAtom,
 } from "./lib/atoms"
+import i18n from "./lib/i18n"
 import { appStore } from "./lib/jotai-store"
 import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
 import { trpc } from "./lib/trpc"
@@ -43,9 +47,31 @@ function ThemedToaster() {
 }
 
 /**
+ * Syncs the language preference atom with i18next
+ */
+function LanguageSync() {
+  const languagePreference = useAtomValue(languagePreferenceAtom)
+
+  useEffect(() => {
+    if (languagePreference === "system") {
+      const systemLocale = navigator.language
+      const lang = systemLocale.startsWith("zh") ? "zh" : "en"
+      i18n.changeLanguage(lang)
+    } else {
+      i18n.changeLanguage(languagePreference)
+    }
+  }, [languagePreference])
+
+  return null
+}
+
+/**
  * Main content router - decides which page to show based on onboarding state
  */
 function AppContent() {
+  // 同步红绿灯状态到原生窗口
+  useTrafficLightSync()
+
   const billingMethod = useAtomValue(billingMethodAtom)
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const anthropicOnboardingCompleted = useAtomValue(
@@ -238,31 +264,40 @@ export function App() {
       })
     })
 
+    // Listen for re-authentication in progress (returning users with expired tokens)
+    const unsubscribeReauthenticating = window.desktopApi?.onReauthenticating?.(() => {
+      toast.info("正在重新验证身份...", { duration: 3000 })
+    })
+
     // Cleanup on unmount
     return () => {
       shutdown()
       unsubscribeSessionExpired?.()
+      unsubscribeReauthenticating?.()
     }
   }, [])
 
   return (
     <WindowProvider>
       <JotaiProvider store={appStore}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <VSCodeThemeProvider>
-            <TooltipProvider delayDuration={100}>
-              <TRPCProvider>
-                <div
-                  data-agents-page
-                  className="h-screen w-screen bg-background text-foreground overflow-hidden"
-                >
-                  <AppContent />
-                </div>
-                <ThemedToaster />
-              </TRPCProvider>
-            </TooltipProvider>
-          </VSCodeThemeProvider>
-        </ThemeProvider>
+        <I18nextProvider i18n={i18n}>
+          <LanguageSync />
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <VSCodeThemeProvider>
+              <TooltipProvider delayDuration={100}>
+                <TRPCProvider>
+                  <div
+                    data-agents-page
+                    className="h-screen w-screen bg-background text-foreground overflow-hidden"
+                  >
+                    <AppContent />
+                  </div>
+                  <ThemedToaster />
+                </TRPCProvider>
+              </TooltipProvider>
+            </VSCodeThemeProvider>
+          </ThemeProvider>
+        </I18nextProvider>
       </JotaiProvider>
     </WindowProvider>
   )

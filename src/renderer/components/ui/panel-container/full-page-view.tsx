@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useCallback } from "react"
+import { useSetAtom } from "jotai"
 import { AnimatePresence, motion } from "motion/react"
+import {
+  setTrafficLightRequestAtom,
+  removeTrafficLightRequestAtom,
+  TRAFFIC_LIGHT_PRIORITIES,
+} from "../../../lib/atoms/traffic-light"
 
 interface FullPageViewProps {
   isOpen: boolean
@@ -15,17 +21,24 @@ export function FullPageView({
   children,
 }: FullPageViewProps) {
   // Hide traffic lights when full-page view is open
+  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
+  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
+
   useEffect(() => {
     if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
 
     if (isOpen) {
-      window.desktopApi.setTrafficLightVisibility(false)
-      return () => {
-        // Restore traffic lights when closing
-        window.desktopApi?.setTrafficLightVisibility(true)
-      }
+      setTrafficLightRequest({
+        requester: "full-page-view",
+        visible: false,
+        priority: TRAFFIC_LIGHT_PRIORITIES.FILE_PREVIEW_FULLPAGE,
+      })
+    } else {
+      removeTrafficLightRequest("full-page-view")
     }
-  }, [isOpen])
+
+    return () => removeTrafficLightRequest("full-page-view")
+  }, [isOpen, setTrafficLightRequest, removeTrafficLightRequest])
 
   // Close on Escape key
   const handleKeyDown = useCallback(

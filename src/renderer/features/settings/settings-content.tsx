@@ -17,6 +17,7 @@ import { AgentsProfileTab } from "../../components/dialogs/settings-tabs/agents-
 import { AgentsProjectsTab } from "../../components/dialogs/settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "../../components/dialogs/settings-tabs/agents-skills-tab"
 import { AgentsPluginsTab } from "../../components/dialogs/settings-tabs/agents-plugins-tab"
+import { FilePreviewDialog } from "../cowork/file-preview/file-preview-dialog"
 import { AgentsRuntimeTab } from "../../components/dialogs/settings-tabs/agents-runtime-tab"
 
 // Check if we're in development mode
@@ -78,17 +79,23 @@ export function SettingsContent() {
 
   if (isTwoPanelTab) {
     return (
-      <div className="h-full overflow-hidden">
-        {renderTabContent()}
-      </div>
+      <>
+        <div className="h-full overflow-hidden">
+          {renderTabContent()}
+        </div>
+        <FilePreviewDialog />
+      </>
     )
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto">
-        {renderTabContent()}
+    <>
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-2xl mx-auto">
+          {renderTabContent()}
+        </div>
       </div>
-    </div>
+      <FilePreviewDialog />
+    </>
   )
 }

@@ -73,6 +73,11 @@ import {
   selectedOllamaModelAtom,
   soundNotificationsEnabledAtom
 } from "../../../lib/atoms"
+import {
+  setTrafficLightRequestAtom,
+  removeTrafficLightRequestAtom,
+  TRAFFIC_LIGHT_PRIORITIES,
+} from "../../../lib/atoms/traffic-light"
 import { useFileChangeListener, useGitWatcher } from "../../../lib/hooks/use-file-change-listener"
 import { useRemoteChat } from "../../../lib/hooks/use-remote-chats"
 import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
@@ -4897,14 +4902,28 @@ export function ChatView({
   }, [isDiffSidebarOpen, diffDisplayMode, isDetailsSidebarOpen, setDiffDisplayMode, setIsDetailsSidebarOpen, setIsDiffSidebarOpen])
 
   // Hide/show traffic lights based on full-page diff or full-page file viewer
+  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
+  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
+
   useEffect(() => {
     if (!isDesktop || isFullscreen) return
-    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
 
     const isFullPageDiff = isDiffSidebarOpen && diffDisplayMode === "full-page"
     const isFullPageFileViewer = !!fileViewerPath && fileViewerDisplayMode === "full-page"
-    window.desktopApi.setTrafficLightVisibility(!isFullPageDiff && !isFullPageFileViewer)
-  }, [isDiffSidebarOpen, diffDisplayMode, fileViewerPath, fileViewerDisplayMode, isDesktop, isFullscreen])
+    const shouldHide = isFullPageDiff || isFullPageFileViewer
+
+    if (shouldHide) {
+      setTrafficLightRequest({
+        requester: "active-chat-viewer",
+        visible: false,
+        priority: TRAFFIC_LIGHT_PRIORITIES.ACTIVE_CHAT_VIEWER,
+      })
+    } else {
+      removeTrafficLightRequest("active-chat-viewer")
+    }
+
+    return () => removeTrafficLightRequest("active-chat-viewer")
+  }, [isDiffSidebarOpen, diffDisplayMode, fileViewerPath, fileViewerDisplayMode, isDesktop, isFullscreen, setTrafficLightRequest, removeTrafficLightRequest])
 
   // Track diff sidebar width for responsive header
   const storedDiffSidebarWidth = useAtomValue(agentsDiffSidebarWidthAtom)
@@ -6088,7 +6107,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       if (isChatRemote && chatSandboxUrl) {
         // Remote sandbox chat: use HTTP SSE transport
         const subChatName = subChat?.name || "Chat"
-        const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["opus"]
+        const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"]
         console.log("[getOrCreateChat] Using RemoteChatTransport", { sandboxUrl: chatSandboxUrl, model: modelString })
         transport = new RemoteChatTransport({
           chatId,
@@ -6291,7 +6310,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
     if (isNewSubChatRemote && newSubChatSandboxUrl) {
       // Remote sandbox chat: use HTTP SSE transport
-      const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["opus"]
+      const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"]
       console.log("[createNewSubChat] Using RemoteChatTransport", { model: modelString })
       newSubChatTransport = new RemoteChatTransport({
         chatId,

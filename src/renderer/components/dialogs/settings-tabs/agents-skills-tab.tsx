@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
 import { useAtomValue } from "jotai"
 import { selectedProjectAtom, settingsSkillsSidebarWidthAtom } from "../../../features/agents/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { Plus, FileText, Image, FileCode, File, X } from "lucide-react"
+import { Plus, FileText, Image, FileCode, File } from "lucide-react"
 import { SkillIcon, MarkdownIcon, CodeIcon } from "../../ui/icons"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
@@ -16,12 +17,7 @@ import { ChatMarkdownRenderer } from "../../chat-markdown-renderer"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
 import { Switch } from "../../ui/switch"
 import { toast } from "sonner"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "../../ui/dialog"
+import { useFilePreview } from "../../../features/cowork/file-preview/file-preview-dialog"
 
 // Types for skill contents
 interface SkillFile {
@@ -78,6 +74,28 @@ function SkillIconImage({
 
   if (!iconData) return null
 
+  // Check if this is an SVG data URL - need to inline it for currentColor to work
+  if (iconData.startsWith("data:image/svg+xml")) {
+    // Decode the SVG content from data URL
+    let svgContent = iconData.startsWith("data:image/svg+xml;base64,")
+      ? atob(iconData.replace("data:image/svg+xml;base64,", ""))
+      : decodeURIComponent(iconData.replace("data:image/svg+xml,", ""))
+
+    // Add width/height 100% to SVG so it respects container size
+    svgContent = svgContent.replace(
+      /<svg([^>]*)>/,
+      '<svg$1 style="width:100%;height:100%">'
+    )
+
+    // Render inline SVG so currentColor inherits from parent
+    return (
+      <span
+        className={cn("inline-flex items-center justify-center [&>svg]:w-full [&>svg]:h-full", className)}
+        dangerouslySetInnerHTML={{ __html: svgContent }}
+      />
+    )
+  }
+
   return <img src={iconData} className={className} alt="" />
 }
 
@@ -97,31 +115,27 @@ function SkillDetail({
     interface?: SkillInterfaceConfig
     iconSmallPath?: string
     iconLargePath?: string
+    skillDir?: string
     contents?: SkillDirectory[]
   }
   onSave: (data: { description: string; content: string }) => void
   isSaving: boolean
   cwd?: string
 }) {
+  const { t } = useTranslation('settings')
   const [description, setDescription] = useState(skill.description)
   const [content, setContent] = useState(skill.content)
   const [viewMode, setViewMode] = useState<"rendered" | "editor">("rendered")
-  const [previewFile, setPreviewFile] = useState<SkillFile | null>(null)
+
+  const { openPreview } = useFilePreview()
 
   const isReadOnly = skill.source === "builtin" || skill.source === "plugin"
-
-  // Fetch file content for preview
-  const { data: fileContent } = trpc.skills.getFileContent.useQuery(
-    { skillName: skill.name, filePath: previewFile?.path || "", cwd },
-    { enabled: !!previewFile }
-  )
 
   // Reset local state when skill changes
   useEffect(() => {
     setDescription(skill.description)
     setContent(skill.content)
     setViewMode("rendered")
-    setPreviewFile(null)
   }, [skill.name, skill.description, skill.content])
 
   const hasChanges =
@@ -175,12 +189,12 @@ function SkillDetail({
               </h3>
               {skill.source === "builtin" && (
                 <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
-                  BUILT-IN
+                  {t('skills.badges.builtin')}
                 </span>
               )}
               {skill.source === "plugin" && (
                 <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500 font-medium">
-                  PLUGIN
+                  {t('skills.badges.plugin')}
                 </span>
               )}
             </div>
@@ -188,7 +202,7 @@ function SkillDetail({
           </div>
           {hasChanges && !isReadOnly && (
             <Button size="sm" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? t('skills.form.saving') : t('skills.form.save')}
             </Button>
           )}
         </div>
@@ -196,26 +210,27 @@ function SkillDetail({
         {/* Read-only notice */}
         {isReadOnly && (
           <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg">
-            {skill.source === "builtin" ? "Built-in skills are read-only" : "Plugin skills are read-only"}
+            {skill.source === "builtin" ? t('skills.detail.readOnly.builtin') : t('skills.detail.readOnly.plugin')}
           </div>
         )}
 
         {/* Description */}
         <div className="flex flex-col gap-1.5">
-          <Label>Description</Label>
-          <Input
+          <Label>{t('skills.detail.description')}</Label>
+          <Textarea
             value={description}
             onChange={(e) => !isReadOnly && setDescription(e.target.value)}
             onBlur={handleBlur}
-            placeholder="Skill description..."
+            placeholder={t('skills.detail.descriptionPlaceholder')}
             readOnly={isReadOnly}
-            className={isReadOnly ? "bg-muted/30 cursor-default" : ""}
+            rows={3}
+            className={cn("resize-none", isReadOnly ? "bg-muted/30 cursor-default" : "")}
           />
         </div>
 
         {/* Usage */}
         <div className="flex flex-col gap-1.5">
-          <Label>Usage</Label>
+          <Label>{t('skills.detail.usage')}</Label>
           <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg">
             <code className="text-xs text-foreground">@{skill.name}</code>
           </div>
@@ -224,7 +239,7 @@ function SkillDetail({
         {/* Instructions */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <Label>Instructions</Label>
+            <Label>{t('skills.detail.instructions')}</Label>
             {!isReadOnly && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -233,7 +248,7 @@ function SkillDetail({
                     size="icon"
                     onClick={handleToggleViewMode}
                     className="h-6 w-6 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground"
-                    aria-label={viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
+                    aria-label={viewMode === "rendered" ? t('skills.detail.editMarkdown') : t('skills.detail.previewMarkdown')}
                   >
                     <div className="relative w-4 h-4">
                       <MarkdownIcon
@@ -252,7 +267,7 @@ function SkillDetail({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {viewMode === "rendered" ? "Edit markdown" : "Preview markdown"}
+                  {viewMode === "rendered" ? t('skills.detail.editMarkdown') : t('skills.detail.previewMarkdown')}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -269,7 +284,7 @@ function SkillDetail({
               {content ? (
                 <ChatMarkdownRenderer content={content} size="sm" />
               ) : (
-                <p className="text-sm text-muted-foreground">No instructions</p>
+                <p className="text-sm text-muted-foreground">{t('skills.detail.noInstructions')}</p>
               )}
             </div>
           ) : (
@@ -279,7 +294,7 @@ function SkillDetail({
               onBlur={handleBlur}
               rows={16}
               className="font-mono resize-y"
-              placeholder="Skill instructions (markdown)..."
+              placeholder={t('skills.detail.instructionsPlaceholder')}
               autoFocus
             />
           )}
@@ -288,7 +303,7 @@ function SkillDetail({
         {/* Default Prompt (if available) */}
         {skill.interface?.default_prompt && (
           <div className="space-y-1.5">
-            <Label>Default Prompt</Label>
+            <Label>{t('skills.detail.defaultPrompt')}</Label>
             <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg text-muted-foreground">
               {skill.interface.default_prompt}
             </div>
@@ -298,54 +313,37 @@ function SkillDetail({
         {/* Skill Contents - Sub-directories */}
         {skill.contents && skill.contents.length > 0 && (
           <div className="space-y-3">
-            <Label>Contents</Label>
+            <Label>{t('skills.detail.contents')}</Label>
             {skill.contents.map((dir) => (
               <div key={dir.name} className="space-y-1.5">
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                   {dir.name}/
                 </p>
                 <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
-                  {dir.files.map((file) => (
-                    <div
-                      key={file.path}
-                      onClick={() => setPreviewFile(file)}
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer transition-colors"
-                    >
-                      <FileTypeIcon type={file.type} className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm flex-1 truncate">{file.name}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{file.size}</span>
-                    </div>
-                  ))}
+                  {dir.files.map((file) => {
+                    // Construct absolute file path from skillDir + file.path
+                    const absolutePath = skill.skillDir ? `${skill.skillDir}/${file.path}` : file.path
+                    return (
+                      <div
+                        key={file.path}
+                        onClick={() => {
+                          console.log("[SkillDetail] Opening preview:", absolutePath)
+                          openPreview(absolutePath) // Use dialog mode (default)
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer transition-colors"
+                      >
+                        <FileTypeIcon type={file.type} className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="text-sm flex-1 truncate">{file.name}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{file.size}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* File Preview Dialog */}
-      <Dialog open={!!previewFile} onOpenChange={(open) => !open && setPreviewFile(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-sm font-medium">{previewFile?.name}</DialogTitle>
-            </div>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto min-h-0">
-            {fileContent && "error" in fileContent ? (
-              <p className="text-sm text-muted-foreground">{fileContent.error}</p>
-            ) : fileContent?.type === "image" ? (
-              <img src={fileContent.dataUrl} className="max-w-full rounded" alt={previewFile?.name} />
-            ) : fileContent?.type === "markdown" ? (
-              <ChatMarkdownRenderer content={fileContent.content || ""} size="sm" />
-            ) : (
-              <pre className="text-xs font-mono whitespace-pre-wrap p-3 bg-muted/30 rounded-lg overflow-auto">
-                {fileContent?.content || ""}
-              </pre>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -362,6 +360,7 @@ function CreateSkillForm({
   isSaving: boolean
   hasProject: boolean
 }) {
+  const { t } = useTranslation('settings')
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [content, setContent] = useState("")
@@ -373,58 +372,58 @@ function CreateSkillForm({
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">New Skill</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('skills.form.title')}</h3>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={onCancel}>{t('skills.form.cancel')}</Button>
             <Button size="sm" onClick={() => onCreated({ name, description, content, source })} disabled={!canSave || isSaving}>
-              {isSaving ? "Creating..." : "Create"}
+              {isSaving ? t('skills.form.creating') : t('skills.form.create')}
             </Button>
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>Name</Label>
+          <Label>{t('skills.form.nameLabel')}</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="my-skill"
+            placeholder={t('skills.form.namePlaceholder')}
             autoFocus
           />
-          <p className="text-[11px] text-muted-foreground">Lowercase letters, numbers, and hyphens</p>
+          <p className="text-[11px] text-muted-foreground">{t('skills.form.nameHint')}</p>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label>Description</Label>
+          <Label>{t('skills.detail.description')}</Label>
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What this skill does..."
+            placeholder={t('skills.form.descriptionPlaceholder')}
           />
         </div>
 
         {hasProject && (
           <div className="flex flex-col gap-1.5">
-            <Label>Scope</Label>
+            <Label>{t('skills.form.scopeLabel')}</Label>
             <Select value={source} onValueChange={(v) => setSource(v as "user" | "project")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">User (~/.claude/skills/)</SelectItem>
-                <SelectItem value="project">Project (.claude/skills/)</SelectItem>
+                <SelectItem value="user">{t('skills.form.scopeUser')}</SelectItem>
+                <SelectItem value="project">{t('skills.form.scopeProject')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
 
         <div className="flex flex-col gap-1.5">
-          <Label>Instructions</Label>
+          <Label>{t('skills.detail.instructions')}</Label>
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={12}
             className="font-mono resize-y"
-            placeholder="Skill instructions (markdown)..."
+            placeholder={t('skills.detail.instructionsPlaceholder')}
           />
         </div>
       </div>
@@ -434,6 +433,7 @@ function CreateSkillForm({
 
 // --- Main Component ---
 export function AgentsSkillsTab() {
+  const { t } = useTranslation('settings')
   const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
@@ -581,7 +581,7 @@ export function AgentsSkillsTab() {
           <div className="px-2 pt-2 shrink-0 flex items-center gap-1.5">
             <input
               ref={searchInputRef}
-              placeholder="Search skills..."
+              placeholder={t('skills.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={listKeyDown}
@@ -590,7 +590,7 @@ export function AgentsSkillsTab() {
             <button
               onClick={() => { setShowAddForm(true); setSelectedSkillName(null) }}
               className="h-7 w-7 shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors cursor-pointer"
-              title="Create new skill"
+              title={t('skills.createTooltip')}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -599,12 +599,12 @@ export function AgentsSkillsTab() {
           <div ref={listRef} onKeyDown={listKeyDown} tabIndex={-1} className="flex-1 overflow-y-auto px-2 pt-2 pb-2 outline-hidden">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-xs text-muted-foreground">Loading...</p>
+                <p className="text-xs text-muted-foreground">{t('skills.loading')}</p>
               </div>
             ) : skills.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <SkillIcon className="h-8 w-8 text-border mb-3" />
-                <p className="text-sm text-muted-foreground mb-1">No skills</p>
+                <p className="text-sm text-muted-foreground mb-1">{t('skills.emptyState')}</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -612,12 +612,12 @@ export function AgentsSkillsTab() {
                   onClick={() => setShowAddForm(true)}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Create skill
+                  {t('skills.createFirst')}
                 </Button>
               </div>
             ) : filteredSkills.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <p className="text-xs text-muted-foreground">No results found</p>
+                <p className="text-xs text-muted-foreground">{t('skills.noResults')}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -625,7 +625,7 @@ export function AgentsSkillsTab() {
                 {userSkills.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
-                      User
+                      {t('skills.sections.user')}
                     </p>
                     <div className="flex flex-col gap-0.5">
                       {userSkills.map((skill) => {
@@ -646,14 +646,6 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              {skill.iconSmallPath && (
-                                <SkillIconImage
-                                  skillName={skill.name}
-                                  iconType="small"
-                                  className="h-4 w-4 rounded shrink-0"
-                                  cwd={selectedProject?.path}
-                                />
-                              )}
                               <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
@@ -663,7 +655,7 @@ export function AgentsSkillsTab() {
                               />
                             </div>
                             {skill.description && (
-                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                 {skill.description}
                               </div>
                             )}
@@ -678,7 +670,7 @@ export function AgentsSkillsTab() {
                 {projectSkills.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
-                      Project
+                      {t('skills.sections.project')}
                     </p>
                     <div className="flex flex-col gap-0.5">
                       {projectSkills.map((skill) => {
@@ -699,14 +691,6 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              {skill.iconSmallPath && (
-                                <SkillIconImage
-                                  skillName={skill.name}
-                                  iconType="small"
-                                  className="h-4 w-4 rounded shrink-0"
-                                  cwd={selectedProject?.path}
-                                />
-                              )}
                               <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
@@ -716,7 +700,7 @@ export function AgentsSkillsTab() {
                               />
                             </div>
                             {skill.description && (
-                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                 {skill.description}
                               </div>
                             )}
@@ -731,7 +715,7 @@ export function AgentsSkillsTab() {
                 {pluginSkills.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
-                      Plugin
+                      {t('skills.sections.plugin')}
                     </p>
                     <div className="space-y-0.5">
                       {pluginSkills.map((skill) => {
@@ -752,14 +736,6 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              {skill.iconSmallPath && (
-                                <SkillIconImage
-                                  skillName={skill.name}
-                                  iconType="small"
-                                  className="h-4 w-4 rounded shrink-0"
-                                  cwd={selectedProject?.path}
-                                />
-                              )}
                               <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <Switch
                                 checked={enabled}
@@ -769,7 +745,7 @@ export function AgentsSkillsTab() {
                               />
                             </div>
                             {skill.description && (
-                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                 {skill.description}
                               </div>
                             )}
@@ -784,7 +760,7 @@ export function AgentsSkillsTab() {
                 {builtinSkills.length > 0 && (
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
-                      Built-in
+                      {t('skills.sections.builtin')}
                     </p>
                     <div className="space-y-0.5">
                       {builtinSkills.map((skill) => {
@@ -805,17 +781,9 @@ export function AgentsSkillsTab() {
                             )}
                           >
                             <div className="flex items-center gap-2">
-                              {skill.iconSmallPath && (
-                                <SkillIconImage
-                                  skillName={skill.name}
-                                  iconType="small"
-                                  className="h-4 w-4 rounded shrink-0"
-                                  cwd={selectedProject?.path}
-                                />
-                              )}
                               <span className={cn("text-sm truncate flex-1", !enabled && "line-through")}>{displayName}</span>
                               <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
-                                BUILT-IN
+                                {t('skills.badges.builtin')}
                               </span>
                               <Switch
                                 checked={enabled}
@@ -825,7 +793,7 @@ export function AgentsSkillsTab() {
                               />
                             </div>
                             {skill.description && (
-                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                 {skill.description}
                               </div>
                             )}
@@ -863,8 +831,8 @@ export function AgentsSkillsTab() {
             <SkillIcon className="h-12 w-12 text-border mb-4" />
             <p className="text-sm text-muted-foreground">
               {skills.length > 0
-                ? "Select a skill to view details"
-                : "No skills found"}
+                ? t('skills.selectToView')
+                : t('skills.noSkillsFound')}
             </p>
             {skills.length === 0 && (
               <Button
@@ -874,7 +842,7 @@ export function AgentsSkillsTab() {
                 onClick={() => setShowAddForm(true)}
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Create your first skill
+                {t('skills.createFirst')}
               </Button>
             )}
           </div>

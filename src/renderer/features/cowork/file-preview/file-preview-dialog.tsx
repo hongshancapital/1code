@@ -30,6 +30,11 @@ import {
   resetEditorStateAtom,
 } from "../atoms"
 import { isDesktopAtom, isFullscreenAtom } from "../../../lib/atoms"
+import {
+  setTrafficLightRequestAtom,
+  removeTrafficLightRequestAtom,
+  TRAFFIC_LIGHT_PRIORITIES,
+} from "../../../lib/atoms/traffic-light"
 
 // File types that support editing
 const EDITABLE_EXTENSIONS = new Set([
@@ -77,14 +82,30 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null)
 
+  // Debug log
+  console.log("[FilePreviewDialog] filePath:", filePath, "open:", open, "displayMode:", displayMode)
+
   // Hide/show traffic lights based on full-page mode
+  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
+  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
+
   useEffect(() => {
     if (!isDesktop || isFullscreen) return
-    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
 
     const isFullPagePreview = open && displayMode === "full-page"
-    window.desktopApi.setTrafficLightVisibility(!isFullPagePreview)
-  }, [open, displayMode, isDesktop, isFullscreen])
+
+    if (isFullPagePreview) {
+      setTrafficLightRequest({
+        requester: "file-preview",
+        visible: false,
+        priority: TRAFFIC_LIGHT_PRIORITIES.FILE_PREVIEW_FULLPAGE,
+      })
+    } else {
+      removeTrafficLightRequest("file-preview")
+    }
+
+    return () => removeTrafficLightRequest("file-preview")
+  }, [open, displayMode, isDesktop, isFullscreen, setTrafficLightRequest, removeTrafficLightRequest])
 
   // Use cross-platform path split
   const pathParts = filePath?.split(/[\\/]/) || []
@@ -427,9 +448,15 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
 // Hook to open file preview
 export function useFilePreview() {
   const [, setFilePath] = useAtom(filePreviewPathAtom)
+  const [, setDisplayMode] = useAtom(filePreviewDisplayModeAtom)
 
   return {
-    openPreview: (path: string) => setFilePath(path),
+    openPreview: (path: string, mode?: "dialog" | "full-page") => {
+      if (mode) {
+        setDisplayMode(mode)
+      }
+      setFilePath(path)
+    },
     closePreview: () => setFilePath(null),
   }
 }

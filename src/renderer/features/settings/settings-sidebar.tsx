@@ -1,6 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronLeft } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import {
   EyeOpenFilledIcon,
   ProfileIconFilled,
@@ -12,6 +13,11 @@ import {
   isDesktopAtom,
   type SettingsTab,
 } from "../../lib/atoms"
+import {
+  setTrafficLightRequestAtom,
+  removeTrafficLightRequestAtom,
+  TRAFFIC_LIGHT_PRIORITIES,
+} from "../../lib/atoms/traffic-light"
 import { cn } from "../../lib/utils"
 import {
   BrainFilledIcon,
@@ -33,92 +39,52 @@ const isDevelopment = import.meta.env.DEV
 // Clicks required to unlock devtools in production
 const DEVTOOLS_UNLOCK_CLICKS = 5
 
+// Tab definitions with translation keys
+type TabDefinition = {
+  id: SettingsTab
+  labelKey: string
+  icon: React.ComponentType<{ className?: string }> | any
+}
+
 // General settings tabs
-const MAIN_TABS = [
-  {
-    id: "profile" as SettingsTab,
-    label: "Account",
-    icon: ProfileIconFilled,
-  },
-  {
-    id: "preferences" as SettingsTab,
-    label: "Preferences",
-    icon: SlidersFilledIcon,
-  },
-  {
-    id: "appearance" as SettingsTab,
-    label: "Appearance",
-    icon: EyeOpenFilledIcon,
-  },
-  {
-    id: "keyboard" as SettingsTab,
-    label: "Keyboard",
-    icon: KeyboardFilledIcon,
-  },
-  {
-    id: "beta" as SettingsTab,
-    label: "Beta",
-    icon: FlaskFilledIcon,
-  },
+const MAIN_TAB_DEFS: TabDefinition[] = [
+  { id: "profile", labelKey: "sidebar.profile", icon: ProfileIconFilled },
+  { id: "preferences", labelKey: "sidebar.preferences", icon: SlidersFilledIcon },
+  { id: "appearance", labelKey: "sidebar.appearance", icon: EyeOpenFilledIcon },
+  { id: "keyboard", labelKey: "sidebar.keyboard", icon: KeyboardFilledIcon },
+  { id: "beta", labelKey: "sidebar.beta", icon: FlaskFilledIcon },
 ]
 
 // Advanced tabs (base - without Debug)
-const ADVANCED_TABS_BASE = [
-  {
-    id: "projects" as SettingsTab,
-    label: "Projects",
-    icon: FolderFilledIcon,
-  },
-  {
-    id: "models" as SettingsTab,
-    label: "Models",
-    icon: BrainFilledIcon,
-  },
-  {
-    id: "skills" as SettingsTab,
-    label: "Skills",
-    icon: SkillIconFilled,
-  },
-  {
-    id: "agents" as SettingsTab,
-    label: "Custom Agents",
-    icon: CustomAgentIconFilled,
-  },
-  {
-    id: "mcp" as SettingsTab,
-    label: "MCP Servers",
-    icon: OriginalMCPIcon,
-  },
-  {
-    id: "plugins" as SettingsTab,
-    label: "Plugins",
-    icon: PluginFilledIcon,
-  },
+const ADVANCED_TAB_DEFS: TabDefinition[] = [
+  { id: "projects", labelKey: "sidebar.projects", icon: FolderFilledIcon },
+  { id: "models", labelKey: "sidebar.models", icon: BrainFilledIcon },
+  { id: "skills", labelKey: "sidebar.skills", icon: SkillIconFilled },
+  { id: "agents", labelKey: "sidebar.customAgents", icon: CustomAgentIconFilled },
+  { id: "mcp", labelKey: "sidebar.mcpServers", icon: OriginalMCPIcon },
+  { id: "plugins", labelKey: "sidebar.plugins", icon: PluginFilledIcon },
   {
     id: "runtime" as SettingsTab,
-    label: "Runtime",
+    labelKey: "sidebar.runtime",
     icon: TerminalFilledIcon,
   },
 ]
 
 // Debug tab definition
-const DEBUG_TAB = {
-  id: "debug" as SettingsTab,
-  label: "Debug",
+const DEBUG_TAB_DEF: TabDefinition = {
+  id: "debug",
+  labelKey: "sidebar.debug",
   icon: BugFilledIcon,
 }
 
 interface TabButtonProps {
-  tab: {
-    id: SettingsTab
-    label: string
-    icon: React.ComponentType<{ className?: string }> | any
-  }
+  tab: TabDefinition
+  label: string
   isActive: boolean
   onClick: () => void
 }
 
-function TabButton({ tab, isActive, onClick }: TabButtonProps) {
+function TabButton({ tab, label, isActive, onClick }: TabButtonProps) {
   const Icon = tab.icon
   const isProjectTab = "projectId" in tab
 
@@ -139,23 +105,33 @@ function TabButton({ tab, isActive, onClick }: TabButtonProps) {
           isProjectTab ? "opacity-100" : isActive ? "opacity-100" : "opacity-50"
         )}
       />
-      <span className="flex-1 truncate">{tab.label}</span>
+      <span className="flex-1 truncate">{label}</span>
     </button>
   )
 }
 
 export function SettingsSidebar() {
+  const { t } = useTranslation("settings")
   const [activeTab, setActiveTab] = useAtom(agentsSettingsDialogActiveTabAtom)
   const [devToolsUnlocked, setDevToolsUnlocked] = useAtom(devToolsUnlockedAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const isDesktop = useAtomValue(isDesktopAtom)
 
   // Hide native traffic lights when settings sidebar is shown
+  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
+  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
+
   useEffect(() => {
     if (!isDesktop) return
-    if (typeof window === "undefined" || !window.desktopApi?.setTrafficLightVisibility) return
-    window.desktopApi.setTrafficLightVisibility(false)
-  }, [isDesktop])
+
+    setTrafficLightRequest({
+      requester: "settings-sidebar",
+      visible: false,
+      priority: TRAFFIC_LIGHT_PRIORITIES.SETTINGS_SIDEBAR,
+    })
+
+    return () => removeTrafficLightRequest("settings-sidebar")
+  }, [isDesktop, setTrafficLightRequest, removeTrafficLightRequest])
 
   // Beta tab click counter for unlocking devtools
   const betaClickCountRef = useRef(0)
@@ -165,8 +141,8 @@ export function SettingsSidebar() {
   const showDebugTab = isDevelopment || devToolsUnlocked
 
   const mainTabs = useMemo(() => {
-    if (showDebugTab) return [...MAIN_TABS, DEBUG_TAB]
-    return MAIN_TABS
+    if (showDebugTab) return [...MAIN_TAB_DEFS, DEBUG_TAB_DEF]
+    return MAIN_TAB_DEFS
   }, [showDebugTab])
 
   const handleTabClick = (tabId: SettingsTab) => {
@@ -201,7 +177,7 @@ export function SettingsSidebar() {
           className="inline-flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm h-7 rounded-md text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer"
         >
           <ChevronLeft className="h-4 w-4" />
-          <span>Back</span>
+          <span>{t("sidebar.back")}</span>
         </button>
       </div>
 
@@ -213,6 +189,7 @@ export function SettingsSidebar() {
             <TabButton
               key={tab.id}
               tab={tab}
+              label={t(tab.labelKey)}
               isActive={activeTab === tab.id}
               onClick={() => handleTabClick(tab.id)}
             />
@@ -224,10 +201,11 @@ export function SettingsSidebar() {
 
         {/* Advanced Tabs */}
         <div className="flex flex-col gap-1">
-          {ADVANCED_TABS_BASE.map((tab) => (
+          {ADVANCED_TAB_DEFS.map((tab) => (
             <TabButton
               key={tab.id}
               tab={tab}
+              label={t(tab.labelKey)}
               isActive={activeTab === tab.id}
               onClick={() => handleTabClick(tab.id)}
             />
