@@ -14,19 +14,11 @@ import {
 import {
   AgentIcon,
   AttachIcon,
-  BranchIcon,
   CheckIcon,
   ClaudeCodeIcon,
-  CursorIcon,
   IconChevronDown,
   PlanIcon,
-  SearchIcon,
 } from "../../../components/ui/icons"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../../../components/ui/popover"
 import {
   Dialog,
   DialogContent,
@@ -59,7 +51,7 @@ import {
 } from "../atoms"
 import { defaultAgentModeAtom } from "../../../lib/atoms"
 import { ProjectSelector } from "../components/project-selector"
-import { ProjectModeToggle, ProjectModeToggleWithSlogan } from "../components/project-mode-selector"
+import { ProjectModeToggleWithSlogan } from "../components/project-mode-selector"
 import { BranchModeSelector } from "../components/branch-mode-selector"
 // import { selectedTeamIdAtom } from "@/lib/atoms/team"
 import { atom } from "jotai"
@@ -82,7 +74,6 @@ import { trpc } from "../../../lib/trpc"
 import { api } from "../../../lib/mock-api"
 import {
   AgentsSlashCommand,
-  COMMAND_PROMPTS,
   BUILTIN_SLASH_COMMANDS,
   type SlashCommandOption,
 } from "../commands"
@@ -114,10 +105,9 @@ import {
   PromptInputActions,
   PromptInputContextItems,
 } from "../../../components/ui/prompt-input"
-import { agentsSidebarOpenAtom, agentsUnseenChangesAtom, agentsSubChatsSidebarModeAtom, desktopViewAtom } from "../atoms"
+import { agentsSidebarOpenAtom, agentsUnseenChangesAtom, desktopViewAtom } from "../atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentSendButton } from "../components/agent-send-button"
-import { formatTimeAgo } from "../utils/format-time-ago"
 import { handlePasteEvent } from "../utils/paste-text"
 import {
   loadGlobalDrafts,
@@ -125,19 +115,9 @@ import {
   generateDraftId,
   deleteNewChatDraft,
   markDraftVisible,
-  type DraftProject,
 } from "../lib/drafts"
 import { CLAUDE_MODELS } from "../lib/models"
 import { useTranslation } from "react-i18next"
-// import type { PlanType } from "@/lib/config/subscription-plans"
-type PlanType = string
-
-// Codex icon (OpenAI style)
-const CodexIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
-  </svg>
-)
 
 // Hook to get available models (including offline models if Ollama is available and debug enabled)
 function useAvailableModels() {
@@ -203,8 +183,8 @@ export function NewChatForm({
 
   // UNCONTROLLED: just track if editor has content for send button
   const [hasContent, setHasContent] = useState(false)
-  const [selectedTeamId] = useAtom(selectedTeamIdAtom)
-  const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
+  const [_selectedTeamId] = useAtom(selectedTeamIdAtom)
+  const [_selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
@@ -243,7 +223,7 @@ export function NewChatForm({
     }
   }, [selectedProject, projectsList, validatedProject, setSelectedProject])
 
-  const [lastSelectedAgentId, setLastSelectedAgentId] = useAtom(
+  const [lastSelectedAgentId, _setLastSelectedAgentId] = useAtom(
     lastSelectedAgentIdAtom,
   )
   const [lastSelectedModelId, setLastSelectedModelId] = useAtom(
@@ -315,7 +295,7 @@ export function NewChatForm({
   const setSettingsDialogOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
-  const [repoSearchQuery, setRepoSearchQuery] = useState("")
+  const [repoSearchQuery, _setRepoSearchQuery] = useState("")
 
   // Worktree config banner state
   const [worktreeBannerDismissed, setWorktreeBannerDismissed] = useState(() => {
@@ -332,35 +312,6 @@ export function NewChatForm({
     { enabled: !!validatedProject?.id && workMode === "worktree" && !worktreeBannerDismissed },
   )
 
-  const showWorktreeBanner =
-    currentProjectMode === "coding" &&
-    workMode === "worktree" &&
-    validatedProject &&
-    !worktreeBannerDismissed &&
-    worktreeConfigData &&
-    !worktreeConfigData.config
-
-  const handleDismissWorktreeBanner = () => {
-    setWorktreeBannerDismissed(true)
-    try {
-      localStorage.setItem("worktree-banner-dismissed", "true")
-    } catch {}
-  }
-
-  const handleConfigureWorktree = () => {
-    // Open the projects settings tab
-    setSettingsActiveTab("projects")
-    setSettingsDialogOpen(true)
-  }
-  // Parse owner/repo from GitHub URL
-  const parseGitHubUrl = (url: string) => {
-    const match = url.match(/(?:github\.com\/)?([^\/]+)\/([^\/\s#?]+)/)
-    if (!match) return null
-    return `${match[1]}/${match[2].replace(/\.git$/, "")}`
-  }
-  const [selectedAgent, setSelectedAgent] = useState(
-    () => agents.find((a) => a.id === lastSelectedAgentId) || agents[0],
-  )
 
   // Get available models (with offline support)
   const availableModels = useAvailableModels()
@@ -381,7 +332,7 @@ export function NewChatForm({
 
   // Determine current Ollama model (selected or recommended)
   const currentOllamaModel = selectedOllamaModel || availableModels.recommendedModel || availableModels.ollamaModels[0]
-  const [repoPopoverOpen, setRepoPopoverOpen] = useState(false)
+  const [_repoPopoverOpen, _setRepoPopoverOpen] = useState(false)
   const [lastSelectedBranches, setLastSelectedBranches] = useAtom(
     lastSelectedBranchesAtom,
   )
@@ -692,7 +643,6 @@ export function NewChatForm({
     pushed_at?: string | null
   }
   const reposData: { repositories: RepoStub[] } = { repositories: [] }
-  const isLoadingRepos = false
 
   // Memoize repos arrays to prevent useEffect from running on every keystroke
   // Apply debug mode simulations
@@ -710,13 +660,8 @@ export function NewChatForm({
     return repos.filter((r) => r.sandbox_status === "ready")
   }, [repos, debugMode.enabled, debugMode.simulateNoReadyRepos])
 
-  const notReadyRepos = useMemo(
-    () => repos.filter((r) => r.sandbox_status !== "ready"),
-    [repos],
-  )
-
   // Use state to avoid hydration mismatch
-  const [resolvedRepo, setResolvedRepo] = useState<(typeof repos)[0] | null>(
+  const [, setResolvedRepo] = useState<(typeof repos)[0] | null>(
     null,
   )
 
@@ -843,12 +788,6 @@ export function NewChatForm({
       return a.name.localeCompare(b.name)
     })
   }, [branchesQuery.data])
-
-  // Format relative time for branches (reuse shared utility)
-  const formatRelativeTime = (dateString: string | null): string => {
-    if (!dateString) return ""
-    return formatTimeAgo(dateString)
-  }
 
   // Set default branch when project/branches change (only if no saved branch for this project)
   useEffect(() => {
@@ -977,58 +916,11 @@ export function NewChatForm({
     }
   }, [pendingFileReference, setPendingFileReference, validatedProject])
 
-  // Filter all repos by search (combined list) and sort by preview status
-  const filteredRepos = repos
-    .filter(
-      (repo) =>
-        repo.name.toLowerCase().includes(repoSearchQuery.toLowerCase()) ||
-        repo.full_name.toLowerCase().includes(repoSearchQuery.toLowerCase()),
-    )
-    .sort((a, b) => {
-      // 1. Repos with preview (sandbox_status === "ready") come first
-      const aHasPreview = a.sandbox_status === "ready"
-      const bHasPreview = b.sandbox_status === "ready"
-      if (aHasPreview && !bHasPreview) return -1
-      if (!aHasPreview && bHasPreview) return 1
-
-      // 2. Sort by last commit date (pushed_at) - most recent first
-      const aDate = a.pushed_at ? new Date(a.pushed_at).getTime() : 0
-      const bDate = b.pushed_at ? new Date(b.pushed_at).getTime() : 0
-      return bDate - aDate
-    })
-
   // Create chat mutation (real tRPC)
+  // Note: Using mutateAsync in handleSend, so onSuccess/onError are handled there
   const utils = trpc.useUtils()
   const apiUtils = api.useUtils()
-  const createChatMutation = trpc.chats.create.useMutation({
-    onSuccess: (data) => {
-      // Clear editor, images, files, pasted texts, file contents cache, and custom branch name only on success
-      editorRef.current?.clear()
-      clearImages()
-      clearFiles()
-      clearPastedTexts()
-      fileContentsRef.current.clear()
-      clearCurrentDraft()
-      setCustomBranchName("")
-      setBranchNameError(null)
-      utils.chats.list.invalidate()
-      setSelectedChatId(data.id)
-      // New chats are always local
-      setSelectedChatIsRemote(false)
-      setChatSourceMode("local")
-      // Clear home view to show the chat
-      setDesktopView(null)
-      // Track this chat and its first subchat as just created for typewriter effect
-      const ids = [data.id]
-      if (data.subChats?.[0]?.id) {
-        ids.push(data.subChats[0].id)
-      }
-      setJustCreatedIds((prev) => new Set([...prev, ...ids]))
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
+  const createChatMutation = trpc.chats.create.useMutation()
 
   // Get or create playground chat mutation (for Chat mode)
   const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
@@ -1140,19 +1032,6 @@ export function NewChatForm({
       toast.error("Failed to update project mode")
     }
   }, [validatedProject, updateModeMutation, setSelectedProject, getOrCreatePlaygroundMutation, setCurrentProjectMode])
-
-  const getAgentIcon = (agentId: string, className?: string) => {
-    switch (agentId) {
-      case "claude-code":
-        return <ClaudeCodeIcon className={className} />
-      case "cursor":
-        return <CursorIcon className={className} />
-      case "codex":
-        return <CodexIcon className={className} />
-      default:
-        return null
-    }
-  }
 
   const trpcUtils = trpc.useUtils()
 
@@ -1340,8 +1219,12 @@ export function NewChatForm({
         // Invalidate sidebar list
         utils.chats.listPlayground.invalidate()
 
-        // CRITICAL: Refetch the chat data FIRST to ensure agentSubChats has the new subchat with messages
-        // Must complete before setActiveSubChat, otherwise getOrCreateChat() will see empty messages
+        // CRITICAL: Prefetch the subchat messages BEFORE setting activeSubChatId
+        // This ensures getOrCreateChat() will have messages data when it creates the Chat object
+        // Without this, Chat is created with empty messages and auto-generate never triggers
+        await utils.chats.getSubChatMessages.fetch({ id: newSubChat.id })
+
+        // Also refetch the chat data to ensure agentSubChats has the new subchat
         await apiUtils.agents.getAgentChat.fetch({ chatId: playgroundChat.id })
 
         // Now set up the subchat store - at this point the query cache is already updated
@@ -1360,7 +1243,7 @@ export function NewChatForm({
         })
         store.addToOpenSubChats(newSubChat.id)
         // Set active subchat LAST - this triggers ChatView to create the Chat object
-        // By this point, agentSubChats in the query cache already contains the new subchat's messages
+        // By this point, the messages query cache contains the new subchat's messages
         store.setActiveSubChat(newSubChat.id)
 
         // Track as just created for typewriter effect
@@ -1403,22 +1286,56 @@ export function NewChatForm({
     }
 
     // Create chat with selected project, branch, and initial message (cowork/coding modes)
-    createChatMutation.mutate({
-      projectId: projectToUse.id,
-      name: message.trim().slice(0, 50), // Use first 50 chars as chat name
-      initialMessageParts: parts.length > 0 ? parts : undefined,
-      baseBranch:
-        workMode === "worktree" ? selectedBranch || undefined : undefined,
-      branchType:
-        workMode === "worktree" ? selectedBranchType : undefined,
-      useWorktree: workMode === "worktree",
-      mode: agentMode,
-      customBranchName:
-        workMode === "worktree" && customBranchName.trim()
-          ? customBranchName.trim()
-          : undefined,
-    })
-    // Editor, images, files, and pasted texts are cleared in onSuccess callback
+    try {
+      const data = await createChatMutation.mutateAsync({
+        projectId: projectToUse.id,
+        name: message.trim().slice(0, 50), // Use first 50 chars as chat name
+        initialMessageParts: parts.length > 0 ? parts : undefined,
+        baseBranch:
+          workMode === "worktree" ? selectedBranch || undefined : undefined,
+        branchType:
+          workMode === "worktree" ? selectedBranchType : undefined,
+        useWorktree: workMode === "worktree",
+        mode: agentMode,
+        customBranchName:
+          workMode === "worktree" && customBranchName.trim()
+            ? customBranchName.trim()
+            : undefined,
+      })
+
+      // Clear editor, images, files, pasted texts, file contents cache, and custom branch name
+      editorRef.current?.clear()
+      clearImages()
+      clearFiles()
+      clearPastedTexts()
+      fileContentsRef.current.clear()
+      clearCurrentDraft()
+      setCustomBranchName("")
+      setBranchNameError(null)
+      utils.chats.list.invalidate()
+
+      // CRITICAL: Prefetch the subchat messages BEFORE setting selectedChatId
+      // This ensures getOrCreateChat() will have messages data when it creates the Chat object
+      // Without this, Chat is created with empty messages and auto-generate never triggers
+      if (data.subChats?.[0]?.id) {
+        await utils.chats.getSubChatMessages.fetch({ id: data.subChats[0].id })
+      }
+
+      setSelectedChatId(data.id)
+      // New chats are always local
+      setSelectedChatIsRemote(false)
+      setChatSourceMode("local")
+      // Clear home view to show the chat
+      setDesktopView(null)
+      // Track this chat and its first subchat as just created for typewriter effect
+      const ids = [data.id]
+      if (data.subChats?.[0]?.id) {
+        ids.push(data.subChats[0].id)
+      }
+      setJustCreatedIds((prev) => new Set([...prev, ...ids]))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create chat")
+    }
   }, [
     selectedProject,
     validatedProject?.path,
