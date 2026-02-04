@@ -435,6 +435,22 @@ export class AuthManager {
   }
 
   /**
+   * Check if there's saved auth that might be refreshable
+   * Used to distinguish returning users (token expired) from first-time users
+   */
+  hasSavedAuth(): boolean {
+    return this.store.hasSavedAuth()
+  }
+
+  /**
+   * Get saved provider type (for auto-login with same provider)
+   */
+  getSavedProvider(): AuthProviderType | null {
+    const data = this.store.load()
+    return data?.provider ?? null
+  }
+
+  /**
    * Get current user
    */
   getUser(): AuthUser | null {

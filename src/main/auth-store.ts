@@ -260,4 +260,13 @@ export class AuthStore {
       console.error("Failed to clear auth skipped state:", error)
     }
   }
+
+  /**
+   * Check if there's saved auth data (even if access token expired)
+   * Used to determine if we should try refresh or auto-login for returning users
+   */
+  hasSavedAuth(): boolean {
+    const data = this.load()
+    return data !== null && !!data.refreshToken
+  }
 }

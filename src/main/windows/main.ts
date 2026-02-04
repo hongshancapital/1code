@@ -705,9 +705,39 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   const isSkipped = authManager?.isSkipped() ?? false
 
   if (!isAuthenticated && !isSkipped) {
-    console.log("[Main] Not authenticated and not skipped, showing login page")
-    showLoginPageInWindow(window)
-    return window
+    // Distinguish between first-time users and returning users (token expired)
+    if (authManager?.hasSavedAuth()) {
+      // Returning user: token expired, try refresh or auto-start OAuth
+      console.log("[Main] Token expired for returning user, attempting refresh...")
+
+      // Attempt refresh asynchronously
+      ;(async () => {
+        const refreshed = await authManager.refresh()
+
+        if (refreshed) {
+          console.log("[Main] Token refresh succeeded, loading main app")
+          // Notify renderer that we're re-authenticating
+          window.webContents.send("auth:reauthenticating")
+          loadAppInWindow(window)
+        } else {
+          // Refresh failed, auto-start OAuth for returning users
+          console.log("[Main] Refresh failed, auto-starting OAuth...")
+          // Notify renderer that we're re-authenticating
+          window.webContents.send("auth:reauthenticating")
+          authManager.startAuthFlow(window)
+          // Keep showing login page as waiting interface
+        }
+      })()
+
+      // Show login page while waiting for refresh/OAuth
+      showLoginPageInWindow(window)
+      return window
+    } else {
+      // First-time user: show login page and wait for user choice (login or skip)
+      console.log("[Main] First-time user, showing login page")
+      showLoginPageInWindow(window)
+      return window
+    }
   }
 
   // Load the renderer
