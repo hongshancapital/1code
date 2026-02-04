@@ -30,6 +30,13 @@
     "detecting": "正在检测模型服务...",
     "configuring": "正在配置模型...",
     "ready": "准备就绪",
+    "nameInput": {
+      "question": "Hóng 应该如何称呼您？",
+      "subtitle": "一个昵称或首选称呼",
+      "placeholder": "输入您的名字",
+      "letsGo": "Let's go",
+      "skip": "暂时跳过"
+    },
     "words": {
       "work": "协作",
       "chat": "交流",

@@ -30,6 +30,13 @@
     "detecting": "Detecting model service...",
     "configuring": "Configuring model...",
     "ready": "Ready",
+    "nameInput": {
+      "question": "What should Hóng call you?",
+      "subtitle": "A nickname or preferred name",
+      "placeholder": "Enter your name",
+      "letsGo": "Let's go",
+      "skip": "Skip for now"
+    },
     "words": {
       "work": "Work",
       "chat": "Chat",
