@@ -5,8 +5,14 @@ import "./wdyr"
 import { validateEnv } from "./lib/env"
 validateEnv()
 
-// Only initialize Sentry in production to avoid IPC errors in dev mode
-if (import.meta.env.PROD) {
+// Skip Sentry init if embedded in Tinker
+declare global {
+  interface Window {
+    __HONG_EMBEDDED__?: boolean
+  }
+}
+
+if (import.meta.env.PROD && !window.__HONG_EMBEDDED__) {
   import("@sentry/electron/renderer").then((Sentry) => {
     Sentry.init()
   })

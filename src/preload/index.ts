@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 import { exposeElectronTRPC } from "trpc-electron/main"
 
-// Only initialize Sentry in production to avoid IPC errors in dev mode
-if (process.env.NODE_ENV === "production") {
+// Skip Sentry init if embedded in Tinker (env var inherited from main process)
+const isEmbeddedInTinker = process.env['HONG_EMBEDDED_IN_TINKER'] === 'true'
+
+if (!isEmbeddedInTinker && process.env['NODE_ENV'] === "production") {
   import("@sentry/electron/renderer").then((Sentry) => {
     Sentry.init()
   })
@@ -410,11 +412,15 @@ export interface DesktopApi {
   selectAudioFile: () => Promise<string | null>
 }
 
+// Expose embedded flag for renderer process
+contextBridge.exposeInMainWorld("__HONG_EMBEDDED__", isEmbeddedInTinker)
+
 declare global {
   interface Window {
     desktopApi: DesktopApi
     webUtils?: {
       getPathForFile(file: File): string
     }
+    __HONG_EMBEDDED__?: boolean
   }
 }
