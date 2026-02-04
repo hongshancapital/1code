@@ -104,6 +104,7 @@ import {
   Square,
   type LucideIcon,
 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import {
   Dialog,
   DialogContent,
@@ -321,10 +322,12 @@ function TagIcon({
 }
 
 export const ManageTagsDialog = memo(function ManageTagsDialog() {
+  const { t } = useTranslation("sidebar")
   const [open, setOpen] = useAtom(manageTagsDialogOpenAtom)
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [selectedIcon, setSelectedIcon] = useState<string>("tag") // Default to Tag
   const [activeGroup, setActiveGroup] = useState(0)
+  const [editingTagId, setEditingTagId] = useState<string | null>(null) // Track which tag is being edited
 
   const utils = trpc.useUtils()
   const { data: tags } = trpc.tags.listTags.useQuery()
@@ -336,10 +339,26 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
       // Reset selection after create
       setSelectedColor(null)
       setSelectedIcon("tag")
-      toast.success("标签已创建")
+      toast.success(t("tagManager.tagCreated"))
     },
     onError: (error) => {
-      toast.error(`创建失败: ${error.message}`)
+      toast.error(`${t("tagManager.createFailed")}: ${error.message}`)
+    },
+  })
+
+  const updateTagMutation = trpc.tags.updateTag.useMutation({
+    onSuccess: () => {
+      utils.tags.listTags.invalidate()
+      utils.tags.getChatTagsBatch.invalidate()
+      utils.chats.list.invalidate() // Refresh chat list to show updated tags
+      // Reset selection after update
+      setSelectedColor(null)
+      setSelectedIcon("tag")
+      setEditingTagId(null)
+      toast.success(t("tagManager.tagUpdated"))
+    },
+    onError: (error) => {
+      toast.error(`${t("tagManager.updateFailed")}: ${error.message}`)
     },
   })
 
@@ -347,18 +366,42 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
     onSuccess: () => {
       utils.tags.listTags.invalidate()
       utils.tags.getChatTagsBatch.invalidate()
-      toast.success("标签已删除")
+      toast.success(t("tagManager.tagDeleted"))
     },
     onError: (error) => {
-      toast.error(`删除失败: ${error.message}`)
+      toast.error(`${t("tagManager.deleteFailed")}: ${error.message}`)
     },
   })
 
-  const handleDelete = useCallback(
-    (tagId: string) => {
-      deleteTagMutation.mutate({ id: tagId })
+  // Handle tag click - select for editing
+  const handleTagClick = useCallback(
+    (tag: { id: string; color: string | null; icon: string | null }) => {
+      setEditingTagId(tag.id)
+      setSelectedColor(tag.color)
+      setSelectedIcon(tag.icon || "tag")
+      // Find the group containing this icon
+      const groupIndex = ICON_GROUPS.findIndex((g) =>
+        g.icons.some((i) => i.name === (tag.icon || "tag")),
+      )
+      if (groupIndex !== -1) {
+        setActiveGroup(groupIndex)
+      }
     },
-    [deleteTagMutation],
+    [],
+  )
+
+  const handleDelete = useCallback(
+    (e: React.MouseEvent, tagId: string) => {
+      e.stopPropagation() // Prevent triggering tag click
+      deleteTagMutation.mutate({ id: tagId })
+      // If deleting the currently editing tag, reset edit state
+      if (editingTagId === tagId) {
+        setEditingTagId(null)
+        setSelectedColor(null)
+        setSelectedIcon("tag")
+      }
+    },
+    [deleteTagMutation, editingTagId],
   )
 
   const handleCreate = useCallback(() => {
@@ -373,15 +416,36 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
     })
   }, [selectedColor, selectedIcon, createTagMutation])
 
-  const isPending = createTagMutation.isPending || deleteTagMutation.isPending
+  const handleUpdate = useCallback(() => {
+    if (!editingTagId) return
+
+    // Generate a unique name based on icon and color
+    const colorName = COLOR_PALETTE.find((c) => c.color === selectedColor)?.name || ""
+    const name = colorName ? `${selectedIcon}-${colorName}` : selectedIcon
+
+    updateTagMutation.mutate({
+      id: editingTagId,
+      name,
+      color: selectedColor,
+      icon: selectedIcon,
+    })
+  }, [editingTagId, selectedColor, selectedIcon, updateTagMutation])
+
+  const handleCancel = useCallback(() => {
+    setEditingTagId(null)
+    setSelectedColor(null)
+    setSelectedIcon("tag")
+  }, [])
+
+  const isPending = createTagMutation.isPending || updateTagMutation.isPending || deleteTagMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader className="pb-2">
-          <DialogTitle className="text-xl">标签管理</DialogTitle>
+          <DialogTitle className="text-xl">{t("tagManager.title")}</DialogTitle>
           <DialogDescription className="text-sm">
-            选择颜色和图标组合创建标签
+            {t("tagManager.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -390,12 +454,21 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
           {tags && tags.length > 0 && (
             <div>
               <div className="text-sm font-medium text-muted-foreground mb-3">
-                已创建的标签
+                {t("tagManager.created")} <span className="text-xs text-muted-foreground/70">（{t("tagManager.clickToEdit")}）</span>
               </div>
               <div className="flex flex-wrap gap-3">
                 {tags.map((tag) => (
                   <div key={tag.id} className="group relative">
-                    <TagIcon icon={tag.icon} color={tag.color} size="xl" />
+                    <button
+                      className={cn(
+                        "relative transition-all",
+                        editingTagId === tag.id && "ring-2 ring-primary ring-offset-2 rounded-xl",
+                      )}
+                      onClick={() => handleTagClick(tag)}
+                      disabled={isPending}
+                    >
+                      <TagIcon icon={tag.icon} color={tag.color} size="xl" />
+                    </button>
                     <button
                       className={cn(
                         "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full",
@@ -404,7 +477,7 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
                         "opacity-0 group-hover:opacity-100 transition-opacity",
                         "hover:bg-destructive/90",
                       )}
-                      onClick={() => handleDelete(tag.id)}
+                      onClick={(e) => handleDelete(e, tag.id)}
                       disabled={isPending}
                     >
                       <X className="w-3 h-3" />
@@ -421,7 +494,7 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
           {/* Color Selection */}
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-3">
-              颜色（可选）
+              {t("tagManager.colorOptional")}
             </div>
             <div className="flex gap-3">
               {/* No color option */}
@@ -456,23 +529,32 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
           {/* Icon Group Tabs */}
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-3">
-              图标
+              {t("tagManager.icon")}
             </div>
             <div className="flex gap-2 mb-4">
-              {ICON_GROUPS.map((group, idx) => (
-                <button
-                  key={group.name}
-                  className={cn(
-                    "px-4 py-2 text-sm rounded-lg transition-colors font-medium",
-                    activeGroup === idx
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                  onClick={() => setActiveGroup(idx)}
-                >
-                  {group.name}
-                </button>
-              ))}
+              {ICON_GROUPS.map((group, idx) => {
+                // Get translated group name
+                const groupNameKey = group.name === "常用" ? "common"
+                  : group.name === "状态" ? "status"
+                  : group.name === "工作" ? "work"
+                  : group.name === "开发" ? "dev"
+                  : group.name === "创意" ? "creative"
+                  : group.name
+                return (
+                  <button
+                    key={group.name}
+                    className={cn(
+                      "px-4 py-2 text-sm rounded-lg transition-colors font-medium",
+                      activeGroup === idx
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                    onClick={() => setActiveGroup(idx)}
+                  >
+                    {t(`tagManager.iconGroups.${groupNameKey}`)}
+                  </button>
+                )
+              })}
             </div>
             <div className="grid grid-cols-10 gap-2">
               {ICON_GROUPS[activeGroup].icons.map(({ icon: Icon, name }) => (
@@ -492,16 +574,38 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
             </div>
           </div>
 
-          {/* Preview & Create */}
+          {/* Preview & Action Buttons */}
           <div className="flex items-center gap-6 pt-4 border-t border-border">
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">预览</span>
+              <span className="text-sm text-muted-foreground">{t("tagManager.preview")}</span>
               <TagIcon icon={selectedIcon} color={selectedColor} size="xl" />
             </div>
             <div className="flex-1" />
-            <Button size="lg" onClick={handleCreate} disabled={isPending}>
-              添加标签
-            </Button>
+            {editingTagId ? (
+              /* Edit mode - show Update and Cancel buttons */
+              <div className="flex gap-2">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isPending}
+                >
+                  {t("tagManager.cancel")}
+                </Button>
+                <Button
+                  size="lg"
+                  onClick={handleUpdate}
+                  disabled={isPending}
+                >
+                  {t("tagManager.updateTag")}
+                </Button>
+              </div>
+            ) : (
+              /* Create mode - show Add button */
+              <Button size="lg" onClick={handleCreate} disabled={isPending}>
+                {t("tagManager.addTag")}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

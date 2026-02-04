@@ -2,6 +2,7 @@
 
 import React, { memo, useCallback } from "react"
 import { useAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { Layers, List, FolderTree, Tags } from "lucide-react"
 import { Button } from "../../../components/ui/button"
 import {
@@ -33,6 +34,7 @@ interface GroupingToggleProps {
 export const GroupingToggle = memo(function GroupingToggle({
   className,
 }: GroupingToggleProps) {
+  const { t } = useTranslation("sidebar")
   const [isGrouped, setIsGrouped] = useAtom(workspaceGroupedViewAtom)
   const [groupMode, setGroupMode] = useAtom(workspaceGroupModeAtom)
 
@@ -74,25 +76,21 @@ export const GroupingToggle = memo(function GroupingToggle({
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {isGrouped ? "分组视图已开启" : "开启分组视图"}
+          {isGrouped ? t("grouping.disable") : t("grouping.enable")}
         </TooltipContent>
       </Tooltip>
 
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          分组视图
-        </DropdownMenuLabel>
-
         <DropdownMenuItem onSelect={handleToggle}>
           {isGrouped ? (
             <>
               <List className="h-4 w-4 mr-2" />
-              关闭分组
+              {t("grouping.disable")}
             </>
           ) : (
             <>
               <Layers className="h-4 w-4 mr-2" />
-              开启分组
+              {t("grouping.enable")}
             </>
           )}
         </DropdownMenuItem>
@@ -101,21 +99,17 @@ export const GroupingToggle = memo(function GroupingToggle({
           <>
             <DropdownMenuSeparator />
 
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-              分组方式
-            </DropdownMenuLabel>
-
             <DropdownMenuRadioGroup
               value={groupMode}
               onValueChange={handleModeChange}
             >
               <DropdownMenuRadioItem value="folder">
                 <FolderTree className="h-4 w-4 mr-2" />
-                按文件夹
+                {t("grouping.byFolder")}
               </DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="tag">
                 <Tags className="h-4 w-4 mr-2" />
-                按标签
+                {t("grouping.byTag")}
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </>

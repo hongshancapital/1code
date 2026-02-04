@@ -1,6 +1,7 @@
 "use client"
 
 import React, { memo, useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { ChevronDown, ChevronRight, GripVertical } from "lucide-react"
 import * as LucideIcons from "lucide-react"
 import { cn } from "../../../lib/utils"
@@ -77,6 +78,8 @@ export const GroupHeader = memo(function GroupHeader({
     onToggleCollapse(group.id)
   }, [onToggleCollapse, group.id])
 
+  const { t } = useTranslation("sidebar")
+
   return (
     <div
       className={cn(
@@ -90,7 +93,7 @@ export const GroupHeader = memo(function GroupHeader({
       <button
         className="p-0.5 hover:bg-foreground/10 rounded transition-colors"
         onClick={handleCollapseClick}
-        aria-label={isCollapsed ? "展开组" : "折叠组"}
+        aria-label={isCollapsed ? t("grouping.expandGroup") : t("grouping.collapseGroup")}
       >
         {isCollapsed ? (
           <ChevronRight className="h-3 w-3 text-muted-foreground" />

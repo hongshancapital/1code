@@ -1,6 +1,7 @@
 "use client"
 
 import React, { memo, useCallback, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { Folder, Tag, type LucideIcon } from "lucide-react"
 import * as LucideIcons from "lucide-react"
 import {
@@ -43,6 +44,8 @@ export const GroupIndexPopover = memo(function GroupIndexPopover({
   mode,
   children,
 }: GroupIndexPopoverProps) {
+  const { t } = useTranslation("sidebar")
+
   const handleGroupClick = useCallback(
     (groupId: string) => {
       onGroupSelect(groupId)
@@ -70,24 +73,24 @@ export const GroupIndexPopover = memo(function GroupIndexPopover({
             {mode === "folder" ? (
               <>
                 <Folder className="h-4 w-4 text-muted-foreground" />
-                文件夹分组
+                {t("grouping.folderGrouping")}
               </>
             ) : (
               <>
                 <Tag className="h-4 w-4 text-muted-foreground" />
-                标签分组
+                {t("grouping.tagGrouping")}
               </>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            点击快速跳转到对应分组
+            {t("grouping.quickJump")}
           </p>
         </div>
 
         <div className="max-h-64 overflow-y-auto p-2">
           {groups.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-4">
-              暂无分组
+              {t("grouping.noGroups")}
             </div>
           ) : mode === "tag" ? (
             /* Tag mode - compact horizontal layout with just icons */
