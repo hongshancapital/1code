@@ -24,6 +24,7 @@ import {
   billingMethodAtom,
   languagePreferenceAtom,
   litellmOnboardingCompletedAtom,
+  litellmSelectedModelAtom,
   overrideModelModeAtom,
 } from "./lib/atoms"
 import i18n from "./lib/i18n"
@@ -83,6 +84,7 @@ function AppContent() {
   const litellmOnboardingCompleted = useAtomValue(litellmOnboardingCompletedAtom)
   const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
   const setOverrideModelMode = useSetAtom(overrideModelModeAtom)
+  const setLitellmSelectedModel = useSetAtom(litellmSelectedModelAtom)
   const setAuthSkipped = useSetAtom(authSkippedAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
@@ -138,6 +140,11 @@ function AppContent() {
   const { data: litellmConfig, isLoading: isLoadingLitellmConfig } =
     trpc.litellm.getConfig.useQuery()
 
+  // Fetch LiteLLM models to get default model when auto-completing onboarding
+  const { data: litellmModels } = trpc.litellm.getModels.useQuery(undefined, {
+    enabled: litellmConfig?.available === true,
+  })
+
   // Migration: If user already completed Anthropic onboarding but has no billing method set,
   // automatically set it to "claude-subscription" (legacy users before billing method was added)
   useEffect(() => {
@@ -157,14 +164,16 @@ function AppContent() {
   }, [cliConfig?.hasConfig, billingMethod, setBillingMethod, setApiKeyOnboardingCompleted])
 
   // Auto-skip onboarding if LiteLLM is configured via env (MAIN_VITE_LITELLM_BASE_URL)
+  // Also set the default model from LiteLLM backend
   useEffect(() => {
-    if (litellmConfig?.available && !billingMethod) {
-      console.log("[App] Detected LiteLLM env config, auto-completing onboarding")
+    if (litellmConfig?.available && litellmModels?.defaultModel && !billingMethod) {
+      console.log("[App] Detected LiteLLM env config, auto-completing onboarding with default model:", litellmModels.defaultModel)
       setBillingMethod("litellm")
       setLitellmOnboardingCompleted(true)
       setOverrideModelMode("litellm")
+      setLitellmSelectedModel(litellmModels.defaultModel)
     }
-  }, [litellmConfig?.available, billingMethod, setBillingMethod, setLitellmOnboardingCompleted, setOverrideModelMode])
+  }, [litellmConfig?.available, litellmModels?.defaultModel, billingMethod, setBillingMethod, setLitellmOnboardingCompleted, setOverrideModelMode, setLitellmSelectedModel])
 
   // Fetch projects to validate selectedProject exists
   const { data: projects, isLoading: isLoadingProjects } =

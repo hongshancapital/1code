@@ -17,8 +17,15 @@ const MODEL_BLACKLIST = [
   "dall-e-3",
 ]
 
-// Default model to select if available (Sonnet, not Opus)
-const DEFAULT_MODEL = "claude-sonnet-4-20250514"
+// Preferred model patterns in priority order (Sonnet preferred over Opus)
+// Will match the first pattern found in the model list
+const PREFERRED_MODEL_PATTERNS = [
+  /^claude-sonnet-4-5-\d+$/,      // claude-sonnet-4-5-20250929
+  /^claude-sonnet-4-\d+$/,         // claude-sonnet-4-20250514
+  /^claude-sonnet.*$/i,            // any sonnet
+  /^claude-opus.*$/i,              // fallback to opus
+  /^claude.*$/i,                   // any claude
+]
 
 type LiteLLMModel = {
   id: string
@@ -86,12 +93,24 @@ export const litellmRouter = router({
         (m) => !MODEL_BLACKLIST.some((blacklisted) => m.id.includes(blacklisted))
       )
 
-      // Check if default model is available
-      const hasDefaultModel = filteredModels.some((m) => m.id === DEFAULT_MODEL)
+      // Find the best default model by matching patterns in priority order
+      let defaultModel: string | null = null
+      for (const pattern of PREFERRED_MODEL_PATTERNS) {
+        const match = filteredModels.find((m) => pattern.test(m.id))
+        if (match) {
+          defaultModel = match.id
+          break
+        }
+      }
+
+      // If no pattern matched, use the first claude model or first model
+      if (!defaultModel && filteredModels.length > 0) {
+        defaultModel = filteredModels[0].id
+      }
 
       return {
         models: filteredModels,
-        defaultModel: hasDefaultModel ? DEFAULT_MODEL : null,
+        defaultModel,
         error: null,
       }
     } catch (error) {

@@ -35,6 +35,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip"
 import { cn } from "../../../lib/utils"
 import {
   agentsDebugModeAtom,
@@ -68,6 +73,8 @@ import {
   selectedOllamaModelAtom,
   customHotkeysAtom,
   chatSourceModeAtom,
+  overrideModelModeAtom,
+  litellmSelectedModelAtom,
 } from "../../../lib/atoms"
 // Desktop uses real tRPC
 import { toast } from "sonner"
@@ -303,6 +310,8 @@ export function NewChatForm({
   const normalizedCustomClaudeConfig =
     normalizeCustomClaudeConfig(customClaudeConfig)
   const hasCustomClaudeConfig = Boolean(normalizedCustomClaudeConfig)
+  const overrideMode = useAtomValue(overrideModelModeAtom)
+  const litellmSelectedModel = useAtomValue(litellmSelectedModelAtom)
   const setSettingsDialogOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
@@ -2155,36 +2164,58 @@ export function NewChatForm({
                             })}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                      ) : overrideMode === "litellm" ? (
+                        // LiteLLM mode: show LiteLLM indicator with tooltip
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
+                              onClick={() => {
+                                setSettingsActiveTab("models")
+                                setSettingsDialogOpen(true)
+                              }}
+                            >
+                              <ClaudeCodeIcon className="h-3.5 w-3.5" />
+                              <span>{t("model.litellm")}</span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">{litellmSelectedModel || t("model.noModelSelected")}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : overrideMode === "custom" && hasCustomClaudeConfig ? (
+                        // Custom mode: show Custom indicator with tooltip
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
+                              onClick={() => {
+                                setSettingsActiveTab("models")
+                                setSettingsDialogOpen(true)
+                              }}
+                            >
+                              <ClaudeCodeIcon className="h-3.5 w-3.5" />
+                              <span>{t("model.custom")}</span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">{normalizedCustomClaudeConfig?.model || t("model.noModelConfigured")}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       ) : (
-                        // Online mode: show Claude model selector
+                        // Default: show Claude model selector
                         <DropdownMenu
-                          open={hasCustomClaudeConfig ? false : isModelDropdownOpen}
-                          onOpenChange={(open) => {
-                            if (!hasCustomClaudeConfig) {
-                              setIsModelDropdownOpen(open)
-                            }
-                          }}
+                          open={isModelDropdownOpen}
+                          onOpenChange={setIsModelDropdownOpen}
                         >
                           <DropdownMenuTrigger asChild>
                             <button
-                              disabled={hasCustomClaudeConfig}
-                              className={cn(
-                                "flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground transition-[background-color,color] duration-150 ease-out rounded-md outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
-                                hasCustomClaudeConfig
-                                  ? "opacity-70 cursor-not-allowed"
-                                  : "hover:text-foreground hover:bg-muted/50",
-                              )}
+                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                             >
                               <ClaudeCodeIcon className="h-3.5 w-3.5" />
                               <span>
-                                {hasCustomClaudeConfig ? (
-                                  "Custom Model"
-                                ) : (
-                                  <>
-                                    {selectedModel?.name}{" "}
-                                    <span className="text-muted-foreground">4.5</span>
-                                  </>
-                                )}
+                                {selectedModel?.name}{" "}
+                                <span className="text-muted-foreground">4.5</span>
                               </span>
                               <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                             </button>
