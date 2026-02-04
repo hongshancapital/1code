@@ -542,7 +542,42 @@
     "resetAllToDefaults": "Reset all to defaults",
     "selectToCustomize": "Select a shortcut to customize",
     "shortcutSuffix": "shortcut",
-    "conflictMessage": "\"{{label}}\" already uses this shortcut"
+    "conflictMessage": "\"{{label}}\" already uses this shortcut",
+    "categories": {
+      "general": "General",
+      "workspaces": "Workspaces",
+      "agents": "Agents"
+    },
+    "actions": {
+      "show-shortcuts": "Show shortcuts",
+      "open-settings": "Settings",
+      "toggle-sidebar": "Toggle sidebar",
+      "undo-archive": "Undo archive",
+      "toggle-details": "View details",
+      "new-workspace": "New workspace",
+      "search-workspaces": "Search workspaces",
+      "archive-workspace": "Archive current workspace",
+      "quick-switch-workspaces": "Quick switch workspaces",
+      "open-kanban": "Open Kanban board",
+      "new-agent": "Create new agent",
+      "search-chats": "Search chats",
+      "search-in-chat": "Search text in current chat",
+      "archive-agent": "Archive current agent",
+      "quick-switch-agents": "Quick switch agents",
+      "prev-agent": "Previous agent",
+      "next-agent": "Next agent",
+      "focus-input": "Focus input",
+      "toggle-focus": "Toggle focus",
+      "stop-generation": "Stop generation",
+      "switch-model": "Switch model",
+      "toggle-terminal": "Toggle terminal",
+      "open-diff": "Open diff",
+      "create-pr": "Create PR",
+      "file-search": "Go to file",
+      "voice-input": "Voice input (hold)",
+      "open-in-editor": "Open in editor",
+      "open-file-in-editor": "Open file in editor"
+    }
   },
   "debug": {
     "title": "Debug",

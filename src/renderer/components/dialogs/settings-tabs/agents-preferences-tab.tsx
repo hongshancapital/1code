@@ -118,7 +118,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -236,12 +235,11 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Extended Thinking
+              {t("preferences.extendedThinking.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Enable deeper reasoning with more thinking tokens (uses more
-              credits).{" "}
-              <span className="text-foreground/70">Disables response streaming.</span>
+              {t("preferences.extendedThinking.description")}{" "}
+              <span className="text-foreground/70">{t("preferences.extendedThinking.note")}</span>
             </span>
           </div>
           <Switch
@@ -254,10 +252,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-start justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              AI Question Timeout
+              {t("preferences.aiQuestionTimeout.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              How long to wait for your response when AI asks a question
+              {t("preferences.aiQuestionTimeout.description")}
             </span>
           </div>
           <Select
@@ -267,22 +265,22 @@ export function AgentsPreferencesTab() {
             <SelectTrigger className="w-auto px-2">
               <span className="text-xs">
                 {askUserQuestionTimeout === 0
-                  ? "No timeout"
+                  ? t("preferences.aiQuestionTimeout.noTimeout")
                   : askUserQuestionTimeout === 30
-                    ? "30 seconds"
+                    ? t("preferences.aiQuestionTimeout.seconds", { count: 30 })
                     : askUserQuestionTimeout === 60
-                      ? "1 minute"
+                      ? t("preferences.aiQuestionTimeout.minute")
                       : askUserQuestionTimeout === 120
-                        ? "2 minutes"
-                        : "5 minutes"}
+                        ? t("preferences.aiQuestionTimeout.minutes", { count: 2 })
+                        : t("preferences.aiQuestionTimeout.minutes", { count: 5 })}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="0">No timeout</SelectItem>
-              <SelectItem value="30">30 seconds</SelectItem>
-              <SelectItem value="60">1 minute</SelectItem>
-              <SelectItem value="120">2 minutes</SelectItem>
-              <SelectItem value="300">5 minutes</SelectItem>
+              <SelectItem value="0">{t("preferences.aiQuestionTimeout.noTimeout")}</SelectItem>
+              <SelectItem value="30">{t("preferences.aiQuestionTimeout.seconds", { count: 30 })}</SelectItem>
+              <SelectItem value="60">{t("preferences.aiQuestionTimeout.minute")}</SelectItem>
+              <SelectItem value="120">{t("preferences.aiQuestionTimeout.minutes", { count: 2 })}</SelectItem>
+              <SelectItem value="300">{t("preferences.aiQuestionTimeout.minutes", { count: 5 })}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -290,10 +288,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Default Mode
+              {t("preferences.defaultMode.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Mode for new agents (Plan = read-only, Agent = can edit)
+              {t("preferences.defaultMode.description")}
             </span>
           </div>
           <Select
@@ -302,22 +300,22 @@ export function AgentsPreferencesTab() {
           >
             <SelectTrigger className="w-auto px-2">
               <span className="text-xs">
-                {defaultAgentMode === "agent" ? "Agent" : "Plan"}
+                {defaultAgentMode === "agent" ? t("preferences.defaultMode.agent") : t("preferences.defaultMode.plan")}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="agent">Agent</SelectItem>
-              <SelectItem value="plan">Plan</SelectItem>
+              <SelectItem value="agent">{t("preferences.defaultMode.agent")}</SelectItem>
+              <SelectItem value="plan">{t("preferences.defaultMode.plan")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Include Co-Authored-By
+              {t("preferences.coAuthored.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Add "Co-authored-by: Claude" to git commits made by Claude
+              {t("preferences.coAuthored.description")}
             </span>
           </div>
           <Switch
@@ -333,10 +331,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Desktop Notifications
+              {t("preferences.notifications.desktop.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Show system notifications when agent needs input or completes work
+              {t("preferences.notifications.desktop.description")}
             </span>
           </div>
           <Switch checked={desktopNotificationsEnabled} onCheckedChange={setDesktopNotificationsEnabled} />
@@ -344,10 +342,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Sound Notifications
+              {t("preferences.notifications.sound.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Play a sound when agent completes work while you're away
+              {t("preferences.notifications.sound.description")}
             </span>
           </div>
           <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
@@ -359,10 +357,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Quick Switch
+              {t("preferences.navigation.quickSwitch.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              What <Kbd>⌃Tab</Kbd> switches between
+              {t("preferences.navigation.quickSwitch.description", { key: "⌃Tab" })}
             </span>
           </div>
           <Select
@@ -371,22 +369,22 @@ export function AgentsPreferencesTab() {
           >
             <SelectTrigger className="w-auto px-2">
               <span className="text-xs">
-                {ctrlTabTarget === "workspaces" ? "Workspaces" : "Agents"}
+                {ctrlTabTarget === "workspaces" ? t("preferences.navigation.quickSwitch.workspaces") : t("preferences.navigation.quickSwitch.agents")}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="workspaces">Workspaces</SelectItem>
-              <SelectItem value="agents">Agents</SelectItem>
+              <SelectItem value="workspaces">{t("preferences.navigation.quickSwitch.workspaces")}</SelectItem>
+              <SelectItem value="agents">{t("preferences.navigation.quickSwitch.agents")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Auto-advance
+              {t("preferences.navigation.autoAdvance.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Where to go after archiving a workspace
+              {t("preferences.navigation.autoAdvance.description")}
             </span>
           </div>
           <Select
@@ -396,26 +394,26 @@ export function AgentsPreferencesTab() {
             <SelectTrigger className="w-auto px-2">
               <span className="text-xs">
                 {autoAdvanceTarget === "next"
-                  ? "Go to next workspace"
+                  ? t("preferences.navigation.autoAdvance.next")
                   : autoAdvanceTarget === "previous"
-                    ? "Go to previous workspace"
-                    : "Close workspace"}
+                    ? t("preferences.navigation.autoAdvance.previous")
+                    : t("preferences.navigation.autoAdvance.close")}
               </span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="next">Go to next workspace</SelectItem>
-              <SelectItem value="previous">Go to previous workspace</SelectItem>
-              <SelectItem value="close">Close workspace</SelectItem>
+              <SelectItem value="next">{t("preferences.navigation.autoAdvance.next")}</SelectItem>
+              <SelectItem value="previous">{t("preferences.navigation.autoAdvance.previous")}</SelectItem>
+              <SelectItem value="close">{t("preferences.navigation.autoAdvance.close")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Preferred Editor
+              {t("preferences.navigation.preferredEditor.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Default app for opening workspaces
+              {t("preferences.navigation.preferredEditor.description")}
             </span>
           </div>
           <DropdownMenu>
@@ -520,10 +518,10 @@ export function AgentsPreferencesTab() {
         <div className="flex items-center justify-between gap-6 p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Share Usage Analytics
+              {t("preferences.privacy.analytics.title")}
             </span>
             <span className="text-xs text-muted-foreground">
-              Help us improve Agents by sharing anonymous usage data. We only track feature usage and app performance–never your code, prompts, or messages. No AI training on your data.
+              {t("preferences.privacy.analytics.description")}
             </span>
           </div>
           <Switch

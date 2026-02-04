@@ -120,6 +120,7 @@ function ShortcutListItem({
   hasConflict,
   onClick,
   ctrlTabTarget,
+  t,
 }: {
   action: ShortcutAction
   config: CustomHotkeysConfig
@@ -127,6 +128,7 @@ function ShortcutListItem({
   hasConflict: boolean
   onClick: () => void
   ctrlTabTarget: "workspaces" | "agents"
+  t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const isCustom = isCustomHotkey(action.id, config)
   let currentHotkey = getResolvedHotkey(action.id, config)
@@ -142,6 +144,9 @@ function ShortcutListItem({
 
   const keys = currentHotkey ? hotkeyStringToKeys(currentHotkey) : []
 
+  // Get translated label
+  const translatedLabel = t(`keyboard.actions.${action.id}`, { defaultValue: action.label })
+
   return (
     <button
       type="button"
@@ -156,7 +161,7 @@ function ShortcutListItem({
       )}
     >
       <span className="text-sm truncate">
-        {action.label}
+        {translatedLabel}
       </span>
       <div className="flex items-center gap-0.5 ml-2 shrink-0">
         {keys.map((key, index) => (
@@ -210,6 +215,10 @@ function ShortcutDetailPanel({
   const defaultAction = getShortcutAction(action.id)
   const defaultKeys = defaultAction?.defaultKeys || []
 
+  // Get translated label and category
+  const translatedLabel = t(`keyboard.actions.${action.id}`, { defaultValue: action.label })
+  const translatedCategory = t(`keyboard.categories.${action.category}`, { defaultValue: CATEGORY_LABELS[action.category] })
+
   const { currentKeys } = useHotkeyRecorder({
     onRecord,
     onCancel,
@@ -233,9 +242,9 @@ function ShortcutDetailPanel({
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
       {/* Title */}
-      <h3 className="text-base font-medium text-foreground mb-1">{action.label}</h3>
+      <h3 className="text-base font-medium text-foreground mb-1">{translatedLabel}</h3>
       <p className="text-sm text-muted-foreground mb-8">
-        {action.isDynamic ? action.dynamicDescription : `${CATEGORY_LABELS[action.category]} ${t('keyboard.shortcutSuffix')}`}
+        {action.isDynamic ? action.dynamicDescription : `${translatedCategory} ${t('keyboard.shortcutSuffix')}`}
       </p>
 
       {/* Hotkey display / recorder */}
@@ -379,7 +388,7 @@ export function AgentsKeyboardTab() {
     [customHotkeys]
   )
 
-  // Filter shortcuts by search query
+  // Filter shortcuts by search query (search both original and translated labels)
   const filteredShortcuts = useMemo(() => {
     if (!searchQuery.trim()) {
       return shortcutsByCategory
@@ -391,12 +400,13 @@ export function AgentsKeyboardTab() {
       agents: [],
     }
     for (const category of Object.keys(shortcutsByCategory) as ShortcutCategory[]) {
-      result[category] = shortcutsByCategory[category].filter(action =>
-        action.label.toLowerCase().includes(query)
-      )
+      result[category] = shortcutsByCategory[category].filter(action => {
+        const translatedLabel = t(`keyboard.actions.${action.id}`, { defaultValue: action.label })
+        return action.label.toLowerCase().includes(query) || translatedLabel.toLowerCase().includes(query)
+      })
     }
     return result
-  }, [shortcutsByCategory, searchQuery])
+  }, [shortcutsByCategory, searchQuery, t])
 
   // Flat list of all action IDs for keyboard navigation
   const allActionIds = useMemo(
@@ -456,8 +466,9 @@ export function AgentsKeyboardTab() {
     // Check for conflicts
     const conflictingAction = checkConflict(hotkey, selectedActionId)
     if (conflictingAction) {
-      // Show conflict message and don't save
-      setConflictMessage(t('keyboard.conflictMessage', { label: conflictingAction.label }))
+      // Show conflict message and don't save (use translated label)
+      const translatedLabel = t(`keyboard.actions.${conflictingAction.id}`, { defaultValue: conflictingAction.label })
+      setConflictMessage(t('keyboard.conflictMessage', { label: translatedLabel }))
       setIsRecording(false)
 
       // Clear message after 2 seconds
@@ -546,7 +557,7 @@ export function AgentsKeyboardTab() {
                   return (
                     <div key={category}>
                       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
-                        {CATEGORY_LABELS[category]}
+                        {t(`keyboard.categories.${category}`, { defaultValue: CATEGORY_LABELS[category] })}
                       </p>
                       <div className="flex flex-col gap-0.5">
                         {actions.map((action) => (
@@ -561,6 +572,7 @@ export function AgentsKeyboardTab() {
                               setIsRecording(false)
                             }}
                             ctrlTabTarget={ctrlTabTarget}
+                            t={t}
                           />
                         ))}
                       </div>
