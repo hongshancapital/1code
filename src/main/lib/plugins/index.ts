@@ -60,22 +60,23 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
     return pluginCache.plugins
   }
 
-  const plugins: PluginInfo[] = []
+  // Use Map to deduplicate by source (marketplace:plugin-name)
+  const pluginMap = new Map<string, PluginInfo>()
   const marketplacesDir = path.join(os.homedir(), ".claude", "plugins", "marketplaces")
 
   try {
     await fs.access(marketplacesDir)
   } catch {
-    pluginCache = { plugins, timestamp: Date.now() }
-    return plugins
+    pluginCache = { plugins: [], timestamp: Date.now() }
+    return []
   }
 
   let marketplaces: Dirent[]
   try {
     marketplaces = await fs.readdir(marketplacesDir, { withFileTypes: true })
   } catch {
-    pluginCache = { plugins, timestamp: Date.now() }
-    return plugins
+    pluginCache = { plugins: [], timestamp: Date.now() }
+    return []
   }
 
   for (const marketplace of marketplaces) {
@@ -107,14 +108,19 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
         if (!sourcePath) continue
 
         const pluginPath = path.resolve(marketplacePath, sourcePath)
+        const source = `${marketplaceJson.name}:${plugin.name}`
+
+        // Skip if already added (deduplicate)
+        if (pluginMap.has(source)) continue
+
         try {
           await fs.access(pluginPath)
-          plugins.push({
+          pluginMap.set(source, {
             name: plugin.name,
             version: plugin.version || "0.0.0",
             description: plugin.description,
             path: pluginPath,
-            source: `${marketplaceJson.name}:${plugin.name}`,
+            source,
             marketplace: marketplaceJson.name,
             category: plugin.category,
             homepage: plugin.homepage,
@@ -129,6 +135,7 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
     }
   }
 
+  const plugins = Array.from(pluginMap.values())
   pluginCache = { plugins, timestamp: Date.now() }
   return plugins
 }

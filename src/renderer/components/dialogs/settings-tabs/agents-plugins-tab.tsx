@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useSetAtom } from "jotai"
+import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
 import { settingsPluginsSidebarWidthAtom } from "../../../features/agents/atoms"
 import { agentsSettingsDialogActiveTabAtom, type SettingsTab } from "../../../lib/atoms"
@@ -58,6 +59,7 @@ function PluginDetail({
   mcpServerStatuses,
   onMcpAuth,
   isAuthenticating,
+  t,
 }: {
   plugin: PluginData
   onToggleEnabled: (enabled: boolean) => void
@@ -66,6 +68,7 @@ function PluginDetail({
   mcpServerStatuses: Record<string, McpServerStatus>
   onMcpAuth: (serverName: string) => void
   isAuthenticating: boolean
+  t: (key: string, options?: Record<string, unknown>) => string
 }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -77,7 +80,7 @@ function PluginDetail({
             onCheckedChange={onToggleEnabled}
             disabled={isTogglingEnabled}
           />
-          <span className="text-xs text-muted-foreground">Active</span>
+          <span className="text-xs text-muted-foreground">{t('plugins.detail.active')}</span>
         </div>
       </div>
 
@@ -478,7 +481,7 @@ export function AgentsPluginsTab() {
                 {/* Enabled Plugins */}
                 {enabledPlugins.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                    <p className="sticky top-0 z-10 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1.5 mb-1 bg-muted/80 backdrop-blur-sm rounded-md">
                       Enabled
                     </p>
                     <div className="flex flex-col gap-0.5">
@@ -497,7 +500,7 @@ export function AgentsPluginsTab() {
                 {/* Marketplace groups (disabled plugins) */}
                 {marketplaceGroups.map(([marketplace, groupPlugins]) => (
                   <div key={marketplace}>
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                    <p className="sticky top-0 z-10 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1.5 mb-1 bg-muted/80 backdrop-blur-sm rounded-md">
                       {marketplace}
                     </p>
                     <div className="flex flex-col gap-0.5">
