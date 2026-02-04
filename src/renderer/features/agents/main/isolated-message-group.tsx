@@ -2,6 +2,8 @@
 
 import { memo, useMemo } from "react"
 import { useAtomValue } from "jotai"
+import { useTranslation } from "react-i18next"
+import { RotateCcw } from "lucide-react"
 import {
   messageAtomFamily,
   assistantIdsForUserMsgAtomFamily,
@@ -38,6 +40,7 @@ interface IsolatedMessageGroupProps {
   stickyTopClass: string
   sandboxSetupError?: string
   onRetrySetup?: () => void
+  onRetryMessage?: () => void
   // Components passed from parent - must be stable references
   UserBubbleComponent: React.ComponentType<{
     messageId: string
@@ -65,13 +68,14 @@ function areGroupPropsEqual(
     prev.chatId === next.chatId &&
     prev.isMobile === next.isMobile &&
     prev.sandboxSetupStatus === next.sandboxSetupStatus &&
-  prev.stickyTopClass === next.stickyTopClass &&
-  prev.sandboxSetupError === next.sandboxSetupError &&
-  prev.onRetrySetup === next.onRetrySetup &&
-  prev.UserBubbleComponent === next.UserBubbleComponent &&
-  prev.ToolCallComponent === next.ToolCallComponent &&
-  prev.MessageGroupWrapper === next.MessageGroupWrapper &&
-  prev.toolRegistry === next.toolRegistry
+    prev.stickyTopClass === next.stickyTopClass &&
+    prev.sandboxSetupError === next.sandboxSetupError &&
+    prev.onRetrySetup === next.onRetrySetup &&
+    prev.onRetryMessage === next.onRetryMessage &&
+    prev.UserBubbleComponent === next.UserBubbleComponent &&
+    prev.ToolCallComponent === next.ToolCallComponent &&
+    prev.MessageGroupWrapper === next.MessageGroupWrapper &&
+    prev.toolRegistry === next.toolRegistry
   )
 }
 
@@ -84,11 +88,14 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   stickyTopClass,
   sandboxSetupError,
   onRetrySetup,
+  onRetryMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupWrapper,
   toolRegistry,
 }: IsolatedMessageGroupProps) {
+  const { t } = useTranslation("chat")
+
   // Subscribe to specific atoms - NOT the whole messages array
   const userMsg = useAtomValue(messageAtomFamily(userMsgId))
   const assistantIds = useAtomValue(assistantIdsForUserMsgAtomFamily(userMsgId))
@@ -122,6 +129,18 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   // Show setup error if sandbox setup failed
   const shouldShowSetupError =
     sandboxSetupStatus === "error" && isLastGroup && assistantIds.length === 0
+
+  // Show retry option when:
+  // - This is the last user message
+  // - No assistant response received
+  // - Not currently streaming
+  // - Not a sandbox setup issue (cloning or error)
+  const shouldShowRetry =
+    isLastGroup &&
+    assistantIds.length === 0 &&
+    !isStreaming &&
+    sandboxSetupStatus === "ready" &&
+    onRetryMessage
 
   // Check if this is an image-only message (no text content and no text mentions)
   const isImageOnlyMessage = imageParts.length > 0 && !textContent.trim() && textMentions.length === 0
@@ -254,6 +273,24 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
             />
           </div>
         )}
+
+      {/* No response - retry option */}
+      {shouldShowRetry && (
+        <div className="mt-4 p-3 bg-muted/50 border border-border rounded-lg">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">
+              {t("status.noResponse")}
+            </span>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+              onClick={onRetryMessage}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t("actions.retry")}
+            </button>
+          </div>
+        </div>
+      )}
     </MessageGroupWrapper>
   )
 }, areGroupPropsEqual)

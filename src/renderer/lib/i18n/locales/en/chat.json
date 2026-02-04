@@ -18,6 +18,11 @@
     "selectModel": "Select model",
     "recommended": "recommended"
   },
+  "thinking": {
+    "active": "Thinking",
+    "completed": "Thought",
+    "activeEllipsis": "Thinking..."
+  },
   "newChat": {
     "title": "New Chat",
     "placeholder": "What would you like to work on?",
@@ -48,6 +53,7 @@
     "streaming": "Claude is thinking...",
     "waiting": "Waiting for response...",
     "completed": "Completed",
-    "failed": "Failed"
+    "failed": "Failed",
+    "noResponse": "No response received"
   }
 }

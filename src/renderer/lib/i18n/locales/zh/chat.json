@@ -10,13 +10,18 @@
     "planTooltip": "在更改前先创建计划"
   },
   "model": {
-    "thinking": "思考中",
+    "thinking": "深度思考",
     "litellm": "LiteLLM",
     "custom": "自定义",
     "noModelSelected": "未选择模型",
     "noModelConfigured": "未配置模型",
     "selectModel": "选择模型",
     "recommended": "推荐"
+  },
+  "thinking": {
+    "active": "深度思考",
+    "completed": "深度思考完成",
+    "activeEllipsis": "深度思考中..."
   },
   "newChat": {
     "title": "新对话",
@@ -48,6 +53,7 @@
     "streaming": "Claude 正在思考...",
     "waiting": "等待响应...",
     "completed": "已完成",
-    "failed": "失败"
+    "failed": "失败",
+    "noResponse": "未收到响应"
   }
 }

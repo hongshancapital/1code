@@ -2,6 +2,8 @@
 
 import { useAtomValue } from "jotai"
 import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { useTranslation } from "react-i18next"
+import { RotateCcw } from "lucide-react"
 import { showMessageJsonAtom } from "../atoms"
 import { extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
 import {
@@ -922,6 +924,7 @@ interface SimpleIsolatedGroupProps {
   stickyTopClass: string
   sandboxSetupError?: string
   onRetrySetup?: () => void
+  onRetryMessage?: () => void
   // Components passed from parent - must be stable references
   UserBubbleComponent: React.ComponentType<{
     messageId: string
@@ -953,6 +956,7 @@ function areSimpleGroupPropsEqual(
     prev.stickyTopClass === next.stickyTopClass &&
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
+    prev.onRetryMessage === next.onRetryMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupComponent === next.MessageGroupComponent &&
@@ -969,11 +973,14 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   stickyTopClass,
   sandboxSetupError,
   onRetrySetup,
+  onRetryMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupComponent,
   toolRegistry,
 }: SimpleIsolatedGroupProps) {
+  const { t } = useTranslation("chat")
+
   // Subscribe to this specific user message and its assistant IDs
   const { userMsg, assistantMsgIds, isLastGroup } = useUserMessageWithAssistants(userMsgId)
   const { isStreaming } = useStreamingStatus()
@@ -1007,6 +1014,18 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
     sandboxSetupStatus === "error" &&
     isLastGroup &&
     assistantMsgIds.length === 0
+
+  // Show retry option when:
+  // - This is the last user message
+  // - No assistant response received
+  // - Not currently streaming
+  // - Not a sandbox setup issue (cloning or error)
+  const shouldShowRetry =
+    isLastGroup &&
+    assistantMsgIds.length === 0 &&
+    !isStreaming &&
+    sandboxSetupStatus === "ready" &&
+    onRetryMessage
 
   return (
     <MessageGroupComponent>
@@ -1125,6 +1144,24 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
           />
         </div>
       )}
+
+      {/* No response - retry option */}
+      {shouldShowRetry && (
+        <div className="mt-4 p-3 bg-muted/50 border border-border rounded-lg">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">
+              {t("status.noResponse")}
+            </span>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+              onClick={onRetryMessage}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t("actions.retry")}
+            </button>
+          </div>
+        </div>
+      )}
     </MessageGroupComponent>
   )
 }, areSimpleGroupPropsEqual)
@@ -1142,6 +1179,7 @@ interface SimpleIsolatedListProps {
   stickyTopClass: string
   sandboxSetupError?: string
   onRetrySetup?: () => void
+  onRetryMessage?: () => void
   UserBubbleComponent: SimpleIsolatedGroupProps["UserBubbleComponent"]
   ToolCallComponent: SimpleIsolatedGroupProps["ToolCallComponent"]
   MessageGroupComponent: SimpleIsolatedGroupProps["MessageGroupComponent"]
@@ -1161,6 +1199,7 @@ function areSimpleListPropsEqual(
     prev.stickyTopClass === next.stickyTopClass &&
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
+    prev.onRetryMessage === next.onRetryMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupComponent === next.MessageGroupComponent &&
@@ -1177,6 +1216,7 @@ export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesLi
   stickyTopClass,
   sandboxSetupError,
   onRetrySetup,
+  onRetryMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupComponent,
@@ -1199,6 +1239,7 @@ export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesLi
           stickyTopClass={stickyTopClass}
           sandboxSetupError={sandboxSetupError}
           onRetrySetup={onRetrySetup}
+          onRetryMessage={onRetryMessage}
           UserBubbleComponent={UserBubbleComponent}
           ToolCallComponent={ToolCallComponent}
           MessageGroupComponent={MessageGroupComponent}
