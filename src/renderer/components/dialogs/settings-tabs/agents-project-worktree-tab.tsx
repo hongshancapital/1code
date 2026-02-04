@@ -38,9 +38,103 @@ import {
 import { cn } from "../../../lib/utils"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { settingsProjectsSidebarWidthAtom } from "../../../features/agents/atoms"
+import { ProjectSkillsTab } from "./project-skills-tab"
+import { ProjectMcpTab } from "./project-mcp-tab"
+import { ProjectPluginsTab } from "./project-plugins-tab"
 
-// --- Detail Panel ---
+// --- Sub-tab Types ---
+type ProjectSubTab = "general" | "skills" | "mcp" | "plugins"
+
+// --- Sub-tab Button ---
+function SubTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+        active
+          ? "bg-foreground/10 text-foreground"
+          : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+// --- Detail Panel with Sub-tabs ---
 function ProjectDetail({ projectId }: { projectId: string }) {
+  const [activeSubTab, setActiveSubTab] = useState<ProjectSubTab>("general")
+
+  // Get project info for path
+  const { data: project } = trpc.projects.get.useQuery(
+    { id: projectId },
+    { enabled: !!projectId },
+  )
+
+  // Reset to general tab when project changes
+  useEffect(() => {
+    setActiveSubTab("general")
+  }, [projectId])
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Sub-tab Navigation */}
+      <div className="flex items-center gap-1 px-6 py-3 border-b border-border shrink-0">
+        <SubTabButton
+          active={activeSubTab === "general"}
+          onClick={() => setActiveSubTab("general")}
+        >
+          General
+        </SubTabButton>
+        <SubTabButton
+          active={activeSubTab === "skills"}
+          onClick={() => setActiveSubTab("skills")}
+        >
+          Skills
+        </SubTabButton>
+        <SubTabButton
+          active={activeSubTab === "mcp"}
+          onClick={() => setActiveSubTab("mcp")}
+        >
+          MCP
+        </SubTabButton>
+        <SubTabButton
+          active={activeSubTab === "plugins"}
+          onClick={() => setActiveSubTab("plugins")}
+        >
+          Plugins
+        </SubTabButton>
+      </div>
+
+      {/* Sub-tab Content */}
+      <div className="flex-1 overflow-hidden">
+        {activeSubTab === "general" && <ProjectGeneralTab projectId={projectId} />}
+        {activeSubTab === "skills" && (
+          <ProjectSkillsTab projectId={projectId} projectPath={project?.path ?? null} />
+        )}
+        {activeSubTab === "mcp" && (
+          <ProjectMcpTab projectId={projectId} projectPath={project?.path ?? null} />
+        )}
+        {activeSubTab === "plugins" && (
+          <ProjectPluginsTab projectId={projectId} projectPath={project?.path ?? null} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --- General Tab (original ProjectDetail content) ---
+function ProjectGeneralTab({ projectId }: { projectId: string }) {
   const utils = trpc.useUtils()
 
   // Get config for selected project

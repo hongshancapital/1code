@@ -2,6 +2,7 @@
 
 import React from "react"
 import { useState, useRef, useMemo, useEffect, useCallback, memo, forwardRef } from "react"
+import { useTranslation } from "react-i18next"
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "motion/react"
 import { Button as ButtonCustom } from "../../components/ui/button"
@@ -29,6 +30,9 @@ import {
   showWorkspaceIconAtom,
   betaKanbanEnabledAtom,
   betaAutomationsEnabledAtom,
+  // Grouping atoms
+  workspaceGroupedViewAtom,
+  workspaceGroupModeAtom,
 } from "../../lib/atoms"
 // [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
 // import {
@@ -138,6 +142,7 @@ import {
   KeyboardIcon,
   TicketIcon,
   CloudIcon,
+  FolderFilledIcon,
 } from "../../components/ui/icons"
 import { Logo } from "../../components/ui/logo"
 import { Input } from "../../components/ui/input"
@@ -178,6 +183,10 @@ import { Checkbox } from "../../components/ui/checkbox"
 import { useHaptic } from "./hooks/use-haptic"
 import { TypewriterText } from "../../components/ui/typewriter-text"
 import { exportChat, copyChat, type ExportFormat } from "../agents/lib/export-chat"
+// Grouping components
+import { GroupedChatList } from "./components/grouped-chat-list"
+import { GroupingToggle } from "./components/grouping-toggle"
+import { TagSelectorSubmenu, PresetTagIcon, getPresetTag } from "./components/tag-selector-submenu"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -474,6 +483,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   chatBranch,
   chatUpdatedAt,
   chatProjectId,
+  chatTagId,
   globalIndex,
   isSelected,
   isLoading,
@@ -523,6 +533,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   chatBranch: string | null
   chatUpdatedAt: Date | null
   chatProjectId: string
+  chatTagId: string | null
   globalIndex: number
   isSelected: boolean
   isLoading: boolean
@@ -567,8 +578,26 @@ const AgentChatItem = React.memo(function AgentChatItem({
   formatTime: (dateStr: string) => string
   isJustCreated: boolean
 }) {
+  const { t } = useTranslation('sidebar')
   // Resolved hotkey for context menu
   const archiveWorkspaceHotkey = useResolvedHotkeyDisplay("archive-workspace")
+
+  // Tags functionality - using preset tags (stored as tagId on chat)
+  const setTagMutation = trpc.chats.setTag.useMutation()
+  const utils = trpc.useUtils()
+
+  const handleTagSelect = useCallback(
+    (tagId: string | null) => {
+      setTagMutation.mutate(
+        { id: chatId, tagId },
+        { onSuccess: () => utils.chats.list.invalidate() },
+      )
+    },
+    [chatId, setTagMutation, utils],
+  )
+
+  // Get preset tag for display
+  const presetTag = getPresetTag(chatTagId)
 
   return (
     <ContextMenu>
@@ -622,6 +651,12 @@ const AgentChatItem = React.memo(function AgentChatItem({
           )}
         >
           <div className="flex items-start gap-2.5">
+            {/* Tag icon - shown before project icon when tag is set */}
+            {presetTag && (
+              <div className="pt-0.5">
+                <PresetTagIcon tag={presetTag} size="xs" />
+              </div>
+            )}
             {/* Icon container - only render if showIcon or in multi-select mode */}
             {(showIcon || isMultiSelectMode) && (
               <div className="pt-0.5">
@@ -764,16 +799,16 @@ const AgentChatItem = React.memo(function AgentChatItem({
               <>
                 <ContextMenuItem onClick={areAllSelectedPinned ? onBulkUnpin : onBulkPin}>
                   {areAllSelectedPinned
-                    ? `Unpin ${selectedChatIdsSize} ${pluralize(selectedChatIdsSize, "workspace")}`
-                    : `Pin ${selectedChatIdsSize} ${pluralize(selectedChatIdsSize, "workspace")}`}
+                    ? t('workspaces.unpinCount', { count: selectedChatIdsSize })
+                    : t('workspaces.pinCount', { count: selectedChatIdsSize })}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
             )}
             <ContextMenuItem onClick={onBulkArchive} disabled={archiveBatchPending}>
               {archiveBatchPending
-                ? "Archiving..."
-                : `Archive ${selectedChatIdsSize} ${pluralize(selectedChatIdsSize, "workspace")}`}
+                ? t('workspaces.archiving')
+                : t('workspaces.archiveCount', { count: selectedChatIdsSize })}
             </ContextMenuItem>
           </>
         ) : (
@@ -781,67 +816,74 @@ const AgentChatItem = React.memo(function AgentChatItem({
             {isRemote && (
               <>
                 <ContextMenuItem onClick={() => onOpenLocally(chatId)}>
-                  Fork Locally
+                  {t('workspaces.fork')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
             )}
             <ContextMenuItem onClick={() => onTogglePin(chatId)}>
-              {isPinned ? "Unpin workspace" : "Pin workspace"}
+              {isPinned ? t('workspaces.unpin') : t('workspaces.pin')}
             </ContextMenuItem>
             <ContextMenuItem onClick={() => onRenameClick({ id: chatId, name: chatName, isRemote })}>
-              Rename workspace
+              {t('workspaces.rename')}
             </ContextMenuItem>
             {chatBranch && (
               <ContextMenuItem onClick={() => onCopyBranch(chatBranch)}>
-                Copy branch name
+                {t('workspaces.copyBranch')}
               </ContextMenuItem>
             )}
             <ContextMenuSub>
-              <ContextMenuSubTrigger>Export workspace</ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>{t('workspaces.export.title')}</ContextMenuSubTrigger>
               <ContextMenuSubContent sideOffset={6} alignOffset={-4}>
                 <ContextMenuItem onClick={() => exportChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "markdown", isRemote })}>
-                  Download as Markdown
+                  {t('workspaces.export.markdown')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => exportChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "json", isRemote })}>
-                  Download as JSON
+                  {t('workspaces.export.json')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => exportChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "text", isRemote })}>
-                  Download as Text
+                  {t('workspaces.export.text')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem onClick={() => copyChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "markdown", isRemote })}>
-                  Copy as Markdown
+                  {t('workspaces.export.copyMarkdown')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => copyChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "json", isRemote })}>
-                  Copy as JSON
+                  {t('workspaces.export.copyJson')}
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => copyChat({ chatId: isRemote ? chatId.replace(/^remote_/, '') : chatId, format: "text", isRemote })}>
-                  Copy as Text
+                  {t('workspaces.export.copyText')}
                 </ContextMenuItem>
               </ContextMenuSubContent>
             </ContextMenuSub>
             {isDesktop && (
               <ContextMenuItem onClick={() => window.desktopApi?.newWindow({ chatId })}>
-                Open in new window
+                {t('workspaces.openNewWindow')}
               </ContextMenuItem>
+            )}
+            {/* Tags submenu - only for local chats */}
+            {!isRemote && (
+              <TagSelectorSubmenu
+                currentTagId={chatTagId}
+                onTagSelect={handleTagSelect}
+              />
             )}
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => onArchive(chatId)} className="justify-between">
-              Archive workspace
+              {t('workspaces.archive')}
               {archiveWorkspaceHotkey && <Kbd>{archiveWorkspaceHotkey}</Kbd>}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => onArchiveAllBelow(chatId)}
               disabled={isLastInFilteredChats}
             >
-              Archive all below
+              {t('workspaces.archiveAll')}
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => onArchiveOthers(chatId)}
               disabled={filteredChatsLength === 1}
             >
-              Archive others
+              {t('workspaces.archiveOthers')}
             </ContextMenuItem>
           </>
         )}
@@ -902,6 +944,7 @@ interface ChatListSectionProps {
     branch: string | null
     updatedAt: Date | null
     projectId: string | null
+    tagId: string | null
     isRemote: boolean
     meta?: { repository?: string; branch?: string | null } | null
     remoteStats?: { fileCount: number; additions: number; deletions: number; totalTokens: number } | null
@@ -998,16 +1041,19 @@ const ChatListSection = React.memo(function ChatListSection({
 
   return (
     <>
-      <div
-        className={cn(
-          "flex items-center h-4 mb-1",
-          isMultiSelectMode ? "pl-3" : "pl-2",
-        )}
-      >
-        <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-          {title}
-        </h3>
-      </div>
+      {/* Only render title header if title is not empty */}
+      {title && (
+        <div
+          className={cn(
+            "flex items-center h-4 mb-1",
+            isMultiSelectMode ? "pl-3" : "pl-2",
+          )}
+        >
+          <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+            {title}
+          </h3>
+        </div>
+      )}
       <div className="list-none p-0 m-0 mb-3">
         {chats.map((chat) => {
           const isLoading = loadingChatIds.has(chat.id)
@@ -1052,6 +1098,7 @@ const ChatListSection = React.memo(function ChatListSection({
               chatBranch={chat.branch}
               chatUpdatedAt={chat.updatedAt}
               chatProjectId={chat.projectId ?? ""}
+              chatTagId={chat.tagId ?? null}
               globalIndex={globalIndex}
               isSelected={isSelected}
               isLoading={isLoading}
@@ -1172,6 +1219,28 @@ const KanbanButton = memo(function KanbanButton() {
 })
 
 // Custom SVG icons matching web's icons.tsx
+// Home icon for navigation
+function SidebarHomeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points="9 22 9 12 15 12 15 22"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function SidebarInboxIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -1203,8 +1272,44 @@ function SidebarAutomationsIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+// Home Button - full-width navigation link to home dashboard
+const HomeButton = memo(function HomeButton() {
+  const { t } = useTranslation('sidebar')
+  const desktopView = useAtomValue(desktopViewAtom)
+  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const setSelectedDraftId = useSetAtom(selectedDraftIdAtom)
+  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
+  const setDesktopView = useSetAtom(desktopViewAtom)
+
+  const handleClick = useCallback(() => {
+    setSelectedChatId(null)
+    setSelectedDraftId(null)
+    setShowNewChatForm(false)
+    setDesktopView("home")
+  }, [setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
+
+  const isActive = desktopView === "home"
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className={cn(
+        "flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150",
+        isActive
+          ? "bg-foreground/5 text-foreground"
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+      )}
+    >
+      <SidebarHomeIcon className="h-4 w-4" />
+      <span className="flex-1 text-left">{t('navigation.home')}</span>
+    </button>
+  )
+})
+
 // Isolated Inbox Button - full-width navigation link matching web layout
 const InboxButton = memo(function InboxButton() {
+  const { t } = useTranslation('sidebar')
   const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
   const desktopView = useAtomValue(desktopViewAtom)
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
@@ -1246,7 +1351,7 @@ const InboxButton = memo(function InboxButton() {
       )}
     >
       <SidebarInboxIcon className="h-4 w-4" />
-      <span className="flex-1 text-left">Inbox</span>
+      <span className="flex-1 text-left">{t('navigation.inbox')}</span>
       {inboxUnreadCount > 0 && (
         <span className="bg-primary text-primary-foreground text-xs font-medium px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
           {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
@@ -1260,12 +1365,15 @@ const InboxButton = memo(function InboxButton() {
 const ChatsButton = memo(function ChatsButton({
   count,
   onClick,
+  onNewChat,
   isActive,
 }: {
   count: number
   onClick: () => void
+  onNewChat: () => void
   isActive: boolean
 }) {
+  const { t } = useTranslation('sidebar')
   return (
     <button
       type="button"
@@ -1278,39 +1386,61 @@ const ChatsButton = memo(function ChatsButton({
       )}
     >
       <MessageCircle className="h-4 w-4" />
-      <span className="flex-1 text-left">Chats</span>
+      <span className="text-left">{t('chats.title')}</span>
       {count > 0 && (
         <span className="text-xs text-muted-foreground">
           ({count})
         </span>
       )}
+      <span className="flex-1" />
+      <span
+        role="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onNewChat()
+        }}
+        className="p-1 rounded-md hover:bg-foreground/10 transition-colors duration-150"
+      >
+        <PlusIcon className="h-4 w-4" />
+      </span>
     </button>
   )
 })
 
-// Isolated Automations Button - full-width navigation link matching web layout
+// Isolated Automations Button - full-width navigation link to local automations panel
 const AutomationsButton = memo(function AutomationsButton() {
+  const { t } = useTranslation('sidebar')
   const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
+  const desktopView = useAtomValue(desktopViewAtom)
+  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const setSelectedDraftId = useSetAtom(selectedDraftIdAtom)
+  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
+  const setDesktopView = useSetAtom(desktopViewAtom)
 
-  const handleClick = useCallback(async () => {
-    const apiBase = await window.desktopApi.getApiBaseUrl()
-    window.desktopApi.openExternal(`${apiBase}/agents/app/async/automations`)
-  }, [])
+  const handleClick = useCallback(() => {
+    setSelectedChatId(null)
+    setSelectedDraftId(null)
+    setShowNewChatForm(false)
+    setDesktopView("automations")
+  }, [setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
 
   if (!automationsEnabled) return null
+
+  const isActive = desktopView === "automations" || desktopView === "automations-detail"
 
   return (
     <button
       type="button"
       onClick={handleClick}
       className={cn(
-        "group flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150",
-        "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+        "flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150",
+        isActive
+          ? "bg-foreground/5 text-foreground"
+          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
       )}
     >
       <SidebarAutomationsIcon className="h-4 w-4" />
-      <span className="flex-1 text-left">Automations</span>
-      <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150" />
+      <span className="flex-1 text-left">{t('navigation.automations')}</span>
     </button>
   )
 })
@@ -1322,6 +1452,7 @@ interface ArchiveSectionProps {
 }
 
 const ArchiveSection = memo(function ArchiveSection({ archivedChatsCount }: ArchiveSectionProps) {
+  const { t } = useTranslation('sidebar')
   const archivePopoverOpen = useAtomValue(archivePopoverOpenAtom)
   const [blockArchiveTooltip, setBlockArchiveTooltip] = useState(false)
   const prevArchivePopoverOpen = useRef(false)
@@ -1353,7 +1484,7 @@ const ArchiveSection = memo(function ArchiveSection({ archivedChatsCount }: Arch
           />
         </div>
       </TooltipTrigger>
-      <TooltipContent>Archive</TooltipContent>
+      <TooltipContent>{t('archive.title')}</TooltipContent>
     </Tooltip>
   )
 })
@@ -1393,9 +1524,11 @@ const SidebarHeader = memo(function SidebarHeader({
   handleSidebarMouseLeave,
   closeButtonRef,
 }: SidebarHeaderProps) {
+  const { t } = useTranslation('sidebar')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const showOfflineFeatures = useAtomValue(showOfflineModeFeaturesAtom)
   const toggleSidebarHotkey = useResolvedHotkeyDisplay("toggle-sidebar")
+  const selectedProject = useAtomValue(selectedProjectAtom)
 
   // Handle login button click (for skipped auth mode) - navigate to Account settings
   const handleLoginClick = () => {
@@ -1448,13 +1581,13 @@ const SidebarHeader = memo(function SidebarHeader({
                 onClick={onToggleSidebar}
                 tabIndex={-1}
                 className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
-                aria-label="Close sidebar"
+                aria-label={t('chats.closeSidebar')}
               >
                 <IconDoubleChevronLeft className="h-4 w-4" />
               </ButtonCustom>
             </TooltipTrigger>
             <TooltipContent>
-              Close sidebar
+              {t('chats.closeSidebar')}
               {toggleSidebarHotkey && <Kbd>{toggleSidebarHotkey}</Kbd>}
             </TooltipContent>
           </Tooltip>
@@ -1570,6 +1703,21 @@ const SidebarHeader = memo(function SidebarHeader({
                       <SettingsIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       Settings
                     </DropdownMenuItem>
+
+                    {/* Project Settings - only show when a project is selected */}
+                    {selectedProject && !selectedProject.isPlayground && (
+                      <DropdownMenuItem
+                        className="gap-2"
+                        onSelect={() => {
+                          setIsDropdownOpen(false)
+                          setSettingsActiveTab("projects")
+                          setSettingsDialogOpen(true)
+                        }}
+                      >
+                        <FolderFilledIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        Project Settings
+                      </DropdownMenuItem>
+                    )}
 
                     {/* Help Submenu */}
                     <DropdownMenuSub>
@@ -1724,6 +1872,7 @@ interface HelpSectionProps {
 }
 
 const HelpSection = memo(function HelpSection({ isMobile }: HelpSectionProps) {
+  const { t } = useTranslation('sidebar')
   const [helpPopoverOpen, setHelpPopoverOpen] = useAtom(agentsHelpPopoverOpenAtom)
   const [blockHelpTooltip, setBlockHelpTooltip] = useState(false)
   const prevHelpPopoverOpen = useRef(false)
@@ -1764,7 +1913,7 @@ const HelpSection = memo(function HelpSection({ isMobile }: HelpSectionProps) {
           </AgentsHelpPopover>
         </div>
       </TooltipTrigger>
-      <TooltipContent>Help</TooltipContent>
+      <TooltipContent>{t('navigation.help')}</TooltipContent>
     </Tooltip>
   )
 })
@@ -1783,6 +1932,8 @@ export function AgentsSidebar({
   isMobileFullscreen = false,
   onChatSelect,
 }: AgentsSidebarProps) {
+  const { t } = useTranslation('sidebar')
+
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const [selectedChatIsRemote, setSelectedChatIsRemote] = useAtom(selectedChatIsRemoteAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
@@ -1790,7 +1941,13 @@ export function AgentsSidebar({
   const [selectedDraftId, setSelectedDraftId] = useAtom(selectedDraftIdAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
+  const desktopView = useAtomValue(desktopViewAtom)  // Read desktopView for navigation state
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
+  // Derive which chats have loading sub-chats (must be defined before renderGroupChats)
+  const loadingChatIds = useMemo(
+    () => new Set([...loadingSubChats.values()]),
+    [loadingSubChats],
+  )
   const pendingQuestions = useAtomValue(pendingUserQuestionsAtom)
   // Use ref instead of state to avoid re-renders on hover
   const isSidebarHoveredRef = useRef(false)
@@ -1824,6 +1981,10 @@ export function AgentsSidebar({
   // Read unseen changes from global atoms
   const unseenChanges = useAtomValue(agentsUnseenChangesAtom)
   const justCreatedIds = useAtomValue(justCreatedIdsAtom)
+
+  // Grouping view state
+  const isGroupedView = useAtomValue(workspaceGroupedViewAtom)
+  const groupMode = useAtomValue(workspaceGroupModeAtom)
 
   // Haptic feedback
   const { trigger: triggerHaptic } = useHaptic()
@@ -1959,7 +2120,28 @@ export function AgentsSidebar({
   }, [getOrCreatePlaygroundMutation, getOrCreatePlaygroundChatMutation, setCurrentProjectMode, setSelectedProject, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setSubChatsSidebarMode, setDesktopView])
 
   // Check if currently in chat mode with playground selected
-  const isChatsActive = currentProjectMode === "chat" && selectedProject?.isPlayground === true
+  // Only active when no special desktop view (home, inbox, automations, settings, etc.)
+  const isChatsActive = currentProjectMode === "chat" && selectedProject?.isPlayground === true && desktopView === null
+
+  // Handle creating a new chat - navigate to new chat form with chat mode selected
+  const handleNewChat = useCallback(() => {
+    triggerHaptic("light")
+    setCurrentProjectMode("chat")
+    setSelectedChatId(null)
+    setSelectedDraftId(null)
+    setShowNewChatForm(true)
+    setDesktopView(null)
+  }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
+
+  // Handle creating a new workspace - navigate to new chat form with cowork mode selected
+  const handleNewWorkspace = useCallback(() => {
+    triggerHaptic("light")
+    setCurrentProjectMode("cowork")
+    setSelectedChatId(null)
+    setSelectedDraftId(null)
+    setShowNewChatForm(true)
+    setDesktopView(null)
+  }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
 
   // Fetch user's teams (same as web) - always enabled to allow merged list
   const { data: teams, isLoading: isTeamsLoading, isError: isTeamsError } = useUserTeams(true)
@@ -2658,34 +2840,9 @@ export function AgentsSidebar({
     [setSelectedChatId, setSelectedDraftId, setShowNewChatForm, isMobileFullscreen, onChatSelect],
   )
 
-  // Reset focused index when search query changes
-  useEffect(() => {
-    setFocusedChatIndex(-1)
-  }, [searchQuery, filteredChats.length])
-
-  // Scroll focused item into view
-  useEffect(() => {
-    if (focusedChatIndex >= 0 && filteredChats.length > 0) {
-      const focusedElement = scrollContainerRef.current?.querySelector(
-        `[data-chat-index="${focusedChatIndex}"]`,
-      ) as HTMLElement
-      if (focusedElement) {
-        focusedElement.scrollIntoView({
-          block: "nearest",
-          behavior: "smooth",
-        })
-      }
-    }
-  }, [focusedChatIndex, filteredChats.length])
-
-  // Derive which chats have loading sub-chats
-  const loadingChatIds = useMemo(
-    () => new Set([...loadingSubChats.values()]),
-    [loadingSubChats],
-  )
-
   // Convert file stats to a Map for easy lookup (only for local chats)
   // Remote chat stats are provided directly via chat.remoteStats
+  // NOTE: Must be defined before renderGroupChats which depends on it
   const workspaceFileStats = useMemo(() => {
     const statsMap = new Map<string, { fileCount: number; additions: number; deletions: number; totalTokens: number }>()
 
@@ -2705,6 +2862,7 @@ export function AgentsSidebar({
   }, [fileStatsData])
 
   // Aggregate pending plan approvals by workspace (chatId) from DB
+  // NOTE: Must be defined before renderGroupChats which depends on it
   const workspacePendingPlans = useMemo(() => {
     const chatIdsWithPendingPlans = new Set<string>()
     if (pendingPlanApprovalsData) {
@@ -2716,6 +2874,7 @@ export function AgentsSidebar({
   }, [pendingPlanApprovalsData])
 
   // Get workspace IDs that have pending user questions
+  // NOTE: Must be defined before renderGroupChats which depends on it
   const workspacePendingQuestions = useMemo(() => {
     const chatIds = new Set<string>()
     for (const question of pendingQuestions.values()) {
@@ -2723,6 +2882,26 @@ export function AgentsSidebar({
     }
     return chatIds
   }, [pendingQuestions])
+
+  // Reset focused index when search query changes
+  useEffect(() => {
+    setFocusedChatIndex(-1)
+  }, [searchQuery, filteredChats.length])
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedChatIndex >= 0 && filteredChats.length > 0) {
+      const focusedElement = scrollContainerRef.current?.querySelector(
+        `[data-chat-index="${focusedChatIndex}"]`,
+      ) as HTMLElement
+      if (focusedElement) {
+        focusedElement.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        })
+      }
+    }
+  }, [focusedChatIndex, filteredChats.length])
 
   const handleNewAgent = () => {
     triggerHaptic("light")
@@ -3038,6 +3217,143 @@ export function AgentsSidebar({
     }
   }, [])
 
+  // Render chats within a group (for GroupedChatList)
+  // NOTE: Must be defined after all handler functions it depends on
+  const renderGroupChats = useCallback(
+    (groupChats: typeof unpinnedAgents, _groupId: string) => {
+      // Pre-compute global indices map to avoid O(n²) findIndex in map()
+      const globalIndexMap = new Map<string, number>()
+      filteredChats.forEach((c, i) => globalIndexMap.set(c.id, i))
+
+      return groupChats.map((chat) => {
+        const isLoading = loadingChatIds.has(chat.id)
+        const chatOriginalId = chat.isRemote ? chat.id.replace(/^remote_/, '') : chat.id
+        const isSelected = selectedChatId === chatOriginalId && selectedChatIsRemote === chat.isRemote
+        const isPinned = pinnedChatIds.has(chat.id)
+        const globalIndex = globalIndexMap.get(chat.id) ?? -1
+        const isFocused = focusedChatIndex === globalIndex && focusedChatIndex >= 0
+
+        const project = chat.projectId ? projectsMap.get(chat.projectId) : null
+        const repoName = chat.isRemote
+          ? chat.meta?.repository
+          : (project?.gitRepo || project?.name)
+        const displayText = chat.branch
+          ? repoName
+            ? `${repoName} • ${chat.branch}`
+            : chat.branch
+          : repoName || (chat.isRemote ? "Remote project" : "Local project")
+
+        const isChecked = selectedChatIds.has(chat.id)
+        const stats = chat.isRemote ? chat.remoteStats : workspaceFileStats.get(chat.id)
+        const hasPendingPlan = workspacePendingPlans.has(chat.id)
+        const hasPendingQuestion = workspacePendingQuestions.has(chat.id)
+        const isLastInFilteredChats = globalIndex === filteredChats.length - 1
+        const isJustCreated = justCreatedIds.has(chat.id)
+
+        const gitOwner = chat.isRemote
+          ? chat.meta?.repository?.split('/')[0]
+          : project?.gitOwner
+        const gitProvider = chat.isRemote ? 'github' : project?.gitProvider
+
+        return (
+          <AgentChatItem
+            key={chat.id}
+            chatId={chat.id}
+            chatName={chat.name}
+            chatBranch={chat.branch}
+            chatUpdatedAt={chat.updatedAt}
+            chatProjectId={chat.projectId ?? ""}
+            chatTagId={chat.tagId ?? null}
+            globalIndex={globalIndex}
+            isSelected={isSelected}
+            isLoading={isLoading}
+            hasUnseenChanges={unseenChanges.has(chat.id)}
+            hasPendingPlan={hasPendingPlan}
+            hasPendingQuestion={hasPendingQuestion}
+            isMultiSelectMode={isMultiSelectMode}
+            isChecked={isChecked}
+            isFocused={isFocused}
+            isMobileFullscreen={isMobileFullscreen}
+            isDesktop={isDesktop}
+            isPinned={isPinned}
+            displayText={displayText}
+            gitOwner={project?.gitOwner ?? gitOwner}
+            gitProvider={project?.gitProvider ?? gitProvider}
+            projectMode={project?.mode}
+            stats={stats ?? undefined}
+            selectedChatIdsSize={selectedChatIds.size}
+            canShowPinOption={canShowPinOption}
+            areAllSelectedPinned={areAllSelectedPinned}
+            filteredChatsLength={filteredChats.length}
+            isLastInFilteredChats={isLastInFilteredChats}
+            showIcon={showWorkspaceIcon}
+            onChatClick={handleChatClick}
+            onCheckboxClick={handleCheckboxClick}
+            onMouseEnter={handleAgentMouseEnter}
+            onMouseLeave={handleAgentMouseLeave}
+            onArchive={handleArchiveSingle}
+            onTogglePin={handleTogglePin}
+            onRenameClick={handleRenameClick}
+            onCopyBranch={handleCopyBranch}
+            onArchiveAllBelow={handleArchiveAllBelow}
+            onArchiveOthers={handleArchiveOthers}
+            onOpenLocally={handleOpenLocally}
+            onBulkPin={handleBulkPin}
+            onBulkUnpin={handleBulkUnpin}
+            onBulkArchive={handleBulkArchive}
+            archivePending={archiveChatMutation.isPending || archiveRemoteChatMutation.isPending}
+            archiveBatchPending={archiveChatsBatchMutation.isPending || archiveRemoteChatsBatchMutation.isPending}
+            isRemote={chat.isRemote}
+            nameRefCallback={nameRefCallback}
+            formatTime={formatTime}
+            isJustCreated={isJustCreated}
+          />
+        )
+      })
+    },
+    [
+      filteredChats,
+      loadingChatIds,
+      selectedChatId,
+      selectedChatIsRemote,
+      pinnedChatIds,
+      focusedChatIndex,
+      projectsMap,
+      selectedChatIds,
+      workspaceFileStats,
+      workspacePendingPlans,
+      workspacePendingQuestions,
+      justCreatedIds,
+      unseenChanges,
+      isMultiSelectMode,
+      isMobileFullscreen,
+      isDesktop,
+      canShowPinOption,
+      areAllSelectedPinned,
+      showWorkspaceIcon,
+      handleChatClick,
+      handleCheckboxClick,
+      handleAgentMouseEnter,
+      handleAgentMouseLeave,
+      handleArchiveSingle,
+      handleTogglePin,
+      handleRenameClick,
+      handleCopyBranch,
+      handleArchiveAllBelow,
+      handleArchiveOthers,
+      handleOpenLocally,
+      handleBulkPin,
+      handleBulkUnpin,
+      handleBulkArchive,
+      archiveChatMutation.isPending,
+      archiveRemoteChatMutation.isPending,
+      archiveChatsBatchMutation.isPending,
+      archiveRemoteChatsBatchMutation.isPending,
+      nameRefCallback,
+      formatTime,
+    ],
+  )
+
   // Update sidebar hover UI - DOM manipulation for close button, state for TrafficLights
   // TrafficLights component handles native traffic light visibility via its own effect
   // Update sidebar hover UI via DOM manipulation (no state update to avoid re-renders)
@@ -3283,7 +3599,7 @@ export function AgentsSidebar({
           <div className="relative">
             <Input
               ref={searchInputRef}
-              placeholder="Search workspaces..."
+              placeholder={t('workspaces.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -3348,11 +3664,11 @@ export function AgentsSidebar({
                   isMobileFullscreen ? "h-10" : "h-7",
                 )}
               >
-                <span className="text-sm font-medium">New Workspace</span>
+                <span className="text-sm font-medium">{t('workspaces.new')}</span>
               </ButtonCustom>
             </TooltipTrigger>
             <TooltipContent side="right" className="flex flex-col items-start gap-1">
-              <span>Start a new workspace</span>
+              <span>{t('workspaces.startNew')}</span>
               {newWorkspaceHotkey && (
                 <span className="flex items-center gap-1.5">
                   <Kbd>{newWorkspaceHotkey}</Kbd>
@@ -3364,18 +3680,23 @@ export function AgentsSidebar({
         </div>
       </div>
 
-      {/* Navigation Links - Chats, Inbox & Automations */}
+      {/* Navigation Links - Home, Chats, Inbox & Automations */}
       <div className="px-2 pb-3 shrink-0 space-y-0.5 -mx-1">
+        <HomeButton />
         {playgroundSubChats && playgroundSubChats.length > 0 && (
           <ChatsButton
             count={playgroundSubChats.length}
             onClick={handleChatsClick}
+            onNewChat={handleNewChat}
             isActive={isChatsActive}
           />
         )}
         <InboxButton />
         <AutomationsButton />
       </div>
+
+      {/* Divider between navigation and workspaces */}
+      <div className="border-t border-border/50 my-2" />
 
       {/* Scrollable Agents List */}
       <div className="flex-1 min-h-0 relative">
@@ -3397,7 +3718,7 @@ export function AgentsSidebar({
                 )}
               >
                 <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  Drafts
+                  {t('drafts.title')}
                 </h3>
               </div>
               <div className="list-none p-0 m-0">
@@ -3427,9 +3748,25 @@ export function AgentsSidebar({
           {/* Workspaces Section */}
           {filteredChats.length > 0 ? (
             <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
+              {/* Workspaces header with + button */}
+              <div className={cn(
+                "flex items-center justify-between h-6 mb-1",
+                isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-1",
+              )}>
+                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  {t('workspaces.title')}
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleNewWorkspace}
+                  className="p-0.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors duration-150"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
               {/* Pinned section */}
               <ChatListSection
-                title="Pinned workspaces"
+                title={t('workspaces.pinned')}
                 chats={pinnedAgents}
                 selectedChatId={selectedChatId}
                 selectedChatIsRemote={selectedChatIsRemote}
@@ -3470,48 +3807,57 @@ export function AgentsSidebar({
                 justCreatedIds={justCreatedIds}
               />
 
-              {/* Unpinned section */}
-              <ChatListSection
-                title={pinnedAgents.length > 0 ? "Recent workspaces" : "Workspaces"}
-                chats={unpinnedAgents}
-                selectedChatId={selectedChatId}
-                selectedChatIsRemote={selectedChatIsRemote}
-                focusedChatIndex={focusedChatIndex}
-                loadingChatIds={loadingChatIds}
-                unseenChanges={unseenChanges}
-                workspacePendingPlans={workspacePendingPlans}
-                workspacePendingQuestions={workspacePendingQuestions}
-                isMultiSelectMode={isMultiSelectMode}
-                selectedChatIds={selectedChatIds}
-                isMobileFullscreen={isMobileFullscreen}
-                isDesktop={isDesktop}
-                pinnedChatIds={pinnedChatIds}
-                projectsMap={projectsMap}
-                workspaceFileStats={workspaceFileStats}
-                filteredChats={filteredChats}
-                canShowPinOption={canShowPinOption}
-                areAllSelectedPinned={areAllSelectedPinned}
-                showIcon={showWorkspaceIcon}
-                onChatClick={handleChatClick}
-                onCheckboxClick={handleCheckboxClick}
-                onMouseEnter={handleAgentMouseEnter}
-                onMouseLeave={handleAgentMouseLeave}
-                onArchive={handleArchiveSingle}
-                onTogglePin={handleTogglePin}
-                onRenameClick={handleRenameClick}
-                onCopyBranch={handleCopyBranch}
-                onArchiveAllBelow={handleArchiveAllBelow}
-                onArchiveOthers={handleArchiveOthers}
-                onOpenLocally={handleOpenLocally}
-                onBulkPin={handleBulkPin}
-                onBulkUnpin={handleBulkUnpin}
-                onBulkArchive={handleBulkArchive}
-                archivePending={archiveChatMutation.isPending || archiveRemoteChatMutation.isPending}
-                archiveBatchPending={archiveChatsBatchMutation.isPending || archiveRemoteChatsBatchMutation.isPending}
-                nameRefCallback={nameRefCallback}
-                formatTime={formatTime}
-                justCreatedIds={justCreatedIds}
-              />
+              {/* Unpinned section - grouped or flat */}
+              {isGroupedView ? (
+                <GroupedChatList
+                  chats={unpinnedAgents}
+                  projectsMap={projectsMap}
+                  renderGroupChats={renderGroupChats}
+                  isMultiSelectMode={isMultiSelectMode}
+                />
+              ) : (
+                <ChatListSection
+                  title={pinnedAgents.length > 0 ? t('workspaces.recent') : ""}
+                  chats={unpinnedAgents}
+                  selectedChatId={selectedChatId}
+                  selectedChatIsRemote={selectedChatIsRemote}
+                  focusedChatIndex={focusedChatIndex}
+                  loadingChatIds={loadingChatIds}
+                  unseenChanges={unseenChanges}
+                  workspacePendingPlans={workspacePendingPlans}
+                  workspacePendingQuestions={workspacePendingQuestions}
+                  isMultiSelectMode={isMultiSelectMode}
+                  selectedChatIds={selectedChatIds}
+                  isMobileFullscreen={isMobileFullscreen}
+                  isDesktop={isDesktop}
+                  pinnedChatIds={pinnedChatIds}
+                  projectsMap={projectsMap}
+                  workspaceFileStats={workspaceFileStats}
+                  filteredChats={filteredChats}
+                  canShowPinOption={canShowPinOption}
+                  areAllSelectedPinned={areAllSelectedPinned}
+                  showIcon={showWorkspaceIcon}
+                  onChatClick={handleChatClick}
+                  onCheckboxClick={handleCheckboxClick}
+                  onMouseEnter={handleAgentMouseEnter}
+                  onMouseLeave={handleAgentMouseLeave}
+                  onArchive={handleArchiveSingle}
+                  onTogglePin={handleTogglePin}
+                  onRenameClick={handleRenameClick}
+                  onCopyBranch={handleCopyBranch}
+                  onArchiveAllBelow={handleArchiveAllBelow}
+                  onArchiveOthers={handleArchiveOthers}
+                  onOpenLocally={handleOpenLocally}
+                  onBulkPin={handleBulkPin}
+                  onBulkUnpin={handleBulkUnpin}
+                  onBulkArchive={handleBulkArchive}
+                  archivePending={archiveChatMutation.isPending || archiveRemoteChatMutation.isPending}
+                  archiveBatchPending={archiveChatsBatchMutation.isPending || archiveRemoteChatsBatchMutation.isPending}
+                  nameRefCallback={nameRefCallback}
+                  formatTime={formatTime}
+                  justCreatedIds={justCreatedIds}
+                />
+              )}
             </div>
           ) : null}
         </div>
@@ -3530,6 +3876,9 @@ export function AgentsSidebar({
         />
       </div>
 
+      {/* Divider above footer */}
+      <div className="border-t border-border/50" />
+
       {/* Footer - Multi-select toolbar or normal footer */}
       <AnimatePresence mode="wait">
         {isMultiSelectMode ? (
@@ -3547,13 +3896,13 @@ export function AgentsSidebar({
             {/* Selection info */}
             <div className="flex items-center justify-between px-1">
               <span className="text-xs text-muted-foreground">
-                {selectedChatsCount} selected
+                {t('multiSelect.selected', { count: selectedChatsCount })}
               </span>
               <button
                 onClick={clearChatSelection}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                Cancel
+                {t('multiSelect.cancel')}
               </button>
             </div>
 
@@ -3568,8 +3917,8 @@ export function AgentsSidebar({
               >
                 <ArchiveIcon className="h-3.5 w-3.5" />
                 {archiveChatsBatchMutation.isPending
-                  ? "Archiving..."
-                  : "Archive"}
+                  ? t('workspaces.archiving')
+                  : t('archive.title')}
               </Button>
             </div>
           </motion.div>
@@ -3587,6 +3936,7 @@ export function AgentsSidebar({
           >
             {/* Footer: icon buttons */}
             <div className="flex items-center gap-1">
+                {/* Left side buttons */}
                 <Tooltip delayDuration={500}>
                   <TooltipTrigger asChild>
                     <button
@@ -3600,12 +3950,18 @@ export function AgentsSidebar({
                       <SettingsIcon className="h-4 w-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>Settings{settingsHotkey && <> <Kbd>{settingsHotkey}</Kbd></>}</TooltipContent>
+                  <TooltipContent>{t('navigation.settings')}{settingsHotkey && <> <Kbd>{settingsHotkey}</Kbd></>}</TooltipContent>
                 </Tooltip>
 
                 <HelpSection isMobile={isMobileFullscreen} />
                 <KanbanButton />
                 <ArchiveSection archivedChatsCount={archivedChatsCount} />
+
+                {/* Spacer */}
+                <div className="flex-1" />
+
+                {/* Right side button */}
+                <GroupingToggle />
             </div>
           </motion.div>
         )}
@@ -3665,6 +4021,7 @@ export function AgentsSidebar({
         allProjects={projects ?? []}
         remoteSubChatId={null}
       />
+
     </>
   )
 }

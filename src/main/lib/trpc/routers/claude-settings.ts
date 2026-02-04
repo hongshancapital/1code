@@ -72,6 +72,17 @@ async function readProjectSettings(cwd: string): Promise<ClaudeSettings> {
 }
 
 /**
+ * Write project-level settings.json file
+ * Creates the .claude directory if it doesn't exist
+ */
+async function writeProjectSettings(cwd: string, settings: Record<string, unknown>): Promise<void> {
+  const projectClaudeDir = path.join(cwd, ".claude")
+  const projectSettingsPath = path.join(projectClaudeDir, "settings.json")
+  await fs.mkdir(projectClaudeDir, { recursive: true })
+  await fs.writeFile(projectSettingsPath, JSON.stringify(settings, null, 2), "utf-8")
+}
+
+/**
  * Merge user and project settings (project overrides user)
  */
 function mergeSettings(user: ClaudeSettings, project: ClaudeSettings): ClaudeSettings {
@@ -366,24 +377,34 @@ export const claudeSettingsRouter = router({
 
   /**
    * Set a skill's enabled state
+   * If cwd is provided, writes to project-level settings, otherwise writes to user settings
    */
   setSkillEnabled: publicProcedure
     .input(z.object({
       skillName: z.string(),
       enabled: z.boolean(),
+      cwd: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const settings = await readClaudeSettings()
-      const enabledSkills = settings.enabledSkills || {}
+      if (input.cwd) {
+        // Write to project-level settings
+        const projectSettings = await readProjectSettings(input.cwd)
+        const enabledSkills = projectSettings.enabledSkills || {}
+        enabledSkills[input.skillName] = input.enabled
+        projectSettings.enabledSkills = enabledSkills
+        await writeProjectSettings(input.cwd, projectSettings)
+      } else {
+        // Write to user-level settings
+        const settings = await readClaudeSettings()
+        const enabledSkills = settings.enabledSkills || {}
+        enabledSkills[input.skillName] = input.enabled
+        settings.enabledSkills = enabledSkills
+        await writeClaudeSettings(settings)
 
-      enabledSkills[input.skillName] = input.enabled
-
-      settings.enabledSkills = enabledSkills
-      await writeClaudeSettings(settings)
-
-      // Sync builtin skills to ~/.claude/skills/ for SDK discovery
-      const { syncBuiltinSkillEnabled } = await import("./skills")
-      await syncBuiltinSkillEnabled(input.skillName, input.enabled)
+        // Sync builtin skills to ~/.claude/skills/ for SDK discovery
+        const { syncBuiltinSkillEnabled } = await import("./skills")
+        await syncBuiltinSkillEnabled(input.skillName, input.enabled)
+      }
 
       return { success: true }
     }),
