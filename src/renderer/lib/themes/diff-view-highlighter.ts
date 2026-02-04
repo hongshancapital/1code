@@ -24,8 +24,6 @@ const SHIKI_THEMES: BundledTheme[] = [
  * Map our custom theme IDs to Shiki bundled themes
  */
 const THEME_TO_SHIKI_MAP: Record<string, BundledTheme> = {
-  "21st-dark": "github-dark",
-  "21st-light": "github-light",
   "claude-dark": "github-dark",
   "claude-light": "github-light",
   "vesper-dark": "vesper",

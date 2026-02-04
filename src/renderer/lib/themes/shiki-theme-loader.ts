@@ -98,9 +98,6 @@ const THEME_TO_SHIKI_MAP: Record<string, shiki.BundledTheme> = {
   // HS light uses standard GitHub light for dark text on light background
   "hs-dark": "github-dark-high-contrast",
   "hs-light": "github-light",
-  // Legacy 21st themes use GitHub themes (no tokenColors)
-  "21st-dark": "github-dark",
-  "21st-light": "github-light",
   // Claude themes use GitHub themes (no tokenColors)
   "claude-dark": "github-dark",
   "claude-light": "github-light",
