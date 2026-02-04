@@ -1,6 +1,7 @@
 "use client"
 
 import React, { memo, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { Check, Tag, Plus, type LucideIcon } from "lucide-react"
 import * as LucideIcons from "lucide-react"
 import {
@@ -163,6 +164,8 @@ interface TagSelectorSubmenuProps {
   onManageTags?: () => void
   /** Optional class name */
   className?: string
+  /** Hide preset color tags (for subchats that use M:N table with FK constraint) */
+  hidePresetTags?: boolean
 }
 
 export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
@@ -170,7 +173,9 @@ export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
   onTagSelect,
   onManageTags,
   className,
+  hidePresetTags = false,
 }: TagSelectorSubmenuProps) {
+  const { t } = useTranslation("sidebar")
   // Fetch custom tags from database
   const { data: customTags } = trpc.tags.listTags.useQuery()
 
@@ -194,41 +199,43 @@ export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
     <ContextMenuSub>
       <ContextMenuSubTrigger className={className}>
         <Tag className="h-4 w-4 mr-2" />
-        标签
+        {t("tags.title")}
       </ContextMenuSubTrigger>
       <ContextMenuSubContent className="p-2" sideOffset={6} alignOffset={-4}>
         {/* Preset tags in a row - wrapped in ContextMenuItems for proper event handling */}
-        <div className="flex gap-1.5 pb-1">
-          {PRESET_TAGS.map((tag) => {
-            const isSelected = currentTagId === tag.id
-            return (
-              <ContextMenuItem
-                key={tag.id}
-                className={cn(
-                  "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
-                  "hover:scale-110 focus:scale-110",
-                  isSelected && "ring-2 ring-primary ring-offset-1",
-                )}
-                style={{ backgroundColor: tag.color }}
-                onSelect={(e) => {
-                  e.preventDefault()
-                  handleTagClick(tag.id)
-                }}
-              >
-                {isSelected ? (
-                  <Check className="w-4 h-4 text-white" />
-                ) : (
-                  <LucideIcons.Tag className="w-4 h-4 text-white/70" />
-                )}
-              </ContextMenuItem>
-            )
-          })}
-        </div>
+        {!hidePresetTags && (
+          <div className="flex gap-1.5 pb-1">
+            {PRESET_TAGS.map((tag) => {
+              const isSelected = currentTagId === tag.id
+              return (
+                <ContextMenuItem
+                  key={tag.id}
+                  className={cn(
+                    "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
+                    "hover:scale-110 focus:scale-110",
+                    isSelected && "ring-2 ring-primary ring-offset-1",
+                  )}
+                  style={{ backgroundColor: tag.color }}
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    handleTagClick(tag.id)
+                  }}
+                >
+                  {isSelected ? (
+                    <Check className="w-4 h-4 text-white" />
+                  ) : (
+                    <LucideIcons.Tag className="w-4 h-4 text-white/70" />
+                  )}
+                </ContextMenuItem>
+              )
+            })}
+          </div>
+        )}
 
         {/* Custom tags from database */}
         {customTags && customTags.length > 0 && (
           <>
-            <ContextMenuSeparator className="my-2" />
+            {!hidePresetTags && <ContextMenuSeparator className="my-2" />}
             <div className="flex flex-wrap gap-1.5">
               {customTags.map((tag) => {
                 const isSelected = currentTagId === `custom_${tag.id}`
@@ -265,14 +272,14 @@ export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
 
         {currentTagId && (
           <ContextMenuItem onSelect={() => handleClear()} className="text-muted-foreground">
-            清除标签
+            {t("tags.clear")}
           </ContextMenuItem>
         )}
 
         {onManageTags && (
           <ContextMenuItem onSelect={() => onManageTags()}>
             <Plus className="h-4 w-4 mr-2" />
-            管理标签...
+            {t("tags.manage")}
           </ContextMenuItem>
         )}
       </ContextMenuSubContent>
@@ -297,7 +304,9 @@ export const TagSelectorDropdownSubmenu = memo(function TagSelectorDropdownSubme
   onTagSelect,
   onManageTags,
   className,
+  hidePresetTags = false,
 }: TagSelectorDropdownSubmenuProps) {
+  const { t } = useTranslation("sidebar")
   const { data: customTags } = trpc.tags.listTags.useQuery()
 
   const handleTagClick = useCallback(
@@ -319,39 +328,41 @@ export const TagSelectorDropdownSubmenu = memo(function TagSelectorDropdownSubme
     <DropdownMenuSub>
       <DropdownMenuSubTrigger className={className}>
         <Tag className="h-4 w-4 mr-2" />
-        标签
+        {t("tags.title")}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="p-2">
-        <div className="flex gap-1.5 pb-1">
-          {PRESET_TAGS.map((tag) => {
-            const isSelected = currentTagId === tag.id
-            return (
-              <DropdownMenuItem
-                key={tag.id}
-                className={cn(
-                  "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
-                  "hover:scale-110 focus:scale-110",
-                  isSelected && "ring-2 ring-primary ring-offset-1",
-                )}
-                style={{ backgroundColor: tag.color }}
-                onSelect={(e) => {
-                  e.preventDefault()
-                  handleTagClick(tag.id)
-                }}
-              >
-                {isSelected ? (
-                  <Check className="w-4 h-4 text-white" />
-                ) : (
-                  <LucideIcons.Tag className="w-4 h-4 text-white/70" />
-                )}
-              </DropdownMenuItem>
-            )
-          })}
-        </div>
+        {!hidePresetTags && (
+          <div className="flex gap-1.5 pb-1">
+            {PRESET_TAGS.map((tag) => {
+              const isSelected = currentTagId === tag.id
+              return (
+                <DropdownMenuItem
+                  key={tag.id}
+                  className={cn(
+                    "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
+                    "hover:scale-110 focus:scale-110",
+                    isSelected && "ring-2 ring-primary ring-offset-1",
+                  )}
+                  style={{ backgroundColor: tag.color }}
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    handleTagClick(tag.id)
+                  }}
+                >
+                  {isSelected ? (
+                    <Check className="w-4 h-4 text-white" />
+                  ) : (
+                    <LucideIcons.Tag className="w-4 h-4 text-white/70" />
+                  )}
+                </DropdownMenuItem>
+              )
+            })}
+          </div>
+        )}
 
         {customTags && customTags.length > 0 && (
           <>
-            <DropdownMenuSeparator className="my-2" />
+            {!hidePresetTags && <DropdownMenuSeparator className="my-2" />}
             <div className="flex flex-wrap gap-1.5">
               {customTags.map((tag) => {
                 const isSelected = currentTagId === `custom_${tag.id}`
@@ -387,14 +398,14 @@ export const TagSelectorDropdownSubmenu = memo(function TagSelectorDropdownSubme
 
         {currentTagId && (
           <DropdownMenuItem onSelect={() => handleClear()} className="text-muted-foreground">
-            清除标签
+            {t("tags.clear")}
           </DropdownMenuItem>
         )}
 
         {onManageTags && (
           <DropdownMenuItem onSelect={() => onManageTags()}>
             <Plus className="h-4 w-4 mr-2" />
-            管理标签...
+            {t("tags.manage")}
           </DropdownMenuItem>
         )}
       </DropdownMenuSubContent>

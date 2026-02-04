@@ -1,4 +1,5 @@
-import React, { useMemo, useCallback } from "react"
+import { useMemo, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -70,6 +71,7 @@ export function SubChatContextMenu({
   canCloseOtherTabs = false,
   chatId,
 }: SubChatContextMenuProps) {
+  const { t } = useTranslation("sidebar")
   const closeTabShortcut = useCloseTabShortcut()
 
   const handleExport = useCallback((format: ExportFormat) => {
@@ -85,40 +87,40 @@ export function SubChatContextMenu({
   return (
     <ContextMenuContent className="w-48">
       <ContextMenuItem onClick={() => onTogglePin(subChat.id)}>
-        {isPinned ? "Unpin chat" : "Pin chat"}
+        {isPinned ? t('chats.unpin') : t('chats.pin')}
       </ContextMenuItem>
       <ContextMenuItem onClick={() => onRename(subChat)}>
-        Rename chat
+        {t('chats.rename')}
       </ContextMenuItem>
       {chatId && (
         <ContextMenuSub>
-          <ContextMenuSubTrigger>Export chat</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t('chats.export.title')}</ContextMenuSubTrigger>
           <ContextMenuSubContent sideOffset={6} alignOffset={-4}>
             <ContextMenuItem onClick={() => handleExport("markdown")}>
-              Download as Markdown
+              {t('chats.export.markdown')}
             </ContextMenuItem>
             <ContextMenuItem onClick={() => handleExport("json")}>
-              Download as JSON
+              {t('chats.export.json')}
             </ContextMenuItem>
             <ContextMenuItem onClick={() => handleExport("text")}>
-              Download as Text
+              {t('chats.export.text')}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => handleCopy("markdown")}>
-              Copy as Markdown
+              {t('chats.export.copyMarkdown')}
             </ContextMenuItem>
             <ContextMenuItem onClick={() => handleCopy("json")}>
-              Copy as JSON
+              {t('chats.export.copyJson')}
             </ContextMenuItem>
             <ContextMenuItem onClick={() => handleCopy("text")}>
-              Copy as Text
+              {t('chats.export.copyText')}
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
       )}
       {isDesktopApp() && chatId && (
         <ContextMenuItem onClick={() => openInNewWindow(chatId, subChat.id)}>
-          Open in new window
+          {t('chats.openNewWindow')}
         </ContextMenuItem>
       )}
       <ContextMenuSeparator />
@@ -130,20 +132,20 @@ export function SubChatContextMenu({
             className="justify-between"
             disabled={isOnlyChat}
           >
-            Close chat
+            {t('chats.close')}
             {!isOnlyChat && <Kbd>{closeTabShortcut}</Kbd>}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => onCloseOtherTabs?.(subChat.id)}
             disabled={!canCloseOtherTabs}
           >
-            Close other chats
+            {t('chats.closeOthers')}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => onCloseTabsToRight?.(subChat.id, visualIndex)}
             disabled={!hasTabsToRight}
           >
-            Close chats to the right
+            {t('chats.closeRight')}
           </ContextMenuItem>
         </>
       ) : (
@@ -153,7 +155,7 @@ export function SubChatContextMenu({
             className="justify-between"
             disabled={isOnlyChat}
           >
-            Archive chat
+            {t('chats.archive')}
             {!isOnlyChat && <Kbd>{closeTabShortcut}</Kbd>}
           </ContextMenuItem>
           <ContextMenuItem
@@ -163,13 +165,13 @@ export function SubChatContextMenu({
               currentIndex >= (totalCount || 0) - 1
             }
           >
-            Archive chats below
+            {t('chats.archiveBelow')}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => onArchiveOthers(subChat.id)}
             disabled={isOnlyChat}
           >
-            Archive other chats
+            {t('chats.archiveOthers')}
           </ContextMenuItem>
         </>
       )}

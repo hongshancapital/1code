@@ -44,6 +44,16 @@
     "history": "对话历史",
     "draft": "草稿",
     "deleteDraft": "删除草稿",
+    "pin": "固定对话",
+    "unpin": "取消固定对话",
+    "rename": "重命名对话",
+    "archive": "归档对话",
+    "archiveBelow": "归档以下对话",
+    "archiveOthers": "归档其他对话",
+    "close": "关闭对话",
+    "closeOthers": "关闭其他对话",
+    "closeRight": "关闭右侧对话",
+    "openNewWindow": "在新窗口中打开",
     "pinCount": "固定 {{count}} 个对话",
     "pinCount_other": "固定 {{count}} 个对话",
     "unpinCount": "取消固定 {{count}} 个对话",
@@ -52,7 +62,16 @@
     "archiveCount_other": "归档 {{count}} 个对话",
     "closeSidebar": "关闭侧边栏",
     "closeChatsPane": "关闭对话面板",
-    "openChatsSidebar": "打开对话侧边栏"
+    "openChatsSidebar": "打开对话侧边栏",
+    "export": {
+      "title": "导出对话",
+      "markdown": "下载为 Markdown",
+      "json": "下载为 JSON",
+      "text": "下载为文本",
+      "copyMarkdown": "复制为 Markdown",
+      "copyJson": "复制为 JSON",
+      "copyText": "复制为文本"
+    }
   },
   "navigation": {
     "home": "首页",
@@ -81,5 +100,10 @@
     "yesterday": "昨天",
     "thisWeek": "本周",
     "older": "更早"
+  },
+  "tags": {
+    "title": "标签",
+    "clear": "清除标签",
+    "manage": "管理标签..."
   }
 }

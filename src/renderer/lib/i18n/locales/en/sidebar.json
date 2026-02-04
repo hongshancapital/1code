@@ -44,6 +44,16 @@
     "history": "Chat history",
     "draft": "Draft",
     "deleteDraft": "Delete draft",
+    "pin": "Pin chat",
+    "unpin": "Unpin chat",
+    "rename": "Rename chat",
+    "archive": "Archive chat",
+    "archiveBelow": "Archive chats below",
+    "archiveOthers": "Archive other chats",
+    "close": "Close chat",
+    "closeOthers": "Close other chats",
+    "closeRight": "Close chats to the right",
+    "openNewWindow": "Open in new window",
     "pinCount": "Pin {{count}} chat",
     "pinCount_other": "Pin {{count}} chats",
     "unpinCount": "Unpin {{count}} chat",
@@ -52,7 +62,16 @@
     "archiveCount_other": "Archive {{count}} chats",
     "closeSidebar": "Close sidebar",
     "closeChatsPane": "Close chats pane",
-    "openChatsSidebar": "Open chats sidebar"
+    "openChatsSidebar": "Open chats sidebar",
+    "export": {
+      "title": "Export chat",
+      "markdown": "Download as Markdown",
+      "json": "Download as JSON",
+      "text": "Download as Text",
+      "copyMarkdown": "Copy as Markdown",
+      "copyJson": "Copy as JSON",
+      "copyText": "Copy as Text"
+    }
   },
   "navigation": {
     "home": "Home",
@@ -81,5 +100,10 @@
     "yesterday": "Yesterday",
     "thisWeek": "This Week",
     "older": "Older"
+  },
+  "tags": {
+    "title": "Tags",
+    "clear": "Clear tag",
+    "manage": "Manage tags..."
   }
 }

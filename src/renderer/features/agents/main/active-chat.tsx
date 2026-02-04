@@ -11,7 +11,6 @@ import {
   ClaudeCodeIcon,
   CollapseIcon,
   CopyIcon,
-  CursorIcon,
   ExpandIcon,
   IconCloseSidebarRight,
   IconOpenSidebarRight,
@@ -324,44 +323,31 @@ const CHAT_LAYOUT = {
 } as const
 
 // Codex icon (OpenAI style)
-const CodexIcon = (props: React.SVGProps<SVGSVGElement>) => (
+// NOTE: Currently unused - retained for potential future use
+const _CodexIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
     <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
   </svg>
 )
 
-// Model options for Claude Code
-const claudeModels = [
-  { id: "opus", name: "Opus" },
-  { id: "sonnet", name: "Sonnet" },
-  { id: "haiku", name: "Haiku" },
-]
-
-// Agent providers
-const agents = [
-  { id: "claude-code", name: "Claude Code", hasModels: true },
-  { id: "cursor", name: "Cursor CLI", disabled: true },
-  { id: "codex", name: "OpenAI Codex", disabled: true },
-]
-
-// Helper function to get agent icon
-const getAgentIcon = (agentId: string, className?: string) => {
-  switch (agentId) {
-    case "claude-code":
-      return <ClaudeCodeIcon className={className} />
-    case "cursor":
-      return <CursorIcon className={className} />
-    case "codex":
-      return <CodexIcon className={className} />
-    default:
-      return null
-  }
-}
+// NOTE: These model/agent definitions are retained for future use
+// const claudeModels = [
+//   { id: "opus", name: "Opus" },
+//   { id: "sonnet", name: "Sonnet" },
+//   { id: "haiku", name: "Haiku" },
+// ]
+// const agents = [
+//   { id: "claude-code", name: "Claude Code", hasModels: true },
+//   { id: "cursor", name: "Cursor CLI", disabled: true },
+//   { id: "codex", name: "OpenAI Codex", disabled: true },
+// ]
+// const getAgentIcon = (agentId: string, className?: string) => { ... }
 
 // Copy button component with tooltip feedback (matches project style)
-function CopyButton({
+// NOTE: Currently unused - retained for potential future use
+function _CopyButton({
   onCopy,
-  isMobile = false,
+  isMobile: _isMobile = false,
 }: {
   onCopy: () => void
   isMobile?: boolean
@@ -401,23 +387,24 @@ function CopyButton({
 }
 
 // Play button component for TTS (text-to-speech) with streaming support
-type PlayButtonState = "idle" | "loading" | "playing"
+// NOTE: Currently unused - retained for potential future use
+type _PlayButtonState = "idle" | "loading" | "playing"
 
 const PLAYBACK_SPEEDS = [1, 2, 3] as const
 type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
 
-function PlayButton({
+function _PlayButton({
   text,
-  isMobile = false,
+  isMobile: _isMobile = false,
   playbackRate = 1,
-  onPlaybackRateChange,
+  onPlaybackRateChange: _onPlaybackRateChange,
 }: {
   text: string
   isMobile?: boolean
   playbackRate?: PlaybackSpeed
   onPlaybackRateChange?: (rate: PlaybackSpeed) => void
 }) {
-  const [state, setState] = useState<PlayButtonState>("idle")
+  const [state, setState] = useState<_PlayButtonState>("idle")
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const mediaSourceRef = useRef<MediaSource | null>(null)
   const sourceBufferRef = useRef<SourceBuffer | null>(null)
@@ -555,7 +542,6 @@ function PlayButton({
     // Create abort controller for this request
     abortControllerRef.current = new AbortController()
 
-    const fetchStartTime = Date.now()
     const response = await apiFetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -705,12 +691,12 @@ function PlayButton({
           onClick={() => {
             const currentIndex = PLAYBACK_SPEEDS.indexOf(playbackRate)
             const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length
-            onPlaybackRateChange?.(PLAYBACK_SPEEDS[nextIndex])
+            _onPlaybackRateChange?.(PLAYBACK_SPEEDS[nextIndex])
           }}
           tabIndex={-1}
           className={cn(
             "p-1.5 rounded-md transition-[background-color,opacity,transform] duration-150 ease-out hover:bg-accent active:scale-[0.97]",
-            isMobile
+            _isMobile
               ? "opacity-100"
               : "opacity-0 group-hover/message:opacity-100",
           )}
@@ -737,7 +723,8 @@ function PlayButton({
 }
 
 // Rollback button component for reverting to a previous message state
-function RollbackButton({
+// NOTE: Currently unused - retained for potential future use
+function _RollbackButton({
   disabled = false,
   onRollback,
   isRollingBack = false,
@@ -934,17 +921,18 @@ function MessageGroup({ children, isLastGroup }: MessageGroupProps) {
 }
 
 // Collapsible steps component for intermediate content before final response
-interface CollapsibleStepsProps {
+// NOTE: Currently unused - retained for potential future use
+interface _CollapsibleStepsProps {
   stepsCount: number
   children: React.ReactNode
   defaultExpanded?: boolean
 }
 
-function CollapsibleSteps({
+function _CollapsibleSteps({
   stepsCount,
   children,
   defaultExpanded = false,
-}: CollapsibleStepsProps) {
+}: _CollapsibleStepsProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   if (stepsCount === 0) return null
@@ -1094,19 +1082,19 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
   chatId,
   sandboxId,
   repository,
-  diffStats,
+  diffStats: _diffStats,
   setDiffStats,
   diffContent,
   parsedFileDiffs,
   prefetchedFileContents,
   setDiffCollapseState,
   diffViewRef,
-  agentChat,
+  agentChat: _agentChat,
   sidebarWidth,
-  onCommitWithAI,
-  isCommittingWithAI = false,
-  diffMode,
-  setDiffMode,
+  onCommitWithAI: _onCommitWithAI,
+  isCommittingWithAI: _isCommittingWithAI = false,
+  diffMode: _diffMode,
+  setDiffMode: _setDiffMode,
   onCreatePr,
   subChats = [],
   subChatId,
@@ -1136,8 +1124,8 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
     return null
   }, [selectedFilePath, parsedFileDiffs])
   const [changesPanelWidth, setChangesPanelWidth] = useAtom(agentsChangesPanelWidthAtom)
-  const [isChangesPanelCollapsed, setIsChangesPanelCollapsed] = useAtom(agentsChangesPanelCollapsedAtom)
-  const [isResizing, setIsResizing] = useState(false)
+  const [_isChangesPanelCollapsed, _setIsChangesPanelCollapsed] = useAtom(agentsChangesPanelCollapsedAtom)
+  const [_isResizing, setIsResizing] = useState(false)
 
   // Active tab state (Changes/History)
   const [activeTab, setActiveTab] = useState<"changes" | "history">("changes")
@@ -1214,7 +1202,7 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
   }, [setSelectedCommit])
 
   // Handle file selection in commit (History tab)
-  const handleCommitFileSelect = useCallback((file: { path: string }, commitHash: string) => {
+  const handleCommitFileSelect = useCallback((file: { path: string }, _commitHash: string) => {
     // Set selected file path for highlighting
     handleDiffFileSelect(file, "")
   }, [handleDiffFileSelect])
@@ -1252,11 +1240,11 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
   const effectivePrefetchedContents = shouldUseCommitDiff ? {} : prefetchedFileContents
 
   if (isNarrow) {
-    // Count changed files for collapsed header
-    const changedFilesCount = diffStatus
+    // Count changed files for collapsed header (computed but not displayed in current layout)
+    const _changedFilesCount = diffStatus
       ? (diffStatus.staged?.length || 0) + (diffStatus.unstaged?.length || 0) + (diffStatus.untracked?.length || 0)
       : 0
-    const stagedCount = diffStatus?.staged?.length || 0
+    const _stagedCount = diffStatus?.staged?.length || 0
 
     // Vertical layout: ChangesPanel on top, diff/file list below
     return (
@@ -1743,7 +1731,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
   onRefreshDiff,
 }: DiffSidebarRendererProps) {
   // Get callbacks and state from context
-  const { handleCloseDiff, viewedCount, handleViewedCountChange } = useDiffState()
+  const { handleCloseDiff, viewedCount, handleViewedCountChange: _handleViewedCountChange2 } = useDiffState()
 
   // Get review comments count for showing user review button (scoped by subChatId)
   const reviewComments = useAtomValue(reviewCommentsAtomFamily(activeSubChatId || ""))
@@ -1976,7 +1964,7 @@ const ChatViewInner = memo(function ChatViewInner({
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const questionRef = useRef<AgentUserQuestionHandle>(null)
-  const prevChatKeyRef = useRef<string | null>(null)
+  const _prevChatKeyRef = useRef<string | null>(null)
   const prevSubChatIdRef = useRef<string | null>(null)
 
   // Project mode for hiding git features in SubChatStatusCard
@@ -1993,7 +1981,7 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [pendingMention, setPendingMention])
 
   // TTS playback rate state (persists across messages and sessions via localStorage)
-  const [ttsPlaybackRate, setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
+  const [_ttsPlaybackRate, _setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("tts-playback-rate")
       if (saved && PLAYBACK_SPEEDS.includes(Number(saved) as PlaybackSpeed)) {
@@ -2004,8 +1992,8 @@ const ChatViewInner = memo(function ChatViewInner({
   })
 
   // Save playback rate to localStorage when it changes
-  const handlePlaybackRateChange = useCallback((rate: PlaybackSpeed) => {
-    setTtsPlaybackRate(rate)
+  const _handlePlaybackRateChange = useCallback((rate: PlaybackSpeed) => {
+    _setTtsPlaybackRate(rate)
     localStorage.setItem("tts-playback-rate", String(rate))
   }, [])
 
@@ -2219,7 +2207,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Handle mode changes - updates atomFamily, store, and database together
   // No effect needed - this is called directly when user toggles mode
-  const handleModeChange = useCallback((newMode: AgentMode) => {
+  const _handleModeChange = useCallback((newMode: AgentMode) => {
     // Update atomFamily (source of truth for UI)
     setSubChatMode(newMode)
 
@@ -2300,7 +2288,7 @@ const ChatViewInner = memo(function ChatViewInner({
   const popItemFromQueue = useMessageQueueStore((s) => s.popItem)
 
   // Plan approval pending state (for tool approval loading)
-  const [planApprovalPending, setPlanApprovalPending] = useState<
+  const [_planApprovalPending, setPlanApprovalPending] = useState<
     Record<string, boolean>
   >({})
 
@@ -2392,8 +2380,8 @@ const ChatViewInner = memo(function ChatViewInner({
   const isCompacting = compactingSubChats.has(subChatId)
 
   // Desktop/fullscreen state for window drag region
-  const isDesktop = useAtomValue(isDesktopAtom)
-  const isFullscreen = useAtomValue(isFullscreenAtom)
+  const _isDesktop = useAtomValue(isDesktopAtom)
+  const _isFullscreen = useAtomValue(isFullscreenAtom)
 
   // Handler to trigger manual context compaction
   const handleCompact = useCallback(() => {
@@ -3022,7 +3010,7 @@ const ChatViewInner = memo(function ChatViewInner({
     subChatId,
   ])
 
-  const handlePlanApproval = useCallback(
+  const _handlePlanApproval = useCallback(
     async (toolUseId: string, approved: boolean) => {
       if (!toolUseId) return
       setPlanApprovalPending((prev) => ({ ...prev, [toolUseId]: true }))
@@ -4050,6 +4038,28 @@ const ChatViewInner = memo(function ChatViewInner({
     clearAll,
   ])
 
+  // Retry message - resend the last user message when no response was received
+  const handleRetryMessage = useCallback(async () => {
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (!lastUserMsg || !lastUserMsg.parts) return
+
+    // Don't retry if currently streaming
+    if (isStreaming) return
+
+    // Don't retry if there's already an assistant response for this message
+    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
+    const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
+    if (hasAssistantResponse) return
+
+    // Re-send the message by calling sendMessage with the same parts
+    try {
+      await sendMessageRef.current({ role: "user", parts: lastUserMsg.parts })
+    } catch (error) {
+      console.error("[handleRetryMessage] Error retrying message:", error)
+    }
+  }, [messages, isStreaming])
+
   // NOTE: Auto-processing of queue is now handled globally by QueueProcessor
   // component in agents-layout.tsx. This ensures queues continue processing
   // even when user navigates to different sub-chats or workspaces.
@@ -4065,7 +4075,7 @@ const ChatViewInner = memo(function ChatViewInner({
   }
 
   // Helper to copy message content
-  const copyMessageContent = (msg: any) => {
+  const _copyMessageContent = (msg: any) => {
     const textContent = getMessageTextContent(msg)
     if (textContent) {
       navigator.clipboard.writeText(stripEmojis(textContent))
@@ -4380,6 +4390,7 @@ const ChatViewInner = memo(function ChatViewInner({
               stickyTopClass={stickyTopClass}
               sandboxSetupError={sandboxSetupError}
               onRetrySetup={onRetrySetup}
+              onRetryMessage={handleRetryMessage}
               UserBubbleComponent={AgentUserMessageBubble}
               ToolCallComponent={AgentToolCall}
               MessageGroupWrapper={MessageGroup}
@@ -4497,8 +4508,8 @@ export function ChatView({
   chatId,
   isSidebarOpen,
   onToggleSidebar,
-  selectedTeamName,
-  selectedTeamImageUrl,
+  selectedTeamName: _selectedTeamName,
+  selectedTeamImageUrl: _selectedTeamImageUrl,
   isMobileFullscreen = false,
   onBackToChats,
   onOpenPreview,
@@ -4680,7 +4691,7 @@ export function ChatView({
     () => expandedWidgetAtomFamily(chatId),
     [chatId],
   )
-  const [expandedWidget, setExpandedWidget] = useAtom(expandedWidgetAtom)
+  const [_expandedWidget, _setExpandedWidget] = useAtom(expandedWidgetAtom)
 
   // Explorer panel state - separate from ExpandedWidgetSidebar (supports three display modes)
   const explorerPanelOpenAtom = useMemo(
@@ -4933,7 +4944,7 @@ export function ChatView({
     storedDiffSidebarWidth,
   )
   // Track if all diff files are collapsed/expanded for button disabled states
-  const [diffCollapseState, setDiffCollapseState] = useState({
+  const [_diffCollapseState, setDiffCollapseState] = useState({
     allCollapsed: false,
     allExpanded: true,
   })
@@ -5053,6 +5064,15 @@ export function ChatView({
     { enabled: !!chatId && chatSourceMode === "local" },
   )
 
+  // Lazy load messages for the active sub-chat (performance optimization)
+  const { data: subChatMessagesData, isLoading: _isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
+    { id: activeSubChatId! },
+    {
+      enabled: !!activeSubChatId && chatSourceMode === "local",
+      staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
+    }
+  )
+
   const { data: remoteAgentChat, isLoading: isRemoteLoading } = useRemoteChat(
     chatSourceMode === "sandbox" ? chatId : null,
   )
@@ -5093,7 +5113,7 @@ export function ChatView({
     return localAgentChat ? { ...localAgentChat, isRemote: false as const } : null
   }, [chatSourceMode, remoteAgentChat, localAgentChat])
 
-  const isLoading = chatSourceMode === "sandbox" ? isRemoteLoading : isLocalLoading
+  const _isLoading = chatSourceMode === "sandbox" ? isRemoteLoading : isLocalLoading
 
   // Compute if we're waiting for local chat data (used as loading gate)
   // Only show loading if there's no data AND we're loading - this prevents
@@ -5321,7 +5341,7 @@ export function ChatView({
   const isArchived = !!agentChat?.archivedAt
 
   // Get user usage data for credit checks
-  const { data: usageData } = api.usage.getUserUsage.useQuery()
+  const { data: _usageData } = api.usage.getUserUsage.useQuery()
 
   // Selected project for fallback path
   const selectedProject = useAtomValue(selectedProjectAtom)
@@ -5329,7 +5349,7 @@ export function ChatView({
   // Desktop: use worktreePath instead of sandbox, fallback to selectedProject.path during loading
   const worktreePath = (agentChat?.worktreePath as string | null) ?? selectedProject?.path ?? null
   // Desktop: original project path for MCP config lookup
-  const originalProjectPath = getProjectPath(agentChat as AgentChat | null)
+  const _originalProjectPath = getProjectPath(agentChat as AgentChat | null)
   // Fallback for web: use sandbox_id
   const sandboxId = agentChat?.sandbox_id
   const sandboxUrl = sandboxId ? `https://3003-${sandboxId}.e2b.app` : null
@@ -6078,7 +6098,47 @@ Make sure to preserve all functionality from both branches when resolving confli
 
       // Find sub-chat data
       const subChat = agentSubChats.find((sc) => sc.id === subChatId)
-      const messages = (Array.isArray(subChat?.messages) ? subChat.messages : []) as unknown[]
+
+      // Use lazy-loaded messages for local chats (performance optimization)
+      // Remote chats still use messages from agentSubChats
+      let messages: unknown[] = []
+      if (subChatMessagesData?.messages && subChatId === activeSubChatId) {
+        try {
+          const parsed = JSON.parse(subChatMessagesData.messages)
+          // Transform messages from DB format to AI SDK format
+          messages = parsed.map((msg: any) => {
+            if (!msg.parts) return msg
+            return {
+              ...msg,
+              parts: msg.parts.map((part: any) => {
+                // Migrate old "tool-invocation" type to "tool-{toolName}"
+                if (part.type === "tool-invocation" && part.toolName) {
+                  return {
+                    ...part,
+                    type: `tool-${part.toolName}`,
+                    toolCallId: part.toolCallId || part.toolInvocationId,
+                    input: part.input || part.args,
+                  }
+                }
+                // Normalize state field from DB format to AI SDK format
+                if (part.type?.startsWith("tool-") && part.state) {
+                  let normalizedState = part.state
+                  if (part.state === "result") {
+                    normalizedState = part.result?.success === false ? "output-error" : "output-available"
+                  }
+                  return { ...part, state: normalizedState, output: part.output || part.result }
+                }
+                return part
+              }),
+            }
+          })
+        } catch {
+          console.warn("[getOrCreateChat] Failed to parse lazy-loaded messages")
+        }
+      } else if (Array.isArray(subChat?.messages)) {
+        // Fallback for remote chats or when lazy loading hasn't completed
+        messages = subChat.messages as unknown[]
+      }
 
       // Get mode from store metadata (falls back to currentMode)
       const subChatMeta = useAgentSubChatStore
@@ -6224,6 +6284,8 @@ Make sure to preserve all functionality from both branches when resolving confli
       setUnseenChanges,
       notifyAgentComplete,
       notifyAgentError,
+      subChatMessagesData,
+      activeSubChatId,
     ],
   )
 
@@ -6776,7 +6838,7 @@ Make sure to preserve all functionality from both branches when resolving confli
   )
 
   // Get or create Chat instance for active sub-chat
-  const activeChat = useMemo(() => {
+  const _activeChat = useMemo(() => {
     if (!activeSubChatId || !agentChat) {
       return null
     }
@@ -6785,7 +6847,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
   // Check if active sub-chat is the first one (for renaming parent chat)
   // Use agentSubChats directly to avoid race condition with store initialization
-  const isFirstSubChatActive = useMemo(() => {
+  const _isFirstSubChatActive = useMemo(() => {
     if (!activeSubChatId) return false
     return getFirstSubChatId(agentSubChats) === activeSubChatId
   }, [activeSubChatId, agentSubChats])

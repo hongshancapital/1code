@@ -189,8 +189,18 @@ export const chatsRouter = router({
       const chat = db.select().from(chats).where(eq(chats.id, input.id)).get()
       if (!chat) return null
 
+      // Only select metadata, not messages (lazy loading for performance)
       const chatSubChats = db
-        .select()
+        .select({
+          id: subChats.id,
+          name: subChats.name,
+          chatId: subChats.chatId,
+          sessionId: subChats.sessionId,
+          streamId: subChats.streamId,
+          mode: subChats.mode,
+          createdAt: subChats.createdAt,
+          updatedAt: subChats.updatedAt,
+        })
         .from(subChats)
         .where(eq(subChats.chatId, input.id))
         .orderBy(subChats.createdAt)
@@ -607,6 +617,23 @@ export const chatsRouter = router({
         : null
 
       return { ...subChat, chat: chat ? { ...chat, project } : null }
+    }),
+
+  /**
+   * Get messages for a single sub-chat (lazy loading)
+   */
+  getSubChatMessages: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      const db = getDatabase()
+      const subChat = db
+        .select({ messages: subChats.messages })
+        .from(subChats)
+        .where(eq(subChats.id, input.id))
+        .get()
+
+      if (!subChat) return null
+      return { messages: subChat.messages || "[]" }
     }),
 
   /**
@@ -1103,7 +1130,6 @@ export const chatsRouter = router({
       const filteredDiff = files.map(f => f.diffText).join('\n')
 
       // Call web API to generate commit message
-      let apiError: string | null = null
       try {
         const deviceInfo = getDeviceInfo()
         // Use localhost in dev, production otherwise
@@ -1133,12 +1159,12 @@ export const chatsRouter = router({
           if (data.message) {
             return { message: data.message }
           }
-          apiError = "API returned ok but no message in response"
+          console.warn("[generateCommitMessage] API returned ok but no message in response")
         } else {
-          apiError = `API returned ${response.status}`
+          console.warn(`[generateCommitMessage] API returned ${response.status}`)
         }
       } catch (error) {
-        apiError = `API call failed: ${error instanceof Error ? error.message : String(error)}`
+        console.warn(`[generateCommitMessage] API call failed: ${error instanceof Error ? error.message : String(error)}`)
       }
 
       // Fallback: Generate commit message with conventional commits style
