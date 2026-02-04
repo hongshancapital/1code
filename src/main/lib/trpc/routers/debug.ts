@@ -3,7 +3,7 @@ import { getDatabase, projects, chats, subChats } from "../../db"
 import { app, shell, BrowserWindow, session } from "electron"
 import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
-import { getAuthManager } from "../../../../auth-manager"
+import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
 
 // Protocol constant (must match main/index.ts)

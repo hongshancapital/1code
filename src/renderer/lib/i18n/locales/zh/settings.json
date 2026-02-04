@@ -595,14 +595,18 @@
       "clearChats": "清除对话",
       "resetOnboarding": "重置引导",
       "resetAll": "重置全部",
+      "factoryReset": "恢复出厂设置",
+      "factoryResetDesc": "清除所有数据、退出登录并返回登录页面",
       "confirmClearChats": "清除所有对话？项目将被保留。",
       "confirmResetOnboarding": "重置引导？您将再次看到欢迎页面。",
-      "confirmResetAll": "重置所有数据？这将清除所有数据并退出登录。"
+      "confirmResetAll": "重置所有数据？这将清除所有数据并退出登录。",
+      "confirmFactoryReset": "恢复出厂设置？这将清除所有数据、退出登录并返回登录页面。此操作无法撤销。"
     },
     "toast": {
       "allChatsCleared": "所有对话已清除",
       "onboardingReset": "引导已重置，正在重新加载...",
       "allDataCleared": "所有数据已清除，正在重新加载...",
+      "factoryResetComplete": "恢复出厂设置完成",
       "debugInfoCopied": "调试信息已复制到剪贴板",
       "reactScanEnabled": "React Scan 已启用",
       "reactScanEnabledDesc": "重新加载页面以查看重渲染高亮",

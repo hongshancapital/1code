@@ -595,14 +595,18 @@
       "clearChats": "Clear Chats",
       "resetOnboarding": "Reset Onboarding",
       "resetAll": "Reset All",
+      "factoryReset": "Factory Reset",
+      "factoryResetDesc": "Clear all data, logout, and return to login screen",
       "confirmClearChats": "Clear all chats? Projects will be kept.",
       "confirmResetOnboarding": "Reset onboarding? You will see the welcome screen again.",
-      "confirmResetAll": "Reset everything? This will clear all data and log you out."
+      "confirmResetAll": "Reset everything? This will clear all data and log you out.",
+      "confirmFactoryReset": "Factory reset? This will clear ALL data, log you out, and return to the login screen. This action cannot be undone."
     },
     "toast": {
       "allChatsCleared": "All chats cleared",
       "onboardingReset": "Onboarding reset. Reloading...",
       "allDataCleared": "All data cleared. Reloading...",
+      "factoryResetComplete": "Factory reset complete",
       "debugInfoCopied": "Debug info copied to clipboard",
       "reactScanEnabled": "React Scan enabled",
       "reactScanEnabledDesc": "Reload the page to see re-render highlights",
