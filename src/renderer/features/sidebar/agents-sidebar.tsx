@@ -33,6 +33,7 @@ import {
   // Grouping atoms
   workspaceGroupedViewAtom,
   workspaceGroupModeAtom,
+  manageTagsDialogOpenAtom,
 } from "../../lib/atoms"
 // [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
 // import {
@@ -171,7 +172,7 @@ import { useAgentSubChatStore, OPEN_SUB_CHATS_CHANGE_EVENT } from "../agents/sto
 import { getWindowId } from "../../contexts/WindowContext"
 import { AgentsHelpPopover } from "../agents/components/agents-help-popover"
 import { getShortcutKey, isDesktopApp } from "../../lib/utils/platform"
-import { useResolvedHotkeyDisplay, useResolvedHotkeyDisplayWithAlt } from "../../lib/hotkeys"
+import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
 import { pluralize } from "../agents/utils/pluralize"
 import { useNewChatDrafts, deleteNewChatDraft, type NewChatDraft } from "../agents/lib/drafts"
 import {
@@ -186,7 +187,8 @@ import { exportChat, copyChat, type ExportFormat } from "../agents/lib/export-ch
 // Grouping components
 import { GroupedChatList } from "./components/grouped-chat-list"
 import { GroupingToggle } from "./components/grouping-toggle"
-import { TagSelectorSubmenu, PresetTagIcon, getPresetTag } from "./components/tag-selector-submenu"
+import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon, isPresetTagId } from "./components/tag-selector-submenu"
+import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -585,6 +587,10 @@ const AgentChatItem = React.memo(function AgentChatItem({
   // Tags functionality - using preset tags (stored as tagId on chat)
   const setTagMutation = trpc.chats.setTag.useMutation()
   const utils = trpc.useUtils()
+  const setManageTagsDialogOpen = useSetAtom(manageTagsDialogOpenAtom)
+
+  // Fetch custom tags for display
+  const { data: customTags } = trpc.tags.listTags.useQuery(undefined, { enabled: !isRemote })
 
   const handleTagSelect = useCallback(
     (tagId: string | null) => {
@@ -596,8 +602,15 @@ const AgentChatItem = React.memo(function AgentChatItem({
     [chatId, setTagMutation, utils],
   )
 
-  // Get preset tag for display
-  const presetTag = getPresetTag(chatTagId)
+  const handleManageTags = useCallback(() => {
+    setManageTagsDialogOpen(true)
+  }, [setManageTagsDialogOpen])
+
+  // Get tag for display (preset or custom)
+  const presetTag = chatTagId ? getPresetTag(chatTagId) : null
+  const customTag = chatTagId?.startsWith("custom_")
+    ? customTags?.find((t) => `custom_${t.id}` === chatTagId)
+    : null
 
   return (
     <ContextMenu>
@@ -650,12 +663,13 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 : "bg-primary/10 hover:bg-primary/15"),
           )}
         >
-          <div className="flex items-start gap-2.5">
+          <div className="flex items-start gap-2">
             {/* Tag icon - shown before project icon when tag is set */}
             {presetTag && (
-              <div className="pt-0.5">
-                <PresetTagIcon tag={presetTag} size="xs" />
-              </div>
+              <PresetTagIcon tag={presetTag} size="sidebar" className="mt-0.5" />
+            )}
+            {customTag && (
+              <CustomTagIcon icon={customTag.icon} color={customTag.color} size="sidebar" className="mt-0.5" />
             )}
             {/* Icon container - only render if showIcon or in multi-select mode */}
             {(showIcon || isMultiSelectMode) && (
@@ -866,6 +880,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
               <TagSelectorSubmenu
                 currentTagId={chatTagId}
                 onTagSelect={handleTagSelect}
+                onManageTags={handleManageTags}
               />
             )}
             <ContextMenuSeparator />
@@ -1990,7 +2005,6 @@ export function AgentsSidebar({
   const { trigger: triggerHaptic } = useHaptic()
 
   // Resolved hotkeys for tooltips
-  const { primary: newWorkspaceHotkey, alt: newWorkspaceAltHotkey } = useResolvedHotkeyDisplayWithAlt("new-workspace")
   const settingsHotkey = useResolvedHotkeyDisplay("open-settings")
 
   // Rename dialog state
@@ -2166,6 +2180,7 @@ export function AgentsSidebar({
       baseBranch: string | null
       prUrl: string | null
       prNumber: number | null
+      tagId: string | null
       sandboxId?: string | null
       meta?: { repository?: string; branch?: string | null } | null
       isRemote: boolean
@@ -2187,6 +2202,7 @@ export function AgentsSidebar({
           baseBranch: chat.baseBranch,
           prUrl: chat.prUrl,
           prNumber: chat.prNumber,
+          tagId: chat.tagId ?? null,
           isRemote: false,
         })
       }
@@ -2207,6 +2223,7 @@ export function AgentsSidebar({
           baseBranch: null,
           prUrl: null,
           prNumber: null,
+          tagId: null, // Remote chats don't have tags
           sandboxId: chat.sandbox_id,
           meta: chat.meta,
           isRemote: true,
@@ -3652,31 +3669,6 @@ export function AgentsSidebar({
               )}
             />
           </div>
-          {/* New Workspace Button */}
-          <Tooltip delayDuration={500}>
-            <TooltipTrigger asChild>
-              <ButtonCustom
-                onClick={handleNewAgent}
-                variant="outline"
-                size="sm"
-                className={cn(
-                  "px-2 w-full hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground rounded-lg gap-1.5",
-                  isMobileFullscreen ? "h-10" : "h-7",
-                )}
-              >
-                <span className="text-sm font-medium">{t('workspaces.new')}</span>
-              </ButtonCustom>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="flex flex-col items-start gap-1">
-              <span>{t('workspaces.startNew')}</span>
-              {newWorkspaceHotkey && (
-                <span className="flex items-center gap-1.5">
-                  <Kbd>{newWorkspaceHotkey}</Kbd>
-                  {newWorkspaceAltHotkey && <><span className="text-[10px] opacity-50">or</span><Kbd>{newWorkspaceAltHotkey}</Kbd></>}
-                </span>
-              )}
-            </TooltipContent>
-          </Tooltip>
         </div>
       </div>
 
@@ -3751,7 +3743,7 @@ export function AgentsSidebar({
               {/* Workspaces header with + button */}
               <div className={cn(
                 "flex items-center justify-between h-6 mb-1",
-                isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-1",
+                isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-2",
               )}>
                 <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                   {t('workspaces.title')}
@@ -3759,9 +3751,9 @@ export function AgentsSidebar({
                 <button
                   type="button"
                   onClick={handleNewWorkspace}
-                  className="p-0.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors duration-150"
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
                 >
-                  <PlusIcon className="h-3.5 w-3.5" />
+                  <PlusIcon className="h-4 w-4" />
                 </button>
               </div>
               {/* Pinned section */}
@@ -4022,6 +4014,8 @@ export function AgentsSidebar({
         remoteSubChatId={null}
       />
 
+      {/* Manage Tags Dialog */}
+      <ManageTagsDialog />
     </>
   )
 }

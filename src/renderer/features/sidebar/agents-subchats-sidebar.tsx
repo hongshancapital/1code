@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useMemo, useState, useCallback, useRef, useEffect, memo } from "react"
+import { useTranslation } from "react-i18next"
 import { createPortal } from "react-dom"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { motion, AnimatePresence } from "motion/react"
@@ -113,6 +114,7 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
   allSubChatsLength,
   onSelect,
 }: SidebarSearchHistoryPopoverProps) {
+  const { t } = useTranslation('sidebar')
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
 
   const renderItem = useCallback((subChat: SubChatMeta) => {
@@ -156,9 +158,9 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
       onOpenChange={setIsHistoryOpen}
       items={sortedSubChats}
       onSelect={onSelect}
-      placeholder="Search chats..."
-      emptyMessage="No results"
-      getItemValue={(subChat) => `${subChat.name || "New Chat"} ${subChat.id}`}
+      placeholder={t('chats.search')}
+      emptyMessage={t('chats.noResults')}
+      getItemValue={(subChat) => `${subChat.name || t('chats.new')} ${subChat.id}`}
       renderItem={renderItem}
       side="bottom"
       align="end"
@@ -178,7 +180,7 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
               </Button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Chat history</TooltipContent>
+          <TooltipContent side="bottom">{t('chats.history')}</TooltipContent>
         </Tooltip>
       }
     />
@@ -202,6 +204,8 @@ export function AgentsSubChatsSidebar({
   isLoading = false,
   agentName,
 }: AgentsSubChatsSidebarProps) {
+  const { t } = useTranslation('sidebar')
+
   // Use shallow comparison to prevent re-renders when arrays have same content
   const { activeSubChatId, openSubChatIds, pinnedSubChatIds, allSubChats, parentChatId, togglePinSubChat } = useAgentSubChatStore(
     useShallow((state) => ({
@@ -1001,7 +1005,7 @@ export function AgentsSubChatsSidebar({
             <IconDoubleChevronLeft className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Close chats pane</TooltipContent>
+        <TooltipContent side="bottom">{t('chats.closeChatsPane')}</TooltipContent>
       </Tooltip>
     </div>
   )
@@ -1063,7 +1067,7 @@ export function AgentsSubChatsSidebar({
                       <AlignJustify className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Open chats sidebar</TooltipContent>
+                  <TooltipContent>{t('chats.openChatsSidebar')}</TooltipContent>
                 </Tooltip>
               )}
               <div className="flex-1" />
@@ -1085,7 +1089,7 @@ export function AgentsSubChatsSidebar({
           >
             <Input
               ref={searchInputRef}
-              placeholder="Search chats..."
+              placeholder={t('chats.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -1144,11 +1148,11 @@ export function AgentsSubChatsSidebar({
                   size="sm"
                   className="h-7 px-2 w-full hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground rounded-lg"
                 >
-                  <span className="text-sm font-medium">New Chat</span>
+                  <span className="text-sm font-medium">{t('chats.new')}</span>
                 </Button>
               </TooltipTrigger>
             <TooltipContent side="right">
-              Create a new chat
+              {t('chats.createNew')}
               {newAgentHotkey && <Kbd>{newAgentHotkey}</Kbd>}
             </TooltipContent>
           </Tooltip>
@@ -1203,7 +1207,7 @@ export function AgentsSubChatsSidebar({
                         )}
                       >
                         <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                          Pinned Chats
+                          {t('chats.pinned')}
                         </h3>
                       </div>
                       <div className="list-none p-0 m-0 mb-3">
@@ -1411,7 +1415,7 @@ export function AgentsSubChatsSidebar({
                                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
                                         {draftText ? (
                                           <span className="truncate flex-1 min-w-0">
-                                            <span className="text-blue-500">Draft:</span>{" "}
+                                            <span className="text-blue-500">{t('chats.draft')}:</span>{" "}
                                             {draftText}
                                           </span>
                                         ) : (
@@ -1459,15 +1463,14 @@ export function AgentsSubChatsSidebar({
                                         }
                                       >
                                         {areAllSelectedPinned
-                                          ? `Unpin ${selectedSubChatIds.size} ${pluralize(selectedSubChatIds.size, "chat")}`
-                                          : `Pin ${selectedSubChatIds.size} ${pluralize(selectedSubChatIds.size, "chat")}`}
+                                          ? t('chats.unpinCount', { count: selectedSubChatIds.size })
+                                          : t('chats.pinCount', { count: selectedSubChatIds.size })}
                                       </ContextMenuItem>
                                       <ContextMenuSeparator />
                                     </>
                                   )}
                                   <ContextMenuItem onClick={handleBulkArchive}>
-                                    Archive {selectedSubChatIds.size}{" "}
-                                    {pluralize(selectedSubChatIds.size, "chat")}
+                                    {t('chats.archiveCount', { count: selectedSubChatIds.size })}
                                   </ContextMenuItem>
                                 </ContextMenuContent>
                               ) : (
@@ -1504,7 +1507,7 @@ export function AgentsSubChatsSidebar({
                         )}
                       >
                         <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                          {pinnedChats.length > 0 ? "Recent chats" : "Chats"}
+                          {pinnedChats.length > 0 ? t('chats.recent') : t('chats.title')}
                         </h3>
                       </div>
                       <div className="list-none p-0 m-0">
@@ -1712,7 +1715,7 @@ export function AgentsSubChatsSidebar({
                                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 min-w-0">
                                         {draftText ? (
                                           <span className="truncate flex-1 min-w-0">
-                                            <span className="text-blue-500">Draft:</span>{" "}
+                                            <span className="text-blue-500">{t('chats.draft')}:</span>{" "}
                                             {draftText}
                                           </span>
                                         ) : (
@@ -1760,15 +1763,14 @@ export function AgentsSubChatsSidebar({
                                         }
                                       >
                                         {areAllSelectedPinned
-                                          ? `Unpin ${selectedSubChatIds.size} ${pluralize(selectedSubChatIds.size, "chat")}`
-                                          : `Pin ${selectedSubChatIds.size} ${pluralize(selectedSubChatIds.size, "chat")}`}
+                                          ? t('chats.unpinCount', { count: selectedSubChatIds.size })
+                                          : t('chats.pinCount', { count: selectedSubChatIds.size })}
                                       </ContextMenuItem>
                                       <ContextMenuSeparator />
                                     </>
                                   )}
                                   <ContextMenuItem onClick={handleBulkArchive}>
-                                    Archive {selectedSubChatIds.size}{" "}
-                                    {pluralize(selectedSubChatIds.size, "chat")}
+                                    {t('chats.archiveCount', { count: selectedSubChatIds.size })}
                                   </ContextMenuItem>
                                 </ContextMenuContent>
                               ) : (
@@ -1798,9 +1800,9 @@ export function AgentsSubChatsSidebar({
               ) : searchQuery.trim() ? (
                 <div className="flex items-center justify-center h-full text-sm text-muted-foreground p-4 text-center">
                   <div>
-                    <p className="mb-1">No results</p>
+                    <p className="mb-1">{t('chats.noResults')}</p>
                     <p className="text-xs text-muted-foreground/60">
-                      Try a different search term
+                      {t('chats.tryDifferent')}
                     </p>
                   </div>
                 </div>
@@ -1826,13 +1828,13 @@ export function AgentsSubChatsSidebar({
           >
             <div className="flex items-center justify-between px-1">
               <span className="text-xs text-muted-foreground">
-                {selectedSubChatsCount} selected
+                {t('multiSelect.selected', { count: selectedSubChatsCount })}
               </span>
               <button
                 onClick={clearSubChatSelection}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                Cancel
+                {t('multiSelect.cancel')}
               </button>
             </div>
 
@@ -1844,7 +1846,7 @@ export function AgentsSubChatsSidebar({
                 className="flex-1 h-8 gap-1.5 text-xs rounded-lg"
               >
                 <ArchiveIcon className="h-3.5 w-3.5" />
-                Archive
+                {t('archive.title')}
               </Button>
             </div>
           </motion.div>
@@ -1875,22 +1877,22 @@ export function AgentsSubChatsSidebar({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive agent</AlertDialogTitle>
+            <AlertDialogTitle>{t('archive.agent')}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogDescription className="px-5 pb-5">
-            Do you want to archive agent{" "}
+            {t('archive.agentQuestion')}{" "}
             <span className="font-medium text-foreground">
-              {agentName || subChatToArchive?.name || "this agent"}
+              {agentName || subChatToArchive?.name || t('archive.thisAgent')}
             </span>
-            ? You can restore it from history later.
+            {t('archive.agentRestore')}
           </AlertDialogDescription>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('multiSelect.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmArchiveAgent}
               autoFocus
             >
-              Archive
+              {t('archive.title')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

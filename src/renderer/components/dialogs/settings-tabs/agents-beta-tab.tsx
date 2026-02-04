@@ -2,6 +2,7 @@ import { useAtom } from "jotai"
 import { Check, Copy, RefreshCw } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import {
   autoOfflineModeAtom,
   betaAutomationsEnabledAtom,
@@ -12,6 +13,7 @@ import {
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
 } from "../../../lib/atoms"
+import { isFeatureAvailable } from "../../../lib/feature-flags"
 import { trpc } from "../../../lib/trpc"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../../lib/remote-trpc"
@@ -58,6 +60,7 @@ const MINIMUM_OLLAMA_VERSION = "0.14.2"
 const RECOMMENDED_MODEL = "qwen3-coder:30b"
 
 export function AgentsBetaTab() {
+  const { t } = useTranslation('settings')
   const isNarrowScreen = useIsNarrowScreen()
   const [historyEnabled, setHistoryEnabled] = useAtom(historyEnabledAtom)
   const [showOfflineFeatures, setShowOfflineFeatures] = useAtom(showOfflineModeFeaturesAtom)
@@ -74,8 +77,8 @@ export function AgentsBetaTab() {
     queryFn: () => remoteTrpc.agents.getAgentsSubscription.query(),
   })
   const isPaidPlan = subscription?.type !== "free" && !!subscription?.type
-  const isDev = process.env.NODE_ENV === "development"
-  const canEnableAutomations = isPaidPlan || isDev
+  // Use feature flags to gate automations - in production, always disabled
+  const canEnableAutomations = isFeatureAvailable("automations") && (isPaidPlan || isFeatureAvailable("automations"))
   const [copied, setCopied] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "available" | "not-available" | "error">("idle")
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
@@ -132,9 +135,9 @@ export function AgentsBetaTab() {
       {/* Header - hidden on narrow screens since it's in the navigation bar */}
       {!isNarrowScreen && (
         <div className="flex flex-col gap-1.5 text-center sm:text-left">
-          <h3 className="text-sm font-semibold text-foreground">Beta Features</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('beta.title')}</h3>
           <p className="text-xs text-muted-foreground">
-            Enable experimental features. These may be unstable or change without notice.
+            {t('beta.description')}
           </p>
         </div>
       )}
@@ -145,10 +148,10 @@ export function AgentsBetaTab() {
         <div className="flex items-center justify-between p-4">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Rollback
+              {t('beta.rollback.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Allow rolling back to previous messages and restoring files.
+              {t('beta.rollback.description')}
             </span>
           </div>
           <Switch
@@ -161,10 +164,10 @@ export function AgentsBetaTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Offline Mode
+              {t('beta.offlineMode.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Enable offline mode UI and Ollama integration.
+              {t('beta.offlineMode.description')}
             </span>
           </div>
           <Switch
@@ -177,10 +180,10 @@ export function AgentsBetaTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Kanban Board
+              {t('beta.kanban.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              View workspaces as a Kanban board organized by status.
+              {t('beta.kanban.description')}
             </span>
           </div>
           <Switch
@@ -193,12 +196,12 @@ export function AgentsBetaTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className={cn("text-sm font-medium", canEnableAutomations ? "text-foreground" : "text-muted-foreground")}>
-              Automations & Inbox
+              {t('beta.automations.title')}
             </span>
             <span className="text-xs text-muted-foreground">
               {canEnableAutomations
-                ? "Automate workflows with GitHub and Linear triggers, and manage inbox notifications."
-                : "Requires a paid plan. Upgrade to enable automations and inbox."}
+                ? t('beta.automations.description')
+                : t('beta.automations.requiresPaid')}
             </span>
           </div>
           <Switch
@@ -216,10 +219,10 @@ export function AgentsBetaTab() {
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-foreground">
-              Agent Tasks
+              {t('beta.tasks.title')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Enable Task instead of legacy Todo system.
+              {t('beta.tasks.description')}
             </span>
           </div>
           <Switch
@@ -233,7 +236,7 @@ export function AgentsBetaTab() {
       {showOfflineFeatures && (
         <div className="flex flex-col gap-2">
           <div className="pb-2">
-            <h4 className="text-sm font-medium text-foreground">Offline Mode Settings</h4>
+            <h4 className="text-sm font-medium text-foreground">{t('beta.offlineSettings.title')}</h4>
           </div>
 
           <div className="bg-background rounded-lg border border-border overflow-hidden">
@@ -242,7 +245,7 @@ export function AgentsBetaTab() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <span className="text-sm font-medium text-foreground">
-                    Ollama Status
+                    {t('beta.offlineSettings.ollamaStatus')}
                   </span>
                   <p className="text-xs text-muted-foreground">
                     {ollamaStatus?.ollama.available
@@ -270,10 +273,10 @@ export function AgentsBetaTab() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium text-foreground">
-                      Model
+                      {t('beta.offlineSettings.model')}
                     </span>
                     <p className="text-xs text-muted-foreground">
-                      Select which model to use for offline mode
+                      {t('beta.offlineSettings.modelHint')}
                     </p>
                   </div>
                   <Select
@@ -281,7 +284,7 @@ export function AgentsBetaTab() {
                     onValueChange={(value) => setSelectedOllamaModel(value)}
                   >
                     <SelectTrigger className="w-auto shrink-0">
-                      <SelectValue placeholder="Select model" />
+                      <SelectValue placeholder={t('beta.offlineSettings.selectModel')} />
                     </SelectTrigger>
                     <SelectContent>
                       {ollamaStatus.ollama.models.map((model) => {
@@ -306,10 +309,10 @@ export function AgentsBetaTab() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <span className="text-sm font-medium text-foreground">
-                    Auto Offline Mode
+                    {t('beta.offlineSettings.autoOffline')}
                   </span>
                   <p className="text-xs text-muted-foreground">
-                    Automatically use Ollama when internet is unavailable
+                    {t('beta.offlineSettings.autoOfflineHint')}
                   </p>
                 </div>
                 <Switch
@@ -320,7 +323,7 @@ export function AgentsBetaTab() {
 
               {/* Installation instructions - always show */}
               <div className="text-xs text-muted-foreground bg-muted p-3 rounded flex flex-col gap-2">
-                <p className="font-medium">Setup Instructions:</p>
+                <p className="font-medium">{t('beta.offlineSettings.setupTitle')}</p>
                 <ol className="list-decimal list-inside flex flex-col gap-1 ml-2">
                   <li>
                     Install Ollama {MINIMUM_OLLAMA_VERSION}+ from{" "}
@@ -372,9 +375,9 @@ export function AgentsBetaTab() {
       {/* Updates Section */}
       <div className="flex flex-col gap-2">
         <div className="pb-2">
-          <h4 className="text-sm font-medium text-foreground">Updates</h4>
+          <h4 className="text-sm font-medium text-foreground">{t('beta.updates.title')}</h4>
           <p className="text-xs text-muted-foreground mt-1">
-            Check for new versions manually (bypasses CDN cache)
+            {t('beta.updates.description')}
           </p>
         </div>
 
@@ -383,10 +386,10 @@ export function AgentsBetaTab() {
           <div className="flex items-center justify-between p-4">
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-foreground">
-                Early Access
+                {t('beta.updates.earlyAccess.title')}
               </span>
               <span className="text-xs text-muted-foreground">
-                Receive beta versions before they're released to everyone. Beta versions may be less stable.
+                {t('beta.updates.earlyAccess.description')}
               </span>
             </div>
             <Switch
@@ -403,14 +406,14 @@ export function AgentsBetaTab() {
             <div className="flex items-center justify-between">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-foreground">
-                  {currentVersion ? `Current: v${currentVersion}` : "Version"}
+                  {currentVersion ? t('beta.updates.version.current', { version: currentVersion }) : "Version"}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {updateStatus === "checking" && "Checking for updates..."}
-                  {updateStatus === "available" && `Update available: v${updateVersion}`}
-                  {updateStatus === "not-available" && "You're on the latest version"}
-                  {updateStatus === "error" && "Failed to check (dev mode?)"}
-                  {updateStatus === "idle" && "Click to check for updates"}
+                  {updateStatus === "checking" && t('beta.updates.version.checking')}
+                  {updateStatus === "available" && t('beta.updates.version.available', { version: updateVersion })}
+                  {updateStatus === "not-available" && t('beta.updates.version.upToDate')}
+                  {updateStatus === "error" && t('beta.updates.version.error')}
+                  {updateStatus === "idle" && t('beta.updates.version.idle')}
                 </span>
               </div>
               <Button
@@ -420,7 +423,7 @@ export function AgentsBetaTab() {
                 disabled={updateStatus === "checking"}
               >
                 <RefreshCw className={cn("h-4 w-4 mr-2", updateStatus === "checking" && "animate-spin")} />
-                {updateStatus === "checking" ? "Checking..." : "Check Now"}
+                {updateStatus === "checking" ? t('beta.updates.version.checking') : t('beta.updates.checkNow')}
               </Button>
             </div>
           </div>

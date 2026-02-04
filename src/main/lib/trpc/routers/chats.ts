@@ -392,6 +392,21 @@ export const chatsRouter = router({
     }),
 
   /**
+   * Set the tag for a chat (preset tag ID like "red", "blue", etc.)
+   */
+  setTag: publicProcedure
+    .input(z.object({ id: z.string(), tagId: z.string().nullable() }))
+    .mutation(({ input }) => {
+      const db = getDatabase()
+      return db
+        .update(chats)
+        .set({ tagId: input.tagId, updatedAt: new Date() })
+        .where(eq(chats.id, input.id))
+        .returning()
+        .get()
+    }),
+
+  /**
    * Archive a chat (also kills any terminal processes in the workspace)
    * Optionally deletes the worktree to free disk space
    */
