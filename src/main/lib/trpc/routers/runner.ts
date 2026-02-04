@@ -26,8 +26,15 @@ export interface DetectedRuntimes {
   pnpm: RuntimeInfo | null
 }
 
-// Tool detection types
-export type ToolCategory = "common" | "nodejs" | "python" | "go"
+// Tool detection types - new category system
+export type ToolCategory =
+  | "vcs" // Version Control (git)
+  | "search" // Search tools (ripgrep)
+  | "json" // JSON processor (jq)
+  | "network" // Network tools (curl)
+  | "js_runtime" // JavaScript runtime (bun, node)
+  | "python_runtime" // Python runtime (python3)
+  | "python_pkg" // Python package manager (uv, pip)
 
 export interface ToolInfo {
   name: string
@@ -38,12 +45,35 @@ export interface ToolInfo {
   path: string | null
   installCommand: string | null
   description: string
-  required: boolean // If true, show warning when not installed
+  required: boolean
+  minVersion?: string // Minimum required version
+  priority: number // Higher priority = preferred in category (only one needed per category)
+}
+
+export interface CategoryStatus {
+  category: ToolCategory
+  displayName: string
+  satisfied: boolean // At least one tool installed
+  installedTool: ToolInfo | null // The installed tool (highest priority)
+  recommendedTool: ToolInfo | null // Tool to install if none installed
+  required: boolean // If this category is required for the app to work
 }
 
 export interface DetectedTools {
   platform: NodeJS.Platform
   tools: ToolInfo[]
+  categories: CategoryStatus[]
+}
+
+// Runtime environment info for system prompt injection
+export interface RuntimeEnvironment {
+  platform: string
+  tools: {
+    category: string
+    name: string
+    version: string | null
+    path: string | null
+  }[]
 }
 
 // Cache for runtime detection
@@ -55,32 +85,46 @@ let toolsCache: { data: DetectedTools; timestamp: number } | null = null
 const TOOLS_CACHE_TTL = 60000 // 1 minute
 
 // ============================================================================
-// Tool Definitions
+// Tool Definitions - Category-based system
 // ============================================================================
+
+// Category metadata
+const CATEGORY_INFO: Record<
+  ToolCategory,
+  { displayName: string; required: boolean; description: string }
+> = {
+  vcs: { displayName: "Version Control", required: true, description: "Git for code versioning" },
+  search: { displayName: "Search", required: true, description: "Fast file search" },
+  json: { displayName: "JSON", required: false, description: "JSON processing" },
+  network: { displayName: "Network", required: false, description: "HTTP requests" },
+  js_runtime: { displayName: "JavaScript", required: true, description: "JavaScript/TypeScript runtime" },
+  python_runtime: { displayName: "Python", required: false, description: "Python interpreter" },
+  python_pkg: { displayName: "Python Packages", required: false, description: "Python package manager" },
+}
+
+type SupportedPlatform = "darwin" | "win32" | "linux"
 
 interface ToolDefinition {
   name: string
   displayName: string
   category: ToolCategory
   description: string
-  required: boolean
+  priority: number // Higher = preferred (first choice in category)
+  minVersion?: string // Minimum required version (semver)
   versionFlag?: string // Default: --version
-  versionParser?: (output: string) => string // Extract version from output
-  installCommands: {
-    darwin?: string
-    win32?: string
-    linux?: string
-  }
+  versionParser?: (output: string) => string
+  installCommands: Partial<Record<SupportedPlatform, string>>
 }
 
 const TOOL_DEFINITIONS: ToolDefinition[] = [
-  // Common Tools
+  // Version Control (required: true)
   {
     name: "git",
     displayName: "Git",
-    category: "common",
+    category: "vcs",
     description: "Version control system",
-    required: true,
+    priority: 100,
+    minVersion: "2.0.0",
     versionParser: (output) => output.replace(/^git version\s*/, "").split(" ")[0],
     installCommands: {
       darwin: "brew install git",
@@ -88,12 +132,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install git",
     },
   },
+
+  // Search tools (required: true, one is enough)
   {
     name: "rg",
     displayName: "ripgrep",
-    category: "common",
-    description: "Fast search tool for file contents",
-    required: false,
+    category: "search",
+    description: "Fast file content search",
+    priority: 100, // Preferred
+    minVersion: "13.0.0",
     versionParser: (output) => output.replace(/^ripgrep\s*/, "").split(" ")[0],
     installCommands: {
       darwin: "brew install ripgrep",
@@ -101,24 +148,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install ripgrep",
     },
   },
-  {
-    name: "fd",
-    displayName: "fd",
-    category: "common",
-    description: "Fast alternative to find command",
-    required: false,
-    installCommands: {
-      darwin: "brew install fd",
-      win32: "winget install sharkdp.fd",
-      linux: "sudo apt install fd-find",
-    },
-  },
+
+  // JSON processor (optional)
   {
     name: "jq",
     displayName: "jq",
-    category: "common",
-    description: "JSON processor for command line",
-    required: false,
+    category: "json",
+    description: "JSON processor",
+    priority: 100,
+    minVersion: "1.6",
     versionParser: (output) => output.replace(/^jq-/, ""),
     installCommands: {
       darwin: "brew install jq",
@@ -126,12 +164,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install jq",
     },
   },
+
+  // Network tools (optional)
   {
     name: "curl",
     displayName: "curl",
-    category: "common",
-    description: "Command line tool for transferring data",
-    required: false,
+    category: "network",
+    description: "HTTP client",
+    priority: 100,
+    minVersion: "7.0.0",
     versionParser: (output) => output.split(" ")[1],
     installCommands: {
       darwin: "brew install curl",
@@ -139,50 +180,43 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install curl",
     },
   },
-  // macOS specific
-  {
-    name: "brew",
-    displayName: "Homebrew",
-    category: "common",
-    description: "Package manager for macOS",
-    required: false,
-    versionParser: (output) => output.replace(/^Homebrew\s*/, "").split("\n")[0],
-    installCommands: {
-      darwin: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
-    },
-  },
-  // Node.js Tools
-  {
-    name: "node",
-    displayName: "Node.js",
-    category: "nodejs",
-    description: "JavaScript runtime",
-    required: false,
-    installCommands: {
-      darwin: "brew install node",
-      win32: "winget install OpenJS.NodeJS.LTS",
-      linux: "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install nodejs",
-    },
-  },
+
+  // JavaScript runtime (required: true, bun preferred)
   {
     name: "bun",
     displayName: "Bun",
-    category: "nodejs",
+    category: "js_runtime",
     description: "Fast JavaScript runtime",
-    required: false,
+    priority: 100, // Preferred
+    minVersion: "1.0.0",
     installCommands: {
       darwin: "brew install oven-sh/bun/bun",
       win32: "powershell -c \"irm bun.sh/install.ps1|iex\"",
       linux: "curl -fsSL https://bun.sh/install | bash",
     },
   },
-  // Python Tools
+  {
+    name: "node",
+    displayName: "Node.js",
+    category: "js_runtime",
+    description: "JavaScript runtime",
+    priority: 50, // Fallback
+    minVersion: "18.0.0",
+    installCommands: {
+      darwin: "brew install node",
+      win32: "winget install OpenJS.NodeJS.LTS",
+      linux: "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install nodejs",
+    },
+  },
+
+  // Python runtime (optional)
   {
     name: "python3",
     displayName: "Python",
-    category: "python",
+    category: "python_runtime",
     description: "Python interpreter",
-    required: false,
+    priority: 100,
+    minVersion: "3.10.0",
     versionParser: (output) => output.replace(/^Python\s*/, ""),
     installCommands: {
       darwin: "brew install python",
@@ -190,12 +224,27 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install python3",
     },
   },
+
+  // Python package manager (optional, uv preferred)
+  {
+    name: "uv",
+    displayName: "uv",
+    category: "python_pkg",
+    description: "Fast Python package manager",
+    priority: 100, // Preferred
+    minVersion: "0.1.0",
+    installCommands: {
+      darwin: "brew install uv",
+      win32: "powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"",
+      linux: "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    },
+  },
   {
     name: "pip3",
     displayName: "pip",
-    category: "python",
+    category: "python_pkg",
     description: "Python package installer",
-    required: false,
+    priority: 50, // Fallback
     versionParser: (output) => output.split(" ")[1],
     installCommands: {
       darwin: "python3 -m ensurepip --upgrade",
@@ -203,32 +252,6 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install python3-pip",
     },
   },
-  {
-    name: "uv",
-    displayName: "uv",
-    category: "python",
-    description: "Fast Python package installer",
-    required: false,
-    installCommands: {
-      darwin: "brew install uv",
-      win32: "powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"",
-      linux: "curl -LsSf https://astral.sh/uv/install.sh | sh",
-    },
-  },
-  // Go Tools - commented out until Go runtime support is implemented
-  // {
-  //   name: "go",
-  //   displayName: "Go",
-  //   category: "go",
-  //   description: "Go programming language",
-  //   required: false,
-  //   versionParser: (output) => output.replace(/^go version go/, "").split(" ")[0],
-  //   installCommands: {
-  //     darwin: "brew install go",
-  //     win32: "winget install GoLang.Go",
-  //     linux: "sudo apt install golang-go",
-  //   },
-  // },
 ]
 
 // ============================================================================
@@ -276,8 +299,9 @@ async function detectRuntime(
  * Detect a single tool from definition
  */
 async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
-  const platform = process.platform as NodeJS.Platform
+  const platform = process.platform as SupportedPlatform
   const whichCmd = platform === "win32" ? "where" : "which"
+  const categoryInfo = CATEGORY_INFO[def.category]
 
   // Check if tool exists
   const toolPath = await execWithTimeout(`${whichCmd} ${def.name}`)
@@ -290,9 +314,11 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
       installed: false,
       version: null,
       path: null,
-      installCommand: def.installCommands[platform] || null,
+      installCommand: def.installCommands[platform] ?? null,
       description: def.description,
-      required: def.required,
+      required: categoryInfo.required,
+      minVersion: def.minVersion,
+      priority: def.priority,
     }
   }
 
@@ -320,33 +346,101 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
     category: def.category,
     installed: true,
     version,
-    path: toolPath.split("\n")[0], // Take first result on Windows
-    installCommand: def.installCommands[platform] || null,
+    path: toolPath.split("\n")[0],
+    installCommand: def.installCommands[platform] ?? null,
     description: def.description,
-    required: def.required,
+    required: categoryInfo.required,
+    minVersion: def.minVersion,
+    priority: def.priority,
   }
 }
 
 /**
- * Detect all tools (with platform filtering)
+ * Build category status from detected tools
+ */
+function buildCategoryStatus(tools: ToolInfo[]): CategoryStatus[] {
+  const categories = Object.keys(CATEGORY_INFO) as ToolCategory[]
+
+  return categories.map((category) => {
+    const categoryInfo = CATEGORY_INFO[category]
+    const categoryTools = tools
+      .filter((t) => t.category === category)
+      .sort((a, b) => b.priority - a.priority) // Sort by priority descending
+
+    const installedTools = categoryTools.filter((t) => t.installed)
+    const installedTool = installedTools[0] || null // Highest priority installed tool
+    const recommendedTool = categoryTools[0] || null // Highest priority tool to recommend
+
+    return {
+      category,
+      displayName: categoryInfo.displayName,
+      satisfied: installedTools.length > 0,
+      installedTool,
+      recommendedTool: installedTool ? null : recommendedTool,
+      required: categoryInfo.required,
+    }
+  })
+}
+
+/**
+ * Detect all tools and build category status
  */
 async function detectAllTools(): Promise<DetectedTools> {
-  const platform = process.platform as NodeJS.Platform
+  const platform = process.platform as SupportedPlatform
 
-  // Filter tools by platform (only include tools that have install command for this platform OR are universal)
+  // Filter tools by platform
   const platformTools = TOOL_DEFINITIONS.filter((def) => {
-    // Homebrew is macOS only
-    if (def.name === "brew" && platform !== "darwin") return false
-    return true
+    // Only include tools that have install command for this platform
+    return def.installCommands[platform] !== undefined
   })
 
   // Detect all tools in parallel
   const tools = await Promise.all(platformTools.map(detectTool))
 
+  // Build category status
+  const categories = buildCategoryStatus(tools)
+
   return {
     platform,
     tools,
+    categories,
   }
+}
+
+/**
+ * Get runtime environment info for system prompt injection
+ */
+export function getRuntimeEnvironment(tools: DetectedTools): RuntimeEnvironment {
+  const installedByCategory = new Map<ToolCategory, ToolInfo>()
+
+  // Get highest priority installed tool for each category
+  for (const tool of tools.tools) {
+    if (!tool.installed) continue
+    const existing = installedByCategory.get(tool.category)
+    if (!existing || tool.priority > existing.priority) {
+      installedByCategory.set(tool.category, tool)
+    }
+  }
+
+  return {
+    platform: tools.platform,
+    tools: Array.from(installedByCategory.values()).map((tool) => ({
+      category: CATEGORY_INFO[tool.category].displayName,
+      name: tool.name,
+      version: tool.version,
+      path: tool.path,
+    })),
+  }
+}
+
+/**
+ * Get runtime environment info (cached) - for direct import in other modules
+ */
+export async function getCachedRuntimeEnvironment(): Promise<RuntimeEnvironment> {
+  if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+    toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
+  }
+  return getRuntimeEnvironment(toolsCache.data)
 }
 
 // ============================================================================
@@ -586,6 +680,19 @@ export const runnerRouter = router({
     toolsCache = { data, timestamp: Date.now() }
 
     return data
+  }),
+
+  /**
+   * Get runtime environment info for system prompt injection
+   * Returns only the essential info: one tool per category (highest priority installed)
+   */
+  getRuntimeEnvironment: publicProcedure.query(async (): Promise<RuntimeEnvironment> => {
+    // Use cached tools data if available
+    if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+      toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
+    }
+
+    return getRuntimeEnvironment(toolsCache.data)
   }),
 
   /**

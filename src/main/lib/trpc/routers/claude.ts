@@ -29,6 +29,7 @@ import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-setting
 import { discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
+import { getCachedRuntimeEnvironment } from "./runner"
 
 /**
  * Type for Claude SDK streaming messages
@@ -1744,6 +1745,20 @@ ${history}
                 }
               }
 
+              // Get runtime environment for Ollama context
+              let ollamaRuntimeInfo = ""
+              try {
+                const runtimeEnv = await getCachedRuntimeEnvironment()
+                if (runtimeEnv.tools.length > 0) {
+                  const toolsList = runtimeEnv.tools
+                    .map((t) => `- ${t.category}: ${t.name}${t.version ? ` (${t.version})` : ""}`)
+                    .join("\n")
+                  ollamaRuntimeInfo = `\n\n[RUNTIME]\nAvailable tools:\n${toolsList}\n[/RUNTIME]`
+                }
+              } catch (e) {
+                console.warn("[Ollama] Failed to get runtime environment:", e)
+              }
+
               const ollamaContext = `[CONTEXT]
 You are a coding assistant in OFFLINE mode (Ollama model: ${resolvedModel || 'unknown'}).
 Project: ${input.projectPath || input.cwd}
@@ -1759,7 +1774,7 @@ IMPORTANT: When using tools, use these EXACT parameter names:
 
 When asked about the project, use Glob to find files and Read to examine them.
 Be concise and helpful.
-[/CONTEXT]${ollamaUserProfile}${agentsMdContent ? `
+[/CONTEXT]${ollamaUserProfile}${ollamaRuntimeInfo}${agentsMdContent ? `
 
 [AGENTS.MD]
 ${agentsMdContent}
@@ -1789,10 +1804,25 @@ ${prompt}
               }
             }
 
+            // Get runtime environment info for system prompt
+            let runtimeSection = ""
+            try {
+              const runtimeEnv = await getCachedRuntimeEnvironment()
+              if (runtimeEnv.tools.length > 0) {
+                const toolsList = runtimeEnv.tools
+                  .map((t) => `- ${t.category}: ${t.name}${t.version ? ` (${t.version})` : ""}`)
+                  .join("\n")
+                runtimeSection = `\n\n# Runtime Environment\nThe following tools are available on this system. Prefer using these when applicable:\n${toolsList}`
+              }
+            } catch (e) {
+              console.warn("[claude] Failed to get runtime environment:", e)
+            }
+
             // System prompt config - use preset for both Claude and Ollama
-            // Append user profile and AGENTS.md content to the system prompt
+            // Append user profile, runtime env, and AGENTS.md content to the system prompt
             const appendParts = [
               userProfileSection,
+              runtimeSection,
               agentsMdContent
                 ? `\n\n# AGENTS.md\nThe following are the project's AGENTS.md instructions:\n\n${agentsMdContent}`
                 : "",

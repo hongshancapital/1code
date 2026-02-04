@@ -330,10 +330,11 @@ function CommonToolsSection() {
     [installMutation]
   )
 
-  // Filter to show common category tools, sorted by priority
-  const priorityTools = ["git", "rg", "fd", "jq", "curl", "brew"]
+  // Filter to show common category tools (vcs, search, json, network), sorted by priority
+  const commonCategories = ["vcs", "search", "json", "network"]
+  const priorityTools = ["git", "rg", "jq", "curl"]
   const commonTools = toolsData?.tools
-    ?.filter((t) => t.category === "common")
+    ?.filter((t) => commonCategories.includes(t.category))
     .slice()
     .sort((a, b) => {
       const aIdx = priorityTools.indexOf(a.name)
@@ -460,8 +461,9 @@ function PythonSection() {
     [installMutation]
   )
 
-  // Filter to show python category tools
-  const pythonTools = toolsData?.tools?.filter((t) => t.category === "python")
+  // Filter to show python category tools (python_runtime, python_pkg)
+  const pythonCategories = ["python_runtime", "python_pkg"]
+  const pythonTools = toolsData?.tools?.filter((t) => pythonCategories.includes(t.category))
 
   return (
     <RuntimeSection
