@@ -145,10 +145,11 @@ export function QueueProcessor() {
 
     // Schedule processing for a sub-chat with delay
     const scheduleProcessing = (subChatId: string) => {
-      // Clear any existing timer for this sub-chat
+      // If already scheduled, don't reset the timer - let it fire
+      // This prevents infinite deferral when checkAllQueues is called frequently
       const existingTimer = timersRef.current.get(subChatId)
       if (existingTimer) {
-        clearTimeout(existingTimer)
+        return
       }
 
       // Schedule new processing
