@@ -4501,10 +4501,16 @@ export function ChatView({
   )
 
   // Lazy load messages for the active sub-chat (performance optimization)
+  // Check if sub-chat belongs to current workspace (from server data or local store)
+  // This prevents loading messages for stale/invalid sub-chat IDs from localStorage
+  const activeSubChatExistsInWorkspace = activeSubChatId && (
+    agentSubChats.some(sc => sc.id === activeSubChatId) ||
+    allSubChats.some(sc => sc.id === activeSubChatId)
+  )
   const { data: subChatMessagesData, isLoading: isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
     { id: activeSubChatId! },
     {
-      enabled: !!activeSubChatId && chatSourceMode === "local",
+      enabled: !!activeSubChatId && chatSourceMode === "local" && !!activeSubChatExistsInWorkspace,
       staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
     }
   )
@@ -6568,7 +6574,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               <div className="relative flex-1 min-h-0">
                 {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
                 {/* Also wait for messages to load for local chats (lazy loading optimization) */}
-                {(isLocalChatLoading || (chatSourceMode === "local" && activeSubChatId && isLoadingMessages)) ? (
+                {/* Only show messages loading spinner if sub-chat exists in this workspace */}
+                {(isLocalChatLoading || (chatSourceMode === "local" && activeSubChatExistsInWorkspace && isLoadingMessages)) ? (
                   <div className="flex items-center justify-center h-full">
                     <IconSpinner className="h-6 w-6 animate-spin" />
                   </div>
