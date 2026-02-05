@@ -1869,6 +1869,7 @@ export const chatsRouter = router({
 
       // Try to use pre-computed stats first
       let inputs: SubChatPreviewInput[]
+      let needsPersist = false
 
       if (subChat.statsJson) {
         // Use pre-computed stats (fast path)
@@ -1882,6 +1883,7 @@ export const chatsRouter = router({
             subChat.mode || "agent"
           )
           inputs = computed.inputs
+          needsPersist = true
         }
       } else {
         // No pre-computed stats (old records) - compute on-the-fly
@@ -1891,6 +1893,19 @@ export const chatsRouter = router({
           subChat.mode || "agent"
         )
         inputs = computed.inputs
+        needsPersist = true
+      }
+
+      // Lazy migration: persist computed stats for old records
+      if (needsPersist) {
+        try {
+          db.update(subChats)
+            .set({ statsJson: JSON.stringify({ inputs }) })
+            .where(eq(subChats.id, input.subChatId))
+            .run()
+        } catch {
+          // Non-critical, ignore errors
+        }
       }
 
       // Fetch token usage from model_usage table and merge into inputs
