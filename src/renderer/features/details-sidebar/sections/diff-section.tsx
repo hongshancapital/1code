@@ -89,17 +89,19 @@ export function DiffSection({
           {/* File list - matching agent-diff-view header style */}
           {visibleFiles.length > 0 && (
             <div className="flex flex-col gap-0.5">
-              {visibleFiles.map((file) => {
+              {visibleFiles.map((file, index) => {
                 const displayPath = file.newPath || file.oldPath
                 const fileName = getFileName(displayPath)
                 const dirPath = getFileDir(displayPath)
                 const isNewFile = file.isNewFile
                 const isDeletedFile = file.isDeletedFile
                 const FileIcon = getFileIconByExtension(fileName)
+                // Use index-suffixed key to ensure uniqueness even if file.key has duplicates
+                const uniqueKey = `${file.key}::${index}`
 
                 return (
                   <div
-                    key={file.key}
+                    key={uniqueKey}
                     className={cn(
                       "group flex items-center gap-2 font-mono text-xs",
                       "py-1 px-1.5 rounded cursor-pointer",

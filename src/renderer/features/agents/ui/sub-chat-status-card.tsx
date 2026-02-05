@@ -90,25 +90,14 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
   // Filter changedFiles to only include files that are still uncommitted
   // In Cowork mode, show all files without git filtering
   const displayFiles = useMemo(() => {
-    console.log(`[StatusCard] Computing displayFiles:`, {
-      changedFilesCount: changedFiles.length,
-      changedFiles: changedFiles.map(f => f.displayPath),
-      hasGitStatus: !!gitStatus,
-      worktreePath,
-      isStreaming,
-      isCodingMode,
-    })
-
     // In Cowork mode, show all changed files (no git filtering)
     if (!isCodingMode) {
-      console.log(`[StatusCard] Cowork mode - returning all changedFiles`)
       return changedFiles
     }
 
     // Coding mode: filter by git status
     // If no git status yet, no worktreePath, or still streaming - show all files
     if (!gitStatus || !worktreePath || isStreaming) {
-      console.log(`[StatusCard] Returning all changedFiles (no filter)`)
       return changedFiles
     }
 
@@ -131,16 +120,8 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
       }
     }
 
-    console.log(`[StatusCard] Git uncommitted paths:`, Array.from(uncommittedPaths))
-
     // Filter changedFiles to only include files that are still uncommitted
-    const filtered = changedFiles.filter((file) => {
-      const hasMatch = uncommittedPaths.has(file.displayPath)
-      console.log(`[StatusCard] Checking file "${file.displayPath}" -> hasMatch: ${hasMatch}`)
-      return hasMatch
-    })
-    console.log(`[StatusCard] Filtered result:`, filtered.map(f => f.displayPath))
-    return filtered
+    return changedFiles.filter((file) => uncommittedPaths.has(file.displayPath))
   }, [changedFiles, gitStatus, worktreePath, isStreaming, isCodingMode])
 
   // Calculate totals from uncommitted files only
@@ -159,7 +140,6 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
 
   // Don't show if no changed files - only show when there are files to review
   if (displayFiles.length === 0) {
-    console.log(`[StatusCard] Returning null - no uncommitted files`)
     return null
   }
 
@@ -167,7 +147,6 @@ export const SubChatStatusCard = memo(function SubChatStatusCard({
     // Set filter to only show files from this sub-chat
     // Use displayPath (relative path) to match git diff paths
     const filePaths = displayFiles.map((f) => f.displayPath)
-    console.log('[SubChatStatusCard] handleReview:', { subChatId, filePaths })
     setFilteredDiffFiles(filePaths.length > 0 ? filePaths : null)
     // Also set subchat ID filter for ChangesPanel - use the prop, not activeSubChatId from store
     setFilteredSubChatId(subChatId)

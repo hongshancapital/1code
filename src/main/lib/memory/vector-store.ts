@@ -1,0 +1,312 @@
+/**
+ * Vector Store
+ * LanceDB-based vector storage for semantic search
+ */
+
+import * as lancedb from "@lancedb/lancedb"
+import { app } from "electron"
+import path from "path"
+import { generateEmbedding, EMBEDDING_DIMENSION } from "./embeddings"
+
+// LanceDB connection and table
+let db: lancedb.Connection | null = null
+let observationsTable: lancedb.Table | null = null
+
+// Queue for async embedding generation
+interface EmbeddingQueueItem {
+  id: string
+  text: string
+  projectId: string | null
+  type: string
+  createdAtEpoch: number
+}
+
+const embeddingQueue: EmbeddingQueueItem[] = []
+let isProcessingQueue = false
+
+// Table schema
+interface ObservationVector {
+  id: string
+  vector: number[]
+  projectId: string | null
+  type: string
+  createdAtEpoch: number
+}
+
+/**
+ * Get the LanceDB database path
+ */
+function getDbPath(): string {
+  return path.join(app.getPath("userData"), "data", "memory-vectors")
+}
+
+/**
+ * Initialize LanceDB connection and tables
+ */
+export async function initVectorStore(): Promise<void> {
+  if (db) return
+
+  const dbPath = getDbPath()
+  console.log(`[VectorStore] Initializing at: ${dbPath}`)
+
+  try {
+    db = await lancedb.connect(dbPath)
+
+    // Check if table exists
+    const tableNames = await db.tableNames()
+
+    if (tableNames.includes("observations")) {
+      observationsTable = await db.openTable("observations")
+      console.log("[VectorStore] Opened existing observations table")
+    } else {
+      // Create table with initial empty data (LanceDB requires data to create table)
+      // We'll use a placeholder that will be overwritten
+      // Note: Use empty string instead of null for projectId to avoid type inference issues
+      console.log("[VectorStore] Creating new observations table")
+      observationsTable = await db.createTable("observations", [
+        {
+          id: "__placeholder__",
+          vector: new Array(EMBEDDING_DIMENSION).fill(0),
+          projectId: "", // Use empty string, not null (LanceDB can't infer null type)
+          type: "placeholder",
+          createdAtEpoch: 0,
+        },
+      ])
+      // Delete the placeholder
+      await observationsTable.delete('id = "__placeholder__"')
+    }
+
+    console.log("[VectorStore] Initialized successfully")
+  } catch (error) {
+    console.error("[VectorStore] Initialization failed:", error)
+    throw error
+  }
+}
+
+/**
+ * Add an observation to the vector store
+ */
+export async function addObservation(
+  id: string,
+  text: string,
+  projectId: string | null,
+  type: string,
+  createdAtEpoch: number,
+): Promise<void> {
+  await initVectorStore()
+  if (!observationsTable) throw new Error("Vector store not initialized")
+
+  try {
+    const embedding = await generateEmbedding(text)
+
+    await observationsTable.add([
+      {
+        id,
+        vector: Array.from(embedding),
+        projectId: projectId || "", // Use empty string instead of null
+        type,
+        createdAtEpoch,
+      },
+    ])
+
+    console.log(`[VectorStore] Added observation: ${id}`)
+  } catch (error) {
+    console.error(`[VectorStore] Failed to add observation ${id}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Queue an observation for async embedding generation
+ * Use this for fire-and-forget embedding in hooks
+ */
+export function queueForEmbedding(
+  id: string,
+  text: string,
+  projectId: string | null,
+  type: string,
+  createdAtEpoch: number,
+): void {
+  embeddingQueue.push({ id, text, projectId, type, createdAtEpoch })
+  processQueue().catch((err) =>
+    console.error("[VectorStore] Queue processing error:", err),
+  )
+}
+
+/**
+ * Process the embedding queue
+ */
+async function processQueue(): Promise<void> {
+  if (isProcessingQueue || embeddingQueue.length === 0) return
+
+  isProcessingQueue = true
+
+  try {
+    await initVectorStore()
+
+    while (embeddingQueue.length > 0) {
+      const item = embeddingQueue.shift()
+      if (!item) continue
+
+      try {
+        await addObservation(
+          item.id,
+          item.text,
+          item.projectId,
+          item.type,
+          item.createdAtEpoch,
+        )
+      } catch (error) {
+        console.error(
+          `[VectorStore] Failed to process queued item ${item.id}:`,
+          error,
+        )
+        // Don't re-queue to avoid infinite loops
+      }
+    }
+  } finally {
+    isProcessingQueue = false
+  }
+}
+
+/**
+ * Search for similar observations using vector similarity
+ */
+export async function searchSimilar(
+  query: string,
+  options: {
+    projectId?: string
+    limit?: number
+    type?: string
+  } = {},
+): Promise<
+  Array<{
+    id: string
+    score: number
+    projectId: string | null
+    type: string
+    createdAtEpoch: number
+  }>
+> {
+  await initVectorStore()
+  if (!observationsTable) throw new Error("Vector store not initialized")
+
+  const { projectId, limit = 20, type } = options
+
+  try {
+    const queryEmbedding = await generateEmbedding(query)
+
+    // Build the search query
+    let searchQuery = observationsTable
+      .vectorSearch(Array.from(queryEmbedding))
+      .limit(limit * 2) // Get more results for filtering
+
+    // Execute search
+    const results = await searchQuery.toArray()
+
+    // Filter and map results
+    const filtered = results
+      .filter((r) => {
+        // Empty string is stored as null equivalent
+        const rProjectId = r.projectId === "" ? null : r.projectId
+        if (projectId && rProjectId !== projectId) return false
+        if (type && r.type !== type) return false
+        return true
+      })
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id as string,
+        score: r._distance !== undefined ? 1 - r._distance : 0, // Convert distance to similarity
+        projectId: (r.projectId === "" ? null : r.projectId) as string | null,
+        type: r.type as string,
+        createdAtEpoch: r.createdAtEpoch as number,
+      }))
+
+    return filtered
+  } catch (error) {
+    console.error("[VectorStore] Search failed:", error)
+    return []
+  }
+}
+
+/**
+ * Delete an observation from the vector store
+ */
+export async function deleteObservation(id: string): Promise<void> {
+  await initVectorStore()
+  if (!observationsTable) return
+
+  try {
+    await observationsTable.delete(`id = "${id}"`)
+    console.log(`[VectorStore] Deleted observation: ${id}`)
+  } catch (error) {
+    console.error(`[VectorStore] Failed to delete observation ${id}:`, error)
+  }
+}
+
+/**
+ * Delete all observations for a project
+ */
+export async function deleteProjectObservations(
+  projectId: string,
+): Promise<void> {
+  await initVectorStore()
+  if (!observationsTable) return
+
+  try {
+    await observationsTable.delete(`projectId = "${projectId}"`)
+    console.log(`[VectorStore] Deleted all observations for project: ${projectId}`)
+  } catch (error) {
+    console.error(
+      `[VectorStore] Failed to delete project observations:`,
+      error,
+    )
+  }
+}
+
+/**
+ * Get statistics about the vector store
+ */
+export async function getStats(): Promise<{
+  totalVectors: number
+  isReady: boolean
+}> {
+  try {
+    await initVectorStore()
+    if (!observationsTable) {
+      return { totalVectors: 0, isReady: false }
+    }
+
+    const count = await observationsTable.countRows()
+    return { totalVectors: count, isReady: true }
+  } catch (error) {
+    console.error("[VectorStore] getStats error:", error)
+    return { totalVectors: 0, isReady: false }
+  }
+}
+
+/**
+ * Rebuild vector index for a project (re-embed all observations)
+ * This is useful after clearing data or if embeddings are corrupted
+ */
+export async function rebuildIndex(projectId: string): Promise<void> {
+  // This would require re-reading from SQLite and re-embedding
+  // For now, just log - full implementation in Phase 3
+  console.log(`[VectorStore] Rebuild index requested for project: ${projectId}`)
+}
+
+/**
+ * Clear all vectors from the store
+ */
+export async function clearAll(): Promise<void> {
+  await initVectorStore()
+  if (!observationsTable) return
+
+  try {
+    // Delete all rows
+    await observationsTable.delete("id IS NOT NULL")
+    console.log("[VectorStore] Cleared all observations")
+  } catch (error) {
+    console.error("[VectorStore] Failed to clear all:", error)
+  }
+}

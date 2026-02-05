@@ -263,13 +263,15 @@ export const ChangesWidget = memo(function ChangesWidget({
 
             {/* File list - using shared FileListItem component */}
             <div className="max-h-[300px] overflow-y-auto">
-              {displayFiles.map((file) => {
+              {displayFiles.map((file, index) => {
                 const filePath = getDisplayPath(file)
                 const absolutePath = worktreePath ? `${worktreePath}/${filePath}` : null
+                // Use index-suffixed key to ensure uniqueness even if file.key has duplicates
+                const uniqueKey = `${file.key}::${index}`
 
                 return (
                   <FileListItem
-                    key={file.key}
+                    key={uniqueKey}
                     filePath={filePath}
                     fileName={getFileName(filePath)}
                     dirPath={getFileDir(filePath)}

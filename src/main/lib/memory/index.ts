@@ -1,0 +1,36 @@
+/**
+ * Memory Module
+ * Main entry point for the Memory engine
+ */
+
+export { memoryHooks } from "./hooks"
+export {
+  parseToolToObservation,
+  isMetaObservation,
+  buildObservationText,
+} from "./observation-parser"
+export * from "./types"
+
+// Vector store
+export {
+  initVectorStore,
+  addObservation,
+  searchSimilar,
+  deleteObservation,
+  deleteProjectObservations,
+  queueForEmbedding,
+  getStats as getVectorStats,
+} from "./vector-store"
+
+// Embeddings
+export {
+  generateEmbedding,
+  generateEmbeddings,
+  preloadEmbeddingModel,
+  isEmbeddingReady,
+  EMBEDDING_MODEL,
+  EMBEDDING_DIMENSION,
+} from "./embeddings"
+
+// Hybrid search
+export { hybridSearch, findRelated, type HybridSearchResult } from "./hybrid-search"
