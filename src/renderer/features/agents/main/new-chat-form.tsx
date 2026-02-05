@@ -1002,8 +1002,8 @@ export function NewChatForm({
 
     // For Chat mode, we don't need a pre-selected project
     // The playground is created on-demand when the message is sent (see "Chat mode" section below)
-    // For other modes, we need a project selected
-    if (currentProjectMode !== "chat" && !selectedProject) {
+    // For other modes, we need a validated project selected
+    if (currentProjectMode !== "chat" && !validatedProject) {
       return
     }
 
@@ -1200,7 +1200,7 @@ export function NewChatForm({
     // Create chat with selected project, branch, and initial message (cowork/coding modes)
     try {
       const data = await createChatMutation.mutateAsync({
-        projectId: projectToUse.id,
+        projectId: validatedProject!.id,
         name: message.trim().slice(0, 50), // Use first 50 chars as chat name
         initialMessageParts: parts.length > 0 ? parts : undefined,
         baseBranch:
@@ -1249,8 +1249,7 @@ export function NewChatForm({
       toast.error(error instanceof Error ? error.message : "Failed to create chat")
     }
   }, [
-    selectedProject,
-    validatedProject?.path,
+    validatedProject,
     createChatMutation,
     createSubChatMutation,
     createPlaygroundChatMutation,
