@@ -1,18 +1,19 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
-import { getDatabase, projects } from "../../db"
-import { eq, desc } from "drizzle-orm"
+import { getDatabase, projects, chats } from "../../db"
+import { eq, desc, and, isNull } from "drizzle-orm"
 import { dialog, BrowserWindow, app } from "electron"
-import { basename, join } from "path"
+import { basename, join, dirname } from "path"
 import { exec } from "node:child_process"
 import { promisify } from "node:util"
 import { existsSync } from "node:fs"
-import { mkdir, copyFile, unlink } from "node:fs/promises"
+import { mkdir, copyFile, unlink, rename, readdir, rm, stat } from "node:fs/promises"
 import { extname } from "node:path"
 import { getGitRemoteInfo, isGitRepo } from "../../git"
 import { trackProjectOpened } from "../../analytics"
 import { getLaunchDirectory } from "../../cli"
 import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
+import { createId } from "../../db/utils"
 
 const execAsync = promisify(exec)
 
@@ -47,6 +48,10 @@ export const projectsRouter = router({
     }),
 
   /**
+   * @deprecated Use chats.createPlaygroundChat instead.
+   * This API is kept for backward compatibility during migration.
+   * It will be removed in a future version.
+   *
    * Get or create the playground project for chat mode
    * Playground runs in {User}/.hong/.playground
    */
@@ -734,4 +739,295 @@ export const projectsRouter = router({
         .returning()
         .get()
     }),
+
+  /**
+   * Create an independent playground project for a new chat.
+   * Each chat gets its own directory: ~/.hong/.playground/{nanoid}/
+   * This enables users to start chatting immediately without specifying a folder.
+   */
+  createIndependentPlayground: publicProcedure
+    .input(z.object({
+      name: z.string().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+      const homePath = app.getPath("home")
+      const playgroundRoot = join(homePath, PLAYGROUND_RELATIVE_PATH)
+
+      // Generate unique ID for this playground
+      const playgroundId = createId()
+      const playgroundPath = join(playgroundRoot, playgroundId)
+
+      // Create playground directory
+      await mkdir(playgroundPath, { recursive: true })
+
+      // Create playground project
+      const playground = db
+        .insert(projects)
+        .values({
+          name: input?.name || "New Chat",
+          path: playgroundPath,
+          mode: "cowork", // Use cowork mode for full read/write capability
+          isPlayground: true,
+        })
+        .returning()
+        .get()
+
+      return playground
+    }),
+
+  /**
+   * Migrate a playground project to a regular workspace directory.
+   * Moves all files from playground to target path and updates the project.
+   */
+  migratePlayground: publicProcedure
+    .input(z.object({
+      projectId: z.string(),
+      targetPath: z.string(),
+      newName: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      // Get project
+      const project = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, input.projectId))
+        .get()
+
+      if (!project) {
+        throw new Error("Project not found")
+      }
+
+      if (!project.isPlayground) {
+        throw new Error("Only playground projects can be migrated")
+      }
+
+      const sourcePath = project.path
+      const targetPath = input.targetPath
+
+      // Validate target path
+      if (existsSync(targetPath)) {
+        // Check if it's an empty directory
+        const contents = await readdir(targetPath)
+        if (contents.length > 0) {
+          throw new Error("Target directory is not empty")
+        }
+      } else {
+        // Create parent directory if needed
+        await mkdir(dirname(targetPath), { recursive: true })
+      }
+
+      // Move directory
+      try {
+        await rename(sourcePath, targetPath)
+      } catch (err) {
+        // If rename fails (cross-device), try copy and delete
+        if ((err as NodeJS.ErrnoException).code === "EXDEV") {
+          // For cross-device moves, we'd need to implement recursive copy
+          // For now, throw a more helpful error
+          throw new Error("Cannot move across different drives. Please choose a location on the same drive.")
+        }
+        throw err
+      }
+
+      // Check if target is a git repo and get git info
+      const hasGit = await isGitRepo(targetPath)
+      const gitInfo = await getGitRemoteInfo(targetPath)
+      const mode = hasGit ? "coding" : "cowork"
+
+      // Update project
+      const updatedProject = db
+        .update(projects)
+        .set({
+          name: input.newName || basename(targetPath),
+          path: targetPath,
+          isPlayground: false,
+          mode,
+          gitRemoteUrl: gitInfo.remoteUrl,
+          gitProvider: gitInfo.provider,
+          gitOwner: gitInfo.owner,
+          gitRepo: gitInfo.repo,
+          updatedAt: new Date(),
+        })
+        .where(eq(projects.id, input.projectId))
+        .returning()
+        .get()
+
+      return updatedProject
+    }),
+
+  /**
+   * Pick a destination folder for migrating a playground
+   */
+  pickMigrateDestination: publicProcedure
+    .input(z.object({ suggestedName: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const window = ctx.getWindow?.() ?? BrowserWindow.getFocusedWindow()
+
+      if (!window) {
+        return { success: false as const, reason: "no-window" as const }
+      }
+
+      // Ensure window is focused
+      if (!window.isFocused()) {
+        window.focus()
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
+      // Default to user's home directory
+      const homePath = app.getPath("home")
+
+      const result = await dialog.showOpenDialog(window, {
+        properties: ["openDirectory", "createDirectory"],
+        title: "Choose where to save your project",
+        defaultPath: homePath,
+        buttonLabel: "Select Folder",
+      })
+
+      if (result.canceled || !result.filePaths[0]) {
+        return { success: false as const, reason: "canceled" as const }
+      }
+
+      const targetPath = join(result.filePaths[0], input.suggestedName)
+      return { success: true as const, targetPath }
+    }),
+
+  /**
+   * Get playground storage info (size, file count)
+   */
+  getPlaygroundInfo: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDatabase()
+
+      const project = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, input.projectId))
+        .get()
+
+      if (!project || !project.isPlayground) {
+        return null
+      }
+
+      // Calculate directory size
+      let totalSize = 0
+      let fileCount = 0
+
+      async function calculateSize(dirPath: string): Promise<void> {
+        try {
+          const entries = await readdir(dirPath, { withFileTypes: true })
+          for (const entry of entries) {
+            const fullPath = join(dirPath, entry.name)
+            if (entry.isDirectory()) {
+              await calculateSize(fullPath)
+            } else {
+              const fileStat = await stat(fullPath)
+              totalSize += fileStat.size
+              fileCount++
+            }
+          }
+        } catch {
+          // Ignore errors (permission issues, etc.)
+        }
+      }
+
+      await calculateSize(project.path)
+
+      return {
+        path: project.path,
+        size: totalSize,
+        fileCount,
+        sizeFormatted: formatBytes(totalSize),
+      }
+    }),
+
+  /**
+   * Delete a playground project and its directory
+   */
+  deletePlayground: publicProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      const project = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, input.projectId))
+        .get()
+
+      if (!project) {
+        throw new Error("Project not found")
+      }
+
+      if (!project.isPlayground) {
+        throw new Error("Only playground projects can be deleted with this method")
+      }
+
+      // Delete the directory
+      if (existsSync(project.path)) {
+        await rm(project.path, { recursive: true, force: true })
+      }
+
+      // Delete from database (cascade will delete chats)
+      db.delete(projects).where(eq(projects.id, input.projectId)).run()
+
+      return { success: true }
+    }),
+
+  /**
+   * Cleanup orphan playground directories
+   * Removes directories in ~/.hong/.playground that have no associated project
+   */
+  cleanupOrphanPlaygrounds: publicProcedure.mutation(async () => {
+    const db = getDatabase()
+    const homePath = app.getPath("home")
+    const playgroundRoot = join(homePath, PLAYGROUND_RELATIVE_PATH)
+
+    if (!existsSync(playgroundRoot)) {
+      return { cleaned: 0 }
+    }
+
+    // Get all playground projects
+    const playgroundProjects = db
+      .select()
+      .from(projects)
+      .where(eq(projects.isPlayground, true))
+      .all()
+
+    const projectPaths = new Set(playgroundProjects.map(p => p.path))
+
+    // Scan playground root directory
+    const entries = await readdir(playgroundRoot, { withFileTypes: true })
+    let cleaned = 0
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const dirPath = join(playgroundRoot, entry.name)
+        if (!projectPaths.has(dirPath)) {
+          // Orphan directory, delete it
+          try {
+            await rm(dirPath, { recursive: true, force: true })
+            cleaned++
+            console.log(`[Projects] Cleaned orphan playground: ${dirPath}`)
+          } catch (err) {
+            console.error(`[Projects] Failed to clean orphan playground: ${dirPath}`, err)
+          }
+        }
+      }
+    }
+
+    return { cleaned }
+  }),
 })
+
+// Helper function to format bytes
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const sizes = ["B", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+}

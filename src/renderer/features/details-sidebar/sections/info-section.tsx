@@ -8,7 +8,8 @@ import {
   FolderFilledIcon,
   GitPullRequestFilledIcon,
 } from "@/components/ui/icons"
-import { WandSparkles } from "lucide-react"
+import { WandSparkles, FolderOutput } from "lucide-react"
+import { MoveToWorkspaceDialog } from "@/components/dialogs/move-to-workspace-dialog"
 import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
@@ -134,9 +135,26 @@ export const InfoSection = memo(function InfoSection({
   remoteInfo,
 }: InfoSectionProps) {
   const { t } = useTranslation("sidebar")
+  const { t: tCommon } = useTranslation("common")
+
+  // Move to workspace dialog state
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false)
 
   // Extract folder name from path
   const folderName = worktreePath?.split("/").pop() || "Unknown"
+
+  // Get chat data to check if this is a playground chat
+  const { data: chatData } = trpc.chats.get.useQuery(
+    { id: chatId },
+    { enabled: !!chatId }
+  )
+
+  // Get project info to check if playground
+  const { data: projects } = trpc.projects.list.useQuery()
+  const project = chatData?.projectId
+    ? projects?.find(p => p.id === chatData.projectId)
+    : null
+  const isPlayground = project?.isPlayground ?? false
 
   // Mutations
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
@@ -155,7 +173,7 @@ export const InfoSection = memo(function InfoSection({
   // Fetch branch data directly (only for local chats)
   const { data: branchData, isLoading: isBranchLoading } = trpc.changes.getBranches.useQuery(
     { worktreePath: worktreePath || "" },
-    { enabled: !!worktreePath }
+    { enabled: !!worktreePath && !isPlayground }
   )
 
   // Get PR status for current branch (only for local chats)
@@ -256,7 +274,7 @@ Please suggest a new branch name.`
     )
   }
 
-  const hasContent = branchName || worktreePath || repositoryName || remoteInfo?.sandboxId
+  const hasContent = branchName || worktreePath || repositoryName || remoteInfo?.sandboxId || isPlayground
 
   if (!hasContent) {
     return (
@@ -325,8 +343,8 @@ Please suggest a new branch name.`
           tooltip={t("details.workspace.openInGitHub")}
         />
       )}
-      {/* Path - for local chats, with editor button */}
-      {worktreePath && (
+      {/* Path - for non-playground local chats, with editor button */}
+      {worktreePath && !isPlayground && (
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
             <PropertyRow
@@ -359,6 +377,25 @@ Please suggest a new branch name.`
             </TooltipContent>
           </Tooltip>
         </div>
+      )}
+
+      {/* Move to Workspace - for playground chats, replaces the path row */}
+      {isPlayground && project && (
+        <>
+          <PropertyRow
+            icon={FolderOutput}
+            label={t("details.workspace.action")}
+            value={tCommon("moveToWorkspace.title")}
+            onClick={() => setMoveDialogOpen(true)}
+          />
+
+          <MoveToWorkspaceDialog
+            open={moveDialogOpen}
+            onOpenChange={setMoveDialogOpen}
+            projectId={project.id}
+            projectName={project.name || chatData?.name || ""}
+          />
+        </>
       )}
     </div>
   )

@@ -54,7 +54,7 @@ export interface FeatureDefault {
  * Widget feature defaults
  */
 export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
-  info: { label: "Workspace", defaultInCoding: true, defaultInCowork: false },
+  info: { label: "Workspace", defaultInCoding: true, defaultInCowork: true },
   todo: { label: "Tasks", defaultInCoding: true, defaultInCowork: true },
   plan: { label: "Plan", defaultInCoding: true, defaultInCowork: true },
   terminal: { label: "Terminal", defaultInCoding: false, defaultInCowork: false },
@@ -68,9 +68,10 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
 /**
  * Git-related widgets that are NEVER available in chat/cowork mode.
  * This constraint cannot be overridden by user configuration.
+ * Note: "info" widget is NOT included here because it also shows
+ * non-git information (e.g., playground type, migration options).
  */
 export const GIT_RELATED_WIDGETS: Set<WidgetId> = new Set([
-  "info",     // Shows git branch info
   "terminal", // Can execute git commands
   "diff",     // Git diff viewer
 ])

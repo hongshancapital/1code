@@ -108,11 +108,13 @@
   "grouping": {
     "enable": "开启分组视图",
     "disable": "关闭分组视图",
+    "byType": "按类型分组",
     "byFolder": "按文件夹分组",
     "byTag": "按标签分组",
     "noGroups": "暂无分组",
     "ungrouped": "未分组",
     "other": "其他",
+    "typeGrouping": "类型分组",
     "tagGrouping": "标签分组",
     "folderGrouping": "文件夹分组",
     "quickJump": "点击快速跳转到对应分组",
@@ -140,6 +142,9 @@
     },
     "workspace": {
       "noInfo": "暂无工作区信息",
+      "type": "类型",
+      "chat": "对话",
+      "action": "操作",
       "repository": "仓库",
       "branch": "分支",
       "pullRequest": "Pull Request",

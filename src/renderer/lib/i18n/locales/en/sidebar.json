@@ -108,11 +108,13 @@
   "grouping": {
     "enable": "Enable grouped view",
     "disable": "Disable grouped view",
+    "byType": "Group by type",
     "byFolder": "Group by folder",
     "byTag": "Group by tag",
     "noGroups": "No groups",
     "ungrouped": "Ungrouped",
     "other": "Other",
+    "typeGrouping": "Type grouping",
     "tagGrouping": "Tag grouping",
     "folderGrouping": "Folder grouping",
     "quickJump": "Click to quickly jump to group",
@@ -140,6 +142,9 @@
     },
     "workspace": {
       "noInfo": "No workspace info available",
+      "type": "Type",
+      "chat": "Chat",
+      "action": "Action",
       "repository": "Repository",
       "branch": "Branch",
       "pullRequest": "Pull Request",
