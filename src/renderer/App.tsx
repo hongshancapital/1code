@@ -172,8 +172,9 @@ function AppContent() {
     }
   }, [cliConfig?.hasConfig, billingMethod, setBillingMethod, setApiKeyOnboardingCompleted])
 
-  // Auto-detect LiteLLM and complete onboarding if sonnet model is available
+  // Auto-detect LiteLLM and complete onboarding if LiteLLM is available
   // This happens during the loading scene - seamless experience for users with LiteLLM configured
+  // If LiteLLM is connected with any models, automatically set to litellm mode (skip billing page)
   useEffect(() => {
     // Skip if already has billing method or already detected - keep initializing status
     if (billingMethod || litellmAutoDetected) {
@@ -185,23 +186,16 @@ function AppContent() {
       return
     }
 
-    // Check if LiteLLM returned models with a sonnet match
+    // Check if LiteLLM is available and has any models
     if (litellmModels?.models && litellmModels.models.length > 0 && litellmModels.defaultModel) {
-      // Check if default model contains "sonnet" (case insensitive)
-      const isSonnetModel = litellmModels.defaultModel.toLowerCase().includes('sonnet')
-
-      if (isSonnetModel) {
-        console.log("[App] Auto-detected LiteLLM with Sonnet model:", litellmModels.defaultModel)
-        setLoadingStatus('configuring')
-        setLitellmAutoDetected(true)
-        setBillingMethod("litellm")
-        setLitellmOnboardingCompleted(true)
-        setOverrideModelMode("litellm")
-        setLitellmSelectedModel(litellmModels.defaultModel)
-      } else {
-        console.log("[App] LiteLLM available but no Sonnet model found, defaultModel:", litellmModels.defaultModel)
-        setLoadingStatus('ready')
-      }
+      // LiteLLM is connected - auto-configure regardless of model type
+      console.log("[App] Auto-detected LiteLLM with model:", litellmModels.defaultModel, `(${litellmModels.models.length} models available)`)
+      setLoadingStatus('configuring')
+      setLitellmAutoDetected(true)
+      setBillingMethod("litellm")
+      setLitellmOnboardingCompleted(true)
+      setOverrideModelMode("litellm")
+      setLitellmSelectedModel(litellmModels.defaultModel)
     } else if (litellmModelsError || litellmModels?.error || (litellmModels && litellmModels.models?.length === 0)) {
       // LiteLLM not available or no models - proceed to billing page
       console.log("[App] LiteLLM not available or no models:", litellmModels?.error || litellmModelsError)
