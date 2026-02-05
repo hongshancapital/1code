@@ -1,13 +1,18 @@
 "use client"
 
-import { useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Settings } from "lucide-react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { ChevronDown, Settings, Power } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { OriginalMCPIcon } from "../../../components/ui/icons"
-import { agentsSettingsDialogActiveTabAtom, agentsSettingsDialogOpenAtom, sessionInfoAtom, type MCPServer } from "../../../lib/atoms"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip"
+import { agentsSettingsDialogActiveTabAtom, agentsSettingsDialogOpenAtom, sessionInfoAtom, disabledMcpServersAtom, type MCPServer } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
-import { pendingMentionAtom } from "../../agents/atoms"
+import { pendingMentionAtom, selectedProjectAtom } from "../../agents/atoms"
 import { WIDGET_REGISTRY } from "../atoms"
 
 /**
@@ -80,15 +85,52 @@ function ServerIcon({ server }: { server: MCPServer }) {
 export const McpWidget = memo(function McpWidget() {
   const { t } = useTranslation("sidebar")
   const sessionInfo = useAtomValue(sessionInfoAtom)
+  const selectedProject = useAtomValue(selectedProjectAtom)
+  const [disabledServersMap, setDisabledServersMap] = useAtom(disabledMcpServersAtom)
   const setPendingMention = useSetAtom(pendingMentionAtom)
   const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
 
+  // Get disabled servers for current project
+  const projectPath = selectedProject?.path || ""
+  const disabledServers = useMemo(
+    () => new Set(disabledServersMap[projectPath] || []),
+    [disabledServersMap, projectPath]
+  )
+
   const openMcpSettings = useCallback(() => {
     setSettingsTab("mcp")
     setSettingsOpen(true)
   }, [setSettingsTab, setSettingsOpen])
+
+  // Toggle MCP server enabled/disabled state
+  const toggleMcpServer = useCallback(
+    (serverName: string, e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!projectPath) return
+
+      setDisabledServersMap((prev) => {
+        const currentDisabled = prev[projectPath] || []
+        const isCurrentlyDisabled = currentDisabled.includes(serverName)
+
+        if (isCurrentlyDisabled) {
+          // Enable: remove from disabled list
+          return {
+            ...prev,
+            [projectPath]: currentDisabled.filter((s) => s !== serverName),
+          }
+        } else {
+          // Disable: add to disabled list
+          return {
+            ...prev,
+            [projectPath]: [...currentDisabled, serverName],
+          }
+        }
+      })
+    },
+    [projectPath, setDisabledServersMap]
+  )
 
   const toolsByServer = useMemo(() => {
     if (!sessionInfo?.tools || !sessionInfo?.mcpServers) return new Map<string, string[]>()
@@ -123,7 +165,7 @@ export const McpWidget = memo(function McpWidget() {
     )
   }
 
-  const toggleServer = (name: string) => {
+  const toggleServerExpand = (name: string) => {
     setExpandedServers((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
@@ -158,23 +200,56 @@ export const McpWidget = memo(function McpWidget() {
         const isExpanded = expandedServers.has(server.name)
         const hasTools = tools.length > 0
         const isBuiltin = isBuiltinMcp(server.name)
+        const isDisabled = disabledServers.has(server.name)
 
         return (
-          <div key={server.name}>
+          <div key={server.name} className={cn(isDisabled && "opacity-50")}>
             {/* Server row */}
-            <button
-              onClick={() => hasTools && toggleServer(server.name)}
+            <div
               className={cn(
-                "w-full flex items-center gap-1.5 min-h-[28px] rounded px-1.5 py-0.5 -ml-0.5 transition-colors",
-                hasTools
+                "w-full flex items-center gap-1.5 min-h-[28px] rounded px-1.5 py-0.5 -ml-0.5 transition-colors group/server",
+                hasTools && !isDisabled
                   ? "hover:bg-accent cursor-pointer"
                   : "cursor-default",
               )}
             >
-              <ServerIcon server={server} />
-              <span className="text-xs text-foreground truncate flex-1 text-left">
-                {server.name}
-              </span>
+              {/* Toggle switch - shown on hover */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => toggleMcpServer(server.name, e)}
+                    className={cn(
+                      "shrink-0 flex items-center justify-center h-4 w-4 rounded transition-all",
+                      isDisabled
+                        ? "text-muted-foreground hover:text-foreground"
+                        : "text-green-500 hover:text-green-600",
+                    )}
+                  >
+                    <Power className="h-3 w-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  {isDisabled
+                    ? t("details.mcpWidget.enable")
+                    : t("details.mcpWidget.disable")}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Server name - clickable to expand/collapse */}
+              <button
+                onClick={() => hasTools && !isDisabled && toggleServerExpand(server.name)}
+                className="flex-1 flex items-center gap-1.5 min-w-0"
+                disabled={isDisabled}
+              >
+                <ServerIcon server={server} />
+                <span className={cn(
+                  "text-xs truncate flex-1 text-left",
+                  isDisabled ? "text-muted-foreground" : "text-foreground"
+                )}>
+                  {server.name}
+                </span>
+              </button>
+
               {isBuiltin && (
                 <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
                   {t("details.mcpWidget.builtin")}
@@ -185,7 +260,7 @@ export const McpWidget = memo(function McpWidget() {
                   {tools.length}
                 </span>
               )}
-              {hasTools && (
+              {hasTools && !isDisabled && (
                 <ChevronDown
                   className={cn(
                     "h-3 w-3 text-muted-foreground/50 shrink-0 transition-transform duration-150",
@@ -193,11 +268,11 @@ export const McpWidget = memo(function McpWidget() {
                   )}
                 />
               )}
-            </button>
+            </div>
 
-            {/* Tools list */}
-            {isExpanded && hasTools && (
-              <div className="ml-[18px] py-0.5 flex flex-col gap-px">
+            {/* Tools list - hidden when disabled */}
+            {isExpanded && hasTools && !isDisabled && (
+              <div className="ml-[22px] py-0.5 flex flex-col gap-px">
                 {tools.map((tool) => {
                   const fullToolId = `mcp__${server.name}__${tool}`
                   return (

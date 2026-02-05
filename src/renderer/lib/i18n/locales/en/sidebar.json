@@ -206,7 +206,9 @@
     },
     "mcpWidget": {
       "noServers": "Configure MCP servers",
-      "builtin": "Built-in"
+      "builtin": "Built-in",
+      "enable": "Enable MCP server",
+      "disable": "Disable MCP server"
     },
     "skillsWidget": {
       "noSkills": "Configure skills",

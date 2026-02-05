@@ -31,6 +31,7 @@ import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugin
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
+import { memoryHooks } from "../../memory"
 
 /**
  * Type for Claude SDK streaming messages
@@ -1256,6 +1257,28 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 .run()
             }
 
+            // 2.4. Memory hooks: Start session and record user prompt (fire-and-forget)
+            let memorySessionId: string | null = null
+            const promptNumber = existingMessages.filter((m: any) => m.role === "user").length + 1
+            if (projectId) {
+              try {
+                memorySessionId = await memoryHooks.onSessionStart({
+                  subChatId: input.subChatId,
+                  projectId,
+                  chatId: input.chatId,
+                })
+                if (memorySessionId) {
+                  await memoryHooks.onUserPrompt({
+                    sessionId: memorySessionId,
+                    prompt: input.prompt,
+                    promptNumber,
+                  })
+                }
+              } catch (memErr) {
+                console.error("[Memory] Hook error (onSessionStart/onUserPrompt):", memErr)
+              }
+            }
+
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
             let resolvedCustomConfig = input.customConfig
             if (input.customConfig && !input.customConfig.token && !input.customConfig.baseUrl && input.customConfig.model) {
@@ -1658,6 +1681,19 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 mcpServersFiltered = await ensureMcpTokensFresh(mcpServersForSdk, lookupPath)
               } else {
                 mcpServersFiltered = mcpServersForSdk
+              }
+
+              // Filter out user-disabled MCP servers for this project
+              if (mcpServersFiltered && input.disabledMcpServers && input.disabledMcpServers.length > 0) {
+                const disabledSet = new Set(input.disabledMcpServers)
+                const beforeCount = Object.keys(mcpServersFiltered).length
+                mcpServersFiltered = Object.fromEntries(
+                  Object.entries(mcpServersFiltered).filter(([name]) => !disabledSet.has(name))
+                )
+                const afterCount = Object.keys(mcpServersFiltered).length
+                if (beforeCount !== afterCount) {
+                  console.log(`[claude] Disabled ${beforeCount - afterCount} MCP server(s) by user preference: ${input.disabledMcpServers.join(", ")}`)
+                }
               }
             }
 
@@ -2443,11 +2479,48 @@ Before you start planning or executing a task, check if there are any relevant s
                           }
                         }
 
+                        // Detect git commit success from Bash output
+                        // Format: [branch abc1234] commit message
+                        if (toolPart.type === "tool-Bash" || toolPart.toolName === "Bash") {
+                          const output = typeof chunk.output === "string" ? chunk.output : ""
+                          const commitMatch = output.match(/\[([^\]]+)\s+([a-f0-9]{7,})\]/)
+                          if (commitMatch) {
+                            const [, branchInfo, commitHash] = commitMatch
+                            console.log(`[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`)
+                            const windows = BrowserWindow.getAllWindows()
+                            for (const win of windows) {
+                              win.webContents.send("git-commit-success", {
+                                subChatId: input.subChatId,
+                                commitHash,
+                                branchInfo,
+                              })
+                            }
+                          }
+                        }
+
                         // Check if ExitPlanMode just completed - stop the stream
                         if (exitPlanModeToolCallId && chunk.toolCallId === exitPlanModeToolCallId) {
                           console.log(`[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, emitting finish`)
                           planCompleted = true
                           safeEmit({ type: "finish" } as UIMessageChunk)
+                        }
+
+                        // Memory hook: Record tool output (fire-and-forget)
+                        // Extract toolName from type if not set directly (type is "tool-Read", "tool-Edit" etc)
+                        const toolName = toolPart.toolName || toolPart.type?.replace("tool-", "")
+                        console.log(`[Memory] Tool output: toolName=${toolName} memorySessionId=${memorySessionId} projectId=${projectId}`)
+                        if (memorySessionId && projectId && toolName) {
+                          memoryHooks.onToolOutput({
+                            sessionId: memorySessionId,
+                            projectId,
+                            toolName,
+                            toolInput: toolPart.input,
+                            toolOutput: chunk.output,
+                            toolCallId: chunk.toolCallId,
+                            promptNumber,
+                          }).catch((err) => {
+                            console.error("[Memory] Hook error (onToolOutput):", err)
+                          })
                         }
                       }
                       break
@@ -2873,6 +2946,29 @@ Before you start planning or executing a task, check if there are any relevant s
             // Create snapshot stash for rollback support
             if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
               await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
+            }
+
+            // Memory hook: Record AI response text (fire-and-forget)
+            if (memorySessionId && projectId && currentText.trim()) {
+              memoryHooks.onAssistantMessage({
+                sessionId: memorySessionId,
+                projectId,
+                text: currentText,
+                messageId: metadata.sdkMessageUuid,
+                promptNumber,
+              }).catch((err) => {
+                console.error("[Memory] Hook error (onAssistantMessage):", err)
+              })
+            }
+
+            // Memory hook: End session (fire-and-forget)
+            if (memorySessionId) {
+              memoryHooks.onSessionEnd({
+                sessionId: memorySessionId,
+                subChatId: input.subChatId,
+              }).catch((err) => {
+                console.error("[Memory] Hook error (onSessionEnd):", err)
+              })
             }
 
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1)

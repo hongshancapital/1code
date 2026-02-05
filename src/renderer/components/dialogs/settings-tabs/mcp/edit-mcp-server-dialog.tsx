@@ -176,53 +176,55 @@ export function EditMcpServerDialog({
               </div>
             )}
 
-            {/* Authentication */}
-            <div className="flex flex-col gap-3">
-              <Label>Authentication</Label>
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleStartOAuth}
-                  disabled={isStartingOAuth}
-                >
-                  {isStartingOAuth ? "Starting OAuth..." : "Start OAuth Flow"}
-                </Button>
+            {/* Authentication - only show for servers that need auth */}
+            {server.needsAuth && (
+              <div className="flex flex-col gap-3">
+                <Label>Authentication</Label>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={handleStartOAuth}
+                    disabled={isStartingOAuth}
+                  >
+                    {isStartingOAuth ? "Starting OAuth..." : "Start OAuth Flow"}
+                  </Button>
 
-                <div className="relative">
-                  <Input
-                    type={showToken ? "text" : "password"}
-                    value={bearerToken}
-                    onChange={(e) => setBearerToken(e.target.value)}
-                    placeholder="Set bearer token..."
-                    className="font-mono pr-20"
-                  />
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowToken(!showToken)}
-                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showToken ? (
-                        <EyeOff className="h-3.5 w-3.5" />
-                      ) : (
-                        <Eye className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="h-6 px-2 text-[11px]"
-                      onClick={handleSetBearerToken}
-                      disabled={!bearerToken.trim() || isSavingToken}
-                    >
-                      {isSavingToken ? "..." : "Set"}
-                    </Button>
+                  <div className="relative">
+                    <Input
+                      type={showToken ? "text" : "password"}
+                      value={bearerToken}
+                      onChange={(e) => setBearerToken(e.target.value)}
+                      placeholder="Set bearer token..."
+                      className="font-mono pr-20"
+                    />
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showToken ? (
+                          <EyeOff className="h-3.5 w-3.5" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-6 px-2 text-[11px]"
+                        onClick={handleSetBearerToken}
+                        disabled={!bearerToken.trim() || isSavingToken}
+                      >
+                        {isSavingToken ? "..." : "Set"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Tools list */}
             {hasTools && (

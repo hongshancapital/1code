@@ -269,6 +269,12 @@
     "requiresLogin": "Requires login",
     "tools": "tool",
     "tools_plural": "tools",
+    "disabled": "Disabled",
+    "enableServer": "Enable server",
+    "disableServer": "Disable server",
+    "serverEnabled": "{{name}} enabled",
+    "serverDisabled": "{{name}} disabled",
+    "noProjectSelected": "Select a project first",
     "status": {
       "connected": "Connected",
       "failed": "Failed",
@@ -288,8 +294,12 @@
       "args": "Args",
       "env": "Env",
       "error": "Error",
-      "toolsCount": "Tools ({{count}})"
+      "toolsCount": "Tools ({{count}})",
+      "edit": "Edit server",
+      "delete": "Delete server"
     },
+    "serverDeleted": "{{name}} deleted",
+    "deleteError": "Failed to delete server",
     "form": {
       "title": "New MCP Server",
       "nameLabel": "Name",

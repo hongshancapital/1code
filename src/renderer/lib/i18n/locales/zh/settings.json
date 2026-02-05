@@ -269,6 +269,12 @@
     "requiresLogin": "需要登录",
     "tools": "工具",
     "tools_plural": "工具",
+    "disabled": "已禁用",
+    "enableServer": "启用服务器",
+    "disableServer": "禁用服务器",
+    "serverEnabled": "{{name}} 已启用",
+    "serverDisabled": "{{name}} 已禁用",
+    "noProjectSelected": "请先选择项目",
     "status": {
       "connected": "已连接",
       "failed": "失败",
@@ -288,8 +294,12 @@
       "args": "参数",
       "env": "环境变量",
       "error": "错误",
-      "toolsCount": "工具 ({{count}})"
+      "toolsCount": "工具 ({{count}})",
+      "edit": "编辑服务器",
+      "delete": "删除服务器"
     },
+    "serverDeleted": "{{name}} 已删除",
+    "deleteError": "删除服务器失败",
     "form": {
       "title": "新 MCP 服务器",
       "nameLabel": "名称",

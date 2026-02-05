@@ -1,9 +1,9 @@
 "use client"
 
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Power, Trash2, Settings2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useAtomValue, useSetAtom } from "jotai"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { Button } from "../../ui/button"
 import { toast } from "sonner"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
@@ -14,11 +14,13 @@ import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
 import { selectedProjectAtom, settingsMcpSidebarWidthAtom } from "../../../features/agents/atoms"
-import { agentsSettingsDialogActiveTabAtom } from "../../../lib/atoms"
+import { agentsSettingsDialogActiveTabAtom, disabledMcpServersAtom } from "../../../lib/atoms"
 import {
   AddMcpServerDialog,
   EditMcpServerDialog,
+  DeleteServerConfirm,
   getStatusText,
   type McpServer,
   type ScopeType,
@@ -65,11 +67,17 @@ function McpServerDetail({
   groupName,
   onAuth,
   onRetry,
+  onEdit,
+  onDelete,
+  isDeleting,
 }: {
   server: McpServer
   groupName: string
   onAuth?: () => void
   onRetry?: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  isDeleting?: boolean
 }) {
   const { t } = useTranslation('settings')
   const { tools, needsAuth } = server
@@ -103,6 +111,34 @@ function McpServerDetail({
             <Button variant="secondary" size="sm" className="h-7 px-3 text-xs" onClick={onAuth}>
               {isConnected ? t('mcp.detail.reconnect') : t('mcp.detail.authenticate')}
             </Button>
+          )}
+          {/* Edit button */}
+          {onEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('mcp.detail.edit')}</TooltipContent>
+            </Tooltip>
+          )}
+          {/* Delete button */}
+          {onDelete && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                  onClick={onDelete}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('mcp.detail.delete')}</TooltipContent>
+            </Tooltip>
           )}
         </div>
 
@@ -337,10 +373,54 @@ export function AgentsMcpTab() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
+  const [disabledServersMap, setDisabledServersMap] = useAtom(disabledMcpServersAtom)
 
-  // Dialog state for Add/Edit MCP server dialogs
+  // Get disabled servers for current project
+  const projectPath = selectedProject?.path || ""
+  const disabledServers = useMemo(
+    () => new Set(disabledServersMap[projectPath] || []),
+    [disabledServersMap, projectPath]
+  )
+
+  // Toggle MCP server enabled/disabled state
+  const toggleMcpServer = useCallback(
+    (serverName: string, e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (!projectPath) {
+        toast.error(t('mcp.noProjectSelected'))
+        return
+      }
+
+      setDisabledServersMap((prev) => {
+        const currentDisabled = prev[projectPath] || []
+        const isCurrentlyDisabled = currentDisabled.includes(serverName)
+
+        if (isCurrentlyDisabled) {
+          toast.success(t('mcp.serverEnabled', { name: serverName }))
+          return {
+            ...prev,
+            [projectPath]: currentDisabled.filter((s) => s !== serverName),
+          }
+        } else {
+          toast.success(t('mcp.serverDisabled', { name: serverName }))
+          return {
+            ...prev,
+            [projectPath]: [...currentDisabled, serverName],
+          }
+        }
+      })
+    },
+    [projectPath, setDisabledServersMap, t]
+  )
+
+  // Dialog state for Add/Edit/Delete MCP server dialogs
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<{
+    server: McpServer
+    scope: ScopeType
+    projectPath: string | null
+  } | null>(null)
+  const [deletingServer, setDeletingServer] = useState<{
     server: McpServer
     scope: ScopeType
     projectPath: string | null
@@ -534,6 +614,35 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
     }
   }
 
+  // Delete MCP server
+  const removeServerMutation = trpc.claude.removeMcpServer.useMutation()
+
+  const handleDelete = async () => {
+    if (!deletingServer) return
+    const { server, scope, projectPath: serverProjectPath } = deletingServer
+
+    try {
+      await removeServerMutation.mutateAsync({
+        name: server.name,
+        scope,
+        projectPath: serverProjectPath ?? undefined,
+      })
+      toast.success(t('mcp.serverDeleted', { name: server.name }))
+      setDeletingServer(null)
+      setSelectedServerKey(null)
+      await handleRefresh(true)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('mcp.deleteError')
+      toast.error(message)
+    }
+  }
+
+  // Get scope type from group name
+  const getScopeFromGroupName = (groupName: string): ScopeType => {
+    if (groupName === "Global" || groupName === "Plugins") return "global"
+    return "project"
+  }
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left sidebar - server list */}
@@ -600,6 +709,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                       const key = `${group.groupName}-${server.name}`
                       const isSelected = selectedServerKey === key
                       const needsLogin = server.status === "needs-login"
+                      const isDisabled = disabledServers.has(server.name)
 
                       const handleClick = () => {
                         if (needsLogin) {
@@ -611,47 +721,76 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
                       }
 
                       return (
-                        <button
+                        <div
                           key={key}
                           data-item-id={key}
-                          onClick={handleClick}
                           className={cn(
-                            "w-full text-left py-1.5 pl-2 pr-2 rounded-md cursor-pointer group relative",
+                            "w-full text-left py-1.5 pl-2 pr-2 rounded-md cursor-pointer group relative flex items-center gap-1.5",
                             "transition-colors duration-75",
                             "outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70",
                             needsLogin && "opacity-50",
+                            isDisabled && "opacity-50",
                             isSelected
                               ? "bg-foreground/5 text-foreground"
                               : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
                           )}
                         >
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1">
-                                <span className="truncate block text-sm leading-tight flex-1">
-                                  {server.name}
-                                </span>
-                                <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
-                                  <McpStatusDot status={server.status} />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 min-w-0">
-                                <span className="truncate flex-1 min-w-0">
-                                  {group.groupName}
-                                </span>
-                                {server.status !== "pending" && (
-                                  <span className={cn("shrink-0", needsLogin && "text-orange-500")}>
-                                    {needsLogin
-                                      ? t('mcp.requiresLogin')
-                                      : server.status === "connected"
-                                        ? `${server.tools.length} ${server.tools.length !== 1 ? t('mcp.tools_plural') : t('mcp.tools')}`
-                                        : getStatusText(server.status)}
-                                  </span>
+                          {/* Toggle button */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={(e) => toggleMcpServer(server.name, e)}
+                                className={cn(
+                                  "shrink-0 flex items-center justify-center h-5 w-5 rounded transition-all hover:bg-foreground/10",
+                                  isDisabled
+                                    ? "text-muted-foreground hover:text-foreground"
+                                    : "text-green-500 hover:text-green-600",
                                 )}
+                              >
+                                <Power className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                              {isDisabled ? t('mcp.enableServer') : t('mcp.disableServer')}
+                            </TooltipContent>
+                          </Tooltip>
+
+                          {/* Server info - clickable */}
+                          <button
+                            onClick={handleClick}
+                            className="flex-1 min-w-0 flex flex-col gap-0.5 text-left"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className={cn(
+                                "truncate block text-sm leading-tight flex-1",
+                                isDisabled && "line-through"
+                              )}>
+                                {server.name}
+                              </span>
+                              <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center">
+                                <McpStatusDot status={server.status} />
                               </div>
                             </div>
-                          </div>
-                        </button>
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 min-w-0">
+                              <span className="truncate flex-1 min-w-0">
+                                {group.groupName}
+                              </span>
+                              {isDisabled ? (
+                                <span className="shrink-0 text-orange-500">
+                                  {t('mcp.disabled')}
+                                </span>
+                              ) : server.status !== "pending" && (
+                                <span className={cn("shrink-0", needsLogin && "text-orange-500")}>
+                                  {needsLogin
+                                    ? t('mcp.requiresLogin')
+                                    : server.status === "connected"
+                                      ? `${server.tools.length} ${server.tools.length !== 1 ? t('mcp.tools_plural') : t('mcp.tools')}`
+                                      : getStatusText(server.status)}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        </div>
                       )
                     })}
                   </div>
@@ -677,6 +816,17 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
             groupName={selectedServer.group.groupName}
             onAuth={() => handleAuth(selectedServer.server.name, selectedServer.group.projectPath)}
             onRetry={() => handleRetry(selectedServer.server.name, selectedServer.group.groupName)}
+            onEdit={() => setEditingServer({
+              server: selectedServer.server,
+              scope: getScopeFromGroupName(selectedServer.group.groupName),
+              projectPath: selectedServer.group.projectPath,
+            })}
+            onDelete={() => setDeletingServer({
+              server: selectedServer.server,
+              scope: getScopeFromGroupName(selectedServer.group.groupName),
+              projectPath: selectedServer.group.projectPath,
+            })}
+            isDeleting={removeServerMutation.isPending}
           />
         ) : isLoadingConfig ? (
           <div className="flex items-center justify-center h-full">
@@ -717,7 +867,14 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
         scope={editingServer?.scope || "global"}
         projectPath={editingServer?.projectPath ?? undefined}
         onServerUpdated={() => handleRefresh(true)}
-        onServerDeleted={() => handleRefresh(true)}
+        onServerDeleted={() => { handleRefresh(true); setSelectedServerKey(null) }}
+      />
+      <DeleteServerConfirm
+        open={!!deletingServer}
+        onOpenChange={(open) => { if (!open) setDeletingServer(null) }}
+        serverName={deletingServer?.server.name || ""}
+        onConfirm={handleDelete}
+        isDeleting={removeServerMutation.isPending}
       />
     </div>
   )
