@@ -2,6 +2,7 @@
   "plugins": ["react"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/exhaustive-deps": "warn"
+    "react/exhaustive-deps": "warn",
+    "no-use-before-define": "error"
   }
 }
