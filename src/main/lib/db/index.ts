@@ -190,6 +190,180 @@ export function initDatabase() {
     }
   }
 
+  // Ensure memory tables exist (for Memory + Search feature)
+  try {
+    // Memory Sessions table (tracks each SubChat session for memory)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS memory_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        chat_id TEXT REFERENCES chats(id) ON DELETE CASCADE,
+        sub_chat_id TEXT REFERENCES sub_chats(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'active' NOT NULL,
+        started_at INTEGER,
+        started_at_epoch INTEGER,
+        completed_at INTEGER,
+        completed_at_epoch INTEGER,
+        summary_request TEXT,
+        summary_investigated TEXT,
+        summary_learned TEXT,
+        summary_completed TEXT,
+        summary_next_steps TEXT,
+        summary_notes TEXT,
+        discovery_tokens INTEGER DEFAULT 0
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS memory_sessions_project_idx ON memory_sessions(project_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS memory_sessions_sub_chat_idx ON memory_sessions(sub_chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS memory_sessions_status_idx ON memory_sessions(status)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS memory_sessions_started_at_idx ON memory_sessions(started_at_epoch)`)
+
+    // Observations table (records tool call observations)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS observations (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES memory_sessions(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        title TEXT,
+        subtitle TEXT,
+        narrative TEXT,
+        facts TEXT,
+        concepts TEXT,
+        files_read TEXT,
+        files_modified TEXT,
+        tool_name TEXT,
+        tool_call_id TEXT,
+        prompt_number INTEGER,
+        discovery_tokens INTEGER DEFAULT 0,
+        created_at INTEGER,
+        created_at_epoch INTEGER
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS observations_session_idx ON observations(session_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS observations_project_idx ON observations(project_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS observations_type_idx ON observations(type)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS observations_created_at_idx ON observations(created_at_epoch)`)
+
+    // User Prompts table (records user inputs)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS user_prompts (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES memory_sessions(id) ON DELETE CASCADE,
+        prompt_number INTEGER NOT NULL,
+        prompt_text TEXT NOT NULL,
+        created_at INTEGER,
+        created_at_epoch INTEGER
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS user_prompts_session_idx ON user_prompts(session_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS user_prompts_created_at_idx ON user_prompts(created_at_epoch)`)
+
+    // FTS5 Virtual Tables for full-text search
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS observations_fts USING fts5(
+        title,
+        subtitle,
+        narrative,
+        facts,
+        concepts,
+        content='observations',
+        content_rowid='rowid'
+      )
+    `)
+
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS user_prompts_fts USING fts5(
+        prompt_text,
+        content='user_prompts',
+        content_rowid='rowid'
+      )
+    `)
+
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_sessions_fts USING fts5(
+        summary_request,
+        summary_learned,
+        summary_completed,
+        summary_next_steps,
+        content='memory_sessions',
+        content_rowid='rowid'
+      )
+    `)
+
+    // Triggers to keep FTS tables in sync with main tables
+    // observations_fts triggers
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS observations_ai AFTER INSERT ON observations BEGIN
+        INSERT INTO observations_fts(rowid, title, subtitle, narrative, facts, concepts)
+        VALUES (new.rowid, new.title, new.subtitle, new.narrative, new.facts, new.concepts);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS observations_ad AFTER DELETE ON observations BEGIN
+        INSERT INTO observations_fts(observations_fts, rowid, title, subtitle, narrative, facts, concepts)
+        VALUES('delete', old.rowid, old.title, old.subtitle, old.narrative, old.facts, old.concepts);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS observations_au AFTER UPDATE ON observations BEGIN
+        INSERT INTO observations_fts(observations_fts, rowid, title, subtitle, narrative, facts, concepts)
+        VALUES('delete', old.rowid, old.title, old.subtitle, old.narrative, old.facts, old.concepts);
+        INSERT INTO observations_fts(rowid, title, subtitle, narrative, facts, concepts)
+        VALUES (new.rowid, new.title, new.subtitle, new.narrative, new.facts, new.concepts);
+      END
+    `)
+
+    // user_prompts_fts triggers
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS user_prompts_ai AFTER INSERT ON user_prompts BEGIN
+        INSERT INTO user_prompts_fts(rowid, prompt_text)
+        VALUES (new.rowid, new.prompt_text);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS user_prompts_ad AFTER DELETE ON user_prompts BEGIN
+        INSERT INTO user_prompts_fts(user_prompts_fts, rowid, prompt_text)
+        VALUES('delete', old.rowid, old.prompt_text);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS user_prompts_au AFTER UPDATE ON user_prompts BEGIN
+        INSERT INTO user_prompts_fts(user_prompts_fts, rowid, prompt_text)
+        VALUES('delete', old.rowid, old.prompt_text);
+        INSERT INTO user_prompts_fts(rowid, prompt_text)
+        VALUES (new.rowid, new.prompt_text);
+      END
+    `)
+
+    // memory_sessions_fts triggers
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS memory_sessions_ai AFTER INSERT ON memory_sessions BEGIN
+        INSERT INTO memory_sessions_fts(rowid, summary_request, summary_learned, summary_completed, summary_next_steps)
+        VALUES (new.rowid, new.summary_request, new.summary_learned, new.summary_completed, new.summary_next_steps);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS memory_sessions_ad AFTER DELETE ON memory_sessions BEGIN
+        INSERT INTO memory_sessions_fts(memory_sessions_fts, rowid, summary_request, summary_learned, summary_completed, summary_next_steps)
+        VALUES('delete', old.rowid, old.summary_request, old.summary_learned, old.summary_completed, old.summary_next_steps);
+      END
+    `)
+    sqlite.exec(`
+      CREATE TRIGGER IF NOT EXISTS memory_sessions_au AFTER UPDATE ON memory_sessions BEGIN
+        INSERT INTO memory_sessions_fts(memory_sessions_fts, rowid, summary_request, summary_learned, summary_completed, summary_next_steps)
+        VALUES('delete', old.rowid, old.summary_request, old.summary_learned, old.summary_completed, old.summary_next_steps);
+        INSERT INTO memory_sessions_fts(rowid, summary_request, summary_learned, summary_completed, summary_next_steps)
+        VALUES (new.rowid, new.summary_request, new.summary_learned, new.summary_completed, new.summary_next_steps);
+      END
+    `)
+
+    console.log("[DB] Memory tables ensured (3 tables + 3 FTS + 9 triggers)")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Memory tables check:", error.message)
+  }
+
   // Ensure automations tables exist (for automation engine)
   try {
     sqlite.exec(`

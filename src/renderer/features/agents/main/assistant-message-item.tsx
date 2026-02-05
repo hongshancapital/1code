@@ -605,6 +605,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
           isPending={isPending}
           isError={isError}
           onClick={handleClick}
+          toolCallId={part.toolCallId}
         />
       )
     }

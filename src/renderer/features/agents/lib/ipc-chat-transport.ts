@@ -582,6 +582,15 @@ askUserQuestionTimeout,
             },
             onError: (err: Error) => {
               console.log(`[SD] R:ERROR sub=${subId} n=${chunkCount} last=${lastChunkType} err=${err.message}`)
+
+              // Clear compacting state on error (prevent UI from being stuck)
+              const compacting = appStore.get(compactingSubChatsAtom)
+              if (compacting.has(this.config.subChatId)) {
+                const newCompacting = new Set(compacting)
+                newCompacting.delete(this.config.subChatId)
+                appStore.set(compactingSubChatsAtom, newCompacting)
+              }
+
               // Track transport errors in Sentry
               Sentry.captureException(err, {
                 tags: {
@@ -599,6 +608,15 @@ askUserQuestionTimeout,
             },
             onComplete: () => {
               console.log(`[SD] R:COMPLETE sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+
+              // Clear compacting state on complete (in case compact_boundary wasn't received)
+              const compacting = appStore.get(compactingSubChatsAtom)
+              if (compacting.has(this.config.subChatId)) {
+                const newCompacting = new Set(compacting)
+                newCompacting.delete(this.config.subChatId)
+                appStore.set(compactingSubChatsAtom, newCompacting)
+              }
+
               // Note: Don't clear pending questions here - let active-chat.tsx handle it
               // via the stream stop detection effect. Clearing here causes race conditions
               // where sync effect immediately restores from messages.
@@ -614,6 +632,15 @@ askUserQuestionTimeout,
         // Handle abort
         options.abortSignal?.addEventListener("abort", () => {
           console.log(`[SD] R:ABORT sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+
+          // Clear compacting state on abort
+          const compacting = appStore.get(compactingSubChatsAtom)
+          if (compacting.has(this.config.subChatId)) {
+            const newCompacting = new Set(compacting)
+            newCompacting.delete(this.config.subChatId)
+            appStore.set(compactingSubChatsAtom, newCompacting)
+          }
+
           sub.unsubscribe()
           // trpcClient.claude.cancel.mutate({ subChatId: this.config.subChatId })
           try {

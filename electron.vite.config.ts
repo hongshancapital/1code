@@ -28,6 +28,8 @@ export default defineConfig({
           "better-sqlite3",
           "@prisma/client",
           "@anthropic-ai/claude-agent-sdk", // ESM module - must use dynamic import
+          "@lancedb/lancedb", // Native module - must be externalized
+          "@xenova/transformers", // WASM/native module
         ],
         output: {
           format: "cjs",

@@ -17,6 +17,7 @@ interface AgentToolCallProps {
   isError: boolean
   isNested?: boolean
   onClick?: () => void
+  toolCallId?: string
 }
 
 export const AgentToolCall = memo(
@@ -29,6 +30,7 @@ export const AgentToolCall = memo(
     isError: _isError,
     isNested,
     onClick,
+    toolCallId,
   }: AgentToolCallProps) {
     // Ensure title and subtitle are strings (copied from canvas)
     const titleStr = String(title)
@@ -72,6 +74,7 @@ export const AgentToolCall = memo(
         className={`flex items-start gap-1.5 py-0.5 ${
           isNested ? "px-2.5" : "rounded-md px-2"
         }`}
+        data-tool-call-id={toolCallId}
       >
         {/* Icon container - commented out like canvas, uncomment to show icons */}
         {/* <div className="shrink-0 flex text-muted-foreground items-start pt-px">
@@ -109,7 +112,8 @@ export const AgentToolCall = memo(
       prevProps.isPending === nextProps.isPending &&
       prevProps.isError === nextProps.isError &&
       prevProps.isNested === nextProps.isNested &&
-      prevProps.onClick === nextProps.onClick
+      prevProps.onClick === nextProps.onClick &&
+      prevProps.toolCallId === nextProps.toolCallId
     )
   },
 )

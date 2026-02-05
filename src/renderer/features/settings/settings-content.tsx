@@ -20,6 +20,7 @@ import { AgentsCommandsTab } from "../../components/dialogs/settings-tabs/agents
 import { AgentsPluginsTab } from "../../components/dialogs/settings-tabs/agents-plugins-tab"
 import { FilePreviewDialog } from "../cowork/file-preview/file-preview-dialog"
 import { AgentsRuntimeTab } from "../../components/dialogs/settings-tabs/agents-runtime-tab"
+import { AgentsMemoryTab } from "../../components/dialogs/settings-tabs/agents-memory-tab"
 
 // Check if we're in development mode
 const isDevelopment = import.meta.env.DEV
@@ -70,6 +71,8 @@ export function SettingsContent() {
         return <AgentsBetaTab />
       case "runtime":
         return <AgentsRuntimeTab />
+      case "memory":
+        return <AgentsMemoryTab />
       case "debug":
         return showDebugTab ? <AgentsDebugTab /> : null
       default:

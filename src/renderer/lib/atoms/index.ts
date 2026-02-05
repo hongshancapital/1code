@@ -201,6 +201,7 @@ export type SettingsTab =
   | "debug"
   | "beta"
   | "keyboard"
+  | "memory"
   | `project-${string}` // Dynamic project tabs
 export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("preferences")
 // Derived atom: maps settings open/close to desktopView navigation
@@ -984,6 +985,9 @@ export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
   undefined,
   { getOnInit: true },
 )
+
+// Simulated installation mode - when true, RuntimeInitBanner shows simulated state
+export const runtimeSimulatedModeAtom = atom<boolean>(false)
 
 // ============================================
 // GROUPING ATOMS (for workspace/subchat grouping)

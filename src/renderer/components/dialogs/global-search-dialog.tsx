@@ -21,7 +21,8 @@ import {
   DialogContent,
 } from "../ui/dialog"
 import { trpc } from "../../lib/trpc"
-import { selectedProjectAtom, selectedAgentChatIdAtom, showNewChatFormAtom } from "../../features/agents/atoms"
+import { selectedProjectAtom, selectedAgentChatIdAtom, showNewChatFormAtom, selectedChatIsRemoteAtom } from "../../features/agents/atoms"
+import { chatSourceModeAtom } from "../../lib/atoms"
 import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
 import { toast } from "sonner"
 import {
@@ -301,13 +302,24 @@ export function GlobalSearchDialog() {
   // Navigation helpers
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
+  const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
+  const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const subChatStore = useAgentSubChatStore()
   const utils = trpc.useUtils()
 
-  // Restore archived chat mutation
+  // Restore archived chat mutation - with optimistic cache update (matching archive-popover behavior)
   const restoreChatMutation = trpc.chats.restore.useMutation({
-    onSuccess: () => {
-      // Invalidate chat list cache so the restored chat appears
+    onSuccess: (restoredChat) => {
+      // Optimistically add restored chat to the main list cache
+      if (restoredChat) {
+        utils.chats.list.setData({}, (oldData) => {
+          if (!oldData) return [restoredChat]
+          // Add to beginning if not already present
+          if (oldData.some((c) => c.id === restoredChat.id)) return oldData
+          return [restoredChat, ...oldData]
+        })
+      }
+      // Invalidate both lists to refresh
       utils.chats.list.invalidate()
       utils.chats.listArchived.invalidate()
     },
@@ -329,17 +341,20 @@ export function GlobalSearchDialog() {
           // If chat is archived, restore it first
           const wasArchived = !!data.chat.archivedAt
           if (wasArchived) {
-            await restoreChatMutation.mutateAsync({ id: data.chat.id })
+            // Use sync mutate (not async) like archive-popover does
+            // The optimistic cache update in onSuccess makes it work immediately
+            restoreChatMutation.mutate({ id: data.chat.id })
             toast.info(t('globalSearch.restoredFromArchive'))
-            // Wait for cache invalidation to complete
-            await utils.chats.list.invalidate()
           }
 
-          // Navigate to the chat
+          // Navigate immediately (matching archive-popover pattern)
+          // Set source mode and remote flags for proper data loading
           setSelectedChatId(data.chat.id)
+          setSelectedChatIsRemote(false)
+          setChatSourceMode("local")
           setShowNewChatForm(false)
 
-          // Set the active subChat after a delay (longer if was archived to allow list refresh)
+          // Set the active subChat after a delay
           const delay = wasArchived ? 300 : 100
           setTimeout(() => {
             subChatStore.setChatId(data.chat!.id)
@@ -383,7 +398,7 @@ export function GlobalSearchDialog() {
     } else {
       toast.info(t('globalSearch.noSession'))
     }
-  }, [setOpen, setSelectedChatId, setShowNewChatForm, subChatStore, utils, t, restoreChatMutation])
+  }, [setOpen, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, subChatStore, utils, t, restoreChatMutation])
 
   // Calculate content height (total - header - footer - resize handle)
   const contentHeight = dialogHeight - 44 - 36 - 8 // header ~44px, footer ~36px, handle 8px

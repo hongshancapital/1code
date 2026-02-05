@@ -14,7 +14,7 @@ import {
   trackWorkspaceCreated,
   trackWorkspaceDeleted,
 } from "../../analytics"
-import { chats, getDatabase, modelUsage, projects, subChats } from "../../db"
+import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"
 import { createId } from "../../db/utils"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
@@ -1334,6 +1334,97 @@ export const chatsRouter = router({
         .where(eq(subChats.id, input.id))
         .returning()
         .get()
+    }),
+
+  /**
+   * Get sub-chat by session ID (for memory search navigation)
+   */
+  getSubChatBySessionId: publicProcedure
+    .input(z.object({ sessionId: z.string() }))
+    .query(({ input }) => {
+      const db = getDatabase()
+      const subChat = db
+        .select({
+          id: subChats.id,
+          name: subChats.name,
+          chatId: subChats.chatId,
+          sessionId: subChats.sessionId,
+          mode: subChats.mode,
+          createdAt: subChats.createdAt,
+        })
+        .from(subChats)
+        .where(eq(subChats.sessionId, input.sessionId))
+        .get()
+
+      if (!subChat) return null
+
+      // Also get the parent chat info
+      const chat = db
+        .select({
+          id: chats.id,
+          name: chats.name,
+          projectId: chats.projectId,
+        })
+        .from(chats)
+        .where(eq(chats.id, subChat.chatId))
+        .get()
+
+      return {
+        subChat,
+        chat,
+      }
+    }),
+
+  /**
+   * Get sub-chat by memory session ID (for global search navigation)
+   * Uses memory_sessions.sub_chat_id to find the associated SubChat
+   */
+  getSubChatByMemorySessionId: publicProcedure
+    .input(z.object({ memorySessionId: z.string() }))
+    .query(({ input }) => {
+      const db = getDatabase()
+
+      // 1. Get sub_chat_id from memory_sessions
+      const memSession = db
+        .select({ subChatId: memorySessions.subChatId })
+        .from(memorySessions)
+        .where(eq(memorySessions.id, input.memorySessionId))
+        .get()
+
+      if (!memSession?.subChatId) return null
+
+      // 2. Get the sub_chat
+      const subChat = db
+        .select({
+          id: subChats.id,
+          name: subChats.name,
+          chatId: subChats.chatId,
+          sessionId: subChats.sessionId,
+          mode: subChats.mode,
+          createdAt: subChats.createdAt,
+        })
+        .from(subChats)
+        .where(eq(subChats.id, memSession.subChatId))
+        .get()
+
+      if (!subChat) return null
+
+      // 3. Get the parent chat
+      const chat = db
+        .select({
+          id: chats.id,
+          name: chats.name,
+          projectId: chats.projectId,
+          archivedAt: chats.archivedAt,
+        })
+        .from(chats)
+        .where(eq(chats.id, subChat.chatId))
+        .get()
+
+      return {
+        subChat,
+        chat,
+      }
     }),
 
   /**

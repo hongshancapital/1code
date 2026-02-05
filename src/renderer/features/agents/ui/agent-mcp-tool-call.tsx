@@ -119,7 +119,7 @@ export const AgentMcpToolCall = memo(
     const title = isPending ? `${displayToolName}...` : displayToolName
 
     return (
-      <div className="flex items-start gap-1.5 py-0.5 rounded-md px-2">
+      <div className="flex items-start gap-1.5 py-0.5 rounded-md px-2" data-tool-call-id={part.toolCallId}>
         {/* MCP Server Icon */}
         <div className="shrink-0 flex text-muted-foreground items-center pt-px">
           <ServerIcon server={server} />

@@ -20,7 +20,6 @@ import {
 } from "../../lib/atoms/traffic-light"
 import { cn } from "../../lib/utils"
 import {
-  BrainFilledIcon,
   BugFilledIcon,
   CustomAgentIconFilled,
   FlaskFilledIcon,
@@ -31,7 +30,7 @@ import {
   SkillIconFilled,
   TerminalFilledIcon,
 } from "../../components/ui/icons"
-import { Play } from "lucide-react"
+import { Play, Brain, BrainCircuit } from "lucide-react"
 import { desktopViewAtom } from "../agents/atoms"
 
 // Check if we're in development mode
@@ -58,7 +57,7 @@ const MAIN_TAB_DEFS: TabDefinition[] = [
 // Project-related tabs (projects, models, runtime)
 const PROJECT_TAB_DEFS: TabDefinition[] = [
   { id: "projects", labelKey: "sidebar.projects", icon: FolderFilledIcon },
-  { id: "models", labelKey: "sidebar.models", icon: BrainFilledIcon },
+  { id: "models", labelKey: "sidebar.models", icon: BrainCircuit },
   { id: "runtime" as SettingsTab, labelKey: "sidebar.runtime", icon: Play },
 ]
 
@@ -73,6 +72,7 @@ const EXTENSION_TAB_DEFS: TabDefinition[] = [
 
 // Advanced/experimental tabs
 const ADVANCED_TAB_DEFS: TabDefinition[] = [
+  { id: "memory", labelKey: "sidebar.memory", icon: Brain },
   { id: "beta", labelKey: "sidebar.beta", icon: FlaskFilledIcon },
 ]
 
