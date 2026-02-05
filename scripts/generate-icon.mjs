@@ -276,20 +276,27 @@ async function main() {
   // Step 1: Generate macOS .icns
   // ═══════════════════════════════════════════════════════════════
   console.log('🍎 Generating macOS ICNS file...');
+  console.log('   Trimming transparent borders...');
 
-  // Note: Source icon.png is already a complete macOS-style icon with
-  // squircle shape, shadow, and proper margins. We just resize it directly.
-  // Do NOT apply additional rounding or padding.
+  // Trim transparent borders from source icon first
+  const trimmedMacBuffer = await trimTransparentBorders(INPUT_ICON);
 
   console.log('1️⃣  Generating all required icon sizes...');
 
   for (const { size, scale } of ICNS_SIZES) {
-    const { filename, actualSize } = await generateIconSize(
-      INPUT_ICON,  // Use source directly, it's already properly formatted
-      size,
-      scale,
-      ICONSET_DIR
-    );
+    const actualSize = size * scale;
+    const filename = scale === 1
+      ? `icon_${size}x${size}.png`
+      : `icon_${size}x${size}@${scale}x.png`;
+
+    const outputPath = join(ICONSET_DIR, filename);
+
+    // Generate from trimmed buffer instead of original file
+    await sharp(trimmedMacBuffer)
+      .resize(actualSize, actualSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toFile(outputPath);
+
     console.log(`   ✓ ${filename} (${actualSize}x${actualSize})`);
   }
 
