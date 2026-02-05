@@ -1,12 +1,15 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
-import { exec } from "node:child_process"
+import { exec, spawn } from "node:child_process"
 import { promisify } from "node:util"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { existsSync } from "node:fs"
 
 const execAsync = promisify(exec)
+
+// Set of skipped categories (persisted in memory for current session)
+const skippedCategories = new Set<string>()
 
 // ============================================================================
 // Types
@@ -260,17 +263,70 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
 
 /**
  * Execute command with timeout and return stdout
+ * Uses spawn to ensure proper process cleanup on timeout
  */
 async function execWithTimeout(
   command: string,
   timeoutMs = 5000
 ): Promise<string | null> {
-  try {
-    const { stdout } = await execAsync(command, { timeout: timeoutMs })
-    return stdout.trim()
-  } catch {
-    return null
-  }
+  return new Promise((resolve) => {
+    const isWindows = process.platform === "win32"
+    const shell = isWindows ? "cmd.exe" : "/bin/bash"
+    const shellArgs = isWindows ? ["/c", command] : ["-c", command]
+
+    const child = spawn(shell, shellArgs, {
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: false,
+    })
+
+    let output = ""
+    let resolved = false
+
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true
+        try {
+          // Kill the process and all children
+          if (isWindows) {
+            spawn("taskkill", ["/pid", String(child.pid), "/f", "/t"], { stdio: "ignore" })
+          } else {
+            child.kill("SIGKILL")
+          }
+        } catch {
+          // Ignore kill errors
+        }
+      }
+    }
+
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, timeoutMs)
+
+    child.stdout?.on("data", (data) => {
+      output += data.toString()
+    })
+
+    child.stderr?.on("data", (data) => {
+      output += data.toString()
+    })
+
+    child.on("close", () => {
+      if (!resolved) {
+        resolved = true
+        clearTimeout(timer)
+        resolve(output.trim() || null)
+      }
+    })
+
+    child.on("error", () => {
+      if (!resolved) {
+        resolved = true
+        clearTimeout(timer)
+        resolve(null)
+      }
+    })
+  })
 }
 
 /**
@@ -357,6 +413,7 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
 
 /**
  * Build category status from detected tools
+ * Considers skipped categories as satisfied
  */
 function buildCategoryStatus(tools: ToolInfo[]): CategoryStatus[] {
   const categories = Object.keys(CATEGORY_INFO) as ToolCategory[]
@@ -371,12 +428,16 @@ function buildCategoryStatus(tools: ToolInfo[]): CategoryStatus[] {
     const installedTool = installedTools[0] || null // Highest priority installed tool
     const recommendedTool = categoryTools[0] || null // Highest priority tool to recommend
 
+    // Consider skipped categories as satisfied
+    const isSkipped = skippedCategories.has(category)
+    const isSatisfied = installedTools.length > 0 || isSkipped
+
     return {
       category,
       displayName: categoryInfo.displayName,
-      satisfied: installedTools.length > 0,
+      satisfied: isSatisfied,
       installedTool,
-      recommendedTool: installedTool ? null : recommendedTool,
+      recommendedTool: isSatisfied ? null : recommendedTool,
       required: categoryInfo.required,
     }
   })
@@ -731,4 +792,30 @@ export const runnerRouter = router({
         }
       }
     }),
+
+  /**
+   * Skip a category - mark it as satisfied without installing
+   * User can skip required categories if they prefer manual installation
+   */
+  skipCategory: publicProcedure
+    .input(
+      z.object({
+        category: z.string(),
+      })
+    )
+    .mutation(async ({ input }): Promise<{ success: boolean }> => {
+      skippedCategories.add(input.category)
+      // Clear cache so next detection will reflect the skip
+      toolsCache = null
+      return { success: true }
+    }),
+
+  /**
+   * Reset all skipped categories
+   */
+  resetSkippedCategories: publicProcedure.mutation(async (): Promise<{ success: boolean }> => {
+    skippedCategories.clear()
+    toolsCache = null
+    return { success: true }
+  }),
 })
