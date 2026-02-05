@@ -66,15 +66,15 @@
     "cancel": "取消"
   },
   "moveToWorkspace": {
-    "title": "移动到工作区",
-    "description": "将此对话移动到计算机上的永久工作区文件夹。",
-    "projectName": "项目名称",
-    "projectNamePlaceholder": "输入项目名称",
-    "targetFolder": "目标文件夹",
-    "selectFolder": "选择文件夹...",
-    "move": "移动",
-    "moving": "移动中...",
-    "success": "成功移动到工作区",
-    "error": "移动到工作区失败"
+    "title": "转换为正式项目",
+    "description": "将对话保存到指定位置，方便整理和继续工作。",
+    "projectName": "文件夹名称",
+    "projectNamePlaceholder": "输入文件夹名称",
+    "targetFolder": "存放位置",
+    "selectFolder": "选择位置...",
+    "move": "确定",
+    "moving": "处理中...",
+    "success": "已转换为正式项目",
+    "error": "转换失败"
   }
 }

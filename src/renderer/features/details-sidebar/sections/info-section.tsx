@@ -8,7 +8,7 @@ import {
   FolderFilledIcon,
   GitPullRequestFilledIcon,
 } from "@/components/ui/icons"
-import { WandSparkles, FolderOutput } from "lucide-react"
+import { WandSparkles, ArrowRightCircle, HelpCircle } from "lucide-react"
 import { MoveToWorkspaceDialog } from "@/components/dialogs/move-to-workspace-dialog"
 import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
@@ -149,8 +149,8 @@ export const InfoSection = memo(function InfoSection({
     { enabled: !!chatId }
   )
 
-  // Get project info to check if playground
-  const { data: projects } = trpc.projects.list.useQuery()
+  // Get project info to check if playground (must include playground projects in query)
+  const { data: projects } = trpc.projects.list.useQuery({ includePlayground: true })
   const project = chatData?.projectId
     ? projects?.find(p => p.id === chatData.projectId)
     : null
@@ -379,15 +379,35 @@ Please suggest a new branch name.`
         </div>
       )}
 
-      {/* Move to Workspace - for playground chats, replaces the path row */}
+      {/* Convert to Project - for playground chats */}
       {isPlayground && project && (
         <>
-          <PropertyRow
-            icon={FolderOutput}
-            label={t("details.workspace.action")}
-            value={tCommon("moveToWorkspace.title")}
-            onClick={() => setMoveDialogOpen(true)}
-          />
+          <div className="flex items-center min-h-[28px]">
+            {/* Clickable left section: icon + text */}
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              onClick={() => setMoveDialogOpen(true)}
+            >
+              <ArrowRightCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>{t("details.workspace.convertToProject")}</span>
+            </button>
+            {/* Help icon on the right */}
+            <div className="flex-1" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[200px] text-xs">
+                {t("details.workspace.convertToProjectHelp")}
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
           <MoveToWorkspaceDialog
             open={moveDialogOpen}

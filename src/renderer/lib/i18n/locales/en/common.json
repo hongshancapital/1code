@@ -66,15 +66,15 @@
     "cancel": "Cancel"
   },
   "moveToWorkspace": {
-    "title": "Move to Workspace",
-    "description": "Move this chat to a permanent workspace folder on your computer.",
-    "projectName": "Project Name",
-    "projectNamePlaceholder": "Enter project name",
-    "targetFolder": "Target Folder",
-    "selectFolder": "Select folder...",
-    "move": "Move",
-    "moving": "Moving...",
-    "success": "Successfully moved to workspace",
-    "error": "Failed to move to workspace"
+    "title": "Convert to Project",
+    "description": "Save this chat to a location of your choice for easy organization.",
+    "projectName": "Folder Name",
+    "projectNamePlaceholder": "Enter folder name",
+    "targetFolder": "Location",
+    "selectFolder": "Choose location...",
+    "move": "Confirm",
+    "moving": "Processing...",
+    "success": "Successfully converted to project",
+    "error": "Failed to convert"
   }
 }
