@@ -322,11 +322,10 @@ export function stopOktaServer(): void {
   }
 }
 
-// Start local HTTP server for auth callbacks
-// handlers: callbacks for auth success/error, delegated to caller for window management
-export function startAuthCallbackServers(
-  handlers: AuthCallbackHandlers
-): { authServer: Server } {
+// Start local HTTP server for MCP OAuth callbacks
+// This server only handles MCP OAuth (/callback route)
+// Okta/Azure auth uses a separate on-demand server (see startOktaServer)
+export function startAuthCallbackServers(): { authServer: Server } {
   const authServer = createServer((req, res) => {
     const url = new URL(req.url || "", `http://localhost:${AUTH_SERVER_PORT}`)
 
@@ -337,110 +336,7 @@ export function startAuthCallbackServers(
       return
     }
 
-    if (url.pathname === "/auth/callback") {
-      const code = url.searchParams.get("code")
-      const state = url.searchParams.get("state")
-      console.log(
-        "[Auth Server] Received Okta callback with code:",
-        code?.slice(0, 8) + "...",
-        "state:",
-        state?.slice(0, 8) + "...",
-      )
-
-      // Verify state parameter to prevent CSRF attacks
-      const authManager = getAuthManager()
-      const pkceState = authManager?.getPkceState()
-      if (!pkceState) {
-        console.error("[Auth Server] No PKCE state found - auth flow not started")
-        res.writeHead(400, { "Content-Type": "text/plain" })
-        res.end("Authentication flow not started. Please try again.")
-        return
-      }
-
-      if (state !== pkceState.state) {
-        console.error("[Auth Server] State mismatch - possible CSRF attack")
-        res.writeHead(400, { "Content-Type": "text/plain" })
-        res.end("Invalid state parameter. Please try again.")
-        return
-      }
-
-      if (code) {
-        // Handle the auth code (exchange for tokens)
-        handleAuthCode(code, handlers)
-
-        // Send success response and close the browser tab
-        res.writeHead(200, { "Content-Type": "text/html" })
-        res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
-  <title>Hong - Authentication</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-      --bg: #09090b;
-      --text: #fafafa;
-      --text-muted: #71717a;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #ffffff;
-        --text: #09090b;
-        --text-muted: #71717a;
-      }
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-    }
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-    .brand {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-    h1 {
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-    a {
-      font-size: 12px;
-      color: var(--text-muted);
-      cursor: pointer;
-      text-decoration: underline;
-      transition: opacity 0.15s;
-    }
-    a:hover {
-      opacity: 0.7;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <span class="brand">Hóng</span>
-    <h1>Authentication successful</h1>
-    <p onclick="window.close()">Close this tab</p>
-  </div>
-</body>
-</html>`)
-      } else {
-        res.writeHead(400, { "Content-Type": "text/plain" })
-        res.end("Missing code parameter")
-      }
-    } else if (url.pathname === "/callback") {
+    if (url.pathname === "/callback") {
       // Handle MCP OAuth callback
       const code = url.searchParams.get("code")
       const state = url.searchParams.get("state")
