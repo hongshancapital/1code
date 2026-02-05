@@ -2714,26 +2714,29 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
-  // Track which subChatId was initialized
-  const initializedSubChatIdRef = useRef<string | null>(null)
+  // Track previous isActive state to detect activation
+  const wasActiveRef = useRef(isActive)
 
   // Initialize scroll position on mount (only once per tab with keep-alive)
   // Strategy: wait for content to stabilize, then scroll to bottom ONCE
   // No jumping around - just wait and scroll when ready
   useEffect(() => {
+    // Detect when tab becomes active (switching to this chat)
+    const justBecameActive = !wasActiveRef.current && isActive
+    wasActiveRef.current = isActive
+
     // Skip if not active (keep-alive: hidden tabs don't need scroll init)
     if (!isActive) return
 
     const container = chatContainerRef.current
     if (!container) return
 
-    // Reset initialization when subChatId changes (switching between chats)
-    if (initializedSubChatIdRef.current !== subChatId) {
+    // Reset initialization when tab becomes active (user switched to this chat)
+    if (justBecameActive) {
       hasInitializedRef.current = false
-      initializedSubChatIdRef.current = subChatId
     }
 
-    // With keep-alive, only initialize once per tab mount
+    // With keep-alive, only initialize once per tab mount (or when becoming active)
     if (hasInitializedRef.current) return
     hasInitializedRef.current = true
 
