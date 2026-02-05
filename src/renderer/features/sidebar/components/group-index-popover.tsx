@@ -2,7 +2,7 @@
 
 import React, { memo, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { Folder, Tag, type LucideIcon } from "lucide-react"
+import { Folder, Tag, MessageCircle, Layers, type LucideIcon } from "lucide-react"
 import * as LucideIcons from "lucide-react"
 import {
   Popover,
@@ -30,8 +30,8 @@ interface GroupIndexPopoverProps {
   groups: GroupInfo[]
   /** Called when a group is selected */
   onGroupSelect: (groupId: string) => void
-  /** Current group mode ("folder" or "tag") */
-  mode: "folder" | "tag"
+  /** Current group mode ("folder", "tag", or "type") */
+  mode: "folder" | "tag" | "type"
   /** Trigger element */
   children: React.ReactNode
 }
@@ -63,14 +63,19 @@ export const GroupIndexPopover = memo(function GroupIndexPopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
-        className={cn("p-0", mode === "folder" ? "w-64" : "w-auto min-w-32")}
+        className={cn("p-0", (mode === "folder" || mode === "type") ? "w-64" : "w-auto min-w-32")}
         side="bottom"
         align="end"
         sideOffset={4}
       >
         <div className="px-3 py-2 border-b border-border/50">
           <div className="flex items-center gap-2 text-sm font-medium">
-            {mode === "folder" ? (
+            {mode === "type" ? (
+              <>
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                {t("grouping.typeGrouping")}
+              </>
+            ) : mode === "folder" ? (
               <>
                 <Folder className="h-4 w-4 text-muted-foreground" />
                 {t("grouping.folderGrouping")}
@@ -118,6 +123,30 @@ export const GroupIndexPopover = memo(function GroupIndexPopover({
                         <IconComponent className="w-3 h-3" />
                       </div>
                     )}
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                      {group.count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : mode === "type" ? (
+            /* Type mode - vertical layout with icons */
+            <div className="flex flex-col gap-1">
+              {sortedGroups.map((group) => {
+                const IconComponent = group.icon ? getIconComponent(group.icon) : Folder
+                return (
+                  <button
+                    key={group.id}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded-md",
+                      "hover:bg-foreground/5 transition-colors",
+                      "text-left w-full",
+                    )}
+                    onClick={() => handleGroupClick(group.id)}
+                  >
+                    <IconComponent className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="text-xs truncate flex-1">{group.title}</span>
                     <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                       {group.count}
                     </span>

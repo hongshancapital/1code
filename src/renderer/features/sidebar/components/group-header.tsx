@@ -34,7 +34,7 @@ interface GroupHeaderProps {
   /** Called when a group is selected from the index */
   onGroupSelect?: (groupId: string) => void
   /** Current group mode */
-  groupMode?: "folder" | "tag"
+  groupMode?: "folder" | "tag" | "type"
 }
 
 export const GroupHeader = memo(function GroupHeader({
@@ -102,6 +102,16 @@ export const GroupHeader = memo(function GroupHeader({
         )}
       </button>
 
+      {/* Type mode: show icon and title */}
+      {groupMode === "type" && group.icon && (
+        <div className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
+          {(() => {
+            const IconComponent = getIconComponent(group.icon)
+            return <IconComponent className="w-3.5 h-3.5" />
+          })()}
+        </div>
+      )}
+
       {/* Tag icon - for tag groups show colored icon, for folder groups show title only */}
       {groupMode === "tag" && group.color && group.icon && (
         <div
@@ -124,8 +134,8 @@ export const GroupHeader = memo(function GroupHeader({
         </div>
       )}
 
-      {/* Group title - only show for folder groups, NOT for tag groups */}
-      {groupMode !== "tag" && group.title && (
+      {/* Group title - show for folder and type groups, NOT for tag groups */}
+      {(groupMode === "folder" || groupMode === "type") && group.title && (
         <span className="text-xs font-medium text-muted-foreground flex-1 truncate">
           {group.title}
         </span>

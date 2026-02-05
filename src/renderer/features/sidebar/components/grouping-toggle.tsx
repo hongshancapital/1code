@@ -3,7 +3,7 @@
 import { memo, useCallback } from "react"
 import { useAtom } from "jotai"
 import { useTranslation } from "react-i18next"
-import { Layers, List, FolderTree, Tags } from "lucide-react"
+import { Layers, List, FolderTree, Tags, LayoutGrid } from "lucide-react"
 import { Button } from "../../../components/ui/button"
 import {
   Tooltip,
@@ -102,6 +102,10 @@ export const GroupingToggle = memo(function GroupingToggle({
               value={groupMode}
               onValueChange={handleModeChange}
             >
+              <DropdownMenuRadioItem value="type">
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                {t("grouping.byType")}
+              </DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="folder">
                 <FolderTree className="h-4 w-4 mr-2" />
                 {t("grouping.byFolder")}

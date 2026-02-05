@@ -5,7 +5,7 @@ import { atomWithStorage } from "jotai/utils"
 // GROUPING TYPES
 // ============================================
 
-export type WorkspaceGroupMode = "none" | "folder" | "tag"
+export type WorkspaceGroupMode = "none" | "folder" | "tag" | "type"
 export type SubChatGroupMode = "none" | "tag"
 
 // ============================================
@@ -14,11 +14,11 @@ export type SubChatGroupMode = "none" | "tag"
 
 /**
  * Whether workspace grouped view is enabled
- * Default: false (disabled), user can enable in settings
+ * Default: true (enabled), shows Workspaces vs Chats grouping
  */
 export const workspaceGroupedViewAtom = atomWithStorage<boolean>(
   "agents:workspace-grouped-view",
-  false,
+  true,
   undefined,
   { getOnInit: true },
 )
@@ -40,12 +40,13 @@ export const subChatGroupedViewAtom = atomWithStorage<boolean>(
 
 /**
  * Workspace grouping mode when grouped view is enabled
+ * "type" - group by type (Workspaces vs Chats/Playgrounds)
  * "folder" - group by project folder path
  * "tag" - group by workspace tags
  */
 export const workspaceGroupModeAtom = atomWithStorage<WorkspaceGroupMode>(
   "agents:workspace-group-mode",
-  "folder", // Default to folder grouping
+  "type", // Default to type grouping (Workspaces vs Chats)
   undefined,
   { getOnInit: true },
 )
