@@ -20,7 +20,7 @@ declare global {
     // Main process - Required (MAIN_VITE_ prefix)
     readonly MAIN_VITE_OKTA_ISSUER: string
     readonly MAIN_VITE_OKTA_CLIENT_ID: string
-    // Note: OKTA_CALLBACK is auto-generated based on dev/production mode (port 3300/3000)
+    // Note: OKTA_CALLBACK is auto-generated based on dev/production mode (port 3310/3010)
     readonly MAIN_VITE_API_URL: string
     readonly MAIN_VITE_API_ORIGIN: string
 

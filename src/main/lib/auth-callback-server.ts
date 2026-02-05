@@ -495,7 +495,7 @@ export function startAuthCallbackServers(
   oktaServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       console.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
-      console.warn("[Okta Callback] Okta login may not work until port 3000 is available")
+      console.warn(`[Okta Callback] Okta login may not work until port ${OKTA_CALLBACK_PORT} is available`)
     } else {
       console.error("[Okta Callback] Server error:", err)
     }
