@@ -7,7 +7,8 @@ import {
   ClaudeCodeIcon,
   IconCloseSidebarRight,
   IconOpenSidebarRight,
-  IconSpinner
+  IconSpinner,
+  IconTextUndo
 } from "../../../components/ui/icons"
 import { Kbd } from "../../../components/ui/kbd"
 import {
@@ -3093,13 +3094,13 @@ const ChatViewInner = memo(function ChatViewInner({
 
     if (currentTextContexts.length > 0 || currentDiffTextContexts.length > 0 || currentPastedTexts.length > 0) {
       const quoteMentions = currentTextContexts.map((tc) => {
-        const preview = tc.preview.replace(/[:\[\]]/g, "") // Sanitize preview
+        const preview = tc.preview.replace(/[:[\]]/g, "") // Sanitize preview
         const encodedText = utf8ToBase64(tc.text) // Base64 encode full text
         return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`
       })
 
       const diffMentions = currentDiffTextContexts.map((dtc) => {
-        const preview = dtc.preview.replace(/[:\[\]]/g, "") // Sanitize preview
+        const preview = dtc.preview.replace(/[:[\]]/g, "") // Sanitize preview
         const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
         const lineNum = dtc.lineNumber || 0
         // Include comment if present: encode it as base64 and append
@@ -3111,7 +3112,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // Using | as separator since filepath can contain colons
       const pastedTextMentions = currentPastedTexts.map((pt) => {
         // Sanitize preview to remove special characters that break mention parsing
-        const sanitizedPreview = pt.preview.replace(/[:\[\]|]/g, "")
+        const sanitizedPreview = pt.preview.replace(/[:[\]|]/g, "")
         return `@[${MENTION_PREFIXES.PASTED}${pt.size}:${sanitizedPreview}|${pt.filePath}]`
       })
 
@@ -3247,7 +3248,7 @@ const ChatViewInner = memo(function ChatViewInner({
       let mentionPrefix = ""
       if (item.textContexts && item.textContexts.length > 0) {
         const quoteMentions = item.textContexts.map((tc) => {
-          const preview = tc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
+          const preview = tc.text.slice(0, 50).replace(/[:[\]]/g, "") // Create and sanitize preview
           const encodedText = utf8ToBase64(tc.text) // Base64 encode full text
           return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`
         })
@@ -3257,7 +3258,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // Add diff text contexts as mention tokens
       if (item.diffTextContexts && item.diffTextContexts.length > 0) {
         const diffMentions = item.diffTextContexts.map((dtc) => {
-          const preview = dtc.text.slice(0, 50).replace(/[:\[\]]/g, "") // Create and sanitize preview
+          const preview = dtc.text.slice(0, 50).replace(/[:[\]]/g, "") // Create and sanitize preview
           const encodedText = utf8ToBase64(dtc.text) // Base64 encode full text
           const lineNum = dtc.lineNumber || 0
           return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}]`
@@ -4503,10 +4504,12 @@ export function ChatView({
   // Lazy load messages for the active sub-chat (performance optimization)
   // Check if sub-chat belongs to current workspace (from server data or local store)
   // This prevents loading messages for stale/invalid sub-chat IDs from localStorage
-  // IMPORTANT: Must check agentChat?.subChats directly (not agentSubChats defined later)
-  // to avoid temporal dead zone error while still checking server data during initialization
+  // NOTE: Using localAgentChat here is correct because:
+  // 1. The query below is only enabled when chatSourceMode === "local"
+  // 2. localAgentChat is defined above (line 4498) - avoids TDZ with agentChat (line 4529)
+  // 3. Dual-source check handles race condition where store hasn't updated yet
   const activeSubChatExistsInWorkspace = activeSubChatId && (
-    (agentChat?.subChats ?? []).some(sc => sc.id === activeSubChatId) ||
+    (localAgentChat?.subChats ?? []).some(sc => sc.id === activeSubChatId) ||
     allSubChats.some(sc => sc.id === activeSubChatId)
   )
   const { data: subChatMessagesData, isLoading: isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
