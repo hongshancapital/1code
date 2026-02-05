@@ -11,7 +11,7 @@ app.commandLine.appendSwitch("js-flags", "--max-old-space-size=8192")
 validateEnv()
 import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { join } from "path"
-import { startAuthCallbackServers, startOktaServer, stopOktaServer, handleAuthCode, type AuthCallbackHandlers } from "./lib/auth-callback-server"
+import { startAuthCallbackServers,  handleAuthCode, type AuthCallbackHandlers } from "./lib/auth-callback-server"
 import { Readable } from "stream"
 import { AuthManager, initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
 import {
@@ -268,8 +268,8 @@ console.log("[Protocol] =============================================")
 
 // Note: app.on("open-url") will be registered in app.whenReady()
 
-// Start auth callback servers (extracted to lib/auth-callback-server.ts)
-startAuthCallbackServers(authCallbackHandlers)
+// Start auth callback server for MCP OAuth (Okta auth uses on-demand server)
+startAuthCallbackServers()
 
 
 // Clean up stale lock files from crashed instances
