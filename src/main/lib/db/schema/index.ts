@@ -331,6 +331,45 @@ export const subChatTags = sqliteTable(
   ],
 )
 
+// ============ INSIGHTS (Usage Reports) ============
+export const insights = sqliteTable(
+  "insights",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    // Report type: 'daily' | 'weekly'
+    reportType: text("report_type").notNull(),
+    // Report date (YYYY-MM-DD for daily, week start date for weekly)
+    reportDate: text("report_date").notNull(),
+    // Pre-computed statistics (JSON)
+    statsJson: text("stats_json").notNull(),
+    // AI-generated summary (1-2 sentences for card display)
+    summary: text("summary"),
+    // AI-generated HTML report (detailed, for dialog display)
+    reportHtml: text("report_html"),
+    // AI-generated Markdown report (legacy, kept for compatibility)
+    reportMarkdown: text("report_markdown"),
+    // Status: 'pending' | 'generating' | 'completed' | 'failed'
+    status: text("status").notNull().default("pending"),
+    // Error message if failed
+    error: text("error"),
+    // Temporary data directory for Agent to read
+    dataDir: text("data_dir"),
+    // Timestamps
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("insights_type_date_idx").on(table.reportType, table.reportDate),
+    index("insights_created_at_idx").on(table.createdAt),
+  ],
+)
+
 // ============ TYPE EXPORTS ============
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
@@ -355,3 +394,5 @@ export type ChatTag = typeof chatTags.$inferSelect
 export type NewChatTag = typeof chatTags.$inferInsert
 export type SubChatTag = typeof subChatTags.$inferSelect
 export type NewSubChatTag = typeof subChatTags.$inferInsert
+export type Insight = typeof insights.$inferSelect
+export type NewInsight = typeof insights.$inferInsert

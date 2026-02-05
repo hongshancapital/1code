@@ -146,6 +146,50 @@ export function initDatabase() {
     }
   }
 
+  // Ensure insights table exists (for usage analysis reports)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS insights (
+        id TEXT PRIMARY KEY,
+        report_type TEXT NOT NULL,
+        report_date TEXT NOT NULL,
+        stats_json TEXT NOT NULL,
+        report_markdown TEXT,
+        status TEXT DEFAULT 'pending' NOT NULL,
+        error TEXT,
+        data_dir TEXT,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS insights_type_date_idx ON insights(report_type, report_date)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS insights_created_at_idx ON insights(created_at)`)
+    console.log("[DB] Insights table ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Insights table check:", error.message)
+  }
+
+  // Ensure summary and report_html columns exist on insights table (for warm coworker style reports)
+  try {
+    sqlite.exec(`ALTER TABLE insights ADD COLUMN summary TEXT`)
+    console.log("[DB] Added summary column to insights")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] summary column check:", error.message)
+    }
+  }
+  try {
+    sqlite.exec(`ALTER TABLE insights ADD COLUMN report_html TEXT`)
+    console.log("[DB] Added report_html column to insights")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] report_html column check:", error.message)
+    }
+  }
+
   // Ensure automations tables exist (for automation engine)
   try {
     sqlite.exec(`

@@ -16,7 +16,6 @@ import { useCallback, useMemo } from "react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
 import { useTranslation } from "react-i18next"
 import { useTypingGreeting } from "./use-greeting"
-import { UsageBarChart } from "./usage-bar-chart"
 import { NewChatForm } from "../agents/main/new-chat-form"
 import { AgentsHeaderControls } from "../agents/ui/agents-header-controls"
 
@@ -170,9 +169,6 @@ export function HomeView() {
       {/* Section 2: Scrollable content area */}
       <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className={isMobile ? "max-w-full" : "max-w-3xl mx-auto"}>
-          {/* Yesterday Usage Bar Chart */}
-          <UsageBarChart className="mb-6" />
-
           {/* Stats Cards */}
           <div className={cn(
             "grid gap-3 mb-8",

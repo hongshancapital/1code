@@ -181,5 +181,25 @@
       "Fresh start today!",
       "Yesterday: recharging mode"
     ]
+  },
+  "insights": {
+    "title": "Usage Insights",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "history": "History",
+    "noReport": "No report yet",
+    "willGenerateWhenReady": "Will auto-generate when usage threshold is met",
+    "generating": "Reviewing your work...",
+    "preparing": "Preparing data...",
+    "totalTokens": "Total Tokens",
+    "apiCalls": "API Calls",
+    "cost": "Cost",
+    "failed": "Report generation failed",
+    "statsOnly": "Stats ready, AI analysis starting soon",
+    "expand": "AI Insights",
+    "collapse": "Collapse",
+    "viewDetail": "View Details",
+    "detailTitle": "Work Review",
+    "noContent": "No detailed content available"
   }
 }
