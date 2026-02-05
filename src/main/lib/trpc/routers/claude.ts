@@ -306,6 +306,74 @@ function parseMentions(prompt: string): {
 }
 
 /**
+ * Code file extensions that should NOT be tracked as artifacts (deliverables).
+ * These are source code files that are intermediate work products, not final outputs.
+ * Note: HTML is intentionally NOT in this list - it's a deliverable format.
+ */
+const CODE_FILE_EXTENSIONS = new Set([
+  // JavaScript/TypeScript
+  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts",
+  // Python
+  ".py", ".pyw", ".pyi", ".pyc", ".pyo",
+  // Java/Kotlin/Scala
+  ".java", ".kt", ".kts", ".scala", ".sc",
+  // C/C++/Objective-C
+  ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".hxx", ".m", ".mm",
+  // C#/F#
+  ".cs", ".fs", ".fsx",
+  // Go
+  ".go",
+  // Rust
+  ".rs",
+  // Ruby
+  ".rb", ".rake", ".gemspec",
+  // PHP
+  ".php", ".phtml", ".php3", ".php4", ".php5", ".phps",
+  // Swift
+  ".swift",
+  // Shell/Scripts
+  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".psm1", ".bat", ".cmd",
+  // Lua
+  ".lua",
+  // Perl
+  ".pl", ".pm", ".t",
+  // R
+  ".r", ".R", ".rmd", ".Rmd",
+  // Julia
+  ".jl",
+  // Haskell
+  ".hs", ".lhs",
+  // Elixir/Erlang
+  ".ex", ".exs", ".erl", ".hrl",
+  // Clojure
+  ".clj", ".cljs", ".cljc", ".edn",
+  // Vue/Svelte (component files)
+  ".vue", ".svelte",
+  // Config/Definition files (these are code-like)
+  ".json", ".jsonc", ".yaml", ".yml", ".toml", ".ini", ".cfg",
+  // CSS/Style files
+  ".css", ".scss", ".sass", ".less", ".styl",
+  // GraphQL
+  ".graphql", ".gql",
+  // SQL
+  ".sql",
+  // WebAssembly
+  ".wasm", ".wat",
+  // Assembly
+  ".asm", ".s",
+])
+
+/**
+ * Check if a file should be tracked as an artifact (deliverable).
+ * Code files are excluded - they can still appear in contexts but not as primary artifacts.
+ * HTML files are considered deliverables and are included.
+ */
+function shouldTrackAsArtifact(filePath: string): boolean {
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase()
+  return !CODE_FILE_EXTENSIONS.has(ext)
+}
+
+/**
  * Artifact context type - represents files or URLs used as context for an artifact
  */
 interface ArtifactContext {
@@ -2356,9 +2424,10 @@ Before you start planning or executing a task, check if there are any relevant s
                         toolPart.state = "result"
 
                         // Notify renderer about file changes for Write/Edit tools
+                        // Only track non-code files as artifacts (HTML is allowed)
                         if (toolPart.type === "tool-Write" || toolPart.type === "tool-Edit") {
                           const filePath = toolPart.input?.file_path
-                          if (filePath) {
+                          if (filePath && shouldTrackAsArtifact(filePath)) {
                             // Extract contexts from all tool calls in this message
                             const contexts = extractArtifactContexts(parts)
                             console.log(`[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`)
