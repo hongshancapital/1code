@@ -1287,6 +1287,30 @@ const HomeButton = memo(function HomeButton() {
   )
 })
 
+// Isolated Search Button - matches Home button style
+const SearchButton = memo(function SearchButton() {
+  const { t } = useTranslation('sidebar')
+  const setGlobalSearchOpen = useSetAtom(globalSearchOpenAtom)
+
+  const handleClick = useCallback(() => {
+    setGlobalSearchOpen(true)
+  }, [setGlobalSearchOpen])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+    >
+      <Search className="h-4 w-4" />
+      <span className="flex-1 text-left">{t('workspaces.search')}</span>
+      <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground/60">
+        <span className="text-xs">⌘</span>K
+      </kbd>
+    </button>
+  )
+})
+
 // Isolated Inbox Button - full-width navigation link matching web layout
 const InboxButton = memo(function InboxButton() {
   const { t } = useTranslation('sidebar')
@@ -1892,9 +1916,6 @@ export function AgentsSidebar({
   // Global desktop/fullscreen state from atoms (initialized in AgentsLayout)
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
-
-  // Global search dialog
-  const setGlobalSearchOpen = useSetAtom(globalSearchOpenAtom)
 
   // Multi-select state
   const [selectedChatIds, setSelectedChatIds] = useAtom(
@@ -3456,26 +3477,9 @@ export function AgentsSidebar({
         closeButtonRef={closeButtonRef}
       />
 
-      {/* Global Search Button */}
-      <div className="px-2 pb-3 shrink-0">
-        <button
-          onClick={() => setGlobalSearchOpen(true)}
-          className={cn(
-            "w-full flex items-center gap-2 rounded-lg text-sm bg-muted/50 hover:bg-muted border border-transparent hover:border-input transition-colors",
-            "text-muted-foreground/60 hover:text-muted-foreground",
-            isMobileFullscreen ? "h-10 px-3" : "h-7 px-2",
-          )}
-        >
-          <Search className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left truncate">{t('workspaces.search')}</span>
-          <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground/60">
-            <span className="text-xs">⌘</span>K
-          </kbd>
-        </button>
-      </div>
-
-      {/* Navigation Links - Home, Inbox & Automations */}
+      {/* Navigation Links - Search, Home, Inbox, Automations */}
       <div className="px-2 pb-3 shrink-0 space-y-0.5 -mx-1">
+        <SearchButton />
         <HomeButton />
         <InboxButton />
         <AutomationsButton />

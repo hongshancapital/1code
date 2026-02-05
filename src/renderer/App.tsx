@@ -346,10 +346,10 @@ export function App() {
 
     // Listen for session expiration (when refresh token fails)
     const unsubscribeSessionExpired = window.desktopApi?.onSessionExpired?.(() => {
-      toast.error("会话已过期，请重新登录", {
+      toast.error(i18n.t("info.sessionExpired", { ns: "toast" }), {
         duration: 5000,
         action: {
-          label: "重新登录",
+          label: i18n.t("auth.tryAgain", { ns: "dialogs" }),
           onClick: () => {
             // Reload the page to trigger re-authentication
             window.location.reload()
@@ -360,7 +360,7 @@ export function App() {
 
     // Listen for re-authentication in progress (returning users with expired tokens)
     const unsubscribeReauthenticating = window.desktopApi?.onReauthenticating?.(() => {
-      toast.info("正在重新验证身份...", { duration: 3000 })
+      toast.info(i18n.t("info.revalidatingAuth", { ns: "toast" }), { duration: 3000 })
     })
 
     // Cleanup on unmount
