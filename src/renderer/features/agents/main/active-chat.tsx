@@ -101,6 +101,9 @@ import {
   agentsSubChatsSidebarModeAtom,
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
+  subChatStatusStorageAtom,
+  markSubChatUnseen,
+  clearSubChatUnseen,
   fileSearchDialogOpenAtom,
   fileViewerDisplayModeAtom,
   fileViewerOpenAtomFamily,
@@ -2037,18 +2040,44 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Pre-compute token data for ChatInputArea to avoid passing unstable messages array
   // This prevents ChatInputArea from re-rendering on every streaming chunk
+  // After compaction, only count tokens from messages after the compact boundary
   const messageTokenData = useMemo(() => {
     let totalInputTokens = 0
     let totalOutputTokens = 0
     let totalCostUsd = 0
-    for (const msg of messages) {
+
+    // Find the most recent compact boundary (from end to start)
+    let startIndex = 0
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.role === "assistant" && msg.parts) {
+        const hasCompactBoundary = msg.parts.some(
+          (p: any) => p.type === "system-Compact" && p.state === "output-available"
+        )
+        if (hasCompactBoundary) {
+          // Start counting from the message after the compact boundary
+          startIndex = i + 1
+          break
+        }
+      }
+    }
+
+    // Only count tokens from messages after the compact boundary
+    for (let i = startIndex; i < messages.length; i++) {
+      const msg = messages[i]
       if (msg.metadata) {
         totalInputTokens += msg.metadata.inputTokens || 0
         totalOutputTokens += msg.metadata.outputTokens || 0
         totalCostUsd += msg.metadata.totalCostUsd || 0
       }
     }
-    return { totalInputTokens, totalOutputTokens, totalCostUsd, messageCount: messages.length }
+
+    return {
+      totalInputTokens,
+      totalOutputTokens,
+      totalCostUsd,
+      messageCount: messages.length - startIndex,
+    }
   }, [messages])
 
   // Track previous streaming state to detect stream stop
@@ -3913,6 +3942,7 @@ export function ChatView({
   const unseenChanges = useAtomValue(agentsUnseenChangesAtom)
   const setUnseenChanges = useSetAtom(agentsUnseenChangesAtom)
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom)
+  const setSubChatStatus = useSetAtom(subChatStatusStorageAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
   const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
   const setUndoStack = useSetAtom(undoStackAtom)
@@ -4374,6 +4404,7 @@ export function ChatView({
   // Clear sub-chat "unseen changes" indicator when sub-chat becomes active
   useEffect(() => {
     if (!activeSubChatId) return
+    // Clear from both old atom and new persisted storage
     setSubChatUnseenChanges((prev: Set<string>) => {
       if (prev.has(activeSubChatId)) {
         const next = new Set(prev)
@@ -4382,7 +4413,8 @@ export function ChatView({
       }
       return prev
     })
-  }, [activeSubChatId, setSubChatUnseenChanges])
+    clearSubChatUnseen(setSubChatStatus, activeSubChatId)
+  }, [activeSubChatId, setSubChatUnseenChanges, setSubChatStatus])
 
   // tRPC utils for optimistic cache updates
   const utils = api.useUtils()
@@ -5629,11 +5661,13 @@ Make sure to preserve all functionality from both branches when resolving confli
           const isViewingThisChat = currentSelectedChatId === chatId
 
           if (!isViewingThisSubChat) {
+            // Mark as unseen in both old atom and new persisted storage
             setSubChatUnseenChanges((prev: Set<string>) => {
               const next = new Set(prev)
               next.add(subChatId)
               return next
             })
+            markSubChatUnseen(setSubChatStatus, subChatId)
           }
 
           // Also mark parent chat as unseen if user is not viewing it
@@ -5684,6 +5718,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       chatId,
       currentMode,
       setSubChatUnseenChanges,
+      setSubChatStatus,
       selectedChatId,
       setUnseenChanges,
       notifyAgentComplete,
@@ -5831,11 +5866,13 @@ Make sure to preserve all functionality from both branches when resolving confli
           const isViewingThisChat = currentSelectedChatId === chatId
 
           if (!isViewingThisSubChat) {
+            // Mark as unseen in both old atom and new persisted storage
             setSubChatUnseenChanges((prev: Set<string>) => {
               const next = new Set(prev)
               next.add(newId)
               return next
             })
+            markSubChatUnseen(setSubChatStatus, newId)
           }
 
           // Also mark parent chat as unseen if user is not viewing it
@@ -5881,6 +5918,7 @@ Make sure to preserve all functionality from both branches when resolving confli
     defaultAgentMode,
     utils,
     setSubChatUnseenChanges,
+    setSubChatStatus,
     selectedChatId,
     setUnseenChanges,
     notifyAgentComplete,

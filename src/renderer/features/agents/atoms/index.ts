@@ -467,9 +467,90 @@ export const currentTaskToolsAtomFamily = atomFamily((subChatId: string) =>
 
 // Track sub-chats with unseen changes (finished streaming but user hasn't viewed them)
 // Updated by onFinish callback in Chat instances
+/** @deprecated Use subChatStatusStorageAtom instead */
 export const agentsSubChatUnseenChangesAtom = atom<Set<string>>(
   new Set<string>(),
 )
+
+// ============================================================
+// Unified SubChat Status Storage (persisted to localStorage)
+// ============================================================
+
+// SubChat status type - all status flags for a subchat
+export interface SubChatStatus {
+  // Unseen - has unread messages (timestamp when marked unseen, undefined = seen)
+  unseenAt?: number
+  // Committed - has completed git commit
+  committedAt?: number
+  commitHash?: string
+  branchInfo?: string
+}
+
+// Unified subchat status storage (persisted to localStorage)
+export const subChatStatusStorageAtom = atomWithStorage<
+  Record<string, SubChatStatus>
+>("agents:subChatStatus", {}, undefined, { getOnInit: true })
+
+// Derived atom: Set of unseen subchat IDs
+export const unseenSubChatIdsAtom = atom((get) => {
+  const storage = get(subChatStatusStorageAtom)
+  return new Set(
+    Object.entries(storage)
+      .filter(([_, status]) => status.unseenAt !== undefined)
+      .map(([id]) => id)
+  )
+})
+
+// Derived atom: Set of committed subchat IDs
+export const committedSubChatIdsAtom = atom((get) => {
+  const storage = get(subChatStatusStorageAtom)
+  return new Set(
+    Object.entries(storage)
+      .filter(([_, status]) => status.committedAt !== undefined)
+      .map(([id]) => id)
+  )
+})
+
+// Helper: Mark subchat as unseen
+export const markSubChatUnseen = (
+  setter: (fn: (prev: Record<string, SubChatStatus>) => Record<string, SubChatStatus>) => void,
+  subChatId: string,
+) => {
+  setter((prev) => ({
+    ...prev,
+    [subChatId]: { ...prev[subChatId], unseenAt: Date.now() },
+  }))
+}
+
+// Helper: Clear subchat unseen status
+export const clearSubChatUnseen = (
+  setter: (fn: (prev: Record<string, SubChatStatus>) => Record<string, SubChatStatus>) => void,
+  subChatId: string,
+) => {
+  setter((prev) => {
+    if (!prev[subChatId]?.unseenAt) return prev
+    const { unseenAt: _, ...rest } = prev[subChatId]
+    return { ...prev, [subChatId]: rest }
+  })
+}
+
+// Helper: Mark subchat as committed
+export const markSubChatCommitted = (
+  setter: (fn: (prev: Record<string, SubChatStatus>) => Record<string, SubChatStatus>) => void,
+  subChatId: string,
+  commitHash: string,
+  branchInfo: string,
+) => {
+  setter((prev) => ({
+    ...prev,
+    [subChatId]: {
+      ...prev[subChatId],
+      committedAt: Date.now(),
+      commitHash,
+      branchInfo,
+    },
+  }))
+}
 
 // Archive popover open state
 export const archivePopoverOpenAtom = atom<boolean>(false)

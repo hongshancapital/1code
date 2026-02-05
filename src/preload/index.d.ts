@@ -81,6 +81,9 @@ export interface DesktopApi {
 
   // Shortcuts
   onShortcutNewAgent: (callback: () => void) => () => void
+
+  // Git commit success (from claude.ts Bash output detection)
+  onGitCommitSuccess: (callback: (data: { subChatId: string; commitHash: string; branchInfo: string }) => void) => () => void
 }
 
 declare global {
