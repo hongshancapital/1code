@@ -46,6 +46,12 @@ export const PATHS = {
   HONG_PLAYGROUND: path.join(os.homedir(), ".hong", ".playground"),
   HONG_REPOS: path.join(os.homedir(), ".hong", "repos"),
 
+  // Hong plugin marketplace config
+  HONG_MARKETPLACES_CONFIG: path.join(os.homedir(), ".hong", "plugin-marketplaces.json"),
+
+  // Installed plugins directory (CLI-compatible)
+  PLUGINS_INSTALLED: path.join(CLAUDE_HOME, "plugins", "installed"),
+
   // Future expansion (planned)
   AGENTS_HOME: path.join(os.homedir(), ".agents"),
 } as const

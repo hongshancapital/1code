@@ -534,6 +534,10 @@
     "selectToView": "Select a plugin to view details",
     "noPluginsInstalled": "No plugins installed",
     "installMarketplaceHint": "Install plugins to ~/.claude/plugins/marketplaces/",
+    "viewMode": {
+      "installed": "Installed",
+      "marketplace": "Marketplace"
+    },
     "sections": {
       "enabled": "Enabled"
     },
@@ -555,6 +559,60 @@
       "disabled": "Plugin disabled",
       "authSuccess": "{{name}} authenticated",
       "authFailed": "Authentication failed"
+    }
+  },
+  "marketplace": {
+    "title": "Marketplace",
+    "searchPlaceholder": "Search plugins...",
+    "selectMarketplace": "Select marketplace",
+    "allMarketplaces": "All marketplaces",
+    "manage": "Manage marketplaces",
+    "noMarketplaces": "No marketplaces configured",
+    "addMarketplaceHint": "Add a marketplace to browse plugins",
+    "addMarketplace": "Add Marketplace",
+    "noPlugins": "No plugins found",
+    "selectToView": "Select a plugin to view details",
+    "noPluginsAvailable": "No plugins available",
+    "installed": "Installed",
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "sections": {
+      "installed": "Installed",
+      "available": "Available"
+    },
+    "detail": {
+      "version": "Version",
+      "marketplace": "Marketplace",
+      "homepage": "Homepage",
+      "tags": "Tags",
+      "installedVersion": "Installed Version"
+    },
+    "manage": {
+      "title": "Manage Marketplaces",
+      "description": "Add, update, or remove plugin marketplaces",
+      "addNew": "Add New Marketplace",
+      "configured": "Configured Marketplaces",
+      "noMarketplaces": "No marketplaces configured",
+      "lastUpdated": "Last updated",
+      "update": "Update",
+      "remove": "Remove",
+      "officialTitle": "Claude Official Marketplace",
+      "officialDescription": "Official plugins from Anthropic",
+      "addOfficial": "Add Official"
+    },
+    "toast": {
+      "installed": "Plugin installed",
+      "installFailed": "Failed to install plugin",
+      "uninstalled": "Plugin uninstalled",
+      "uninstallFailed": "Failed to uninstall plugin",
+      "added": "Marketplace added",
+      "addFailed": "Failed to add marketplace",
+      "updated": "Marketplace updated",
+      "updateFailed": "Failed to update marketplace",
+      "removed": "Marketplace removed",
+      "removeFailed": "Failed to remove marketplace",
+      "officialAdded": "Official marketplace added",
+      "officialFailed": "Failed to add official marketplace"
     }
   },
   "keyboard": {
