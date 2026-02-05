@@ -1,6 +1,10 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { join } from "path"
+import { mkdir, rm } from "fs/promises"
+import { existsSync } from "fs"
+import { app } from "electron"
 import simpleGit from "simple-git"
 import { z } from "zod"
 import { getDeviceInfo } from "../../device-id"
@@ -11,6 +15,8 @@ import {
   trackWorkspaceDeleted,
 } from "../../analytics"
 import { chats, getDatabase, modelUsage, projects, subChats } from "../../db"
+import { createId } from "../../db/utils"
+import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
   createWorktreeForChat,
   fetchGitHubPRStatus,
@@ -188,6 +194,9 @@ export const chatsRouter = router({
     }),
 
   /**
+   * @deprecated Use listPlaygroundChats instead.
+   * This API is kept for backward compatibility during migration.
+   *
    * List only playground (chat mode) sub-chats
    * Returns sub-chats from the single playground chat
    */
@@ -229,6 +238,9 @@ export const chatsRouter = router({
   }),
 
   /**
+   * @deprecated Use createPlaygroundChat instead.
+   * This API is kept for backward compatibility during migration.
+   *
    * Get or create the single playground chat for chat mode
    * All chat mode conversations are sub-chats under this single chat
    */
@@ -272,6 +284,313 @@ export const chatsRouter = router({
       .get()
 
     return playgroundChat
+  }),
+
+  /**
+   * Create a new independent playground chat.
+   * Each chat gets its own directory in ~/.hong/.playground/{id}/
+   * This allows users to start chatting immediately without specifying a folder.
+   */
+  createPlaygroundChat: publicProcedure
+    .input(z.object({
+      name: z.string().optional(),
+      initialMessage: z.string().optional(),
+      initialMessageParts: z
+        .array(
+          z.union([
+            z.object({ type: z.literal("text"), text: z.string() }),
+            z.object({
+              type: z.literal("data-image"),
+              data: z.object({
+                url: z.string(),
+                mediaType: z.string().optional(),
+                filename: z.string().optional(),
+                base64Data: z.string().optional(),
+              }),
+            }),
+            z.object({
+              type: z.literal("file-content"),
+              filePath: z.string(),
+              content: z.string(),
+            }),
+          ]),
+        )
+        .optional(),
+      mode: z.enum(["plan", "agent"]).default("agent"),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+      const homePath = app.getPath("home")
+      const playgroundRoot = join(homePath, PLAYGROUND_RELATIVE_PATH)
+
+      // Generate unique ID for this playground
+      const playgroundId = createId()
+      const playgroundPath = join(playgroundRoot, playgroundId)
+
+      // Create playground directory
+      await mkdir(playgroundPath, { recursive: true })
+
+      // Create playground project
+      const playgroundProject = db
+        .insert(projects)
+        .values({
+          name: input?.name || "New Chat",
+          path: playgroundPath,
+          mode: "cowork", // Use cowork mode for full read/write capability
+          isPlayground: true,
+        })
+        .returning()
+        .get()
+
+      // Create chat linked to the playground project
+      const chat = db
+        .insert(chats)
+        .values({
+          name: input?.name,
+          projectId: playgroundProject.id,
+          worktreePath: playgroundPath,
+        })
+        .returning()
+        .get()
+
+      // Create initial sub-chat with user message (if provided)
+      let initialMessages = "[]"
+
+      if (input?.initialMessageParts && input.initialMessageParts.length > 0) {
+        initialMessages = JSON.stringify([
+          {
+            id: `msg-${Date.now()}`,
+            role: "user",
+            parts: input.initialMessageParts,
+          },
+        ])
+      } else if (input?.initialMessage) {
+        initialMessages = JSON.stringify([
+          {
+            id: `msg-${Date.now()}`,
+            role: "user",
+            parts: [{ type: "text", text: input.initialMessage }],
+          },
+        ])
+      }
+
+      const subChat = db
+        .insert(subChats)
+        .values({
+          chatId: chat.id,
+          mode: input?.mode || "agent",
+          messages: initialMessages,
+        })
+        .returning()
+        .get()
+
+      // Track workspace created
+      trackWorkspaceCreated({
+        id: chat.id,
+        projectId: playgroundProject.id,
+        useWorktree: false,
+      })
+
+      return {
+        ...chat,
+        project: playgroundProject,
+        subChats: [subChat],
+      }
+    }),
+
+  /**
+   * List all playground chats (chats with isPlayground=true projects)
+   * Returns chats with their associated project info
+   */
+  listPlaygroundChats: publicProcedure.query(() => {
+    const db = getDatabase()
+
+    // Get all chats that belong to playground projects
+    const playgroundChats = db
+      .select({
+        chat: chats,
+        project: projects,
+      })
+      .from(chats)
+      .innerJoin(projects, eq(chats.projectId, projects.id))
+      .where(and(
+        eq(projects.isPlayground, true),
+        isNull(chats.archivedAt),
+      ))
+      .orderBy(desc(chats.updatedAt))
+      .all()
+
+    return playgroundChats.map(({ chat, project }) => ({
+      ...chat,
+      project,
+    }))
+  }),
+
+  /**
+   * Delete a playground chat and its associated project/directory
+   * This is a complete cleanup that removes:
+   * - The chat record
+   * - The project record
+   * - The playground directory
+   */
+  deletePlaygroundChat: publicProcedure
+    .input(z.object({ chatId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      // Get chat and project info
+      const chat = db
+        .select()
+        .from(chats)
+        .where(eq(chats.id, input.chatId))
+        .get()
+
+      if (!chat) {
+        throw new Error("Chat not found")
+      }
+
+      const project = db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, chat.projectId))
+        .get()
+
+      if (!project?.isPlayground) {
+        throw new Error("This is not a playground chat. Use regular delete.")
+      }
+
+      // Delete the playground directory
+      if (existsSync(project.path)) {
+        await rm(project.path, { recursive: true, force: true })
+      }
+
+      // Track workspace deleted
+      trackWorkspaceDeleted(input.chatId)
+
+      // Delete project (will cascade to chat due to foreign key)
+      db.delete(projects).where(eq(projects.id, project.id)).run()
+
+      return { success: true }
+    }),
+
+  /**
+   * Migrate old-format playground sub-chats to new independent format.
+   *
+   * Old format: Single ~/.hong/.playground/ directory with one chat containing multiple sub-chats
+   * New format: Each chat has its own directory ~/.hong/.playground/{id}/
+   *
+   * This migration:
+   * 1. Finds the old playground project (path ends with .playground without sub-ID)
+   * 2. Gets all sub-chats with non-empty messages
+   * 3. Creates new independent playground chats for each
+   * 4. Deletes the old playground project and associated data
+   */
+  migrateOldPlaygroundSubChats: publicProcedure.mutation(async () => {
+    const db = getDatabase()
+    const homePath = app.getPath("home")
+    const playgroundRoot = join(homePath, PLAYGROUND_RELATIVE_PATH)
+
+    // Find old-format playground project
+    // Old format has path exactly matching playgroundRoot (no sub-ID)
+    const oldPlayground = db
+      .select()
+      .from(projects)
+      .where(and(
+        eq(projects.isPlayground, true),
+        eq(projects.path, playgroundRoot),
+      ))
+      .get()
+
+    if (!oldPlayground) {
+      // No old format playground found - nothing to migrate
+      return { migrated: 0, skipped: 0 }
+    }
+
+    // Get all chats under the old playground
+    const oldChats = db
+      .select()
+      .from(chats)
+      .where(eq(chats.projectId, oldPlayground.id))
+      .all()
+
+    let migrated = 0
+    let skipped = 0
+
+    for (const oldChat of oldChats) {
+      // Get all sub-chats for this chat
+      const oldSubChats = db
+        .select()
+        .from(subChats)
+        .where(eq(subChats.chatId, oldChat.id))
+        .all()
+
+      for (const oldSubChat of oldSubChats) {
+        // Skip empty sub-chats
+        const messages = JSON.parse(oldSubChat.messages || "[]")
+        if (messages.length === 0) {
+          skipped++
+          continue
+        }
+
+        // Create new independent playground directory
+        const newPlaygroundId = createId()
+        const newPlaygroundPath = join(playgroundRoot, newPlaygroundId)
+        await mkdir(newPlaygroundPath, { recursive: true })
+
+        // Create new playground project
+        const newProject = db
+          .insert(projects)
+          .values({
+            name: oldSubChat.name || oldChat.name || "Migrated Chat",
+            path: newPlaygroundPath,
+            mode: "cowork",
+            isPlayground: true,
+          })
+          .returning()
+          .get()
+
+        // Create new chat
+        const newChat = db
+          .insert(chats)
+          .values({
+            name: oldSubChat.name || oldChat.name,
+            projectId: newProject.id,
+            worktreePath: newPlaygroundPath,
+          })
+          .returning()
+          .get()
+
+        // Create new sub-chat with original messages
+        db.insert(subChats)
+          .values({
+            chatId: newChat.id,
+            name: oldSubChat.name,
+            mode: oldSubChat.mode || "agent",
+            messages: oldSubChat.messages,
+            sessionId: oldSubChat.sessionId,
+            streamId: oldSubChat.streamId,
+          })
+          .run()
+
+        migrated++
+      }
+
+      // Delete old sub-chats for this chat
+      db.delete(subChats).where(eq(subChats.chatId, oldChat.id)).run()
+    }
+
+    // Delete old chats
+    for (const oldChat of oldChats) {
+      db.delete(chats).where(eq(chats.id, oldChat.id)).run()
+    }
+
+    // Delete old playground project
+    db.delete(projects).where(eq(projects.id, oldPlayground.id)).run()
+
+    // Note: We don't delete the old ~/.hong/.playground/ directory itself
+    // as it's now the parent directory for new playground chats
+
+    return { migrated, skipped }
   }),
 
   /**
@@ -1581,7 +1900,8 @@ export const chatsRouter = router({
 
   /**
    * Get file change stats for workspaces
-   * Parses messages from specified sub-chats and aggregates Edit/Write tool calls
+   * Uses pre-computed statsJson when available for performance
+   * Falls back to parsing messages for records without statsJson
    * Supports two modes:
    * - openSubChatIds: query specific sub-chats (used by main sidebar)
    * - chatIds: query all sub-chats for given chats (used by archive popover)
@@ -1600,8 +1920,8 @@ export const chatsRouter = router({
       return []
     }
 
-    // Query sub-chats based on input mode
-    let allChats: Array<{ chatId: string | null; subChatId: string; messages: string | null }>
+    // Query sub-chats based on input mode - include statsJson for optimization
+    let allChats: Array<{ chatId: string | null; subChatId: string; messages: string | null; statsJson: string | null; mode: string | null }>
 
     if (input.chatIds && input.chatIds.length > 0) {
       // Archive mode: query all sub-chats for given chat IDs
@@ -1610,6 +1930,8 @@ export const chatsRouter = router({
           chatId: subChats.chatId,
           subChatId: subChats.id,
           messages: subChats.messages,
+          statsJson: subChats.statsJson,
+          mode: subChats.mode,
         })
         .from(subChats)
         .where(inArray(subChats.chatId, input.chatIds))
@@ -1621,6 +1943,8 @@ export const chatsRouter = router({
           chatId: subChats.chatId,
           subChatId: subChats.id,
           messages: subChats.messages,
+          statsJson: subChats.statsJson,
+          mode: subChats.mode,
         })
         .from(subChats)
         .where(inArray(subChats.id, input.openSubChatIds!))
@@ -1657,98 +1981,89 @@ export const chatsRouter = router({
       { additions: number; deletions: number; fileCount: number; totalTokens: number }
     >()
 
+    // Track sub-chats that need statsJson update (lazy migration)
+    const subChatsToUpdate: Array<{ id: string; statsJson: string }> = []
+
     for (const row of allChats) {
-      if (!row.messages || !row.chatId) continue
+      if (!row.chatId) continue
       const chatId = row.chatId // TypeScript narrowing
 
-      try {
-        const messages = JSON.parse(row.messages) as Array<{
-          role: string
-          parts?: Array<{
-            type: string
-            input?: {
-              file_path?: string
-              old_string?: string
-              new_string?: string
-              content?: string
-            }
-          }>
-        }>
+      let subChatAdditions = 0
+      let subChatDeletions = 0
+      let subChatFileCount = 0
+      let needsStatsUpdate = false
 
-        // Track file states for this sub-chat
-        const fileStates = new Map<
-          string,
-          { originalContent: string | null; currentContent: string }
-        >()
-
-        for (const msg of messages) {
-          if (msg.role !== "assistant") continue
-          for (const part of msg.parts || []) {
-            if (part.type === "tool-Edit" || part.type === "tool-Write") {
-              const filePath = part.input?.file_path
-              if (!filePath) continue
-              // Skip session files
-              if (
-                filePath.includes("claude-sessions") ||
-                filePath.includes("Application Support")
-              )
-                continue
-
-              const oldString = part.input?.old_string || ""
-              const newString =
-                part.input?.new_string || part.input?.content || ""
-
-              const existing = fileStates.get(filePath)
-              if (existing) {
-                existing.currentContent = newString
-              } else {
-                fileStates.set(filePath, {
-                  originalContent: part.type === "tool-Write" ? null : oldString,
-                  currentContent: newString,
-                })
-              }
-            }
+      // Try to use pre-computed statsJson first (fast path)
+      if (row.statsJson) {
+        try {
+          const stats = JSON.parse(row.statsJson) as SubChatPreviewStats
+          // Aggregate all inputs in this sub-chat
+          for (const input of stats.inputs || []) {
+            subChatFileCount += input.fileCount || 0
+            subChatAdditions += input.additions || 0
+            subChatDeletions += input.deletions || 0
           }
+        } catch {
+          // Invalid JSON, fall back to parsing messages
+          needsStatsUpdate = true
         }
-
-        // Calculate stats for this sub-chat and add to workspace total
-        let subChatAdditions = 0
-        let subChatDeletions = 0
-        let subChatFileCount = 0
-
-        for (const [, state] of fileStates) {
-          const original = state.originalContent || ""
-          if (original === state.currentContent) continue
-
-          const oldLines = original ? original.split("\n").length : 0
-          const newLines = state.currentContent
-            ? state.currentContent.split("\n").length
-            : 0
-
-          if (!original) {
-            // New file
-            subChatAdditions += newLines
-          } else {
-            subChatAdditions += newLines
-            subChatDeletions += oldLines
-          }
-          subChatFileCount += 1
-        }
-
-        // Add to workspace total
-        const existing = statsMap.get(chatId) || {
-          additions: 0,
-          deletions: 0,
-          fileCount: 0,
-          totalTokens: tokenUsageMap.get(chatId) || 0,
-        }
-        existing.additions += subChatAdditions
-        existing.deletions += subChatDeletions
-        existing.fileCount += subChatFileCount
-        statsMap.set(chatId, existing)
-      } catch {
-        // Skip invalid JSON
+      } else {
+        // No statsJson, need to compute from messages
+        needsStatsUpdate = true
       }
+
+      // Fall back to parsing messages if needed
+      if (needsStatsUpdate && row.messages) {
+        try {
+          // Use the shared function to compute stats
+          const computed = computePreviewStatsFromMessages(row.messages, row.mode || "agent")
+
+          // Aggregate all inputs
+          for (const input of computed.inputs || []) {
+            subChatFileCount += input.fileCount || 0
+            subChatAdditions += input.additions || 0
+            subChatDeletions += input.deletions || 0
+          }
+
+          // Queue for lazy migration
+          subChatsToUpdate.push({
+            id: row.subChatId,
+            statsJson: JSON.stringify(computed),
+          })
+        } catch {
+          // Skip invalid JSON
+          continue
+        }
+      }
+
+      // Add to workspace total
+      const existing = statsMap.get(chatId) || {
+        additions: 0,
+        deletions: 0,
+        fileCount: 0,
+        totalTokens: tokenUsageMap.get(chatId) || 0,
+      }
+      existing.additions += subChatAdditions
+      existing.deletions += subChatDeletions
+      existing.fileCount += subChatFileCount
+      statsMap.set(chatId, existing)
+    }
+
+    // Lazy migration: persist computed stats for records without statsJson
+    // Do this in background to not block the response
+    if (subChatsToUpdate.length > 0) {
+      setTimeout(() => {
+        try {
+          for (const update of subChatsToUpdate) {
+            db.update(subChats)
+              .set({ statsJson: update.statsJson })
+              .where(eq(subChats.id, update.id))
+              .run()
+          }
+        } catch {
+          // Non-critical, ignore errors
+        }
+      }, 0)
     }
 
     // Convert to array for easier consumption
@@ -1757,6 +2072,113 @@ export const chatsRouter = router({
       ...stats,
     }))
   }),
+
+  /**
+   * Get file change stats per sub-chat (not aggregated by workspace)
+   * Uses pre-computed statsJson when available for performance
+   * Returns stats keyed by subChatId for use in subchat sidebar
+   */
+  getSubChatStats: publicProcedure
+    .input(z.object({
+      subChatIds: z.array(z.string()),
+    }))
+    .query(({ input }) => {
+      const db = getDatabase()
+
+      if (input.subChatIds.length === 0) {
+        return []
+      }
+
+      // Query sub-chats with statsJson
+      const allSubChats = db
+        .select({
+          subChatId: subChats.id,
+          statsJson: subChats.statsJson,
+          messages: subChats.messages,
+          mode: subChats.mode,
+        })
+        .from(subChats)
+        .where(inArray(subChats.id, input.subChatIds))
+        .all()
+
+      const results: Array<{
+        subChatId: string
+        fileCount: number
+        additions: number
+        deletions: number
+      }> = []
+
+      // Track sub-chats that need statsJson update (lazy migration)
+      const subChatsToUpdate: Array<{ id: string; statsJson: string }> = []
+
+      for (const row of allSubChats) {
+        let fileCount = 0
+        let additions = 0
+        let deletions = 0
+        let needsStatsUpdate = false
+
+        // Try to use pre-computed statsJson first (fast path)
+        if (row.statsJson) {
+          try {
+            const stats = JSON.parse(row.statsJson) as SubChatPreviewStats
+            // Aggregate all inputs in this sub-chat
+            for (const inp of stats.inputs || []) {
+              fileCount += inp.fileCount || 0
+              additions += inp.additions || 0
+              deletions += inp.deletions || 0
+            }
+          } catch {
+            needsStatsUpdate = true
+          }
+        } else {
+          needsStatsUpdate = true
+        }
+
+        // Fall back to parsing messages if needed
+        if (needsStatsUpdate && row.messages) {
+          try {
+            const computed = computePreviewStatsFromMessages(row.messages, row.mode || "agent")
+            for (const inp of computed.inputs || []) {
+              fileCount += inp.fileCount || 0
+              additions += inp.additions || 0
+              deletions += inp.deletions || 0
+            }
+            // Queue for lazy migration
+            subChatsToUpdate.push({
+              id: row.subChatId,
+              statsJson: JSON.stringify(computed),
+            })
+          } catch {
+            continue
+          }
+        }
+
+        results.push({
+          subChatId: row.subChatId,
+          fileCount,
+          additions,
+          deletions,
+        })
+      }
+
+      // Lazy migration in background
+      if (subChatsToUpdate.length > 0) {
+        setTimeout(() => {
+          try {
+            for (const update of subChatsToUpdate) {
+              db.update(subChats)
+                .set({ statsJson: update.statsJson })
+                .where(eq(subChats.id, update.id))
+                .run()
+            }
+          } catch {
+            // Non-critical
+          }
+        }, 0)
+      }
+
+      return results
+    }),
 
   /**
    * Get sub-chats with pending plan approvals

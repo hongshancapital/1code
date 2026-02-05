@@ -214,8 +214,43 @@ export function AgentsSubChatsSidebar({
     }))
   )
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
-  const subChatFiles = useAtomValue(subChatFilesAtom)
+  const subChatFilesFromStream = useAtomValue(subChatFilesAtom)
   const selectedTeamId = useAtomValue(selectedTeamIdAtom)
+
+  // Get all sub-chat IDs for stats query
+  const allSubChatIds = useMemo(() => allSubChats.map(sc => sc.id), [allSubChats])
+
+  // Fetch pre-computed stats from DB for all sub-chats
+  const { data: subChatStatsData } = trpc.chats.getSubChatStats.useQuery(
+    { subChatIds: allSubChatIds },
+    {
+      enabled: allSubChatIds.length > 0,
+      staleTime: 5000, // Cache for 5 seconds
+      refetchOnWindowFocus: false,
+    }
+  )
+
+  // Merge stream-based stats with DB stats (stream takes priority for active chat)
+  const subChatFiles = useMemo(() => {
+    const merged = new Map(subChatFilesFromStream)
+
+    // Add DB stats for sub-chats that don't have stream data
+    if (subChatStatsData) {
+      for (const stat of subChatStatsData) {
+        if (!merged.has(stat.subChatId) && (stat.fileCount > 0 || stat.additions > 0 || stat.deletions > 0)) {
+          // Convert to SubChatFileChange format (single aggregated entry)
+          merged.set(stat.subChatId, [{
+            filePath: `${stat.fileCount} files`,
+            displayPath: `${stat.fileCount} files`,
+            additions: stat.additions,
+            deletions: stat.deletions,
+          }])
+        }
+      }
+    }
+
+    return merged
+  }, [subChatFilesFromStream, subChatStatsData])
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
 

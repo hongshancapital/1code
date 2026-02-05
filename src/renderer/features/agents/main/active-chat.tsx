@@ -2714,6 +2714,8 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
+  // Track which subChatId was initialized
+  const initializedSubChatIdRef = useRef<string | null>(null)
 
   // Initialize scroll position on mount (only once per tab with keep-alive)
   // Strategy: wait for content to stabilize, then scroll to bottom ONCE
@@ -2724,6 +2726,12 @@ const ChatViewInner = memo(function ChatViewInner({
 
     const container = chatContainerRef.current
     if (!container) return
+
+    // Reset initialization when subChatId changes (switching between chats)
+    if (initializedSubChatIdRef.current !== subChatId) {
+      hasInitializedRef.current = false
+      initializedSubChatIdRef.current = subChatId
+    }
 
     // With keep-alive, only initialize once per tab mount
     if (hasInitializedRef.current) return
