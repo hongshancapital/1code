@@ -30,14 +30,15 @@ export function AgentsQuickSwitchDialog({
   projectsMap,
   onHover,
 }: AgentsQuickSwitchDialogProps) {
-  if (typeof window === "undefined") return null
-
   // Derive loading parent chat IDs from loadingSubChats Map
+  // IMPORTANT: Hooks must be called BEFORE any early returns
   const loadingSubChats = useAtomValue(loadingSubChatsAtom)
   const loadingChatIds = useMemo(
     () => new Set([...loadingSubChats.values()]),
     [loadingSubChats],
   )
+
+  if (typeof window === "undefined") return null
 
   return createPortal(
     <AnimatePresence>
