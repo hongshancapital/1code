@@ -3394,26 +3394,23 @@ const ChatViewInner = memo(function ChatViewInner({
   ])
 
   // Retry message - resend the last user message when no response was received
-  const handleRetryMessage = useCallback(async () => {
-    // Find the last user message
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg || !lastUserMsg.parts) return
-
+  // Uses regenerate() to re-trigger without duplicating the user message
+  const handleRetryMessage = useCallback(() => {
     // Don't retry if currently streaming
     if (isStreaming) return
+
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (!lastUserMsg) return
 
     // Don't retry if there's already an assistant response for this message
     const lastUserMsgIndex = messages.indexOf(lastUserMsg)
     const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
     if (hasAssistantResponse) return
 
-    // Re-send the message by calling sendMessage with the same parts
-    try {
-      await sendMessageRef.current({ role: "user", parts: lastUserMsg.parts })
-    } catch (error) {
-      console.error("[handleRetryMessage] Error retrying message:", error)
-    }
-  }, [messages, isStreaming])
+    // Use regenerate to re-send without duplicating user message
+    regenerate()
+  }, [messages, isStreaming, regenerate])
 
   // NOTE: Auto-processing of queue is now handled globally by QueueProcessor
   // component in agents-layout.tsx. This ensures queues continue processing
@@ -4424,6 +4421,18 @@ export function ChatView({
       staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
     }
   )
+
+  // DEBUG: 追踪消息加载状态
+  useEffect(() => {
+    console.log('[DEBUG] 消息加载状态', {
+      activeSubChatId: activeSubChatId?.slice(-8),
+      chatSourceMode,
+      isLoadingMessages,
+      hasMessagesData: !!subChatMessagesData,
+      messagesLength: subChatMessagesData?.messages?.length,
+      messagesPreview: subChatMessagesData?.messages?.substring(0, 100),
+    })
+  }, [activeSubChatId, chatSourceMode, isLoadingMessages, subChatMessagesData])
 
   const { data: remoteAgentChat, isLoading: _isRemoteLoading } = useRemoteChat(
     chatSourceMode === "sandbox" ? chatId : null,
@@ -5450,7 +5459,34 @@ Make sure to preserve all functionality from both branches when resolving confli
       // Return existing chat if we have it
       const existing = agentChatStore.get(subChatId)
       if (existing) {
-        return existing
+        // 检查：如果缓存的 Chat 初始化时消息为空，但现在有消息数据了
+        // 需要清除缓存并重新创建，以使用新的消息数据
+        // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
+        const hasNewMessages = subChatMessagesData?.messages && subChatId === activeSubChatId
+        if (hasNewMessages) {
+          try {
+            const parsed = JSON.parse(subChatMessagesData.messages)
+            // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
+            const existingMessages = existing.messages ?? []
+            console.log('[getOrCreateChat] Checking cache', {
+              subChatId: subChatId.slice(-8),
+              cachedMsgCount: existingMessages.length,
+              newMsgCount: parsed.length,
+            })
+            // 如果缓存为空但数据库有消息，重新创建 Chat
+            if (existingMessages.length === 0 && parsed.length > 0) {
+              console.log('[getOrCreateChat] Recreating chat with new messages')
+              agentChatStore.delete(subChatId)
+              // 不 return，继续往下创建新 Chat
+            } else {
+              return existing
+            }
+          } catch {
+            return existing
+          }
+        } else {
+          return existing
+        }
       }
 
       // Find sub-chat data
@@ -6493,8 +6529,9 @@ Make sure to preserve all functionality from both branches when resolving confli
               <div className="relative flex-1 min-h-0">
                 {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
                 {/* Also wait for messages to load for local chats (lazy loading optimization) */}
-                {/* Only show messages loading spinner if sub-chat exists in this workspace */}
-                {(isLocalChatLoading || (chatSourceMode === "local" && activeSubChatExistsInWorkspace && isLoadingMessages)) ? (
+                {/* NOTE: Removed activeSubChatExistsInWorkspace check to fix race condition where messages */}
+                {/* aren't loaded yet but the gate passes, causing empty Chat objects to be cached */}
+                {(isLocalChatLoading || (chatSourceMode === "local" && isLoadingMessages)) ? (
                   <div className="flex items-center justify-center h-full">
                     <IconSpinner className="h-6 w-6 animate-spin" />
                   </div>
