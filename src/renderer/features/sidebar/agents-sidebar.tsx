@@ -79,7 +79,8 @@ const useRenameRemoteChat = () => ({
   mutateAsync: async (_data: { chatId: string; name: string }) => {}
 })
 import { ArchivePopover } from "../agents/ui/archive-popover"
-import { ChevronDown, Mail } from "lucide-react"
+import { ChevronDown, Mail, Search } from "lucide-react"
+import { globalSearchOpenAtom } from "../../components/dialogs/global-search-dialog"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../lib/remote-trpc"
@@ -1892,6 +1893,9 @@ export function AgentsSidebar({
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
 
+  // Global search dialog
+  const setGlobalSearchOpen = useSetAtom(globalSearchOpenAtom)
+
   // Multi-select state
   const [selectedChatIds, setSelectedChatIds] = useAtom(
     selectedAgentChatIdsAtom,
@@ -3289,31 +3293,7 @@ export function AgentsSidebar({
     return () => resizeObserver.disconnect()
   }, [filteredChats])
 
-  // Direct listener for Cmd+K to focus search input
-  useEffect(() => {
-    const handleSearchHotkey = (e: KeyboardEvent) => {
-      // Check for Cmd+K or Ctrl+K (only for search functionality)
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.code === "KeyK" &&
-        !e.shiftKey &&
-        !e.altKey
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-
-        // Focus search input
-        searchInputRef.current?.focus()
-        searchInputRef.current?.select()
-      }
-    }
-
-    window.addEventListener("keydown", handleSearchHotkey, true)
-
-    return () => {
-      window.removeEventListener("keydown", handleSearchHotkey, true)
-    }
-  }, [])
+  // Cmd+K is now handled by GlobalSearchDialog
 
   // Multi-select hotkeys
   // X to toggle selection of hovered or focused chat
@@ -3476,67 +3456,22 @@ export function AgentsSidebar({
         closeButtonRef={closeButtonRef}
       />
 
-      {/* Search and New Workspace */}
+      {/* Global Search Button */}
       <div className="px-2 pb-3 shrink-0">
-        <div className="space-y-2">
-          {/* Search Input */}
-          <div className="relative">
-            <Input
-              ref={searchInputRef}
-              placeholder={t('workspaces.search')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault()
-                  searchInputRef.current?.blur()
-                  setFocusedChatIndex(-1) // Reset focus
-                  return
-                }
-
-                if (e.key === "ArrowDown") {
-                  e.preventDefault()
-                  setFocusedChatIndex((prev) => {
-                    // If no focus yet, start from first item
-                    if (prev === -1) return 0
-                    // Otherwise move down
-                    return prev < filteredChats.length - 1 ? prev + 1 : prev
-                  })
-                  return
-                }
-
-                if (e.key === "ArrowUp") {
-                  e.preventDefault()
-                  setFocusedChatIndex((prev) => {
-                    // If no focus yet, start from last item
-                    if (prev === -1) return filteredChats.length - 1
-                    // Otherwise move up
-                    return prev > 0 ? prev - 1 : prev
-                  })
-                  return
-                }
-
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  // Only open if something is focused (not -1)
-                  if (focusedChatIndex >= 0) {
-                    const focusedChat = filteredChats[focusedChatIndex]
-                    if (focusedChat) {
-                      handleChatClick(focusedChat.id)
-                      searchInputRef.current?.blur()
-                      setFocusedChatIndex(-1) // Reset focus after selection
-                    }
-                  }
-                  return
-                }
-              }}
-              className={cn(
-                "w-full rounded-lg text-sm bg-muted border border-input placeholder:text-muted-foreground/40",
-                isMobileFullscreen ? "h-10" : "h-7",
-              )}
-            />
-          </div>
-        </div>
+        <button
+          onClick={() => setGlobalSearchOpen(true)}
+          className={cn(
+            "w-full flex items-center gap-2 rounded-lg text-sm bg-muted/50 hover:bg-muted border border-transparent hover:border-input transition-colors",
+            "text-muted-foreground/60 hover:text-muted-foreground",
+            isMobileFullscreen ? "h-10 px-3" : "h-7 px-2",
+          )}
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left truncate">{t('workspaces.search')}</span>
+          <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground/60">
+            <span className="text-xs">⌘</span>K
+          </kbd>
+        </button>
       </div>
 
       {/* Navigation Links - Home, Inbox & Automations */}
@@ -3597,24 +3532,71 @@ export function AgentsSidebar({
           )}
 
           {/* Workspaces Section */}
-          {filteredChats.length > 0 ? (
-            <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
-              {/* Workspaces header with + button */}
-              <div className={cn(
-                "flex items-center justify-between h-6 mb-1",
-                isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-2",
-              )}>
-                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  {t('workspaces.title')}
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleNewWorkspace}
-                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
-                >
-                  <PlusIcon className="h-4 w-4" />
-                </button>
-              </div>
+          <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
+            {/* Local Workspace Filter - always visible */}
+            <div className={cn(
+              "mb-2",
+              isMultiSelectMode ? "px-3" : "px-2",
+            )}>
+              <Input
+                ref={searchInputRef}
+                placeholder={t('workspaces.filterPlaceholder', 'Filter workspaces...')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault()
+                    searchInputRef.current?.blur()
+                    setFocusedChatIndex(-1)
+                    return
+                  }
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault()
+                    setFocusedChatIndex((prev) => prev === -1 ? 0 : Math.min(prev + 1, filteredChats.length - 1))
+                    return
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault()
+                    setFocusedChatIndex((prev) => prev === -1 ? filteredChats.length - 1 : Math.max(prev - 1, 0))
+                    return
+                  }
+                  if (e.key === "Enter" && focusedChatIndex >= 0) {
+                    e.preventDefault()
+                    const focusedChat = filteredChats[focusedChatIndex]
+                    if (focusedChat) {
+                      handleChatClick(focusedChat.id)
+                      searchInputRef.current?.blur()
+                      setFocusedChatIndex(-1)
+                    }
+                  }
+                }}
+                className={cn(
+                  "w-full rounded-lg text-sm bg-muted border border-input placeholder:text-muted-foreground/40",
+                  isMobileFullscreen ? "h-10" : "h-7",
+                )}
+              />
+            </div>
+
+            {/* Workspaces header with + button */}
+            <div className={cn(
+              "flex items-center justify-between h-6 mb-1",
+              isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-2",
+            )}>
+              <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                {t('workspaces.title')}
+              </h3>
+              <button
+                type="button"
+                onClick={handleNewWorkspace}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Workspace list or empty state */}
+            {filteredChats.length > 0 ? (
+              <>
               {/* Pinned section */}
               <ChatListSection
                 title={t('workspaces.pinned')}
@@ -3711,8 +3693,14 @@ export function AgentsSidebar({
                   onMoveToWorkspace={handleMoveToWorkspace}
                 />
               )}
-            </div>
-          ) : null}
+              </>
+            ) : (
+              /* Empty state when filter has no results */
+              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                {t('workspaces.noResults', 'No matching workspaces')}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Top gradient fade (appears when scrolled down) */}
