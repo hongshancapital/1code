@@ -155,6 +155,7 @@ import type { TextSelectionSource } from "../context/text-selection-context"
 import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
 import { useAutoImport } from "../hooks/use-auto-import"
+import { useAutoScroll } from "../hooks/useAutoScroll"
 import { useChangedFilesTracking } from "../hooks/use-changed-files-tracking"
 import { useDesktopNotifications } from "../hooks/use-desktop-notifications"
 import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
@@ -222,6 +223,7 @@ import { TextSelectionPopover } from "../ui/text-selection-popover"
 import { autoRenameAgentChat } from "../utils/auto-rename"
 import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } from "../utils/pr-message"
 import { ChatInputArea } from "./chat-input-area"
+import { CHAT_LAYOUT, PLAYBACK_SPEEDS, type PlaybackSpeed } from "./constants"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
@@ -294,21 +296,6 @@ function getFirstSubChatId(
   )
   return sorted[0]?.id ?? null
 }
-
-// Layout constants for chat header and sticky messages
-const CHAT_LAYOUT = {
-  // Padding top for chat content
-  paddingTopSidebarOpen: "pt-12", // When sidebar open (absolute header overlay)
-  paddingTopSidebarClosed: "pt-4", // When sidebar closed (regular header)
-  paddingTopMobile: "pt-14", // Mobile has header
-  // Sticky message top position (title is now in flex above scroll, so top-0)
-  stickyTopSidebarOpen: "top-0", // When sidebar open (desktop, absolute header)
-  stickyTopSidebarClosed: "top-0", // When sidebar closed (desktop, flex header)
-  stickyTopMobile: "top-0", // Mobile (flex header, so top-0)
-  // Header padding when absolute
-  headerPaddingSidebarOpen: "pt-1.5 pb-12 px-3 pl-2",
-  headerPaddingSidebarClosed: "p-2 pt-1.5",
-} as const
 
 // NOTE: These model/agent definitions are retained for future use
 // const claudeModels = [
@@ -1447,23 +1434,19 @@ const ChatViewInner = memo(function ChatViewInner({
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
 
-  // Scroll management state (like canvas chat)
-  // Using only ref to avoid re-renders on scroll
-  const shouldAutoScrollRef = useRef(true)
-  const isAutoScrollingRef = useRef(false) // Flag to ignore scroll events caused by auto-scroll
-  const isInitializingScrollRef = useRef(false) // Flag to ignore scroll events during scroll initialization (content loading)
-  const hasUnapprovedPlanRef = useRef(false) // Track unapproved plan state for scroll initialization
-  const chatContainerRef = useRef<HTMLElement | null>(null)
-
-  // Cleanup isAutoScrollingRef on unmount to prevent stuck state
-  useEffect(() => {
-    return () => {
-      isAutoScrollingRef.current = false
-    }
-  }, [])
-
-  // Track chat container height via CSS custom property (no re-renders)
-  const chatContainerObserverRef = useRef<ResizeObserver | null>(null)
+  // Auto-scroll management via custom hook
+  const {
+    chatContainerRef,
+    chatContainerObserverRef,
+    shouldAutoScrollRef,
+    isAutoScrollingRef,
+    isInitializingScrollRef,
+    hasUnapprovedPlanRef,
+    handleScroll,
+    scrollToBottom,
+    isAtBottom,
+    enableAutoScroll,
+  } = useAutoScroll(isActive)
 
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1499,89 +1482,6 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Rollback state
   const [isRollingBack, setIsRollingBack] = useState(false)
-
-  // Check if user is at bottom of chat (like canvas)
-  const isAtBottom = useCallback(() => {
-    const container = chatContainerRef.current
-    if (!container) return true
-    const threshold = 50 // pixels from bottom
-    return (
-      container.scrollHeight - container.scrollTop - container.clientHeight <=
-      threshold
-    )
-  }, [])
-
-
-  // Track previous scroll position to detect scroll direction
-  const prevScrollTopRef = useRef(0)
-
-  // Handle scroll events to detect user scrolling
-  // Updates shouldAutoScrollRef based on scroll direction
-  // Using refs only to avoid re-renders on scroll
-  const handleScroll = useCallback(() => {
-    // Skip scroll handling for inactive tabs (keep-alive)
-    if (!isActiveRef.current) return
-
-    const container = chatContainerRef.current
-    if (!container) return
-
-    const currentScrollTop = container.scrollTop
-    const prevScrollTop = prevScrollTopRef.current
-    prevScrollTopRef.current = currentScrollTop
-
-    // Ignore scroll events during initialization (content loading)
-    if (isInitializingScrollRef.current) return
-
-    // If user scrolls UP - disable auto-scroll immediately
-    // This works even during auto-scroll animation (user intent takes priority)
-    if (currentScrollTop < prevScrollTop) {
-      shouldAutoScrollRef.current = false
-      return
-    }
-
-    // Ignore other scroll direction checks during auto-scroll animation
-    if (isAutoScrollingRef.current) return
-
-    // If user scrolls DOWN and reaches bottom - enable auto-scroll
-    shouldAutoScrollRef.current = isAtBottom()
-  }, [isAtBottom])
-
-  // Scroll to bottom handler with ease-in-out animation
-  const scrollToBottom = useCallback(() => {
-    const container = chatContainerRef.current
-    if (!container) return
-
-    isAutoScrollingRef.current = true
-    shouldAutoScrollRef.current = true
-
-    const start = container.scrollTop
-    const duration = 300 // ms
-    const startTime = performance.now()
-
-    // Ease-in-out cubic function
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-
-    const animateScroll = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-      const easedProgress = easeInOutCubic(progress)
-
-      // Calculate end on each frame to handle dynamic content
-      const end = container.scrollHeight - container.clientHeight
-      container.scrollTop = start + (end - start) * easedProgress
-
-      if (progress < 1) {
-        requestAnimationFrame(animateScroll)
-      } else {
-        // Ensure we're at the absolute bottom
-        container.scrollTop = container.scrollHeight
-        isAutoScrollingRef.current = false
-      }
-    }
-
-    requestAnimationFrame(animateScroll)
-  }, [])
 
   // tRPC utils for cache invalidation
   const utils = api.useUtils()
@@ -4515,7 +4415,12 @@ export function ChatView({
   const { data: subChatMessagesData, isLoading: isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
     { id: activeSubChatId! },
     {
-      enabled: !!activeSubChatId && chatSourceMode === "local" && !!activeSubChatExistsInWorkspace,
+      // 修复：移除 activeSubChatExistsInWorkspace 条件
+      // 问题：当 localAgentChat 还在加载时，activeSubChatExistsInWorkspace 为 false，
+      // 导致消息查询不执行。由于 staleTime: Infinity，即使后来条件满足，
+      // 查询可能也不会重新执行。
+      // 解决：让查询总是执行，后端会处理不存在的 subChat（返回 null）
+      enabled: !!activeSubChatId && chatSourceMode === "local",
       staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
     }
   )
@@ -4560,6 +4465,17 @@ export function ChatView({
     return localAgentChat ? { ...localAgentChat, isRemote: false as const } : null
   }, [chatSourceMode, remoteAgentChat, localAgentChat])
 
+  // Extract sub-chats from agentChat (defined early since it's used in multiple places)
+  const agentSubChats = (agentChat?.subChats ?? []) as Array<{
+    id: string
+    name?: string | null
+    mode?: "plan" | "agent" | null
+    created_at?: Date | string | null
+    updated_at?: Date | string | null
+    messages?: any
+    stream_id?: string | null
+  }>
+
   // Compute if we're waiting for local chat data (used as loading gate)
   // Only show loading if there's no data AND we're loading - this prevents
   // blocking the UI during cache invalidation/refetch when data already exists
@@ -4597,16 +4513,6 @@ export function ChatView({
     if (!remoteAgentChat) return []
     return getMatchingProjects(projects ?? [], remoteAgentChat)
   }, [remoteAgentChat, projects, getMatchingProjects])
-
-  const agentSubChats = (agentChat?.subChats ?? []) as Array<{
-    id: string
-    name?: string | null
-    mode?: "plan" | "agent" | null
-    created_at?: Date | string | null
-    updated_at?: Date | string | null
-    messages?: any
-    stream_id?: string | null
-  }>
 
   // Get project mode from chat's associated project
   // Each chat has its own project with its own mode
@@ -5402,14 +5308,18 @@ Make sure to preserve all functionality from both branches when resolving confli
     diffViewRef.current?.markAllUnviewed()
   }, [])
 
+  // Track if we've initialized mode for this chatId to avoid overwriting user's mode changes
+  const initializedChatIdRef = useRef<string | null>(null)
+
   // Initialize store when chat data loads
   useEffect(() => {
     if (!agentChat) return
 
     const store = useAgentSubChatStore.getState()
+    const isNewChat = store.chatId !== chatId
 
     // Only initialize if chatId changed
-    if (store.chatId !== chatId) {
+    if (isNewChat) {
       store.setChatId(chatId)
     }
 
@@ -5466,10 +5376,14 @@ Make sure to preserve all functionality from both branches when resolving confli
     freshState.setAllSubChats(allSubChats)
 
     // Initialize atomFamily mode for each sub-chat from database
-    // This ensures new chats with mode="plan" use the correct mode
-    for (const sc of dbSubChats) {
-      if (sc.mode) {
-        appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
+    // IMPORTANT: Only do this when chatId changes (new chat loaded), not on every agentChat update
+    // This prevents overwriting user's mode changes when agentChat is invalidated/refetched
+    if (initializedChatIdRef.current !== chatId) {
+      initializedChatIdRef.current = chatId
+      for (const sc of dbSubChats) {
+        if (sc.mode) {
+          appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
+        }
       }
     }
 
@@ -5575,8 +5489,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               }),
             }
           })
-        } catch {
-          console.warn("[getOrCreateChat] Failed to parse lazy-loaded messages")
+        } catch (err) {
+          console.warn("[getOrCreateChat] Failed to parse lazy-loaded messages", err)
         }
       } else if (Array.isArray(subChat?.messages)) {
         // Fallback for remote chats or when lazy loading hasn't completed
