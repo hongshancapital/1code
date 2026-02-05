@@ -315,6 +315,15 @@
   "runtime": {
     "title": "Runtime Settings",
     "description": "Configure runtime environments for running and debugging scripts",
+    "packageManager": {
+      "title": "Package Manager",
+      "description": "System package manager for installing tools",
+      "hint": "Required for installing other development tools",
+      "detecting": "Detecting package manager...",
+      "noTools": "No package manager detected",
+      "installing": "Installing package manager...",
+      "installNote": "Package manager installation may take several minutes"
+    },
     "commonTools": {
       "title": "Common Tools",
       "description": "CLI tools that enhance Hóng functionality",
@@ -362,12 +371,16 @@
     "go": {
       "title": "Go",
       "description": "Go compiler and tools",
-      "comingSoon": "Go runtime configuration coming soon."
+      "hint": "Go runtime and build tools",
+      "detecting": "Detecting Go tools...",
+      "noTools": "No Go tools detected"
     },
     "rust": {
       "title": "Rust",
       "description": "Rust compiler and Cargo",
-      "comingSoon": "Rust runtime configuration coming soon."
+      "hint": "Rust compiler and package manager",
+      "detecting": "Detecting Rust tools...",
+      "noTools": "No Rust tools detected"
     },
     "pathRow": {
       "notFound": "Not found",
@@ -741,6 +754,32 @@
       "offlineSimDisabledDesc": "Network detection restored to normal",
       "productionDbCopied": "Production database copied",
       "productionDbCopiedDesc": "Reloading with new data..."
+    },
+    "simulatedInstall": {
+      "title": "Simulated Runtime Installation",
+      "description": "Simulate the initial runtime detection and installation flow for testing and debugging purposes.",
+      "start": "Start Simulation",
+      "resetButton": "Reset",
+      "injectError": "Inject Error",
+      "started": "Simulated installation started",
+      "reset": "Simulation state reset",
+      "errors": {
+        "none": "None (normal flow)",
+        "detection": "Detection phase error",
+        "download": "Download phase error",
+        "install": "Install phase error",
+        "timeout": "Timeout error"
+      },
+      "steps": {
+        "initializing": "Initializing...",
+        "detecting": "Detecting system environment...",
+        "checking": "Checking existing tools...",
+        "downloading": "Downloading...",
+        "installing": "Installing...",
+        "verifying": "Verifying...",
+        "complete": "Installation complete",
+        "error": "Error occurred"
+      }
     }
   },
   "sidebar": {
@@ -759,6 +798,7 @@
     "debug": "Debug",
     "runtime": "Runtime",
     "editor": "Editor",
-    "commands": "Commands"
+    "commands": "Commands",
+    "memory": "Memory"
   }
 }

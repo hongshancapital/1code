@@ -315,6 +315,15 @@
   "runtime": {
     "title": "运行时设置",
     "description": "配置用于运行和调试脚本的运行时环境",
+    "packageManager": {
+      "title": "包管理器",
+      "description": "用于安装工具的系统包管理器",
+      "hint": "安装其他开发工具所必需",
+      "detecting": "正在检测包管理器...",
+      "noTools": "未检测到包管理器",
+      "installing": "正在安装包管理器...",
+      "installNote": "包管理器安装可能需要几分钟"
+    },
     "commonTools": {
       "title": "常用工具",
       "description": "增强 Hóng 功能的命令行工具",
@@ -362,12 +371,16 @@
     "go": {
       "title": "Go",
       "description": "Go 编译器和工具",
-      "comingSoon": "Go 运行时配置即将推出。"
+      "hint": "Go 运行时和构建工具",
+      "detecting": "正在检测 Go 工具...",
+      "noTools": "未检测到 Go 工具"
     },
     "rust": {
       "title": "Rust",
       "description": "Rust 编译器和 Cargo",
-      "comingSoon": "Rust 运行时配置即将推出。"
+      "hint": "Rust 编译器和包管理器",
+      "detecting": "正在检测 Rust 工具...",
+      "noTools": "未检测到 Rust 工具"
     },
     "pathRow": {
       "notFound": "未找到",
@@ -741,6 +754,32 @@
       "offlineSimDisabledDesc": "网络检测已恢复正常",
       "productionDbCopied": "生产数据库已复制",
       "productionDbCopiedDesc": "正在使用新数据重新加载..."
+    },
+    "simulatedInstall": {
+      "title": "模拟运行时安装",
+      "description": "模拟初始运行时检测和安装流程，用于测试和调试目的。",
+      "start": "开始模拟",
+      "resetButton": "重置",
+      "injectError": "注入错误",
+      "started": "模拟安装已开始",
+      "reset": "模拟状态已重置",
+      "errors": {
+        "none": "无（正常流程）",
+        "detection": "检测阶段错误",
+        "download": "下载阶段错误",
+        "install": "安装阶段错误",
+        "timeout": "超时错误"
+      },
+      "steps": {
+        "initializing": "正在初始化...",
+        "detecting": "正在检测系统环境...",
+        "checking": "正在检查已有工具...",
+        "downloading": "正在下载...",
+        "installing": "正在安装...",
+        "verifying": "正在验证...",
+        "complete": "安装完成",
+        "error": "发生错误"
+      }
     }
   },
   "sidebar": {
@@ -759,6 +798,7 @@
     "debug": "调试",
     "runtime": "运行时",
     "editor": "编辑器",
-    "commands": "命令"
+    "commands": "命令",
+    "memory": "记忆"
   }
 }

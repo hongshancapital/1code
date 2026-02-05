@@ -31,6 +31,7 @@ export interface DetectedRuntimes {
 
 // Tool detection types - new category system
 export type ToolCategory =
+  | "package_manager" // System package manager (homebrew, winget, apt, dnf, etc.)
   | "vcs" // Version Control (git)
   | "search" // Search tools (ripgrep)
   | "json" // JSON processor (jq)
@@ -38,6 +39,8 @@ export type ToolCategory =
   | "js_runtime" // JavaScript runtime (bun, node)
   | "python_runtime" // Python runtime (python3)
   | "python_pkg" // Python package manager (uv, pip)
+  | "go_runtime" // Go runtime (go)
+  | "rust_runtime" // Rust runtime (rustc, cargo)
 
 export interface ToolInfo {
   name: string
@@ -96,6 +99,7 @@ const CATEGORY_INFO: Record<
   ToolCategory,
   { displayName: string; required: boolean; description: string }
 > = {
+  package_manager: { displayName: "Package Manager", required: true, description: "System package manager for installing tools" },
   vcs: { displayName: "Version Control", required: true, description: "Git for code versioning" },
   search: { displayName: "Search", required: true, description: "Fast file search" },
   json: { displayName: "JSON", required: false, description: "JSON processing" },
@@ -103,6 +107,8 @@ const CATEGORY_INFO: Record<
   js_runtime: { displayName: "JavaScript", required: true, description: "JavaScript/TypeScript runtime" },
   python_runtime: { displayName: "Python", required: false, description: "Python interpreter" },
   python_pkg: { displayName: "Python Packages", required: false, description: "Python package manager" },
+  go_runtime: { displayName: "Go", required: false, description: "Go programming language" },
+  rust_runtime: { displayName: "Rust", required: false, description: "Rust programming language" },
 }
 
 type SupportedPlatform = "darwin" | "win32" | "linux"
@@ -119,7 +125,167 @@ interface ToolDefinition {
   installCommands: Partial<Record<SupportedPlatform, string>>
 }
 
+// Linux package manager install commands mapping
+// Used to dynamically generate install commands based on detected package manager
+const LINUX_INSTALL_COMMANDS: Record<string, Record<string, string>> = {
+  apt: {
+    git: "sudo apt install -y git",
+    rg: "sudo apt install -y ripgrep",
+    jq: "sudo apt install -y jq",
+    curl: "sudo apt install -y curl",
+    python3: "sudo apt install -y python3",
+    pip3: "sudo apt install -y python3-pip",
+    go: "sudo apt install -y golang-go",
+  },
+  dnf: {
+    git: "sudo dnf install -y git",
+    rg: "sudo dnf install -y ripgrep",
+    jq: "sudo dnf install -y jq",
+    curl: "sudo dnf install -y curl",
+    python3: "sudo dnf install -y python3",
+    pip3: "sudo dnf install -y python3-pip",
+    go: "sudo dnf install -y golang",
+  },
+  yum: {
+    git: "sudo yum install -y git",
+    rg: "sudo yum install -y ripgrep",
+    jq: "sudo yum install -y jq",
+    curl: "sudo yum install -y curl",
+    python3: "sudo yum install -y python3",
+    pip3: "sudo yum install -y python3-pip",
+    go: "sudo yum install -y golang",
+  },
+  pacman: {
+    git: "sudo pacman -S --noconfirm git",
+    rg: "sudo pacman -S --noconfirm ripgrep",
+    jq: "sudo pacman -S --noconfirm jq",
+    curl: "sudo pacman -S --noconfirm curl",
+    python3: "sudo pacman -S --noconfirm python",
+    pip3: "sudo pacman -S --noconfirm python-pip",
+    go: "sudo pacman -S --noconfirm go",
+  },
+  zypper: {
+    git: "sudo zypper install -y git",
+    rg: "sudo zypper install -y ripgrep",
+    jq: "sudo zypper install -y jq",
+    curl: "sudo zypper install -y curl",
+    python3: "sudo zypper install -y python3",
+    pip3: "sudo zypper install -y python3-pip",
+    go: "sudo zypper install -y go",
+  },
+}
+
+// Cache for detected Linux package manager
+let detectedLinuxPM: string | null = null
+
 const TOOL_DEFINITIONS: ToolDefinition[] = [
+  // ============================================================================
+  // Package Managers (required: true, detected first)
+  // ============================================================================
+
+  // macOS - Homebrew
+  {
+    name: "brew",
+    displayName: "Homebrew",
+    category: "package_manager",
+    description: "macOS package manager",
+    priority: 100,
+    versionParser: (output) => {
+      const match = output.match(/Homebrew\s+(\d+\.\d+\.\d+)/)
+      return match ? match[1] : output.split("\n")[0].trim()
+    },
+    installCommands: {
+      darwin: 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+    },
+  },
+
+  // Windows - Winget
+  {
+    name: "winget",
+    displayName: "Windows Package Manager",
+    category: "package_manager",
+    description: "Windows package manager",
+    priority: 100,
+    versionParser: (output) => {
+      const match = output.match(/v(\d+\.\d+\.\d+)/)
+      return match ? match[1] : output.split("\n")[0].trim()
+    },
+    installCommands: {
+      win32: 'powershell -c "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"',
+    },
+  },
+
+  // Linux - APT (Debian/Ubuntu)
+  {
+    name: "apt",
+    displayName: "APT",
+    category: "package_manager",
+    description: "Debian/Ubuntu package manager",
+    priority: 100,
+    versionParser: (output) => {
+      const match = output.match(/apt\s+(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    installCommands: {}, // Pre-installed on Debian/Ubuntu
+  },
+
+  // Linux - DNF (Fedora/RHEL 8+)
+  {
+    name: "dnf",
+    displayName: "DNF",
+    category: "package_manager",
+    description: "Fedora/RHEL package manager",
+    priority: 90,
+    versionParser: (output) => {
+      const match = output.match(/dnf\s+(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    installCommands: {}, // Pre-installed on Fedora/RHEL
+  },
+
+  // Linux - YUM (CentOS 7/older RHEL)
+  {
+    name: "yum",
+    displayName: "YUM",
+    category: "package_manager",
+    description: "CentOS/RHEL package manager",
+    priority: 80,
+    versionParser: (output) => {
+      const match = output.match(/yum\s+(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    installCommands: {}, // Pre-installed on CentOS/RHEL
+  },
+
+  // Linux - Pacman (Arch Linux)
+  {
+    name: "pacman",
+    displayName: "Pacman",
+    category: "package_manager",
+    description: "Arch Linux package manager",
+    priority: 85,
+    versionParser: (output) => {
+      const match = output.match(/Pacman\s+v?(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output.split(" ")[1]?.replace("v", "")
+    },
+    installCommands: {}, // Pre-installed on Arch
+  },
+
+  // Linux - Zypper (openSUSE)
+  {
+    name: "zypper",
+    displayName: "Zypper",
+    category: "package_manager",
+    description: "openSUSE package manager",
+    priority: 75,
+    versionParser: (output) => {
+      const match = output.match(/zypper\s+(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    installCommands: {}, // Pre-installed on openSUSE
+  },
+
+  // ============================================================================
   // Version Control (required: true)
   {
     name: "git",
@@ -255,6 +421,71 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       linux: "sudo apt install python3-pip",
     },
   },
+
+  // Go runtime (optional, detection only - no auto install)
+  // Uses official installer script that doesn't require package managers
+  {
+    name: "go",
+    displayName: "Go",
+    category: "go_runtime",
+    description: "Go programming language",
+    priority: 100,
+    minVersion: "1.20.0",
+    versionParser: (output) => {
+      // "go version go1.22.0 darwin/arm64" -> "1.22.0"
+      const match = output.match(/go(\d+\.\d+(?:\.\d+)?)/)
+      return match ? match[1] : output
+    },
+    versionFlag: "version",
+    // Note: Go doesn't have a universal installer script like Rust
+    // Users should download from https://go.dev/dl/
+    installCommands: {
+      darwin: "open https://go.dev/dl/",
+      win32: "start https://go.dev/dl/",
+      linux: "xdg-open https://go.dev/dl/ || echo 'Download from https://go.dev/dl/'",
+    },
+  },
+
+  // Rust runtime (optional, detection only - no auto install)
+  // Uses official rustup installer that doesn't require package managers
+  {
+    name: "rustc",
+    displayName: "Rust",
+    category: "rust_runtime",
+    description: "Rust compiler",
+    priority: 100,
+    minVersion: "1.70.0",
+    versionParser: (output) => {
+      // "rustc 1.75.0 (82e1608df 2023-12-21)" -> "1.75.0"
+      const match = output.match(/rustc\s+(\d+\.\d+\.\d+)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    // rustup works on all platforms without package managers
+    installCommands: {
+      darwin: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+      win32: "powershell -c \"irm https://win.rustup.rs -OutFile rustup-init.exe; .\\rustup-init.exe -y\"",
+      linux: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+    },
+  },
+  {
+    name: "cargo",
+    displayName: "Cargo",
+    category: "rust_runtime",
+    description: "Rust package manager",
+    priority: 90, // Lower priority than rustc, but same category
+    minVersion: "1.70.0",
+    versionParser: (output) => {
+      // "cargo 1.75.0 (1d8b05cdd 2023-11-20)" -> "1.75.0"
+      const match = output.match(/cargo\s+(\d+\.\d+\.\d+)/)
+      return match ? match[1] : output.split(" ")[1]
+    },
+    // Cargo is installed with rustup
+    installCommands: {
+      darwin: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+      win32: "powershell -c \"irm https://win.rustup.rs -OutFile rustup-init.exe; .\\rustup-init.exe -y\"",
+      linux: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
+    },
+  },
 ]
 
 // ============================================================================
@@ -352,6 +583,20 @@ async function detectRuntime(
 }
 
 /**
+ * Get install command for a tool, considering Linux package manager
+ */
+function getInstallCommand(def: ToolDefinition, platform: SupportedPlatform): string | null {
+  // For Linux, use dynamic install command based on detected package manager
+  if (platform === "linux" && detectedLinuxPM && LINUX_INSTALL_COMMANDS[detectedLinuxPM]) {
+    const linuxCmd = LINUX_INSTALL_COMMANDS[detectedLinuxPM][def.name]
+    if (linuxCmd) return linuxCmd
+  }
+
+  // Fallback to definition's install command
+  return def.installCommands[platform] ?? null
+}
+
+/**
  * Detect a single tool from definition
  */
 async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
@@ -370,7 +615,7 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
       installed: false,
       version: null,
       path: null,
-      installCommand: def.installCommands[platform] ?? null,
+      installCommand: getInstallCommand(def, platform),
       description: def.description,
       required: categoryInfo.required,
       minVersion: def.minVersion,
@@ -396,6 +641,11 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
     }
   }
 
+  // If this is a package manager on Linux, cache it
+  if (platform === "linux" && def.category === "package_manager") {
+    detectedLinuxPM = def.name
+  }
+
   return {
     name: def.name,
     displayName: def.displayName,
@@ -403,7 +653,7 @@ async function detectTool(def: ToolDefinition): Promise<ToolInfo> {
     installed: true,
     version,
     path: toolPath.split("\n")[0],
-    installCommand: def.installCommands[platform] ?? null,
+    installCommand: getInstallCommand(def, platform),
     description: def.description,
     required: categoryInfo.required,
     minVersion: def.minVersion,
@@ -449,21 +699,62 @@ function buildCategoryStatus(tools: ToolInfo[]): CategoryStatus[] {
 async function detectAllTools(): Promise<DetectedTools> {
   const platform = process.platform as SupportedPlatform
 
-  // Filter tools by platform
-  const platformTools = TOOL_DEFINITIONS.filter((def) => {
-    // Only include tools that have install command for this platform
+  // Reset Linux package manager cache
+  detectedLinuxPM = null
+
+  // Step 1: Detect package managers first (needed for dynamic Linux install commands)
+  const pmTools = TOOL_DEFINITIONS.filter((def) => def.category === "package_manager")
+  const pmToolsForPlatform = pmTools.filter((def) => {
+    // For Linux, include all Linux package managers (they don't have install commands)
+    if (platform === "linux") {
+      return !def.installCommands.darwin && !def.installCommands.win32
+    }
+    // For other platforms, check if there's an install command
     return def.installCommands[platform] !== undefined
   })
 
-  // Detect all tools in parallel
-  const tools = await Promise.all(platformTools.map(detectTool))
+  // Detect package managers sequentially to find the first available one on Linux
+  const detectedPmTools: ToolInfo[] = []
+  for (const def of pmToolsForPlatform) {
+    const tool = await detectTool(def)
+    detectedPmTools.push(tool)
+    // On Linux, stop after finding first installed package manager
+    if (platform === "linux" && tool.installed) {
+      detectedLinuxPM = tool.name
+      break
+    }
+  }
+
+  // Step 2: Filter and detect other tools
+  const otherTools = TOOL_DEFINITIONS.filter((def) => {
+    if (def.category === "package_manager") return false
+
+    // For Linux, check if we have a dynamic install command or a static one
+    if (platform === "linux") {
+      // Always include tools that have static linux install commands
+      if (def.installCommands.linux) return true
+      // Include tools that have dynamic install commands via detected package manager
+      if (detectedLinuxPM && LINUX_INSTALL_COMMANDS[detectedLinuxPM]?.[def.name]) return true
+      // Include tools without install commands (detection only)
+      return true
+    }
+
+    // For other platforms, include tools with install commands for this platform
+    return def.installCommands[platform] !== undefined
+  })
+
+  // Detect other tools in parallel
+  const detectedOtherTools = await Promise.all(otherTools.map(detectTool))
+
+  // Combine all tools
+  const allTools = [...detectedPmTools, ...detectedOtherTools]
 
   // Build category status
-  const categories = buildCategoryStatus(tools)
+  const categories = buildCategoryStatus(allTools)
 
   return {
     platform,
-    tools,
+    tools: allTools,
     categories,
   }
 }
@@ -771,9 +1062,9 @@ export const runnerRouter = router({
     .mutation(async ({ input }): Promise<{ success: boolean; error?: string; output?: string }> => {
       try {
         // Execute the install command
-        // Use a longer timeout for installation (5 minutes)
+        // Use a longer timeout for installation (10 minutes)
         const { stdout, stderr } = await execAsync(input.command, {
-          timeout: 300000,
+          timeout: 600000,
           shell: process.platform === "win32" ? "powershell.exe" : "/bin/bash",
         })
 
@@ -817,5 +1108,101 @@ export const runnerRouter = router({
     skippedCategories.clear()
     toolsCache = null
     return { success: true }
+  }),
+
+  /**
+   * Get the detected Linux package manager (if on Linux)
+   */
+  getDetectedPackageManager: publicProcedure.query(async (): Promise<{
+    platform: NodeJS.Platform
+    packageManager: string | null
+    needsInstall: boolean
+    installCommand: string | null
+  }> => {
+    const platform = process.platform
+
+    // Ensure tools are detected first
+    if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+      toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
+    }
+
+    const pmCategory = toolsCache.data.categories.find((c) => c.category === "package_manager")
+
+    return {
+      platform,
+      packageManager: pmCategory?.installedTool?.name ?? null,
+      needsInstall: !pmCategory?.satisfied && platform !== "linux",
+      installCommand: pmCategory?.recommendedTool?.installCommand ?? null,
+    }
+  }),
+
+  /**
+   * Install package manager (Homebrew on macOS, Winget on Windows)
+   * Linux package managers are pre-installed, so this only works on macOS/Windows
+   */
+  installPackageManager: publicProcedure.mutation(async (): Promise<{
+    success: boolean
+    error?: string
+    output?: string
+    packageManager?: string
+  }> => {
+    const platform = process.platform as SupportedPlatform
+
+    // Linux doesn't need package manager installation
+    if (platform === "linux") {
+      return {
+        success: false,
+        error: "Linux package managers are pre-installed with the system",
+      }
+    }
+
+    // Get the install command for the platform's package manager
+    const pmDef = TOOL_DEFINITIONS.find(
+      (def) => def.category === "package_manager" && def.installCommands[platform]
+    )
+
+    if (!pmDef) {
+      return {
+        success: false,
+        error: "No package manager installation available for this platform",
+      }
+    }
+
+    const installCommand = pmDef.installCommands[platform]
+    if (!installCommand) {
+      return {
+        success: false,
+        error: "No install command found",
+      }
+    }
+
+    try {
+      // Use longer timeout for package manager installation (10 minutes for Homebrew)
+      const { stdout, stderr } = await execAsync(installCommand, {
+        timeout: 600000,
+        shell: platform === "win32" ? "powershell.exe" : "/bin/bash",
+        env: {
+          ...process.env,
+          // For Homebrew non-interactive installation
+          NONINTERACTIVE: "1",
+        },
+      })
+
+      // Clear cache so next detection will refresh
+      toolsCache = null
+      detectedLinuxPM = null
+
+      return {
+        success: true,
+        output: stdout || stderr,
+        packageManager: pmDef.name,
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      return {
+        success: false,
+        error: errorMessage,
+      }
+    }
   }),
 })
