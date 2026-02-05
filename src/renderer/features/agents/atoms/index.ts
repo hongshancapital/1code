@@ -921,9 +921,9 @@ export const contextCommentClickedAtom = atom<string | null>(null)
 // "cowork" = simplified mode (no git features, focus on chat)
 // "coding" = full mode (git, diff, terminal, etc.)
 // This is a writable atom that ChatView updates when workspace changes
-// Default to "chat" mode so users can start chatting immediately without selecting a project
+// Default to "cowork" mode for simplified experience
 export type ProjectMode = "chat" | "cowork" | "coding"
-export const currentProjectModeAtom = atom<ProjectMode>("chat")
+export const currentProjectModeAtom = atom<ProjectMode>("cowork")
 
 // ============================================
 // TERMINAL PANEL HEIGHT (Coding mode)
@@ -978,20 +978,10 @@ export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
 // null = chat-based rendering (chat/new-chat)
 export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
 
-// Compute initial desktop view based on whether we have a restored chat ID
-// This runs synchronously during atom initialization (before any component mounts)
-// At this point, localStorage has already been read by atomWithWindowStorage (getOnInit: true)
+// Initial desktop view: always start with null (chat view / new chat form)
+// This ensures cowork mode (NewChatForm) is the default when no chat is selected
 function getInitialDesktopView(): DesktopView {
-  if (typeof window === 'undefined') return "home"
-
-  // Read the restored chat ID from the same storage key that selectedAgentChatIdAtom uses
-  const windowId = getWindowId()
-  const storageKey = `${windowId}:agents:selectedChatId`
-  const restoredChatId = localStorage.getItem(storageKey)
-
-  // If we have a restored chat ID (not null and not "null" string), start with null (chat view)
-  // Otherwise start with "home"
-  return (restoredChatId && restoredChatId !== 'null') ? null : "home"
+  return null
 }
 
 export const desktopViewAtom = atom<DesktopView>(getInitialDesktopView())

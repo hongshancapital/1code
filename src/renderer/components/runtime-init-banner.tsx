@@ -1,6 +1,6 @@
 import { useAtom, useSetAtom } from "jotai"
-import { CheckCircle, AlertCircle, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
-import { useState, useEffect, useMemo } from "react"
+import { CheckCircle, AlertCircle, ChevronDown, ChevronUp, Loader2, X, RotateCcw, SkipForward } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Progress } from "./ui/progress"
 import { IconSpinner } from "../icons"
 import {
@@ -11,6 +11,8 @@ import {
 import { trpc } from "../lib/trpc"
 
 const AUTO_DISMISS_DELAY = 3000 // 3 seconds
+const OVERALL_TIMEOUT = 60000 // 60 seconds overall timeout
+const MAX_RETRIES = 3
 
 export function RuntimeInitBanner() {
   const [dismissed, setDismissed] = useAtom(runtimeInitBannerDismissedAtom)
@@ -19,6 +21,9 @@ export function RuntimeInitBanner() {
   const [expanded, setExpanded] = useState(false)
   const [installingCategory, setInstallingCategory] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(AUTO_DISMISS_DELAY / 1000)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const [overallTimeout, setOverallTimeout] = useState(false)
 
   // Detect tools query
   const {
@@ -29,10 +34,28 @@ export function RuntimeInitBanner() {
     enabled: !dismissed,
   })
 
-  // Install tool mutation
-  const installMutation = trpc.runner.installTool.useMutation({
+  // Skip category mutation
+  const skipCategoryMutation = trpc.runner.skipCategory.useMutation({
     onSuccess: () => {
+      setInstallError(null)
+      setRetryCount(0)
       refetch()
+    },
+  })
+
+  // Install tool mutation with improved error handling
+  const installMutation = trpc.runner.installTool.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        setInstallError(null)
+        setRetryCount(0)
+        refetch()
+      } else {
+        setInstallError(result.error || "安装失败")
+      }
+    },
+    onError: (error) => {
+      setInstallError(error.message || "安装失败")
     },
     onSettled: () => {
       setInstallingCategory(null)
@@ -78,9 +101,20 @@ export function RuntimeInitBanner() {
     return () => clearInterval(interval)
   }, [allSatisfied, toolsData, dismissed, setDismissed])
 
-  // Auto-install missing required tools
+  // Overall timeout - show manual config option after 60s
   useEffect(() => {
-    if (!toolsData?.categories || installingCategory || allSatisfied) return
+    if (dismissed || allSatisfied) return
+
+    const timer = setTimeout(() => {
+      setOverallTimeout(true)
+    }, OVERALL_TIMEOUT)
+
+    return () => clearTimeout(timer)
+  }, [dismissed, allSatisfied])
+
+  // Auto-install missing required tools (only if no error and retry count allows)
+  useEffect(() => {
+    if (!toolsData?.categories || installingCategory || allSatisfied || installError) return
 
     // Find the first missing required category that has a recommended tool
     const toInstall = missingCategories.find(
@@ -94,7 +128,7 @@ export function RuntimeInitBanner() {
         command: toInstall.recommendedTool.installCommand,
       })
     }
-  }, [toolsData, installingCategory, allSatisfied, missingCategories, installMutation])
+  }, [toolsData, installingCategory, allSatisfied, missingCategories, installMutation, installError])
 
   // Get current installing tool name - must be before conditional returns
   const installingTool = useMemo(() => {
@@ -118,6 +152,52 @@ export function RuntimeInitBanner() {
     handleDismiss()
   }
 
+  // Retry installation for the failed category
+  const handleRetry = useCallback(() => {
+    if (retryCount >= MAX_RETRIES) {
+      setInstallError("已达最大重试次数，请手动安装或跳过")
+      return
+    }
+
+    // Find the category that was being installed
+    const failedCategory = missingCategories.find(
+      (c) => c.recommendedTool?.installCommand
+    )
+
+    if (failedCategory?.recommendedTool?.installCommand) {
+      setRetryCount((prev) => prev + 1)
+      setInstallError(null)
+      setInstallingCategory(failedCategory.category)
+      installMutation.mutate({
+        toolName: failedCategory.recommendedTool.name,
+        command: failedCategory.recommendedTool.installCommand,
+      })
+    }
+  }, [retryCount, missingCategories, installMutation])
+
+  // Skip the current failing category
+  const handleSkip = useCallback(() => {
+    const failedCategory = missingCategories.find(
+      (c) => c.recommendedTool?.installCommand
+    )
+
+    if (failedCategory) {
+      setInstallingCategory(null)
+      setInstallError(null)
+      setRetryCount(0)
+      skipCategoryMutation.mutate({ category: failedCategory.category })
+    }
+  }, [missingCategories, skipCategoryMutation])
+
+  // Skip all remaining categories and dismiss
+  const handleSkipAll = useCallback(() => {
+    // Skip all missing categories
+    for (const cat of missingCategories) {
+      skipCategoryMutation.mutate({ category: cat.category })
+    }
+    setDismissed(true)
+  }, [missingCategories, skipCategoryMutation, setDismissed])
+
   // Loading state
   if (isLoading) {
     return (
@@ -127,6 +207,13 @@ export function RuntimeInitBanner() {
           <div className="text-foreground text-xs">Checking environment...</div>
           <Progress value={0} className="mt-2 h-1" />
         </div>
+        <button
+          onClick={handleDismiss}
+          className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+          aria-label="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     )
   }
@@ -147,16 +234,20 @@ export function RuntimeInitBanner() {
     <div className="fixed top-4 right-4 z-50 flex flex-col rounded-lg border border-border bg-popover text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[280px] max-w-[320px]">
       {/* Header - compact */}
       <div className="flex items-center gap-2 p-2">
-        {installingCategory ? (
+        {installError ? (
+          <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
+        ) : installingCategory ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary flex-shrink-0" />
         ) : (
           <AlertCircle className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <div className="text-foreground text-xs">
-            {installingCategory
-              ? `Installing ${installingTool}...`
-              : `Setting up environment (${satisfiedCount}/${totalCategories})`}
+            {installError
+              ? "安装失败"
+              : installingCategory
+                ? `Installing ${installingTool}...`
+                : `Setting up environment (${satisfiedCount}/${totalCategories})`}
           </div>
           <Progress value={progress} className="mt-1.5 h-1" />
         </div>
@@ -167,10 +258,73 @@ export function RuntimeInitBanner() {
         >
           {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
+        <button
+          onClick={handleDismiss}
+          className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+          aria-label="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
+      {/* Error state with retry/skip options */}
+      {installError && (
+        <div className="border-t border-border px-2 py-1.5">
+          <div className="text-[10px] text-destructive mb-1.5 break-words">
+            {installError.length > 100 ? installError.slice(0, 100) + "..." : installError}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRetry}
+              disabled={retryCount >= MAX_RETRIES}
+              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RotateCcw className="h-3 w-3" />
+              重试 {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+            </button>
+            <button
+              onClick={handleSkip}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SkipForward className="h-3 w-3" />
+              跳过
+            </button>
+            <button
+              onClick={handleViewDetails}
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors ml-auto"
+            >
+              手动配置 →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Overall timeout warning */}
+      {overallTimeout && !installError && !allSatisfied && (
+        <div className="border-t border-border px-2 py-1.5">
+          <div className="text-[10px] text-muted-foreground mb-1.5">
+            环境检测超时，可选择跳过或手动配置
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSkipAll}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SkipForward className="h-3 w-3" />
+              跳过全部
+            </button>
+            <button
+              onClick={handleViewDetails}
+              className="text-[10px] text-primary hover:text-primary/80 transition-colors ml-auto"
+            >
+              手动配置 →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Expanded details - only show when user expands */}
-      {expanded && (
+      {expanded && !installError && (
         <div className="border-t border-border px-2 py-1.5 text-xs">
           {missingCategories.map((cat) => (
             <div
