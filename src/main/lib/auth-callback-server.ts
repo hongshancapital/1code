@@ -124,11 +124,209 @@ export async function handleAuthCode(
   }
 }
 
+// Okta server state management
+let oktaServer: Server | null = null
+let oktaServerListening = false
+
+// Start Okta callback server on-demand (before auth flow)
+export function startOktaServer(handlers: AuthCallbackHandlers): void {
+  if (oktaServer && oktaServerListening) {
+    console.log("[Okta Callback] Server already running")
+    return
+  }
+
+  // Create Okta OAuth callback server
+  oktaServer = createServer((req, res) => {
+    const url = new URL(req.url || "", `http://localhost:${OKTA_CALLBACK_PORT}`)
+
+    // Serve favicon
+    if (url.pathname === "/favicon.ico" || url.pathname === "/favicon.svg") {
+      res.writeHead(200, { "Content-Type": "image/svg+xml" })
+      res.end(FAVICON_SVG)
+      return
+    }
+
+    // Handle Okta OAuth callback: /implicit/callback
+    if (url.pathname === "/implicit/callback") {
+      const code = url.searchParams.get("code")
+      const state = url.searchParams.get("state")
+      console.log(
+        "[Okta Callback] Received callback with code:",
+        code?.slice(0, 8) + "...",
+        "state:",
+        state?.slice(0, 8) + "...",
+      )
+
+      // Verify state parameter to prevent CSRF attacks
+      const currentAuthManager = getAuthManager()
+      const pkceState = currentAuthManager?.getPkceState()
+      if (!pkceState) {
+        console.error("[Okta Callback] No PKCE state found - auth flow not started")
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
+        res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hong - Authentication Error</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
+    .error { text-align: center; }
+    h1 { font-size: 16px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Authentication flow not started</h1>
+    <p>Please click "Sign in" in the app first, then try again.</p>
+  </div>
+</body>
+</html>`)
+        return
+      }
+
+      if (state !== pkceState.state) {
+        console.error("[Okta Callback] State mismatch - possible CSRF attack")
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
+        res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Hong - Authentication Error</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
+    .error { text-align: center; }
+    h1 { font-size: 16px; margin-bottom: 8px; }
+    p { font-size: 14px; color: #71717a; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Invalid state parameter</h1>
+    <p>Security check failed. Please try again.</p>
+  </div>
+</body>
+</html>`)
+        return
+      }
+
+      if (code) {
+        // Handle the auth code (exchange for tokens)
+        handleAuthCode(code, handlers).finally(() => {
+          // Close Okta server after auth completes (success or error)
+          stopOktaServer()
+        })
+
+        // Send success response and close the browser tab
+        res.writeHead(200, { "Content-Type": "text/html" })
+        res.end(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
+  <title>Hong - Authentication</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #09090b;
+      --text: #fafafa;
+      --text-muted: #71717a;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --text: #09090b;
+        --text-muted: #71717a;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    a {
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
+      transition: opacity 0.15s;
+    }
+    a:hover {
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="brand">Hóng</span>
+    <h1>Authentication successful</h1>
+    <a onclick="window.close()">Close this tab</a>
+  </div>
+</body>
+</html>`)
+      } else {
+        res.writeHead(400, { "Content-Type": "text/plain" })
+        res.end("Missing code parameter")
+      }
+    } else {
+      res.writeHead(404, { "Content-Type": "text/plain" })
+      res.end("Not found")
+    }
+  })
+
+  oktaServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
+      console.warn(`[Okta Callback] Okta login may not work until port ${OKTA_CALLBACK_PORT} is available`)
+      oktaServerListening = false
+    } else {
+      console.error("[Okta Callback] Server error:", err)
+    }
+  })
+
+  oktaServer.listen(OKTA_CALLBACK_PORT, () => {
+    oktaServerListening = true
+    console.log(`[Okta Callback] Server started on http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`)
+  })
+}
+
+// Stop Okta callback server (after auth completes)
+export function stopOktaServer(): void {
+  if (oktaServer && oktaServerListening) {
+    oktaServer.close(() => {
+      console.log("[Okta Callback] Server stopped")
+      oktaServerListening = false
+      oktaServer = null
+    })
+  }
+}
+
 // Start local HTTP server for auth callbacks
 // handlers: callbacks for auth success/error, delegated to caller for window management
 export function startAuthCallbackServers(
   handlers: AuthCallbackHandlers
-): { authServer: Server; oktaServer: Server } {
+): { authServer: Server } {
   const authServer = createServer((req, res) => {
     const url = new URL(req.url || "", `http://localhost:${AUTH_SERVER_PORT}`)
 
@@ -333,177 +531,5 @@ export function startAuthCallbackServers(
     console.log(`[Auth Server] Listening on http://localhost:${AUTH_SERVER_PORT}`)
   })
 
-  // Okta OAuth callback server (matches Okta app configuration)
-  // Production: port 3000, Dev: port 3300 (to avoid conflicts when running both)
-  // This is separate from the main auth server because Okta requires a specific callback URL
-  const oktaServer = createServer((req, res) => {
-    const url = new URL(req.url || "", `http://localhost:${OKTA_CALLBACK_PORT}`)
-
-    // Serve favicon
-    if (url.pathname === "/favicon.ico" || url.pathname === "/favicon.svg") {
-      res.writeHead(200, { "Content-Type": "image/svg+xml" })
-      res.end(FAVICON_SVG)
-      return
-    }
-
-    // Handle Okta OAuth callback: /implicit/callback
-    if (url.pathname === "/implicit/callback") {
-      const code = url.searchParams.get("code")
-      const state = url.searchParams.get("state")
-      console.log(
-        "[Okta Callback] Received callback with code:",
-        code?.slice(0, 8) + "...",
-        "state:",
-        state?.slice(0, 8) + "...",
-      )
-
-      // Verify state parameter to prevent CSRF attacks
-      const currentAuthManager = getAuthManager()
-      const pkceState = currentAuthManager?.getPkceState()
-      if (!pkceState) {
-        console.error("[Okta Callback] No PKCE state found - auth flow not started")
-        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
-        res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Hong - Authentication Error</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
-    .error { text-align: center; }
-    h1 { font-size: 16px; margin-bottom: 8px; }
-    p { font-size: 14px; color: #71717a; }
-  </style>
-</head>
-<body>
-  <div class="error">
-    <h1>Authentication flow not started</h1>
-    <p>Please click "Sign in" in the app first, then try again.</p>
-  </div>
-</body>
-</html>`)
-        return
-      }
-
-      if (state !== pkceState.state) {
-        console.error("[Okta Callback] State mismatch - possible CSRF attack")
-        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
-        res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Hong - Authentication Error</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09090b; color: #fafafa; }
-    .error { text-align: center; }
-    h1 { font-size: 16px; margin-bottom: 8px; }
-    p { font-size: 14px; color: #71717a; }
-  </style>
-</head>
-<body>
-  <div class="error">
-    <h1>Invalid state parameter</h1>
-    <p>Security check failed. Please try again.</p>
-  </div>
-</body>
-</html>`)
-        return
-      }
-
-      if (code) {
-        // Handle the auth code (exchange for tokens)
-        handleAuthCode(code, handlers)
-
-        // Send success response and close the browser tab
-        res.writeHead(200, { "Content-Type": "text/html" })
-        res.end(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">
-  <title>Hong - Authentication</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-      --bg: #09090b;
-      --text: #fafafa;
-      --text-muted: #71717a;
-    }
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg: #ffffff;
-        --text: #09090b;
-        --text-muted: #71717a;
-      }
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-    }
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-    .brand {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-    h1 {
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 4px;
-    }
-    a {
-      font-size: 12px;
-      color: var(--text-muted);
-      cursor: pointer;
-      text-decoration: underline;
-      transition: opacity 0.15s;
-    }
-    a:hover {
-      opacity: 0.7;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <span class="brand">Hóng</span>
-    <h1>Authentication successful</h1>
-    <a onclick="window.close()">Close this tab</a>
-  </div>
-</body>
-</html>`)
-      } else {
-        res.writeHead(400, { "Content-Type": "text/plain" })
-        res.end("Missing code parameter")
-      }
-    } else {
-      res.writeHead(404, { "Content-Type": "text/plain" })
-      res.end("Not found")
-    }
-  })
-
-  oktaServer.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      console.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
-      console.warn("[Okta Callback] Okta login may not work until port 3000 is available")
-    } else {
-      console.error("[Okta Callback] Server error:", err)
-    }
-  })
-
-  oktaServer.listen(OKTA_CALLBACK_PORT, () => {
-    console.log(`[Okta Callback] Listening on http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`)
-  })
-
-  return { authServer, oktaServer }
+  return { authServer }
 }

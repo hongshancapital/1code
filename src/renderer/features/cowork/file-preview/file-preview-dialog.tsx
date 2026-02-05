@@ -82,9 +82,6 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null)
 
-  // Debug log
-  console.log("[FilePreviewDialog] filePath:", filePath, "open:", open, "displayMode:", displayMode)
-
   // Hide/show traffic lights based on full-page mode
   const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
   const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
@@ -132,6 +129,13 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
       setHighlightText(null)
     }
   }, [isDirty, resetEditorState, setFilePath, setScrollToLine, setHighlightText])
+
+  // Handle Dialog onOpenChange
+  const handleOpenChange = useCallback((isOpen: boolean) => {
+    if (!isOpen) {
+      handleClose()
+    }
+  }, [handleClose])
 
   // Toggle between view and edit mode
   const handleToggleEdit = useCallback(() => {
@@ -357,7 +361,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
 
   // Dialog mode (default)
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
           "max-w-4xl w-[90vw] h-[80vh] p-0 gap-0 flex flex-col overflow-hidden",

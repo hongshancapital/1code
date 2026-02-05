@@ -1,6 +1,7 @@
 import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
+import { getWindowId } from "../../../contexts/WindowContext"
 import type { FileMentionOption } from "../mentions/agents-mentions-editor"
 
 // Agent mode type - extensible for future modes like "debug"
@@ -976,7 +977,24 @@ export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
 // "home" = default home dashboard view
 // null = chat-based rendering (chat/new-chat)
 export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
-export const desktopViewAtom = atom<DesktopView>("home")
+
+// Compute initial desktop view based on whether we have a restored chat ID
+// This runs synchronously during atom initialization (before any component mounts)
+// At this point, localStorage has already been read by atomWithWindowStorage (getOnInit: true)
+function getInitialDesktopView(): DesktopView {
+  if (typeof window === 'undefined') return "home"
+
+  // Read the restored chat ID from the same storage key that selectedAgentChatIdAtom uses
+  const windowId = getWindowId()
+  const storageKey = `${windowId}:agents:selectedChatId`
+  const restoredChatId = localStorage.getItem(storageKey)
+
+  // If we have a restored chat ID (not null and not "null" string), start with null (chat view)
+  // Otherwise start with "home"
+  return (restoredChatId && restoredChatId !== 'null') ? null : "home"
+}
+
+export const desktopViewAtom = atom<DesktopView>(getInitialDesktopView())
 
 // Automations sidebar width (for the list panel in automations view)
 export const automationsSidebarWidthAtom = atomWithStorage<number>(
