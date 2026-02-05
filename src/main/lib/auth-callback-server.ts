@@ -348,8 +348,14 @@ export function startAuthCallbackServers(): { authServer: Server } {
       )
 
       if (code && state) {
-        // Handle the MCP OAuth callback
+        // Handle the MCP OAuth callback and wait for completion
         handleMcpOAuthCallback(code, state)
+          .then(() => {
+            console.log("[Auth Server] MCP OAuth callback completed successfully")
+          })
+          .catch((error) => {
+            console.error("[Auth Server] MCP OAuth callback failed:", error)
+          })
 
         // Send success response and close the browser tab
         res.writeHead(200, { "Content-Type": "text/html" })
