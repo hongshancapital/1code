@@ -2,7 +2,7 @@ import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
-import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
+import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu, Sparkles } from "lucide-react"
 import { OriginalMCPIcon } from "../../../components/ui/icons"
 import {
   type WidgetId,
@@ -19,11 +19,19 @@ export { getDefaultVisibleWidgets }
 // Widget System Types & Registry
 // ============================================================================
 
+export interface WidgetResizeConfig {
+  minHeight: number
+  maxHeight?: number
+  defaultHeight: number
+}
+
 export interface WidgetConfig {
   id: WidgetId
   label: string
   icon: LucideIcon
   canExpand: boolean // true = can open as separate sidebar
+  resize?: WidgetResizeConfig // optional resize configuration (draggable)
+  maxHeight?: number // fixed max height (content scrolls if exceeded, not draggable)
 }
 
 export const WIDGET_REGISTRY: WidgetConfig[] = [
@@ -34,12 +42,26 @@ export const WIDGET_REGISTRY: WidgetConfig[] = [
   { id: "terminal", label: WIDGET_DEFAULTS.terminal.label, icon: Terminal, canExpand: true },
   { id: "diff", label: WIDGET_DEFAULTS.diff.label, icon: FileDiff, canExpand: true },
   // Cowork mode widgets (file focused)
-  { id: "artifacts", label: WIDGET_DEFAULTS.artifacts.label, icon: Package, canExpand: false },
-  { id: "explorer", label: WIDGET_DEFAULTS.explorer.label, icon: FolderTree, canExpand: true },
+  {
+    id: "artifacts",
+    label: WIDGET_DEFAULTS.artifacts.label,
+    icon: Package,
+    canExpand: false,
+    resize: { minHeight: 100, maxHeight: 400, defaultHeight: 200 },
+  },
+  {
+    id: "explorer",
+    label: WIDGET_DEFAULTS.explorer.label,
+    icon: FolderTree,
+    canExpand: true,
+    resize: { minHeight: 150, maxHeight: 600, defaultHeight: 350 },
+  },
   // Background tasks (available in both modes)
   { id: "background-tasks", label: WIDGET_DEFAULTS["background-tasks"].label, icon: Cpu, canExpand: false },
   // MCP Servers (from main)
-  { id: "mcp", label: "MCP Servers", icon: OriginalMCPIcon as unknown as LucideIcon, canExpand: false },
+  { id: "mcp", label: "MCP Servers", icon: OriginalMCPIcon as unknown as LucideIcon, canExpand: false, maxHeight: 300 },
+  // Skills (available in all modes)
+  { id: "skills", label: WIDGET_DEFAULTS.skills.label, icon: Sparkles, canExpand: false, maxHeight: 300 },
 ]
 
 // Default visible widgets (merge both modes to ensure widgets show when enabled)
@@ -116,6 +138,48 @@ export const widgetOrderAtomFamily = atomFamily((workspaceId: string) =>
       })
     },
   ),
+)
+
+// ============================================================================
+// Widget Height (per sub-chat, persisted)
+// ============================================================================
+
+// Storage atom for widget heights: { subChatId: { widgetId: height } }
+const widgetHeightStorageAtom = atomWithStorage<Record<string, Record<WidgetId, number>>>(
+  "overview:widgetHeights",
+  {},
+  undefined,
+  { getOnInit: true },
+)
+
+// Get default height for a widget from registry
+function getDefaultWidgetHeight(widgetId: WidgetId): number {
+  const config = WIDGET_REGISTRY.find((w) => w.id === widgetId)
+  return config?.resize?.defaultHeight ?? 200
+}
+
+// Atom family for per-subChat, per-widget height
+export const widgetHeightAtomFamily = atomFamily(
+  ({ subChatId, widgetId }: { subChatId: string; widgetId: WidgetId }) =>
+    atom(
+      (get) => {
+        const stored = get(widgetHeightStorageAtom)[subChatId]?.[widgetId]
+        return stored ?? getDefaultWidgetHeight(widgetId)
+      },
+      (get, set, height: number) => {
+        const current = get(widgetHeightStorageAtom)
+        const subChatHeights = current[subChatId] ?? {}
+        set(widgetHeightStorageAtom, {
+          ...current,
+          [subChatId]: {
+            ...subChatHeights,
+            [widgetId]: height,
+          },
+        })
+      },
+    ),
+  // Custom equality function for the key
+  (a, b) => a.subChatId === b.subChatId && a.widgetId === b.widgetId,
 )
 
 // ============================================================================

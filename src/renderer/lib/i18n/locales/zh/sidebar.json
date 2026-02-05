@@ -138,13 +138,16 @@
       "artifacts": "产物",
       "explorer": "文件浏览器",
       "backgroundTasks": "后台任务",
-      "mcpServers": "MCP 服务器"
+      "mcpServers": "MCP 服务器",
+      "skills": "技能"
     },
     "workspace": {
       "noInfo": "暂无工作区信息",
       "type": "类型",
       "chat": "对话",
       "action": "操作",
+      "convertToProject": "转换为正式项目",
+      "convertToProjectHelp": "将对话保存到指定文件夹，方便你有条理地整理和继续工作。",
       "repository": "仓库",
       "branch": "分支",
       "pullRequest": "Pull Request",
@@ -200,7 +203,19 @@
       "expandLabel": "产物，共 {{count}} 个文件。点击{{action}}"
     },
     "mcpWidget": {
-      "noServers": "配置 MCP 服务器"
+      "noServers": "配置 MCP 服务器",
+      "builtin": "内置"
+    },
+    "skillsWidget": {
+      "noSkills": "配置技能",
+      "skillCount": "{{count}} 个技能",
+      "skillCount_other": "{{count}} 个技能",
+      "sources": {
+        "project": "项目",
+        "user": "用户",
+        "plugin": "插件",
+        "builtin": "内置"
+      }
     }
   },
   "tagManager": {

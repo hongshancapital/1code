@@ -8,6 +8,20 @@ import { OriginalMCPIcon } from "../../../components/ui/icons"
 import { agentsSettingsDialogActiveTabAtom, agentsSettingsDialogOpenAtom, sessionInfoAtom, type MCPServer } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
 import { pendingMentionAtom } from "../../agents/atoms"
+import { WIDGET_REGISTRY } from "../atoms"
+
+/**
+ * Built-in MCP server name
+ * Must match BUILTIN_MCP_NAME in src/main/lib/builtin-mcp.ts
+ */
+const BUILTIN_MCP_NAME = "hong-internal"
+
+/**
+ * Check if an MCP server is built-in
+ */
+function isBuiltinMcp(serverName: string): boolean {
+  return serverName === BUILTIN_MCP_NAME
+}
 
 function formatToolName(toolName: string): string {
   return toolName
@@ -130,12 +144,20 @@ export const McpWidget = memo(function McpWidget() {
     })
   }
 
+  // Get maxHeight from widget registry
+  const widgetConfig = WIDGET_REGISTRY.find((w) => w.id === "mcp")
+  const maxHeight = widgetConfig?.maxHeight
+
   return (
-    <div className="px-2 py-1.5 flex flex-col gap-0.5">
+    <div
+      className="px-2 py-1.5 flex flex-col gap-0.5 overflow-y-auto"
+      style={maxHeight ? { maxHeight } : undefined}
+    >
       {sessionInfo.mcpServers.map((server) => {
         const tools = toolsByServer.get(server.name) || []
         const isExpanded = expandedServers.has(server.name)
         const hasTools = tools.length > 0
+        const isBuiltin = isBuiltinMcp(server.name)
 
         return (
           <div key={server.name}>
@@ -153,6 +175,11 @@ export const McpWidget = memo(function McpWidget() {
               <span className="text-xs text-foreground truncate flex-1 text-left">
                 {server.name}
               </span>
+              {isBuiltin && (
+                <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 font-medium">
+                  {t("details.mcpWidget.builtin")}
+                </span>
+              )}
               {hasTools && (
                 <span className="text-[10px] text-muted-foreground tabular-nums">
                   {tools.length}

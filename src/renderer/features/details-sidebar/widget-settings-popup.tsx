@@ -63,6 +63,7 @@ const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
   explorer: "explorer",
   "background-tasks": "backgroundTasks",
   mcp: "mcpServers",
+  skills: "skills",
 }
 
 export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: WidgetSettingsPopupProps) {

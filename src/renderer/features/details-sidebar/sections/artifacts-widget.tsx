@@ -9,6 +9,7 @@ import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
 import { getFileIconByExtension } from "@/features/agents/mentions/agents-file-mention"
 import { useAgentSubChatStore } from "@/features/agents/stores/sub-chat-store"
 import { artifactsAtomFamily, filePreviewPathAtom, type Artifact, type ArtifactContext } from "@/features/cowork/atoms"
+import { ResizableWidgetCard } from "../components/resizable-widget-card"
 
 // ============================================================================
 // Hook for artifacts count
@@ -230,7 +231,7 @@ export const ArtifactsWidget = memo(function ArtifactsWidget({ subChatId }: Arti
       </div>
 
       {/* Content */}
-      <div className="rounded-b-lg border border-border/50 border-t-0">
+      <div className="rounded-b-lg border border-border/50 border-t-0 overflow-hidden">
         {!isExpanded && (
           <div
             className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/30 transition-colors duration-150"
@@ -243,16 +244,18 @@ export const ArtifactsWidget = memo(function ArtifactsWidget({ subChatId }: Arti
         )}
 
         {isExpanded && (
-          <div className="max-h-[200px] overflow-y-auto py-1">
-            {artifacts.map((artifact) => (
-              <ArtifactItem
-                key={artifact.path}
-                artifact={artifact}
-                onClick={() => handleFileSelect(artifact.path)}
-                onFileSelect={handleFileSelect}
-              />
-            ))}
-          </div>
+          <ResizableWidgetCard widgetId="artifacts" subChatId={effectiveId}>
+            <div className="h-full overflow-y-auto py-1">
+              {artifacts.map((artifact) => (
+                <ArtifactItem
+                  key={artifact.path}
+                  artifact={artifact}
+                  onClick={() => handleFileSelect(artifact.path)}
+                  onFileSelect={handleFileSelect}
+                />
+              ))}
+            </div>
+          </ResizableWidgetCard>
         )}
       </div>
     </div>

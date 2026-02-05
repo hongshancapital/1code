@@ -32,6 +32,7 @@ export type WidgetId =
   | "explorer"
   | "background-tasks"
   | "mcp"
+  | "skills"
 
 /**
  * Stored in projects.featureConfig as JSON string
@@ -63,6 +64,7 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
   explorer: { label: "Explorer", defaultInCoding: true, defaultInCowork: true },
   "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: false },
   mcp: { label: "MCP Servers", defaultInCoding: true, defaultInCowork: true },
+  skills: { label: "Skills", defaultInCoding: true, defaultInCowork: true },
 }
 
 /**
@@ -78,12 +80,13 @@ export const GIT_RELATED_WIDGETS: Set<WidgetId> = new Set([
 
 /**
  * Widgets disabled in chat mode (most widgets, as chat is purely conversational)
+ * Note: todo, plan, mcp, skills are available in chat mode
+ * Note: artifacts is enabled in chat mode to show generated files
  */
 export const CHAT_DISABLED_WIDGETS: Set<WidgetId> = new Set([
   "info",
   "terminal",
   "diff",
-  "artifacts",
   "explorer",
   "background-tasks",
 ])
