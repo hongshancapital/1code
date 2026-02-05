@@ -920,9 +920,9 @@ export const contextCommentClickedAtom = atom<string | null>(null)
 // "cowork" = simplified mode (no git features, focus on chat)
 // "coding" = full mode (git, diff, terminal, etc.)
 // This is a writable atom that ChatView updates when workspace changes
-// Default to "cowork" mode for simplified experience
+// Default to "chat" mode so users can start chatting immediately without selecting a project
 export type ProjectMode = "chat" | "cowork" | "coding"
-export const currentProjectModeAtom = atom<ProjectMode>("cowork")
+export const currentProjectModeAtom = atom<ProjectMode>("chat")
 
 // ============================================
 // TERMINAL PANEL HEIGHT (Coding mode)
