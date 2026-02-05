@@ -4503,10 +4503,9 @@ export function ChatView({
   // Lazy load messages for the active sub-chat (performance optimization)
   // Check if sub-chat belongs to current workspace (from server data or local store)
   // This prevents loading messages for stale/invalid sub-chat IDs from localStorage
-  const activeSubChatExistsInWorkspace = activeSubChatId && (
-    agentSubChats.some(sc => sc.id === activeSubChatId) ||
+  // Note: Only using allSubChats here since agentSubChats is defined later in the file
+  const activeSubChatExistsInWorkspace = activeSubChatId &&
     allSubChats.some(sc => sc.id === activeSubChatId)
-  )
   const { data: subChatMessagesData, isLoading: isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
     { id: activeSubChatId! },
     {
