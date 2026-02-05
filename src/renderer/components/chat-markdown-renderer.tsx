@@ -551,11 +551,9 @@ const MemoizedMarkdownBlock = memo(
     size: MarkdownSize
     codeTheme: string
   }) {
-    // Don't render empty blocks
-    if (!content.trim()) return null
-
     const styles = sizeStyles[size]
 
+    // IMPORTANT: Hooks must be called BEFORE any early returns (Rules of Hooks)
     // Memoize components object - critical for preventing re-renders
     const components = useMemo(
       () => ({
@@ -677,6 +675,9 @@ const MemoizedMarkdownBlock = memo(
       }),
       [styles, codeTheme, size],
     )
+
+    // Don't render empty blocks (must be after hooks)
+    if (!content.trim()) return null
 
     return (
       <Streamdown

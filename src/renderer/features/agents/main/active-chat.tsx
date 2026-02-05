@@ -4935,7 +4935,7 @@ export function ChatView({
       if (worktreePath && chatId) {
         const result = await trpcClient.chats.getParsedDiff.query({ chatId })
 
-        if (result.files.length > 0) {
+        if (result.files && result.files.length > 0) {
           // Store parsed files directly (already parsed on server)
           setParsedFileDiffs(result.files)
 

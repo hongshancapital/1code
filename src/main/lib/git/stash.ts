@@ -134,7 +134,7 @@ export async function applyRollbackStash(
     try {
       commitHash = (await git.raw(["rev-parse", ref])).trim()
       console.log("[checkpoint] Found checkpoint commit:", commitHash)
-    } catch (error) {
+    } catch {
       // Try to list all available checkpoints for debugging
       try {
         const allRefs = await git.raw(["for-each-ref", "--format=%(refname)", "refs/checkpoints/"])

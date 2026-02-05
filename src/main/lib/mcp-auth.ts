@@ -424,7 +424,7 @@ export async function ensureMcpTokensFresh(
         updatedServers[serverName] = {
           ...serverConfig,
           headers: {
-            ...(serverConfig.headers || {}),
+            ...serverConfig.headers,
             Authorization: `Bearer ${newToken}`,
           },
           _oauth: {

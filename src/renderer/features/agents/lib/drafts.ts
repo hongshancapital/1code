@@ -476,7 +476,7 @@ export function fromDraftImage(draft: DraftImage): UploadedImage | null {
   if (!draft.base64Data) return null
   try {
     const byteCharacters = atob(draft.base64Data)
-    const byteNumbers = new Array(byteCharacters.length)
+    const byteNumbers: number[] = []
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i)
     }
@@ -510,7 +510,7 @@ export function fromDraftFile(draft: DraftFile): UploadedFile | null {
   if (!draft.base64Data) return null
   try {
     const byteCharacters = atob(draft.base64Data)
-    const byteNumbers = new Array(byteCharacters.length)
+    const byteNumbers: number[] = []
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i)
     }

@@ -426,7 +426,7 @@ async function scanSkillsDirectory(
           skillDir,
           contents,
         })
-      } catch (err) {
+      } catch {
         // Skill directory doesn't have SKILL.md or read failed - skip it
       }
     }

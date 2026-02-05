@@ -137,21 +137,7 @@ export function RuntimeInitBanner() {
     return category?.recommendedTool?.displayName || null
   }, [installingCategory, toolsData])
 
-  // Don't show if dismissed
-  if (dismissed) {
-    return null
-  }
-
-  const handleDismiss = () => {
-    setDismissed(true)
-  }
-
-  const handleViewDetails = () => {
-    setSettingsActiveTab("runtime")
-    setDesktopView("settings")
-    handleDismiss()
-  }
-
+  // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
   // Retry installation for the failed category
   const handleRetry = useCallback(() => {
     if (retryCount >= MAX_RETRIES) {
@@ -197,6 +183,22 @@ export function RuntimeInitBanner() {
     }
     setDismissed(true)
   }, [missingCategories, skipCategoryMutation, setDismissed])
+
+  const handleDismiss = () => {
+    setDismissed(true)
+  }
+
+  const handleViewDetails = () => {
+    setSettingsActiveTab("runtime")
+    setDesktopView("settings")
+    handleDismiss()
+  }
+
+  // Early returns must be AFTER all hooks (Rules of Hooks)
+  // Don't show if dismissed
+  if (dismissed) {
+    return null
+  }
 
   // Loading state
   if (isLoading) {

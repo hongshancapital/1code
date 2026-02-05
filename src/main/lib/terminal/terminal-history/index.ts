@@ -167,7 +167,7 @@ export class HistoryReader {
       }
 
       return { scrollback }
-    } catch (err) {
+    } catch {
       // File doesn't exist or can't be read
       return { scrollback: "" }
     }

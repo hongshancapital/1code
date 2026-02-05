@@ -353,7 +353,8 @@ export function NewChatForm({
     if (trimmed.startsWith(".")) return "Cannot start with ."
     if (trimmed.endsWith(".lock")) return "Cannot end with .lock"
     if (trimmed.includes("..")) return "Cannot contain .."
-    if (/[\x00-\x1f\x7f ~^:?*\[\]\\]/.test(trimmed)) return "Contains invalid characters"
+    // eslint-disable-next-line no-control-regex -- Control characters are intentional for git ref validation
+    if (/[\x00-\x1f\x7f ~^:?*[\]\\]/.test(trimmed)) return "Contains invalid characters"
     if (trimmed.startsWith("/") || trimmed.endsWith("/")) return "Cannot start or end with /"
     if (trimmed.includes("//")) return "Cannot contain //"
     if (trimmed.endsWith(".")) return "Cannot end with ."
@@ -1143,7 +1144,7 @@ export function NewChatForm({
       const pastedMentions = pastedTexts
         .map((pt) => {
           // Sanitize preview to remove special characters that break mention parsing
-          const sanitizedPreview = pt.preview.replace(/[:\[\]|]/g, "")
+          const sanitizedPreview = pt.preview.replace(/[:[\]|]/g, "")
           return `@[${MENTION_PREFIXES.PASTED}${pt.size}:${sanitizedPreview}|${pt.filePath}]`
         })
         .join(" ")

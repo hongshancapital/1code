@@ -220,7 +220,7 @@ export function buildClaudeEnv(options?: {
   // 1. Start with shell environment (has HOME, full PATH, etc.)
   try {
     Object.assign(env, getClaudeShellEnvironment())
-  } catch (error) {
+  } catch {
     console.error("[claude-env] Shell env failed, using process.env")
   }
 

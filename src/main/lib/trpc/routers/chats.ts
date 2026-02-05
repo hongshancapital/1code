@@ -976,7 +976,7 @@ export const chatsRouter = router({
 
       // 5.5. Clear any old shouldResume flags, then set on the target message
       truncatedMessages = truncatedMessages.map((m: any, i: number) => {
-        const { shouldResume, ...restMeta } = m.metadata || {}
+        const { shouldResume: _shouldResume, ...restMeta } = m.metadata || {}
         return {
           ...m,
           metadata: {
@@ -2068,6 +2068,7 @@ export const chatsRouter = router({
       }
 
       // Sanitize filename - remove characters that are invalid on Windows/macOS/Linux
+      /* eslint-disable no-control-regex -- Control characters are intentional for filename sanitization */
       const sanitizeFilename = (name: string): string => {
         return name
           .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_") // Invalid chars
@@ -2077,6 +2078,7 @@ export const chatsRouter = router({
           .slice(0, 100) // Limit length
           || "chat" // Fallback if empty
       }
+      /* eslint-enable no-control-regex */
 
       // Use sub-chat name if exporting single sub-chat, otherwise use chat name
       const exportName = input.subChatId && chatSubChats[0]?.name

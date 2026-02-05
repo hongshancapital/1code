@@ -578,7 +578,7 @@ export function AgentsRuntimeTab() {
         } else {
           toast.error(result.error || "Invalid runtime path")
         }
-      } catch (error) {
+      } catch {
         toast.error("Failed to validate path")
       } finally {
         setValidatingType(null)

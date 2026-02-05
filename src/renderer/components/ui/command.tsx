@@ -24,7 +24,7 @@ interface CommandProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const Command = React.forwardRef<HTMLDivElement, CommandProps>(
-  ({ className, shouldFilter, value, onValueChange, children, ...props }, ref) => {
+  ({ className, shouldFilter: _shouldFilter, value: _value, onValueChange: _onValueChange, children, ...props }, ref) => {
     const [selectedValue, setSelectedValue] = React.useState<string | null>(null)
     const itemsRef = React.useRef<Map<string, HTMLDivElement>>(new Map())
     const orderedKeysRef = React.useRef<string[]>([])
@@ -244,9 +244,11 @@ const CommandItem = React.forwardRef<HTMLDivElement, CommandItemProps>(
   ({ className, onSelect, value, onMouseEnter, ...props }, _ref) => {
     const context = React.useContext(CommandContext)
     const itemRef = React.useRef<HTMLDivElement>(null)
-    
+
     // Generate a stable value if not provided
-    const itemValue = value || React.useId()
+    // IMPORTANT: useId must be called unconditionally (Rules of Hooks)
+    const generatedId = React.useId()
+    const itemValue = value || generatedId
 
     // Register this item with the Command
     React.useEffect(() => {

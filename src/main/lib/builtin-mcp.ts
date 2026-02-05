@@ -95,7 +95,7 @@ export async function injectBuiltinMcp(
   // User can override by adding a server with the same name in ~/.claude.json
   const result = {
     [BUILTIN_MCP_NAME]: builtinConfig,
-    ...(mcpServers || {}),
+    ...mcpServers,
   }
 
   console.log(`[Builtin MCP] Injected ${BUILTIN_MCP_NAME} MCP server`)

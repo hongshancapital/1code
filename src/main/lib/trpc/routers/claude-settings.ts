@@ -52,7 +52,7 @@ async function readClaudeSettings(): Promise<ClaudeSettings> {
   try {
     const content = await fs.readFile(CLAUDE_SETTINGS_PATH, "utf-8")
     return JSON.parse(content)
-  } catch (error) {
+  } catch {
     // File doesn't exist or is invalid JSON
     return {}
   }

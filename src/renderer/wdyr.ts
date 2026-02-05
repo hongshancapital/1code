@@ -1,4 +1,4 @@
-/// <reference types="@welldone-software/why-did-you-render" />
+import type {} from "@welldone-software/why-did-you-render"
 import React from "react"
 import whyDidYouRender from "@welldone-software/why-did-you-render"
 
@@ -60,6 +60,7 @@ if (import.meta.env.DEV && WDYR_ENABLED) {
         console.error("Props diff:", info.reason?.propsDifferences)
         console.error("State diff:", info.reason?.stateDifferences)
         console.error("Hook diff:", info.reason?.hookDifferences)
+        // eslint-disable-next-line no-debugger -- Intentional debugger for infinite loop detection
         debugger // Pause here - inspect call stack!
       }
     },

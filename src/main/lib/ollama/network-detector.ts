@@ -61,7 +61,7 @@ export async function checkInternetConnection(): Promise<boolean> {
         console.log(`[Network] Internet check: ONLINE (via ${endpoint})`)
         return true
       }
-    } catch (error) {
+    } catch {
       // Try next endpoint
       continue
     }

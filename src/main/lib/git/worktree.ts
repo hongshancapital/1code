@@ -249,7 +249,7 @@ export async function getGitRoot(path: string): Promise<string> {
 		const git = simpleGit(path);
 		const root = await git.revparse(["--show-toplevel"]);
 		return root.trim();
-	} catch (_error) {
+	} catch {
 		throw new Error(`Not a git repository: ${path}`);
 	}
 }
@@ -937,7 +937,8 @@ export function isValidBranchName(name: string): { valid: boolean; error?: strin
 	}
 
 	// Cannot contain control characters, space, ~, ^, :, ?, *, [, \, or DEL
-	if (/[\x00-\x1f\x7f ~^:?*\[\]\\]/.test(trimmed)) {
+	// eslint-disable-next-line no-control-regex -- Control characters are intentional for git ref validation
+	if (/[\x00-\x1f\x7f ~^:?*[\]\\]/.test(trimmed)) {
 		return { valid: false, error: "Contains invalid characters" };
 	}
 

@@ -878,21 +878,23 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   const showMessageJson = useAtomValue(showMessageJsonAtom)
   const isDev = import.meta.env.DEV
 
-  if (!userMsg) return null
-
-  // User message data
-  const rawTextContent = userMsg.parts
+  // User message data (computed before hooks that depend on it)
+  const rawTextContent = userMsg?.parts
     ?.filter((p: any) => p.type === "text")
     .map((p: any) => p.text)
     .join("\n") || ""
 
-  const imageParts = userMsg.parts?.filter((p: any) => p.type === "data-image") || []
+  const imageParts = userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
 
+  // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
   // Extract text mentions (quote/diff) to render separately above sticky block
   const { textMentions, cleanedText: textContent } = useMemo(
     () => extractTextMentions(rawTextContent),
     [rawTextContent]
   )
+
+  // Early return must be AFTER all hooks
+  if (!userMsg) return null
 
   // Show cloning when sandbox is being set up
   const shouldShowCloning =

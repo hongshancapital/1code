@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, type DependencyList } from "react"
+import { useRef, useEffect, useCallback } from "react"
 
 /**
  * useLatest - Always returns the latest value without causing re-renders

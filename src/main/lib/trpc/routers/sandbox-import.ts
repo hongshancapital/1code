@@ -496,7 +496,7 @@ export const sandboxImportRouter = router({
 						try {
 							await execAsync(`git remote add origin ${finalRemoteUrl}`, { cwd: input.targetPath });
 							console.log(`[OPEN-LOCALLY] Added origin remote: ${finalRemoteUrl}`);
-						} catch (err) {
+						} catch {
 							// Remote might already exist, try to update it
 							try {
 								await execAsync(`git remote set-url origin ${finalRemoteUrl}`, { cwd: input.targetPath });

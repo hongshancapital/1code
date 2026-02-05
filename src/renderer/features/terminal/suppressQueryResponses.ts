@@ -17,6 +17,7 @@ import type { Terminal as XTerm } from "xterm"
 export function suppressQueryResponses(xterm: XTerm): () => void {
   // Query response patterns to suppress
   // These are responses xterm.js sends when queried
+  /* eslint-disable no-control-regex -- Control characters are intentional for terminal sequences */
   const queryResponsePatterns = [
     // DA1 (Primary Device Attributes) response: CSI ? 1 ; 2 c
     /^\x1b\[\?[\d;]*c$/,
@@ -25,8 +26,9 @@ export function suppressQueryResponses(xterm: XTerm): () => void {
     // DSR (Device Status Report) response: CSI row ; col R
     /^\x1b\[\d+;\d+R$/,
     // DECRQSS (Request Selection or Setting) responses
-    /^\x1bP[\d\$r].*\x1b\\$/,
+    /^\x1bP[\d$r].*\x1b\\$/,
   ]
+  /* eslint-enable no-control-regex */
 
   /**
    * Check if data looks like a query response that should be suppressed.

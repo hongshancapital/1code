@@ -283,7 +283,7 @@ export const createGitOperationsRouter = () => {
 							// Pop stashed changes
 							try {
 								await git.stash(["pop"]);
-							} catch (stashError) {
+							} catch {
 								// Stash pop failed (likely conflict)
 								throw new Error(
 									"Pull succeeded but failed to restore your stashed changes. Your changes are saved in git stash. Run 'git stash pop' to restore them."

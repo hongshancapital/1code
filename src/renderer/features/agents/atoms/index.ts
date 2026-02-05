@@ -1,7 +1,6 @@
 import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
-import { getWindowId } from "../../../contexts/WindowContext"
 import type { FileMentionOption } from "../mentions/agents-mentions-editor"
 
 // Agent mode type - extensible for future modes like "debug"

@@ -671,7 +671,7 @@ export class CraftOAuth {
       // 404 or other error means no OAuth
       this.callbacks.onStatus('No OAuth metadata found - server may be public');
       return false;
-    } catch (error) {
+    } catch {
       this.callbacks.onStatus('Could not reach OAuth metadata - assuming public');
       return false;
     }
@@ -701,7 +701,7 @@ export class CraftOAuth {
         const client = await this.registerClient(metadata.registration_endpoint, CLIENT_NAME);
         clientId = client.client_id;
         this.callbacks.onStatus(`Registered as client: ${clientId}`);
-      } catch (error) {
+      } catch {
         // Try fallback client name (some servers have allowlists)
         this.callbacks.onStatus(`Registration as '${CLIENT_NAME}' failed, trying '${FALLBACK_CLIENT_NAME}'...`);
         try {
@@ -788,7 +788,7 @@ export class CraftOAuth {
         clientId = client.client_id;
         clientSecret = client.client_secret;
         this.callbacks.onStatus(`Registered as client: ${clientId}`);
-      } catch (error) {
+      } catch {
         // Try fallback client name (some servers have allowlists)
         this.callbacks.onStatus(`Registration as '${CLIENT_NAME}' failed, trying '${FALLBACK_CLIENT_NAME}'...`);
         const client = await this.registerClient(metadata.registration_endpoint, FALLBACK_CLIENT_NAME);

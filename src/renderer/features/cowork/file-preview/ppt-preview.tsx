@@ -50,7 +50,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
     toSlide.style.transition = 'none'
 
     // Force reflow
-    toSlide.offsetHeight
+    void toSlide.offsetHeight
 
     // Animate both slides
     requestAnimationFrame(() => {

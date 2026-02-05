@@ -598,7 +598,7 @@ export async function warmupMcpCache(): Promise<void> {
     try {
       const configContent = readFileSync(claudeJsonPath, "utf-8")
       config = JSON.parse(configContent)
-    } catch (err) {
+    } catch {
       console.log("[MCP Warmup] No ~/.claude.json found or failed to read - skipping warmup")
       return
     }
@@ -1319,16 +1319,14 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
             if (input.images && input.images.length > 0) {
               // Create message content array with images first, then text
-              const messageContent: any[] = [
-                ...input.images.map((img) => ({
-                  type: "image" as const,
-                  source: {
-                    type: "base64" as const,
-                    media_type: img.mediaType,
-                    data: img.base64Data,
-                  },
-                })),
-              ]
+              const messageContent: any[] = input.images.map((img) => ({
+                type: "image" as const,
+                source: {
+                  type: "base64" as const,
+                  media_type: img.mediaType,
+                  data: img.base64Data,
+                },
+              }))
 
               // Add text if present
               if (finalPrompt.trim()) {
@@ -1404,7 +1402,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   if (skillsSourceExists && !skillsTargetExists) {
                     await fs.symlink(skillsSource, skillsTarget, "dir")
                   }
-                } catch (symlinkErr) {
+                } catch {
                   // Ignore symlink errors (might already exist or permission issues)
                 }
 
@@ -1415,7 +1413,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   if (agentsSourceExists && !agentsTargetExists) {
                     await fs.symlink(agentsSource, agentsTarget, "dir")
                   }
-                } catch (symlinkErr) {
+                } catch {
                   // Ignore symlink errors (might already exist or permission issues)
                 }
 

@@ -1033,14 +1033,15 @@ const ChatListSection = React.memo(function ChatListSection({
   formatTime,
   justCreatedIds,
 }: ChatListSectionProps) {
-  if (chats.length === 0) return null
-
+  // IMPORTANT: Hooks must be called BEFORE any early returns (Rules of Hooks)
   // Pre-compute global indices map to avoid O(n²) findIndex in map()
   const globalIndexMap = useMemo(() => {
     const map = new Map<string, number>()
     filteredChats.forEach((c, i) => map.set(c.id, i))
     return map
   }, [filteredChats])
+
+  if (chats.length === 0) return null
 
   return (
     <>
@@ -1906,7 +1907,7 @@ export function AgentsSidebar({
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
   // Derive which chats have loading sub-chats (must be defined before renderGroupChats)
   const loadingChatIds = useMemo(
-    () => new Set([...loadingSubChats.values()]),
+    () => new Set(loadingSubChats.values()),
     [loadingSubChats],
   )
   const pendingQuestions = useAtomValue(pendingUserQuestionsAtom)

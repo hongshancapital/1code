@@ -85,7 +85,7 @@ export function CommentHighlightOverlay({
             for (let i = 0; i < rangeRects.length; i++) {
               rects.push(rangeRects[i])
             }
-          } catch (e) {
+          } catch {
             // Ignore range errors (e.g., invalid offsets)
           }
         }

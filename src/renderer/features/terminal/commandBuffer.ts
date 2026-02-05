@@ -13,9 +13,11 @@ export function sanitizeForTitle(command: string): string {
   if (!command) return ""
 
   // Remove ANSI escape sequences
+  // eslint-disable-next-line no-control-regex -- Control characters are intentional for terminal sanitization
   let cleaned = command.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
 
   // Remove other control characters
+  // eslint-disable-next-line no-control-regex -- Control characters are intentional for terminal sanitization
   cleaned = cleaned.replace(/[\x00-\x1f\x7f]/g, "")
 
   // Trim and limit length

@@ -121,10 +121,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     }
   }, [currentQuestionIndex])
 
-  if (questions.length === 0) {
-    return null
-  }
-
+  // Compute derived values (used by hooks below)
   const currentQuestion = questions[currentQuestionIndex]
   const currentOptions = currentQuestion?.options || []
   const currentCustomAnswer = customAnswers[currentQuestion?.question] || ""
@@ -149,6 +146,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     return selected.length > 0 || !!custom
   }
 
+  // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
   // Handle option click - auto-advance for single-select questions
   const handleOptionClick = useCallback(
     (questionText: string, optionLabel: string, questionIndex: number) => {
@@ -346,6 +344,11 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     questions,
     isSubmitting,
   ])
+
+  // Early return must be AFTER all hooks (Rules of Hooks)
+  if (questions.length === 0) {
+    return null
+  }
 
   return (
     <div className="border rounded-t-xl border-b-0 border-border bg-muted/30 overflow-hidden">

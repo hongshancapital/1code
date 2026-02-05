@@ -34,7 +34,7 @@ export function AgentsQuickSwitchDialog({
   // IMPORTANT: Hooks must be called BEFORE any early returns
   const loadingSubChats = useAtomValue(loadingSubChatsAtom)
   const loadingChatIds = useMemo(
-    () => new Set([...loadingSubChats.values()]),
+    () => new Set(loadingSubChats.values()),
     [loadingSubChats],
   )
 

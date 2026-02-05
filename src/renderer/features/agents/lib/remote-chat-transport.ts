@@ -186,7 +186,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
             } else {
               pendingChunks.push(chunk)
             }
-          } catch (parseErr) {
+          } catch {
             console.warn(`[RemoteTransport] Failed to parse chunk`, { subId, data: data.slice(0, 100) })
           }
         }

@@ -841,7 +841,7 @@ export function AgentsContent() {
           <AgentPreview
             chatId={selectedChatId}
             sandboxId={chatData!.sandbox_id!}
-            port={chatMeta?.sandboxConfig?.port!}
+            port={chatMeta?.sandboxConfig?.port ?? 0}
             isMobile={true}
             onClose={() => setMobileViewMode("chat")}
           />

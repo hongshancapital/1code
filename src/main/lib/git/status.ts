@@ -152,7 +152,7 @@ export const createStatusRouter = () => {
 				try {
 					assertRegisteredWorktree(input.worktreePath);
 					return true;
-				} catch (error) {
+				} catch {
 					return false;
 				}
 			}),

@@ -455,7 +455,7 @@ export function AgentsSubChatsSidebar({
 
   // Derive which sub-chats are loading (keys = subChatIds)
   const loadingChatIds = useMemo(
-    () => new Set([...loadingSubChats.keys()]),
+    () => new Set(loadingSubChats.keys()),
     [loadingSubChats],
   )
 

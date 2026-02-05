@@ -773,7 +773,7 @@ export function AgentsModelsTab() {
       // Invalidate voice availability check
       await trpcUtils.voice.isAvailable.invalidate()
       toast.success("OpenAI API key saved")
-    } catch (err) {
+    } catch {
       toast.error("Failed to save OpenAI API key")
     }
   }
@@ -785,7 +785,7 @@ export function AgentsModelsTab() {
       setOpenaiKey("")
       await trpcUtils.voice.isAvailable.invalidate()
       toast.success("OpenAI API key removed")
-    } catch (err) {
+    } catch {
       toast.error("Failed to remove OpenAI API key")
     }
   }

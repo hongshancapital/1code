@@ -184,12 +184,11 @@ export function SubChatsQuickSwitchDialog({
   selectedIndex,
   onHover,
 }: SubChatsQuickSwitchDialogProps) {
-  if (typeof window === "undefined") return null
-
+  // IMPORTANT: Hooks must be called BEFORE any early returns (Rules of Hooks)
   // Derive loading sub-chat IDs
   const loadingSubChats = useAtomValue(loadingSubChatsAtom)
   const loadingSubChatIds = useMemo(
-    () => new Set([...loadingSubChats.keys()]),
+    () => new Set(loadingSubChats.keys()),
     [loadingSubChats],
   )
 
@@ -198,6 +197,9 @@ export function SubChatsQuickSwitchDialog({
 
   // File changes per sub-chat
   const subChatFiles = useAtomValue(subChatFilesAtom)
+
+  // SSR check - must be after all hooks
+  if (typeof window === "undefined") return null
 
   return createPortal(
     <AnimatePresence>
