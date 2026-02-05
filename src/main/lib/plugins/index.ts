@@ -9,11 +9,28 @@ export interface PluginInfo {
   version: string
   description?: string
   path: string
-  source: string // e.g., "marketplace:plugin-name"
+  source: string // e.g., "marketplace:plugin-name" or "figma@claude-plugins-official"
   marketplace: string // e.g., "claude-plugins-official"
   category?: string
   homepage?: string
   tags?: string[]
+  installSource?: "marketplace" | "cli" // Track where the plugin came from
+}
+
+// CLI installed_plugins.json format (version 2)
+interface InstalledPluginsJson {
+  version: number
+  plugins: Record<
+    string, // e.g., "figma@claude-plugins-official"
+    Array<{
+      scope: string
+      installPath: string
+      version: string
+      installedAt: string
+      lastUpdated: string
+      gitCommitSha?: string
+    }>
+  >
 }
 
 interface MarketplacePlugin {
@@ -50,24 +67,16 @@ export function clearPluginCache() {
 }
 
 /**
- * Discover all installed plugins from ~/.claude/plugins/marketplaces/
- * Returns array of plugin info with paths to their component directories
- * Results are cached for 30 seconds to avoid repeated filesystem scans
+ * Discover plugins from ~/.claude/plugins/marketplaces/
+ * Internal function - use discoverInstalledPlugins() instead
  */
-export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
-  // Return cached result if still valid
-  if (pluginCache && Date.now() - pluginCache.timestamp < CACHE_TTL_MS) {
-    return pluginCache.plugins
-  }
-
-  // Use Map to deduplicate by source (marketplace:plugin-name)
+async function discoverMarketplacePlugins(): Promise<PluginInfo[]> {
   const pluginMap = new Map<string, PluginInfo>()
   const marketplacesDir = path.join(os.homedir(), ".claude", "plugins", "marketplaces")
 
   try {
     await fs.access(marketplacesDir)
   } catch {
-    pluginCache = { plugins: [], timestamp: Date.now() }
     return []
   }
 
@@ -75,7 +84,6 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
   try {
     marketplaces = await fs.readdir(marketplacesDir, { withFileTypes: true })
   } catch {
-    pluginCache = { plugins: [], timestamp: Date.now() }
     return []
   }
 
@@ -100,17 +108,14 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
       }
 
       for (const plugin of marketplaceJson.plugins) {
-        // Validate plugin.source exists
         if (!plugin.source) continue
 
-        // source can be a string path or an object { source: "url", url: "..." }
         const sourcePath = typeof plugin.source === "string" ? plugin.source : null
         if (!sourcePath) continue
 
         const pluginPath = path.resolve(marketplacePath, sourcePath)
         const source = `${marketplaceJson.name}:${plugin.name}`
 
-        // Skip if already added (deduplicate)
         if (pluginMap.has(source)) continue
 
         try {
@@ -125,14 +130,140 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
             category: plugin.category,
             homepage: plugin.homepage,
             tags: plugin.tags,
+            installSource: "marketplace",
           })
         } catch {
           // Plugin directory not found, skip
         }
       }
     } catch {
-      // No marketplace.json, skip silently (expected for non-plugin directories)
+      // No marketplace.json, skip silently
     }
+  }
+
+  return Array.from(pluginMap.values())
+}
+
+/**
+ * Discover CLI-installed plugins from ~/.claude/plugins/installed_plugins.json
+ * CLI uses format: { version: 2, plugins: { "name@marketplace": [{ installPath, ... }] } }
+ */
+async function discoverCliInstalledPlugins(): Promise<PluginInfo[]> {
+  const installedPluginsPath = path.join(os.homedir(), ".claude", "plugins", "installed_plugins.json")
+
+  try {
+    const content = await fs.readFile(installedPluginsPath, "utf-8")
+    const data: InstalledPluginsJson = JSON.parse(content)
+
+    if (data.version !== 2 || !data.plugins) {
+      console.log("[Plugins] installed_plugins.json: unsupported version or missing plugins")
+      return []
+    }
+
+    const plugins: PluginInfo[] = []
+
+    for (const [pluginId, installations] of Object.entries(data.plugins)) {
+      // pluginId format: "figma@claude-plugins-official"
+      const atIndex = pluginId.lastIndexOf("@")
+      if (atIndex === -1) {
+        console.log(`[Plugins] Skipping invalid plugin ID (no @): ${pluginId}`)
+        continue
+      }
+
+      const pluginName = pluginId.slice(0, atIndex)
+      const marketplace = pluginId.slice(atIndex + 1)
+
+      // Sort by lastUpdated to get the most recent installation
+      const sorted = [...installations].sort(
+        (a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+      )
+
+      for (const install of sorted) {
+        if (!install.installPath) continue
+
+        try {
+          await fs.access(install.installPath)
+
+          // Try to read plugin metadata for description
+          let description: string | undefined
+          try {
+            const pluginJsonPath = path.join(install.installPath, ".claude-plugin", "plugin.json")
+            const pluginJson = JSON.parse(await fs.readFile(pluginJsonPath, "utf-8"))
+            description = pluginJson.description
+          } catch {
+            // Optional, ignore
+          }
+
+          // Use pluginId as source for consistency with enabledPlugins format
+          plugins.push({
+            name: pluginName,
+            version: install.version || "unknown",
+            description,
+            path: install.installPath,
+            source: pluginId, // "figma@claude-plugins-official"
+            marketplace,
+            installSource: "cli",
+          })
+
+          console.log(`[Plugins] Found CLI plugin: ${pluginId} at ${install.installPath}`)
+          break // Only take the most recent installation
+        } catch {
+          // Directory doesn't exist, try next installation
+        }
+      }
+    }
+
+    return plugins
+  } catch (error) {
+    // File doesn't exist or parse error - normal case
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.log("[Plugins] Error reading installed_plugins.json:", error)
+    }
+    return []
+  }
+}
+
+/**
+ * Discover all installed plugins from both sources:
+ * 1. ~/.claude/plugins/marketplaces/ (marketplace.json format)
+ * 2. ~/.claude/plugins/installed_plugins.json (CLI install format)
+ *
+ * Results are cached for 30 seconds to avoid repeated filesystem scans.
+ * CLI-installed plugins take priority over marketplace plugins.
+ */
+export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
+  // Return cached result if still valid
+  if (pluginCache && Date.now() - pluginCache.timestamp < CACHE_TTL_MS) {
+    return pluginCache.plugins
+  }
+
+  // Discover from both sources in parallel
+  const [marketplacePlugins, cliPlugins] = await Promise.all([
+    discoverMarketplacePlugins(),
+    discoverCliInstalledPlugins(),
+  ])
+
+  console.log(
+    `[Plugins] Found ${marketplacePlugins.length} marketplace plugins, ${cliPlugins.length} CLI plugins`
+  )
+
+  // Merge with CLI plugins taking priority (they're usually more up-to-date)
+  // Need to normalize source format for comparison:
+  // - Marketplace uses "marketplace:plugin" format
+  // - CLI uses "plugin@marketplace" format
+  const pluginMap = new Map<string, PluginInfo>()
+
+  // Add marketplace plugins first
+  for (const plugin of marketplacePlugins) {
+    // Normalize to "plugin@marketplace" format for consistent keying
+    const normalizedKey = `${plugin.name}@${plugin.marketplace}`
+    pluginMap.set(normalizedKey, plugin)
+  }
+
+  // CLI plugins override marketplace plugins
+  for (const plugin of cliPlugins) {
+    // CLI already uses "plugin@marketplace" format
+    pluginMap.set(plugin.source, plugin)
   }
 
   const plugins = Array.from(pluginMap.values())

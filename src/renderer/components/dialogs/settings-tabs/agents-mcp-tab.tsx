@@ -60,11 +60,22 @@ function getConnectionInfo(config: Record<string, unknown>) {
 }
 
 // --- Detail Panel ---
-function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () => void }) {
+function McpServerDetail({
+  server,
+  groupName,
+  onAuth,
+  onRetry,
+}: {
+  server: McpServer
+  groupName: string
+  onAuth?: () => void
+  onRetry?: () => void
+}) {
   const { t } = useTranslation('settings')
   const { tools, needsAuth } = server
   const hasTools = tools.length > 0
   const isConnected = server.status === "connected"
+  const isFailed = server.status === "failed"
   const connection = getConnectionInfo(server.config)
 
   return (
@@ -81,6 +92,13 @@ function McpServerDetail({ server, onAuth }: { server: McpServer; onAuth?: () =>
               {server.serverInfo?.version && ` \u00B7 v${server.serverInfo.version}`}
             </p>
           </div>
+          {/* Retry button for failed connections */}
+          {isFailed && onRetry && (
+            <Button variant="secondary" size="sm" className="h-7 px-3 text-xs" onClick={onRetry}>
+              {t('common:actions.retry')}
+            </Button>
+          )}
+          {/* Auth button for servers needing authentication */}
           {needsAuth && onAuth && !server.requiresLogin && (
             <Button variant="secondary" size="sm" className="h-7 px-3 text-xs" onClick={onAuth}>
               {isConnected ? t('mcp.detail.reconnect') : t('mcp.detail.authenticate')}
@@ -497,6 +515,25 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
     }
   }
 
+  const retryMcpMutation = trpc.claude.retryMcpServer.useMutation()
+
+  const handleRetry = async (serverName: string, groupName: string) => {
+    try {
+      toast.loading(`Retrying ${serverName}...`, { id: `retry-${serverName}` })
+      const result = await retryMcpMutation.mutateAsync({ serverName, groupName })
+
+      if (result.success) {
+        toast.success(`${serverName} connected (${result.tools.length} tools)`, { id: `retry-${serverName}` })
+        await handleRefresh(true)
+      } else {
+        toast.error(result.error || "Connection failed", { id: `retry-${serverName}` })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Retry failed"
+      toast.error(message, { id: `retry-${serverName}` })
+    }
+  }
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left sidebar - server list */}
@@ -637,7 +674,9 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
         ) : selectedServer ? (
           <McpServerDetail
             server={selectedServer.server}
+            groupName={selectedServer.group.groupName}
             onAuth={() => handleAuth(selectedServer.server.name, selectedServer.group.projectPath)}
+            onRetry={() => handleRetry(selectedServer.server.name, selectedServer.group.groupName)}
           />
         ) : isLoadingConfig ? (
           <div className="flex items-center justify-center h-full">

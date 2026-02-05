@@ -13,6 +13,7 @@ import {
   checkOfflineFallback,
   createTransformer,
   getBundledClaudeBinaryPath,
+  getClaudeQuery,
   logClaudeEnv,
   logRawClaudeMessage,
   type UIMessageChunk,
@@ -26,7 +27,7 @@ import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
-import { discoverPluginMcpServers } from "../../plugins"
+import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
@@ -437,17 +438,6 @@ function getClaudeCodeToken(): string | null {
     console.error("[claude] Error getting Claude Code token:", error)
     return null
   }
-}
-
-// Dynamic import for ESM module - CACHED to avoid re-importing on every message
-let cachedClaudeQuery: typeof import("@anthropic-ai/claude-agent-sdk").query | null = null
-const getClaudeQuery = async () => {
-  if (cachedClaudeQuery) {
-    return cachedClaudeQuery
-  }
-  const sdk = await import("@anthropic-ai/claude-agent-sdk")
-  cachedClaudeQuery = sdk.query
-  return cachedClaudeQuery
 }
 
 // Active sessions for cancellation (onAbort handles stash + abort + restore)
@@ -1063,6 +1053,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             personalPreferences: z.string().max(1000).optional(),
           })
           .optional(), // User personalization for AI recognition
+        skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
       }),
     )
     .subscription(({ input }) => {
@@ -1806,11 +1797,44 @@ ${prompt}
               console.warn("[claude] Failed to get runtime environment:", e)
             }
 
+            // Build software introduction section
+            const appPath = app.getAppPath()
+            const exePath = app.getPath("exe")
+            const appVersion = app.getVersion()
+            const softwareIntroSection = `\n\n# About This Software
+You are running **Hóng** — an internal Cowork AI tool for HongShan (HSG), built on Claude Code Agent.
+
+- **Version**: v${appVersion}
+- **App Path**: ${appPath}
+- **Executable**: ${exePath}
+
+Hóng is a local-first desktop application for AI-powered code assistance and collaboration.`
+
+            // Build skill awareness section (beta feature, default enabled)
+            // This prompts the AI to consider available skills before planning/executing
+            const skillAwarenessEnabled = input.skillAwarenessEnabled !== false // Default true
+            const skillAwarenessSection = skillAwarenessEnabled
+              ? `\n\n# Skill Awareness (Beta)
+Before you start planning or executing a task, check if there are any relevant skills available that could help. Skills are specialized capabilities that provide domain-specific knowledge and workflows.
+
+**When to check for skills:**
+- When starting a new task or subtask
+- When the task involves specific file formats (PDF, DOCX, spreadsheets, etc.)
+- When the task requires specialized domain knowledge
+
+**How to use skills:**
+- Review the available skills listed in your system prompt under "Available Skills"
+- If a skill matches your current task, invoke it using the Skill tool before proceeding
+- Skills can provide better results than generic approaches for their specialized domains`
+              : ""
+
             // System prompt config - use preset for both Claude and Ollama
             // Append user profile, runtime env, and AGENTS.md content to the system prompt
             const appendParts = [
+              softwareIntroSection,
               userProfileSection,
               runtimeSection,
+              skillAwarenessSection,
               agentsMdContent
                 ? `\n\n# AGENTS.md\nThe following are the project's AGENTS.md instructions:\n\n${agentsMdContent}`
                 : "",
@@ -2878,6 +2902,112 @@ ${prompt}
    * Also populates the workingMcpServers cache
    */
   getAllMcpConfig: publicProcedure.query(getAllMcpConfigHandler),
+
+  /**
+   * Retry connection to a specific MCP server
+   * Returns updated status and tools for that server
+   */
+  retryMcpServer: publicProcedure
+    .input(
+      z.object({
+        serverName: z.string(),
+        groupName: z.string(), // "Global", project name, or "Plugin: xxx"
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { serverName, groupName } = input
+      console.log(`[MCP] Retrying connection to ${serverName} in group ${groupName}`)
+
+      try {
+        // Re-fetch all config to find this server
+        const config = await readClaudeConfig()
+
+        let serverConfig: McpServerConfig | undefined
+        let scope: string | null = null
+
+        // Find the server in the appropriate group
+        if (groupName === "Global") {
+          serverConfig = config.mcpServers?.[serverName]
+          scope = null
+        } else if (groupName.startsWith("Plugin:")) {
+          // Plugin MCP servers - need to look in plugin configs
+          const plugins = await discoverInstalledPlugins()
+          const pluginConfigs = await discoverPluginMcpServers()
+
+          for (const pluginMcp of pluginConfigs) {
+            if (pluginMcp.mcpServers[serverName]) {
+              serverConfig = pluginMcp.mcpServers[serverName]
+              scope = `plugin:${pluginMcp.pluginSource}`
+              break
+            }
+          }
+        } else {
+          // Project-specific server
+          // groupName is the project path or name
+          // For now, check if it's in global (most common case)
+          serverConfig = config.mcpServers?.[serverName]
+          scope = null
+        }
+
+        if (!serverConfig) {
+          return {
+            success: false,
+            error: `Server ${serverName} not found in ${groupName}`,
+            status: "failed" as const,
+            tools: [],
+          }
+        }
+
+        // Try to connect and fetch tools
+        const tools = await fetchToolsForServer(serverConfig)
+
+        // Update cache
+        const cacheKey = mcpCacheKey(scope, serverName)
+
+        if (tools.length > 0) {
+          workingMcpServers.set(cacheKey, true)
+          console.log(`[MCP] Successfully connected to ${serverName}: ${tools.length} tools`)
+          return {
+            success: true,
+            status: "connected" as const,
+            tools,
+          }
+        }
+
+        // No tools - check if needs auth
+        workingMcpServers.set(cacheKey, false)
+        let needsAuth = false
+
+        if (serverConfig.url) {
+          try {
+            const baseUrl = getMcpBaseUrl(serverConfig.url)
+            const metadata = await fetchOAuthMetadata(baseUrl)
+            needsAuth = !!metadata && !!metadata.authorization_endpoint
+          } catch {
+            // If probe fails, assume no auth needed
+          }
+        }
+
+        const status = needsAuth ? "needs-auth" : "failed"
+        console.log(`[MCP] Failed to connect to ${serverName}: status=${status}`)
+
+        return {
+          success: false,
+          status,
+          tools: [],
+          needsAuth,
+          error: needsAuth ? "Authentication required" : "Connection failed",
+        }
+      } catch (error) {
+        console.error(`[MCP] Error retrying ${serverName}:`, error)
+        return {
+          success: false,
+          status: "failed" as const,
+          tools: [],
+          error: error instanceof Error ? error.message : "Unknown error",
+        }
+      }
+    }),
 
   /**
    * Cancel active session

@@ -788,17 +788,25 @@ export class CraftOAuth {
         clientId = client.client_id;
         clientSecret = client.client_secret;
         this.callbacks.onStatus(`Registered as client: ${clientId}`);
-      } catch {
+      } catch (error) {
         // Try fallback client name (some servers have allowlists)
-        this.callbacks.onStatus(`Registration as '${CLIENT_NAME}' failed, trying '${FALLBACK_CLIENT_NAME}'...`);
-        const client = await this.registerClient(metadata.registration_endpoint, FALLBACK_CLIENT_NAME);
-        clientId = client.client_id;
-        clientSecret = client.client_secret;
-        this.callbacks.onStatus(`Registered as client: ${clientId}`);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        this.callbacks.onStatus(`Registration as '${CLIENT_NAME}' failed (${errorMsg}), trying '${FALLBACK_CLIENT_NAME}'...`);
+        try {
+          const client = await this.registerClient(metadata.registration_endpoint, FALLBACK_CLIENT_NAME);
+          clientId = client.client_id;
+          clientSecret = client.client_secret;
+          this.callbacks.onStatus(`Registered as client: ${clientId}`);
+        } catch (fallbackError) {
+          const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+          this.callbacks.onError(`Both client registrations failed. Last error: ${fallbackMsg}`);
+          throw fallbackError;
+        }
       }
     } else {
       // No registration endpoint - use default client ID
       clientId = 'hong';
+      this.callbacks.onStatus(`No registration endpoint, using default client ID: ${clientId}`);
     }
 
     const pkce = generatePKCE();
