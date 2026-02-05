@@ -699,6 +699,8 @@
     "mcpServers": "MCP Servers",
     "plugins": "Plugins",
     "debug": "Debug",
-    "runtime": "Runtime"
+    "runtime": "Runtime",
+    "editor": "Editor",
+    "commands": "Commands"
   }
 }

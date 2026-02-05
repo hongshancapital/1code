@@ -8,3 +8,7 @@ allowed_tools:
   - trpc.automations.trigger
   - trpc.automations.listExecutions
   - trpc.automations.getInboxChats
+
+# Hong-specific interface configuration
+interface:
+  hidden: true  # This skill is hidden from UI and cannot be enabled (dev-only feature)

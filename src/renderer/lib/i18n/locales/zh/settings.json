@@ -699,6 +699,8 @@
     "mcpServers": "MCP 服务器",
     "plugins": "插件",
     "debug": "调试",
-    "runtime": "运行时"
+    "runtime": "运行时",
+    "editor": "编辑器",
+    "commands": "命令"
   }
 }

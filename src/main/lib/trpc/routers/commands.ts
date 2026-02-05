@@ -72,7 +72,9 @@ async function scanCommandsDirectory(
     // Check if directory exists
     try {
       await fs.access(dir)
+      console.log("[commands] Directory exists:", dir)
     } catch {
+      console.log("[commands] Directory does not exist:", dir)
       return commands
     }
 
@@ -103,6 +105,7 @@ async function scanCommandsDirectory(
           const parsed = parseCommandMd(content)
           const commandName = parsed.name || fallbackName
 
+          console.log("[commands] Found command:", commandName, "at", fullPath)
           commands.push({
             name: commandName,
             displayName: commandName, // Will be overridden for plugin commands
@@ -139,6 +142,7 @@ export const commandsRouter = router({
     )
     .query(async ({ input }) => {
       const userCommandsDir = path.join(os.homedir(), ".claude", "commands")
+      console.log("[commands.list] Scanning user commands dir:", userCommandsDir)
       const userCommandsPromise = scanCommandsDirectory(userCommandsDir, "user")
 
       let projectCommandsPromise = Promise.resolve<FileCommand[]>([])
@@ -190,7 +194,9 @@ export const commandsRouter = router({
       const pluginCommands = pluginCommandsArrays.flat()
 
       // Project commands first (more specific), then user commands, then plugin commands
-      return [...projectCommands, ...userCommands, ...pluginCommands]
+      const result = [...projectCommands, ...userCommands, ...pluginCommands]
+      console.log("[commands.list] Found commands:", result.length, result.map(c => c.name))
+      return result
     }),
 
   /**
