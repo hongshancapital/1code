@@ -11,7 +11,7 @@ app.commandLine.appendSwitch("js-flags", "--max-old-space-size=8192")
 validateEnv()
 import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { join } from "path"
-import { startAuthCallbackServers, handleAuthCode, type AuthCallbackHandlers } from "./lib/auth-callback-server"
+import { startAuthCallbackServers, startOktaServer, stopOktaServer, handleAuthCode, type AuthCallbackHandlers } from "./lib/auth-callback-server"
 import { Readable } from "stream"
 import { AuthManager, initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
 import {
@@ -767,6 +767,9 @@ if (gotTheLock) {
     // Initialize auth manager (uses singleton from auth-manager module)
     authManager = initAuthManager(!!process.env.ELECTRON_RENDERER_URL)
     console.log("[App] Auth manager initialized")
+
+    // Set auth callback handlers to AuthManager for on-demand Okta server startup
+    authManager.setAuthCallbackHandlers(authCallbackHandlers)
 
     // Initialize analytics after auth manager so we can identify user
     initAnalytics()

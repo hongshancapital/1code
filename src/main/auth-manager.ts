@@ -7,6 +7,7 @@ import {
   getProvider,
   getEffectiveAuthProvider,
 } from "./lib/auth"
+import { startOktaServer, stopOktaServer, type AuthCallbackHandlers } from "./lib/auth-callback-server"
 
 // API base URL from validated environment
 function getApiBaseUrl(): string {
@@ -171,6 +172,9 @@ export class AuthManager {
   // PKCE state for ongoing auth flow
   private pkceState: PkceState | null = null
 
+  // Auth callback handlers (set from main process)
+  private authCallbackHandlers?: AuthCallbackHandlers
+
   constructor(_isDev: boolean = false) {
     this.store = new AuthStore(app.getPath("userData"))
 
@@ -182,6 +186,13 @@ export class AuthManager {
     if (this.store.isAuthenticated()) {
       this.scheduleRefresh()
     }
+  }
+
+  /**
+   * Set auth callback handlers (from main process)
+   */
+  setAuthCallbackHandlers(handlers: AuthCallbackHandlers): void {
+    this.authCallbackHandlers = handlers
   }
 
   /**
@@ -202,12 +213,19 @@ export class AuthManager {
       const provider = getCurrentProvider()
       console.log(`[Auth] Starting ${provider.name} PKCE flow...`)
 
+      // Start Okta callback server before auth flow (for Okta/Azure providers)
+      if ((provider.name === "okta" || provider.name === "azure") && this.authCallbackHandlers) {
+        startOktaServer(this.authCallbackHandlers)
+      }
+
       // Start auth flow and store PKCE state
       this.pkceState = provider.startAuthFlow(_mainWindow)
 
       console.log(`[Auth] Auth flow started with provider: ${provider.name}`)
     } catch (error) {
       console.error("[Auth] Failed to start auth flow:", error)
+      // Stop Okta server on error
+      stopOktaServer()
       throw error
     }
   }
