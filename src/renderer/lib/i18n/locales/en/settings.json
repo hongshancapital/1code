@@ -162,7 +162,7 @@
       "contributions": "contributions",
       "requests": "requests",
       "tokens": "tokens",
-      "viewDetails": "View Details",
+      "viewDetails": "View Usage",
       "loading": "Loading usage statistics..."
     },
     "voice": {
@@ -228,6 +228,33 @@
       "creating": "Creating...",
       "save": "Save",
       "saving": "Saving..."
+    }
+  },
+  "commands": {
+    "title": "Commands",
+    "searchPlaceholder": "Search commands...",
+    "loading": "Loading...",
+    "emptyState": "No commands found",
+    "emptyHint": "Commands are defined in ~/.claude/commands/ or plugin directories",
+    "noResults": "No results found",
+    "selectToView": "Select a command to view details",
+    "noCommandsFound": "No commands available",
+    "sections": {
+      "user": "User",
+      "project": "Project"
+    },
+    "badges": {
+      "user": "USER",
+      "project": "PROJECT",
+      "plugin": "PLUGIN"
+    },
+    "detail": {
+      "usage": "Usage",
+      "source": "Source",
+      "instructions": "Instructions",
+      "noInstructions": "No instructions",
+      "namespacedName": "Namespaced Name",
+      "namespacedHint": "Use the namespaced name to avoid conflicts with other commands"
     }
   },
   "mcp": {
@@ -362,12 +389,16 @@
     },
     "automations": {
       "title": "Automations & Inbox",
-      "description": "Automate workflows with GitHub and Linear triggers, and manage inbox notifications.",
-      "requiresPaid": "Requires a paid plan. Upgrade to enable automations and inbox."
+      "description": "Local automation that proactively triggers AI to help you complete tasks. (Dev only)",
+      "devOnly": "This feature is under development and only available in dev mode."
     },
     "tasks": {
       "title": "Agent Tasks",
       "description": "Enable Task instead of legacy Todo system."
+    },
+    "skillAwareness": {
+      "title": "Skill Awareness",
+      "description": "Prompt AI to check for relevant skills before planning or executing tasks."
     },
     "offlineSettings": {
       "title": "Offline Mode Settings",

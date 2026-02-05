@@ -7,12 +7,21 @@ import matter from "gray-matter"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
 import { getEnabledPlugins } from "./claude-settings"
 
+/** Format plugin name: "review_by_blair" → "Review By Blair" */
+function formatPluginName(name: string): string {
+  return name
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export interface FileCommand {
-  name: string
+  name: string // Command name (may include namespace prefix)
+  displayName: string // Original name without namespace prefix (for display)
   description: string
   argumentHint?: string
   source: "user" | "project" | "plugin"
-  pluginName?: string
+  pluginName?: string // Plugin source ID (e.g., "review_by_blair@hs-dev-marketplace")
+  pluginDisplayName?: string // Human-readable plugin name (e.g., "Review By Blair")
   path: string
 }
 
@@ -96,6 +105,7 @@ async function scanCommandsDirectory(
 
           commands.push({
             name: commandName,
+            displayName: commandName, // Will be overridden for plugin commands
             description: parsed.description || "",
             argumentHint: parsed.argumentHint,
             source,
@@ -156,7 +166,15 @@ export const commandsRouter = router({
         const paths = getPluginComponentPaths(plugin)
         try {
           const commands = await scanCommandsDirectory(paths.commands, "plugin")
-          return commands.map((cmd) => ({ ...cmd, pluginName: plugin.source }))
+          // Add namespace prefix for plugin commands: "pluginName:commandName"
+          // This helps distinguish commands with the same name from different plugins
+          return commands.map((cmd) => ({
+            ...cmd,
+            displayName: cmd.name, // Keep original name for display
+            name: `${plugin.name}:${cmd.name}`, // Namespaced: "review_by_blair:review"
+            pluginName: plugin.source, // "review_by_blair@hs-dev-marketplace"
+            pluginDisplayName: formatPluginName(plugin.name), // "Review By Blair"
+          }))
         } catch {
           return []
         }

@@ -192,6 +192,7 @@ export type SettingsTab =
   | "runtime"
   | "editor"
   | "skills"
+  | "commands"
   | "agents"
   | "mcp"
   | "plugins"
@@ -513,6 +514,15 @@ export const enableTasksAtom = atomWithStorage<boolean>(
 export const betaUpdatesEnabledAtom = atomWithStorage<boolean>(
   "preferences:beta-updates-enabled",
   false, // Default OFF - only stable releases
+  undefined,
+  { getOnInit: true },
+)
+
+// Beta: Skill Awareness (Prompt Injection)
+// When enabled (default), injects a prompt reminder for AI to consider available skills before planning/executing
+export const skillAwarenessEnabledAtom = atomWithStorage<boolean>(
+  "preferences:skill-awareness-enabled",
+  true, // Default ON
   undefined,
   { getOnInit: true },
 )

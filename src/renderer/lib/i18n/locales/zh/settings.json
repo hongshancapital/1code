@@ -230,6 +230,33 @@
       "saving": "保存中..."
     }
   },
+  "commands": {
+    "title": "命令",
+    "searchPlaceholder": "搜索命令...",
+    "loading": "加载中...",
+    "emptyState": "没有找到命令",
+    "emptyHint": "命令定义在 ~/.claude/commands/ 或插件目录中",
+    "noResults": "未找到结果",
+    "selectToView": "选择一个命令查看详情",
+    "noCommandsFound": "没有可用命令",
+    "sections": {
+      "user": "用户",
+      "project": "项目"
+    },
+    "badges": {
+      "user": "用户",
+      "project": "项目",
+      "plugin": "插件"
+    },
+    "detail": {
+      "usage": "用法",
+      "source": "来源",
+      "instructions": "指令",
+      "noInstructions": "没有指令",
+      "namespacedName": "命名空间名称",
+      "namespacedHint": "使用命名空间名称以避免与其他命令冲突"
+    }
+  },
   "mcp": {
     "title": "MCP 服务器",
     "searchPlaceholder": "搜索服务器...",
@@ -362,12 +389,16 @@
     },
     "automations": {
       "title": "自动化和收件箱",
-      "description": "使用 GitHub 和 Linear 触发器自动化工作流程，并管理收件箱通知。",
-      "requiresPaid": "需要付费计划。升级以启用自动化和收件箱。"
+      "description": "本地自动化功能，主动触发 AI 帮助你完成任务。（仅开发模式）",
+      "devOnly": "此功能正在开发中，仅在开发模式下可用。"
     },
     "tasks": {
       "title": "Agent 任务",
       "description": "启用任务系统替代旧版待办事项系统。"
+    },
+    "skillAwareness": {
+      "title": "技能感知",
+      "description": "在规划或执行任务前提醒 AI 检查可用的技能。"
     },
     "offlineSettings": {
       "title": "离线模式设置",

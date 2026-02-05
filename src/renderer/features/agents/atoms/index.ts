@@ -1027,6 +1027,7 @@ export const inboxMobileViewModeAtom = atom<InboxMobileViewMode>("list")
 // Non-persisted — resets to default on re-render
 export const settingsMcpSidebarWidthAtom = atom(240)
 export const settingsSkillsSidebarWidthAtom = atom(240)
+export const settingsCommandsSidebarWidthAtom = atom(240)
 export const settingsAgentsSidebarWidthAtom = atom(240)
 export const settingsPluginsSidebarWidthAtom = atom(240)
 export const settingsKeyboardSidebarWidthAtom = atom(240)

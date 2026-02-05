@@ -9,7 +9,7 @@ import {
 } from "../../icons"
 import { agentsSettingsDialogActiveTabAtom, devToolsUnlockedAtom, type SettingsTab } from "../../lib/atoms"
 import { cn } from "../../lib/utils"
-import { BrainFilledIcon, BugFilledIcon, CustomAgentIconFilled, FlaskFilledIcon, FolderFilledIcon, KeyboardFilledIcon, OriginalMCPIcon, SkillIconFilled } from "../ui/icons"
+import { BrainFilledIcon, BugFilledIcon, CustomAgentIconFilled, FlaskFilledIcon, FolderFilledIcon, KeyboardFilledIcon, OriginalMCPIcon, SkillIconFilled, TerminalFilledIcon } from "../ui/icons"
 import { AgentsAppearanceTab } from "./settings-tabs/agents-appearance-tab"
 import { AgentsBetaTab } from "./settings-tabs/agents-beta-tab"
 import { AgentsCustomAgentsTab } from "./settings-tabs/agents-custom-agents-tab"
@@ -21,6 +21,7 @@ import { AgentsNotificationsTab } from "./settings-tabs/agents-notifications-tab
 import { AgentsPreferencesTab } from "./settings-tabs/agents-preferences-tab"
 import { AgentsProjectsTab } from "./settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "./settings-tabs/agents-skills-tab"
+import { AgentsCommandsTab } from "./settings-tabs/agents-commands-tab"
 import { AgentsEditorTab } from "./settings-tabs/agents-editor-tab"
 import { AgentsProfileTab } from "./settings-tabs/agents-profile-tab"
 import { GenericEditorIcon } from "../../icons/editor-icons"
@@ -100,7 +101,7 @@ const MAIN_TABS = [
 ]
 
 // Tabs that use a two-panel (sidebar + content) layout and need overflow-hidden on the wrapper
-const TWO_PANEL_TABS: SettingsTab[] = ["keyboard", "mcp", "skills", "agents", "projects"]
+const TWO_PANEL_TABS: SettingsTab[] = ["keyboard", "mcp", "skills", "commands", "agents", "projects"]
 
 // Advanced/experimental tabs (base - without Debug)
 const ADVANCED_TABS_BASE = [
@@ -115,6 +116,12 @@ const ADVANCED_TABS_BASE = [
     label: "Skills",
     icon: SkillIconFilled,
     description: "Custom Claude skills",
+  },
+  {
+    id: "commands" as SettingsTab,
+    label: "Commands",
+    icon: TerminalFilledIcon,
+    description: "Slash commands for quick actions",
   },
   {
     id: "agents" as SettingsTab,
@@ -326,6 +333,8 @@ export function AgentsSettingsDialog({
         return <AgentsEditorTab />
       case "skills":
         return <AgentsSkillsTab />
+      case "commands":
+        return <AgentsCommandsTab />
       case "agents":
         return <AgentsCustomAgentsTab />
       case "mcp":
