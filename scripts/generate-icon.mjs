@@ -133,17 +133,75 @@ async function generateIconSize(sourcePath, size, scale, outputDir) {
 }
 
 /**
- * Generate Windows .ico file
+ * Trim transparent borders from image
+ * Essential for Windows icons to prevent white border artifacts
+ */
+async function trimTransparentBorders(sourcePath) {
+  const image = sharp(sourcePath);
+  const { width, height } = await image.metadata();
+
+  console.log(`   • Original size: ${width}x${height}`);
+
+  // Get raw pixel data
+  const { data } = await image
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // Find boundaries of non-transparent pixels
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha > 10) { // threshold for "visible" pixels
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  // Add small padding
+  const padding = 2;
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(width - 1, maxX + padding);
+  maxY = Math.min(height - 1, maxY + padding);
+
+  const cropWidth = maxX - minX + 1;
+  const cropHeight = maxY - minY + 1;
+
+  console.log(`   • Trimmed size: ${cropWidth}x${cropHeight} (removed ${width - cropWidth}px borders)`);
+
+  // Crop to content bounds
+  return sharp(sourcePath)
+    .extract({
+      left: minX,
+      top: minY,
+      width: cropWidth,
+      height: cropHeight
+    })
+    .toBuffer();
+}
+
+/**
+ * Generate Windows .ico file with transparent borders trimmed
  * ICO format: header + directory entries + image data (PNG format)
  */
 async function generateIco(sourcePath, outputPath) {
   console.log('\n🪟 Generating Windows ICO file...');
+  console.log('   Trimming transparent borders...');
+
+  // Trim transparent borders first
+  const trimmedBuffer = await trimTransparentBorders(sourcePath);
 
   const images = [];
 
-  // Generate PNG buffers for each size (from source, not rounded)
+  // Generate PNG buffers for each size from trimmed image
   for (const size of ICO_SIZES) {
-    const buffer = await sharp(sourcePath)
+    const buffer = await sharp(trimmedBuffer)
       .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
@@ -192,7 +250,7 @@ async function generateIco(sourcePath, outputPath) {
   const icoBuffer = Buffer.concat(buffers);
   writeFileSync(outputPath, icoBuffer);
 
-  console.log(`   ✓ Created ${outputPath.split('/').pop()}`);
+  console.log(`   ✓ Created ${outputPath.split('/').pop()} (with trimmed borders)`);
 }
 
 async function main() {

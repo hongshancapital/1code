@@ -45,6 +45,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const placementRef = useRef<"above" | "below" | null>(null)
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText)
+  const [isLoadingContent, setIsLoadingContent] = useState(false)
 
   // Debounce search text (300ms to match file mention)
   useEffect(() => {
@@ -215,7 +216,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
-          if (options[selectedIndex]) {
+          if (options[selectedIndex] && !isLoadingContent) {
             handleSelect(options[selectedIndex])
           }
           break
@@ -229,7 +230,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
-          if (options[selectedIndex]) {
+          if (options[selectedIndex] && !isLoadingContent) {
             handleSelect(options[selectedIndex])
           }
           break
@@ -239,7 +240,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
     window.addEventListener("keydown", handleKeyDown, { capture: true })
     return () =>
       window.removeEventListener("keydown", handleKeyDown, { capture: true })
-  }, [isOpen, options, selectedIndex, handleSelect, onClose])
+  }, [isOpen, options, selectedIndex, handleSelect, onClose, isLoadingContent])
 
   // Auto-scroll selected item into view
   useEffect(() => {
@@ -355,6 +356,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
           </div>
           {options.map((option, index) => {
             const isSelected = selectedIndex === index
+            const isCurrentlyLoading = isLoadingContent && isSelected
             return (
               <div
                 key={option.id}
@@ -362,19 +364,29 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
                 onMouseDown={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  handleSelect(option)
+                  if (!isLoadingContent) {
+                    handleSelect(option)
+                  }
                 }}
-                onMouseEnter={() => setSelectedIndex(index)}
+                onMouseEnter={() => {
+                  if (!isLoadingContent) {
+                    setSelectedIndex(index)
+                  }
+                }}
                 className={cn(
                   "group inline-flex w-[calc(100%-8px)] mx-1 items-center whitespace-nowrap outline-hidden",
                   "h-7 px-1.5 justify-start text-xs rounded-md",
-                  "transition-colors cursor-pointer select-none",
+                  "transition-colors select-none",
+                  isLoadingContent ? "cursor-wait opacity-50" : "cursor-pointer",
                   isSelected
                     ? "dark:bg-neutral-800 bg-accent text-foreground"
                     : "text-muted-foreground dark:hover:bg-neutral-800 hover:bg-accent hover:text-foreground",
                 )}
               >
                 <span className="flex items-center gap-1 w-full min-w-0">
+                  {isCurrentlyLoading && (
+                    <IconSpinner className="h-3.5 w-3.5 shrink-0" />
+                  )}
                   <span className="shrink-0 whitespace-nowrap font-medium">
                     {option.command}
                   </span>

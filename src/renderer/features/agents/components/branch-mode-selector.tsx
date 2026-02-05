@@ -173,7 +173,13 @@ export function BranchModeSelector({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[280px] p-0" align="start" side="bottom" sideOffset={4} avoidCollisions={false}>
+      <PopoverContent
+        className="w-[280px] p-0"
+        align="start"
+        side="bottom"
+        sideOffset={4}
+        collisionPadding={20}
+      >
         {view === "main" ? (
           <div className="py-1">
             {/* Local mode option */}
