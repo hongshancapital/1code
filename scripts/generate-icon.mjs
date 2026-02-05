@@ -44,8 +44,9 @@ const ICNS_SIZES = [
   { size: 512, scale: 2 },
 ];
 
-// Windows ICO sizes (256 only for simplicity)
-const ICO_SIZES = [256];
+// Windows ICO sizes (multiple sizes for proper taskbar rendering)
+// 16, 32, 48 are essential for Windows taskbar and file explorer
+const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 
 /**
  * Create an SVG rounded rectangle path (Apple's squircle approximation)
