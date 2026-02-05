@@ -100,6 +100,20 @@ export const HistoryView = memo(function HistoryView({
 		return () => window.removeEventListener('focus', handleWindowFocus)
 	}, [worktreePath, selectedCommitHash, refetchHistory, refetchFiles])
 
+	// Initialize refs and virtualizer before any conditional returns
+	// This ensures hooks are called in the same order on every render
+	const parentRef = useRef<HTMLDivElement>(null);
+
+	// Memoize getScrollElement to prevent virtualizer re-initialization
+	const getScrollElement = useCallback(() => parentRef.current, []);
+
+	const virtualizer = useVirtualizer({
+		count: commits?.length || 0,
+		getScrollElement,
+		estimateSize: () => COMMIT_ITEM_HEIGHT,
+		overscan: 5,
+	});
+
 	const handleCommitClick = useCallback(
 		(commit: CommitInfo) => {
 			onCommitSelect?.(commit);
@@ -123,15 +137,6 @@ export const HistoryView = memo(function HistoryView({
 		);
 	}
 
-	const parentRef = useRef<HTMLDivElement>(null);
-
-	const virtualizer = useVirtualizer({
-		count: commits.length,
-		getScrollElement: () => parentRef.current,
-		estimateSize: () => COMMIT_ITEM_HEIGHT,
-		overscan: 5,
-	});
-
 	return (
 		<div ref={parentRef} className="flex-1 overflow-y-auto">
 			{/* Worktree not registered warning */}
@@ -150,7 +155,9 @@ export const HistoryView = memo(function HistoryView({
 				}}
 			>
 				{virtualizer.getVirtualItems().map((virtualRow) => {
-					const commit = commits[virtualRow.index]!;
+					const commit = commits?.[virtualRow.index];
+					// Safety check: skip rendering if commit is undefined (race condition during unmount)
+					if (!commit) return null;
 					const index = virtualRow.index;
 					return (
 						<div

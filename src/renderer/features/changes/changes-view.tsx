@@ -726,6 +726,16 @@ export function ChangesView({
 		}
 	}, [filteredFiles, highlightedFiles]);
 
+	// Stable callbacks for AlertDialog onOpenChange (prevent infinite loops in React 19)
+	// MUST be before early returns to maintain consistent Hook order
+	const handleDiscardFileDialogChange = useCallback((open: boolean) => {
+		if (!open) setDiscardFile(null)
+	}, [])
+
+	const handleDiscardFilesDialogChange = useCallback((open: boolean) => {
+		if (!open) setDiscardFiles(null)
+	}, [])
+
 	if (!worktreePath) {
 		return (
 			<div className="flex-1 flex items-center justify-center text-muted-foreground text-sm p-4">
@@ -932,20 +942,26 @@ export function ChangesView({
 
 					{/* History tab content */}
 					<TabsContent value="history" className="flex-1 flex flex-col m-0 overflow-hidden data-[state=inactive]:hidden">
-						<HistoryView
-							worktreePath={worktreePath}
-							selectedCommitHash={selectedCommitHash}
-							selectedFilePath={selectedFilePath}
-							onCommitSelect={onCommitSelect}
-							onFileSelect={onCommitFileSelect}
-							pushCount={pushCount}
-						/>
+						{/* Only render HistoryView when tab is active to prevent cleanup issues */}
+						{activeTab === "history" && (
+							<HistoryView
+								worktreePath={worktreePath}
+								selectedCommitHash={selectedCommitHash}
+								selectedFilePath={selectedFilePath}
+								onCommitSelect={onCommitSelect}
+								onFileSelect={onCommitFileSelect}
+								pushCount={pushCount}
+							/>
+						)}
 					</TabsContent>
 				</Tabs>
 			</div>
 
 			{/* Discard confirmation dialog - single file */}
-			<AlertDialog open={!!discardFile} onOpenChange={(open) => !open && setDiscardFile(null)}>
+			<AlertDialog
+				open={!!discardFile}
+				onOpenChange={handleDiscardFileDialogChange}
+			>
 				<AlertDialogContent className="w-[340px]">
 					<AlertDialogHeader>
 						<AlertDialogTitle>
@@ -981,7 +997,10 @@ export function ChangesView({
 			</AlertDialog>
 
 			{/* Discard confirmation dialog - multiple files */}
-			<AlertDialog open={!!discardFiles} onOpenChange={(open) => !open && setDiscardFiles(null)}>
+			<AlertDialog
+				open={!!discardFiles}
+				onOpenChange={handleDiscardFilesDialogChange}
+			>
 				<AlertDialogContent className="w-[400px]">
 					<AlertDialogHeader>
 						<AlertDialogTitle>
