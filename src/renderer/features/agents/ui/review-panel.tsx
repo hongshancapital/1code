@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { Pencil, Trash2, FileCode, FileText, ChevronDown, ChevronRight } from "lucide-react"
 import { useDocumentComments } from "../hooks/use-document-comments"
 import { cn } from "../../../lib/utils"
+import { trackClickPlanComment } from "../../../lib/sensors-analytics"
 import type { DocumentComment } from "../atoms/review-atoms"
 
 interface ReviewPanelProps {
@@ -67,6 +68,7 @@ export function ReviewPanel({
   }
 
   const handleSubmit = () => {
+    trackClickPlanComment()
     onSubmit(summary)
     // Comments will be cleared by the parent after successful send
   }

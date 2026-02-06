@@ -98,6 +98,9 @@ import { ConfirmArchiveDialog } from "../../components/confirm-archive-dialog"
 import { trpc } from "../../lib/trpc"
 import { toast } from "sonner"
 import {
+  trackClickNewWorkspace,
+} from "../../lib/sensors-analytics"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -1901,7 +1904,7 @@ export function AgentsSidebar({
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
   const autoAdvanceTarget = useAtomValue(autoAdvanceTargetAtom)
   const [selectedDraftId, setSelectedDraftId] = useAtom(selectedDraftIdAtom)
-  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
+  const [showNewChatForm, setShowNewChatForm] = useAtom(showNewChatFormAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const desktopView = useAtomValue(desktopViewAtom)  // Read desktopView for navigation state
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
@@ -2042,13 +2045,18 @@ export function AgentsSidebar({
 
   // Handle creating a new workspace - navigate to new chat form with cowork mode selected
   const handleNewWorkspace = useCallback(() => {
+    // 如果已经在新建工作区页面，不重复触发埋点
+    const isAlreadyOnNewWorkspacePage = showNewChatForm && selectedChatId === null && selectedDraftId === null
+    if (!isAlreadyOnNewWorkspacePage) {
+      trackClickNewWorkspace()
+    }
     triggerHaptic("light")
     setCurrentProjectMode("cowork")
     setSelectedChatId(null)
     setSelectedDraftId(null)
     setShowNewChatForm(true)
     setDesktopView(null)
-  }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
+  }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView, showNewChatForm, selectedChatId, selectedDraftId])
 
   // Fetch user's teams (same as web) - always enabled to allow merged list
   const { data: _teams, isLoading: _isTeamsLoading, isError: _isTeamsError } = useUserTeams(true)

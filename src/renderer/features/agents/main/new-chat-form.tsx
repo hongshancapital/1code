@@ -87,6 +87,7 @@ import {
   getAudioFormat,
 } from "../../../lib/hooks/use-voice-recording"
 import { getResolvedHotkey } from "../../../lib/hotkeys"
+import { trackClickSelectFolder } from "../../../lib/sensors-analytics"
 import {
   AgentsFileMention,
   AgentsMentionsEditor,
@@ -935,6 +936,7 @@ export function NewChatForm({
   })
 
   const handleOpenFolder = async () => {
+    trackClickSelectFolder()
     await openFolder.mutateAsync()
   }
 

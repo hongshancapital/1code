@@ -29,7 +29,7 @@ This is the open-source version of Hong. Some features require the hosted backen
 
 ## Analytics & Telemetry
 
-Analytics (PostHog) and error tracking (Sentry) are **disabled by default** in open source builds. They only activate if you set the environment variables in `.env.local`.
+Error tracking (Sentry) is **disabled by default** in open source builds. It only activates if you set the environment variables in `.env.local`.
 
 ## Contributing
 

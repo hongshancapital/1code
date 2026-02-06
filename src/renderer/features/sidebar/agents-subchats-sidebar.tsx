@@ -64,6 +64,7 @@ import {
 } from "../../components/ui/tooltip"
 import { Kbd } from "../../components/ui/kbd"
 import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
+import { trackClickNewChat } from "../../lib/sensors-analytics"
 import { TrafficLightSpacer } from "../agents/components/traffic-light-spacer"
 import { PopoverTrigger } from "../../components/ui/popover"
 import { AlignJustify } from "lucide-react"
@@ -723,6 +724,7 @@ export function AgentsSubChatsSidebar({
 
   const handleCreateNew = async () => {
     if (!parentChatId) return
+    trackClickNewChat("chat")
 
     const store = useAgentSubChatStore.getState()
 

@@ -10,8 +10,7 @@
  */
 interface Env {
   // Analytics (disabled if not set)
-  VITE_POSTHOG_KEY?: string
-  VITE_POSTHOG_HOST?: string
+  VITE_SENSORS_SERVER_URL?: string
 
   // Feedback URL
   VITE_FEEDBACK_URL?: string
@@ -32,8 +31,7 @@ export function validateEnv(): Env {
 
   // Build env object (all optional for renderer)
   validatedEnv = {
-    VITE_POSTHOG_KEY: import.meta.env.VITE_POSTHOG_KEY,
-    VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
+    VITE_SENSORS_SERVER_URL: import.meta.env.VITE_SENSORS_SERVER_URL,
     VITE_FEEDBACK_URL: import.meta.env.VITE_FEEDBACK_URL,
   }
 
