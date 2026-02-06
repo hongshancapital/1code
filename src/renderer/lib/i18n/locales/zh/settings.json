@@ -423,6 +423,10 @@
       "title": "技能感知",
       "description": "在规划或执行任务前提醒 AI 检查可用的技能。"
     },
+    "memory": {
+      "title": "记忆与搜索",
+      "description": "在对话过程中记录观察数据，并支持对项目历史的语义搜索。"
+    },
     "offlineSettings": {
       "title": "离线模式设置",
       "ollamaStatus": "Ollama 状态",

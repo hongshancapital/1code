@@ -423,6 +423,10 @@
       "title": "Skill Awareness",
       "description": "Prompt AI to check for relevant skills before planning or executing tasks."
     },
+    "memory": {
+      "title": "Memory & Search",
+      "description": "Record observations during conversations and enable semantic search across project history."
+    },
     "offlineSettings": {
       "title": "Offline Mode Settings",
       "ollamaStatus": "Ollama Status",

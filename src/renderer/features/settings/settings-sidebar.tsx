@@ -9,6 +9,7 @@ import {
 } from "../../icons"
 import {
   agentsSettingsDialogActiveTabAtom,
+  betaMemoryEnabledAtom,
   devToolsUnlockedAtom,
   isDesktopAtom,
   type SettingsTab,
@@ -146,10 +147,15 @@ export function SettingsSidebar() {
   // Show debug tab if in development OR if devtools are unlocked
   const showDebugTab = isDevelopment || devToolsUnlocked
 
+  const betaMemoryEnabled = useAtomValue(betaMemoryEnabledAtom)
+
   const advancedTabs = useMemo(() => {
-    if (showDebugTab) return [...ADVANCED_TAB_DEFS, DEBUG_TAB_DEF]
-    return ADVANCED_TAB_DEFS
-  }, [showDebugTab])
+    const tabs = betaMemoryEnabled
+      ? ADVANCED_TAB_DEFS
+      : ADVANCED_TAB_DEFS.filter((t) => t.id !== "memory")
+    if (showDebugTab) return [...tabs, DEBUG_TAB_DEF]
+    return tabs
+  }, [showDebugTab, betaMemoryEnabled])
 
   const handleTabClick = (tabId: SettingsTab) => {
     // Handle Beta tab clicks for devtools unlock
