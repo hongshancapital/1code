@@ -26,7 +26,15 @@ function getSensorsConfigFromEnv(): SensorsConfig | undefined {
 }
 
 let sensors: SensorsAnalytics | undefined
-let currentDistinctId: string | undefined // 使用 email 作为 distinctId，与 Web 端保持一致
+let currentDistinctId: string | undefined // 使用 email 去掉后缀作为 distinctId
+
+const MAIL_SEPARATOR = "@"
+
+/**
+ * 从 email 提取登录 ID（去掉邮箱后缀）
+ */
+const getLoginIdByEmail = (email: string): string =>
+  email.substring(0, email.indexOf(MAIL_SEPARATOR)) || email
 
 const isDev = (): boolean => {
   try {
@@ -108,9 +116,11 @@ export function track(
  * 3. 如果之前是匿名状态，调用 trackSignup 合并匿名数据到登录用户
  */
 export function login(email: string, properties?: Record<string, any>): void {
-  // 无论 SDK 是否可用，都保存 email（确保后续 track 能获取 distinctId）
+  const loginId = getLoginIdByEmail(email)
+
+  // 无论 SDK 是否可用，都保存 loginId（确保后续 track 能获取 distinctId）
   const wasAnonymous = !currentDistinctId
-  currentDistinctId = email
+  currentDistinctId = loginId
 
   // 以下操作需要 SDK 可用
   if (isDev() || !sensors) return
@@ -118,14 +128,14 @@ export function login(email: string, properties?: Record<string, any>): void {
   // 如果之前是匿名状态，调用 trackSignup 合并匿名数据到登录用户
   if (wasAnonymous) {
     const deviceId = getDeviceId()
-    sensors.trackSignup(email, deviceId, {
+    sensors.trackSignup(loginId, deviceId, {
       ...getCommonProperties(),
       ...properties,
     })
   }
 
   // 设置用户属性
-  sensors.profileSet(email, {
+  sensors.profileSet(loginId, {
     ...getCommonProperties(),
     ...properties,
     $is_login_id: true,

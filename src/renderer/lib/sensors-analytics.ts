@@ -26,6 +26,14 @@ function getSensorsConfig(): SensorsConfig | undefined {
 
 let initialized = false
 
+const MAIL_SEPARATOR = "@"
+
+/**
+ * 从 email 提取登录 ID（去掉邮箱后缀）
+ */
+const getLoginIdByEmail = (email: string): string =>
+  email.substring(0, email.indexOf(MAIL_SEPARATOR)) || email
+
 // 检查是否为开发模式（改为函数，每次调用时计算）
 function isDev(): boolean {
   if (typeof window === "undefined") return true
@@ -39,12 +47,10 @@ function isDev(): boolean {
  * 初始化神策 SDK
  */
 export function initSensors(): void {
-  console.log("[Sensors] initSensors called, isDev:", isDev())
   if (isDev()) return
   if (initialized) return
 
   const config = getSensorsConfig()
-  console.log("[Sensors] config:", config)
   if (!config) return
 
   sensors.init({
@@ -74,12 +80,13 @@ export function track(
 }
 
 /**
- * 设置用户属性
+ * 用户登录（使用 email 去掉后缀作为登录 ID）
  */
-export function login(userId: string): void {
+export function login(email: string): void {
   if (isDev() || !initialized) return
 
-  sensors.login(userId)
+  const loginId = getLoginIdByEmail(email)
+  sensors.login(loginId)
 }
 
 /**
