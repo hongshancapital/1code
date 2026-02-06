@@ -27,12 +27,8 @@ declare global {
     // Main process - Optional
     readonly MAIN_VITE_SENTRY_DSN?: string
     readonly MAIN_VITE_OPENAI_API_KEY?: string
-    readonly MAIN_VITE_POSTHOG_KEY?: string
-    readonly MAIN_VITE_POSTHOG_HOST?: string
 
     // Renderer process - Optional (VITE_ prefix)
-    readonly VITE_POSTHOG_KEY?: string
-    readonly VITE_POSTHOG_HOST?: string
     readonly VITE_FEEDBACK_URL?: string
   }
 
