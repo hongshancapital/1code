@@ -51,7 +51,12 @@ import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 import type { FileStatus } from "../../../../shared/changes-types"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
-import { track as sensorsTrack } from "../../../lib/sensors-analytics"
+import {
+  trackClickNewChat,
+  trackClickPlanApprove,
+  trackClickRegenerate,
+  trackSendMessage,
+} from "../../../lib/sensors-analytics"
 import {
   chatSourceModeAtom,
   customClaudeConfigAtom,
@@ -2419,6 +2424,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Handle plan approval - sends "Build plan" message and switches to agent mode
   const handleApprovePlan = useCallback(() => {
+    trackClickPlanApprove()
     // Update store mode synchronously BEFORE sending (transport reads from store)
     useAgentSubChatStore.getState().updateSubChatMode(subChatId, "agent")
 
@@ -2989,13 +2995,6 @@ const ChatViewInner = memo(function ChatViewInner({
       clearSubChatDraft(parentChatId, subChatId)
     }
 
-    // Track message sent
-    sensorsTrack("message_sent", {
-      workspace_id: subChatId,
-      message_length: finalText.length,
-      mode: subChatModeRef.current,
-    })
-
     // Trigger auto-rename on first message in a new sub-chat
     if (messagesLengthRef.current === 0 && !hasTriggeredRenameRef.current) {
       hasTriggeredRenameRef.current = true
@@ -3132,6 +3131,10 @@ const ChatViewInner = memo(function ChatViewInner({
     shouldAutoScrollRef.current = true
     scrollToBottom()
 
+    // Track message sent
+    const hasAt = parts.some((p: any) => p.type === "text" && p.text?.includes("@"))
+    trackSendMessage(subChatModeRef.current, hasAt)
+
     await sendMessageRef.current({ role: "user", parts })
   }, [
     sandboxSetupStatus,
@@ -3209,13 +3212,6 @@ const ChatViewInner = memo(function ChatViewInner({
       if (item.message || mentionPrefix) {
         parts.push({ type: "text", text: mentionPrefix + (item.message || "") })
       }
-
-      // Track message sent
-      sensorsTrack("message_sent", {
-        workspace_id: subChatId,
-        message_length: item.message.length,
-        mode: subChatModeRef.current,
-      })
 
       // Update timestamps
       useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId)
@@ -3369,13 +3365,6 @@ const ChatViewInner = memo(function ChatViewInner({
       clearSubChatDraft(parentChatId, subChatId)
     }
 
-    // Track message sent
-    sensorsTrack("message_sent", {
-      workspace_id: subChatId,
-      message_length: finalText.length,
-      mode: subChatModeRef.current,
-    })
-
     // Build message parts
     const parts: any[] = [
       ...currentImages
@@ -3447,6 +3436,9 @@ const ChatViewInner = memo(function ChatViewInner({
     const lastUserMsgIndex = messages.indexOf(lastUserMsg)
     const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
     if (hasAssistantResponse) return
+
+    // Track regenerate click
+    trackClickRegenerate()
 
     // Use regenerate to re-send without duplicating user message
     regenerate()
@@ -5730,6 +5722,7 @@ Make sure to preserve all functionality from both branches when resolving confli
 
   // Handle creating a new sub-chat
   const handleCreateNewSubChat = useCallback(async () => {
+    trackClickNewChat("add")
     const store = useAgentSubChatStore.getState()
     // New sub-chats use the user's default mode preference
     const newSubChatMode = defaultAgentMode

@@ -10,7 +10,6 @@ import { existsSync } from "node:fs"
 import { mkdir, copyFile, unlink, rename, readdir, rm, stat } from "node:fs/promises"
 import { extname } from "node:path"
 import { getGitRemoteInfo, isGitRepo } from "../../git"
-import { track as sensorsTrack } from "../../sensors-analytics"
 import { getLaunchDirectory } from "../../cli"
 import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
 import { createId } from "../../db/utils"
@@ -180,12 +179,6 @@ export const projectsRouter = router({
         .returning()
         .get()
 
-      // Track project opened
-      sensorsTrack("project_opened", {
-        project_id: updatedProject!.id,
-        has_git_remote: !!gitInfo.remoteUrl,
-      })
-
       return updatedProject
     }
 
@@ -203,12 +196,6 @@ export const projectsRouter = router({
       })
       .returning()
       .get()
-
-    // Track project opened
-    sensorsTrack("project_opened", {
-      id: newProject!.id,
-      hasGitRemote: !!gitInfo.remoteUrl,
-    })
 
     return newProject
   }),
@@ -383,10 +370,6 @@ export const projectsRouter = router({
           .get()
 
         if (existing) {
-          sensorsTrack("project_opened", {
-            project_id: existing.id,
-            has_git_remote: !!existing.gitRemoteUrl,
-          })
           return existing
         }
 
@@ -406,10 +389,6 @@ export const projectsRouter = router({
           .returning()
           .get()
 
-        sensorsTrack("project_opened", {
-          id: newProject!.id,
-          hasGitRemote: !!gitInfo.remoteUrl,
-        })
         return newProject
       }
 
@@ -437,11 +416,6 @@ export const projectsRouter = router({
         })
         .returning()
         .get()
-
-      sensorsTrack("project_opened", {
-        project_id: newProject!.id,
-        has_git_remote: !!gitInfo.remoteUrl,
-      })
 
       return newProject
     }),
@@ -533,14 +507,6 @@ export const projectsRouter = router({
         .where(eq(projects.id, input.id))
         .returning()
         .get()
-
-      // Track project opened
-      if (updatedProject) {
-        sensorsTrack("project_opened", {
-          id: updatedProject.id,
-          hasGitRemote: !!gitInfo.remoteUrl,
-        })
-      }
 
       return updatedProject
     }),

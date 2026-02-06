@@ -344,12 +344,6 @@ export function App() {
     }
     loginUser()
 
-    // 测试神策埋点 - 发送渲染进程启动事件
-    sensorsTrack("cowork_renderer_started", {
-      timestamp: new Date().toISOString(),
-    })
-    console.log("[Sensors] Test event sent: cowork_renderer_started")
-
     // Listen for session expiration (when refresh token fails)
     const unsubscribeSessionExpired = window.desktopApi?.onSessionExpired?.(() => {
       toast.error(i18n.t("info.sessionExpired", { ns: "toast" }), {

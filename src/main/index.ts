@@ -351,8 +351,13 @@ if (gotTheLock) {
     }
   })
 
+  // Record app start time for Cowork_App_Duration tracking
+  let appStartTime: number
+
   // App ready
   app.whenReady().then(async () => {
+    appStartTime = Date.now()
+
     // Set dev mode app name (userData path was already set before requestSingleInstanceLock)
     if (IS_DEV) {
       app.name = "Agents Dev"
@@ -773,17 +778,8 @@ if (gotTheLock) {
     authManager.setAuthCallbackHandlers(authCallbackHandlers)
 
     // Initialize Sensors Analytics (skip if embedded in Tinker)
-    if (isEmbeddedInTinker) {
-      console.log("[App] Skipping Sensors init (embedded in Tinker)")
-    } else {
+    if (!isEmbeddedInTinker) {
       initSensors()
-      console.log("[App] Sensors Analytics initialized")
-
-      // 测试神策埋点 - 发送应用启动事件
-      sensorsTrack("cowork_app_started", {
-        timestamp: new Date().toISOString(),
-      })
-      console.log("[Sensors] Test event sent: cowork_app_started")
     }
 
     // If user already authenticated from previous session, validate token and refresh user info
@@ -794,7 +790,6 @@ if (gotTheLock) {
       if (validatedUser) {
         // Token is valid, login user for Sensors Analytics (use email as distinctId)
         sensorsLogin(validatedUser.email)
-        console.log("[Sensors] User logged in from validated session:", validatedUser.email)
       } else {
         // Token expired (401), try to refresh first
         console.log("[App] Token expired, attempting refresh...")
@@ -805,7 +800,6 @@ if (gotTheLock) {
           const refreshedUser = await authManager.validateAndRefreshUser()
           if (refreshedUser) {
             sensorsLogin(refreshedUser.email)
-            console.log("[Sensors] User logged in after token refresh:", refreshedUser.email)
           }
         } else {
           // Refresh failed, auto-start OAuth for returning users
@@ -936,6 +930,11 @@ if (gotTheLock) {
     cancelAllPendingOAuth()
     AutomationEngine.getInstance().cleanup()
     await cleanupGitWatchers()
+    // Track app duration before shutdown
+    if (appStartTime) {
+      const durationMs = Date.now() - appStartTime
+      sensorsTrack("Cowork_App_Duration", { DurationMs: durationMs })
+    }
     await shutdownSensors()
     await closeDatabase()
   })

@@ -131,8 +131,8 @@ export function shutdown(): void {
  * 应用使用时长 (需在 renderer 计时)
  */
 export function trackAppDuration(durationMs: number): void {
-  track("cowork_app_duration", {
-    duration_ms: durationMs,
+  track("Cowork_App_Duration", {
+    DurationMs: durationMs,
   })
 }
 
@@ -140,15 +140,15 @@ export function trackAppDuration(durationMs: number): void {
  * 点击创建新工作区
  */
 export function trackClickNewWorkspace(): void {
-  track("cowork_click_new_workspace")
+  track("Cowork_Click_New_Workspace")
 }
 
 /**
  * 点击 New Chat 按钮
  */
-export function trackClickNewChat(button: "new chat" | "add"): void {
-  track("cowork_click_new_chat", {
-    button,
+export function trackClickNewChat(button: "chat" | "add"): void {
+  track("Cowork_Click_New_Chat", {
+    Button: button,
   })
 }
 
@@ -156,43 +156,43 @@ export function trackClickNewChat(button: "new chat" | "add"): void {
  * 点击选择文件夹
  */
 export function trackClickSelectFolder(): void {
-  track("cowork_click_select_folder")
+  track("Cowork_Click_Select_Folder")
 }
 
 /**
  * 点击 plan comment
  */
 export function trackClickPlanComment(): void {
-  track("cowork_click_plan_comment")
+  track("Cowork_Click_Plan_Comment")
 }
 
 /**
  * 点击 plan approve
  */
 export function trackClickPlanApprove(): void {
-  track("cowork_click_plan_approve")
+  track("Cowork_Click_Plan_Approve")
 }
 
 /**
  * 点击重新生成
  */
 export function trackClickRegenerate(): void {
-  track("cowork_click_regenerate")
+  track("Cowork_Click_Regenerate")
 }
 
 /**
  * 点击复制
  */
 export function trackClickCopy(): void {
-  track("cowork_click_copy")
+  track("Cowork_Click_Copy")
 }
 
 /**
  * 发送消息
  */
 export function trackSendMessage(mode: "agent" | "plan", at: boolean): void {
-  track("cowork_send_message", {
-    mode,
-    at,
+  track("Cowork_Send_Message", {
+    Mode: mode,
+    At: at,
   })
 }

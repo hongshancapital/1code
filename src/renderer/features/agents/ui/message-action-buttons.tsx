@@ -12,6 +12,7 @@ import {
 import { cn } from "../../../lib/utils"
 import { apiFetch } from "../../../lib/api-fetch"
 import { useHaptic } from "../hooks/use-haptic"
+import { trackClickCopy } from "../../../lib/sensors-analytics"
 import {
   ttsPlaybackRateAtom,
   setTtsPlaybackRateAtom,
@@ -35,6 +36,7 @@ export const CopyButton = memo(function CopyButton({
   const { trigger: triggerHaptic } = useHaptic()
 
   const handleCopy = useCallback(() => {
+    trackClickCopy()
     navigator.clipboard.writeText(text)
     triggerHaptic("medium")
     setCopied(true)

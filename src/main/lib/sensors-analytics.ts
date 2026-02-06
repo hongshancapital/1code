@@ -5,6 +5,7 @@
 
 import SensorsAnalytics from "sa-sdk-node"
 import { app } from "electron"
+import { getDeviceId } from "./device-id"
 
 interface SensorsConfig {
   serverUrl: string
@@ -53,20 +54,12 @@ function getCommonProperties(): Record<string, any> {
  * @param config 可选配置，外部传入时优先使用（用于 Tinker 等嵌入场景）
  */
 export function initSensors(config?: SensorsConfig): void {
-  console.log(`[Sensors] isDev check: app.isPackaged=${app.isPackaged}, FORCE_ANALYTICS=${process.env.FORCE_ANALYTICS}, isDev()=${isDev()}`)
-  if (isDev()) {
-    console.log("[Sensors] Skipping initialization (dev mode)")
-    return
-  }
+  if (isDev()) return
   if (sensors) return
 
   // 外部传入 config 则用，否则从 env 获取
   const finalConfig = config || getSensorsConfigFromEnv()
-
-  if (!finalConfig) {
-    console.log("[Sensors] Skipping initialization (no config)")
-    return
-  }
+  if (!finalConfig) return
 
   try {
     sensors = new SensorsAnalytics()
@@ -78,7 +71,6 @@ export function initSensors(config?: SensorsConfig): void {
     submitter.catch((err: Error) => {
       console.error("[Sensors] Submit error:", err.message)
     })
-    console.log("[Sensors] SDK initialized successfully, serverUrl:", finalConfig.serverUrl)
   } catch (error) {
     console.error("[Sensors] Failed to initialize SDK:", error)
   }
@@ -94,6 +86,7 @@ export function setOptOut(optedOut: boolean): void {
 /**
  * 追踪事件
  * distinctId 使用 email（与 Web 端 sensors.login(email) 保持一致）
+ * 匿名用户使用 deviceId 作为 distinctId
  * $is_login_id: true 告知神策这是登录 ID
  */
 export function track(
@@ -102,7 +95,7 @@ export function track(
 ): void {
   if (isDev() || !sensors || userOptedOut) return
 
-  const distinctId = currentDistinctId || "anonymous"
+  const distinctId = currentDistinctId || getDeviceId()
   const isLoggedIn = !!currentDistinctId
 
   sensors.track(distinctId, eventName, {
@@ -110,7 +103,6 @@ export function track(
     ...properties,
     $is_login_id: isLoggedIn,
   })
-  console.log(`[Sensors] Event tracked: ${eventName}, distinctId: ${distinctId}`)
 }
 
 /**
@@ -121,11 +113,24 @@ export function track(
  * Node.js SDK 没有 login() 方法，我们通过：
  * 1. 保存 email 作为 distinctId
  * 2. 后续 track() 时使用 email 作为 distinctId，带上 $is_login_id: true
+ * 3. 如果之前是匿名状态，调用 trackSignup 合并匿名数据到登录用户
  */
 export function login(email: string, properties?: Record<string, any>): void {
+  // 无论 SDK 是否可用，都保存 email（确保后续 track 能获取 distinctId）
+  const wasAnonymous = !currentDistinctId
   currentDistinctId = email
 
+  // 以下操作需要 SDK 可用
   if (isDev() || !sensors || userOptedOut) return
+
+  // 如果之前是匿名状态，调用 trackSignup 合并匿名数据到登录用户
+  if (wasAnonymous) {
+    const deviceId = getDeviceId()
+    sensors.trackSignup(email, deviceId, {
+      ...getCommonProperties(),
+      ...properties,
+    })
+  }
 
   // 设置用户属性
   sensors.profileSet(email, {
@@ -133,8 +138,6 @@ export function login(email: string, properties?: Record<string, any>): void {
     ...properties,
     $is_login_id: true,
   })
-
-  console.log(`[Sensors] User logged in: ${email}`)
 }
 
 /**

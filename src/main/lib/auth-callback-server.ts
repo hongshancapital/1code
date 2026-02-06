@@ -4,7 +4,7 @@ import { join } from "path"
 import { app, session } from "electron"
 import { getAuthManager } from "../auth-manager"
 import { handleMcpOAuthCallback } from "./mcp-auth"
-import { login as sensorsLogin, track as sensorsTrack } from "./sensors-analytics"
+import { login as sensorsLogin } from "./sensors-analytics"
 import { AUTH_SERVER_PORT, OKTA_CALLBACK_PORT } from "../constants"
 import { getEnv } from "./env"
 
@@ -78,7 +78,6 @@ export async function handleAuthCode(
     // Use email as distinctId to match Web SDK's sensors.login(email)
     if (!isEmbeddedInTinker) {
       sensorsLogin(authData.user.email)
-      sensorsTrack("auth_completed", { user_id: authData.user.id })
     }
 
     // Set desktop token cookie using persist:main partition

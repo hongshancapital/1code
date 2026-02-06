@@ -8,7 +8,6 @@ import { app } from "electron"
 import simpleGit from "simple-git"
 import { z } from "zod"
 import { getDeviceInfo } from "../../device-id"
-import { track as sensorsTrack } from "../../sensors-analytics"
 import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"
 import { createId } from "../../db/utils"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
@@ -379,13 +378,6 @@ export const chatsRouter = router({
         .returning()
         .get()
 
-      // Track workspace created
-      trackWorkspaceCreated({
-        id: chat.id,
-        projectId: playgroundProject.id,
-        useWorktree: false,
-      })
-
       return {
         ...chat,
         project: playgroundProject,
@@ -458,9 +450,6 @@ export const chatsRouter = router({
       if (existsSync(project.path)) {
         await rm(project.path, { recursive: true, force: true })
       }
-
-      // Track workspace deleted
-      trackWorkspaceDeleted(input.chatId)
 
       // Delete project (will cascade to chat due to foreign key)
       db.delete(projects).where(eq(projects.id, project.id)).run()
@@ -803,13 +792,6 @@ export const chatsRouter = router({
         subChats: [subChat],
       }
 
-      // Track workspace created with Sensors
-      sensorsTrack("workspace_created", {
-        workspace_id: chat.id,
-        project_id: input.projectId,
-        use_worktree: input.useWorktree,
-      })
-
       console.log("[chats.create] returning:", response)
       return response
     }),
@@ -872,9 +854,6 @@ export const chatsRouter = router({
         .where(eq(chats.id, input.id))
         .returning()
         .get()
-
-      // Track workspace archived with Sensors
-      sensorsTrack("workspace_archived", { workspace_id: input.id })
 
       // Kill terminal processes in background (don't await)
       terminalManager.killByWorkspaceId(input.id).then((killResult) => {
@@ -1000,9 +979,6 @@ export const chatsRouter = router({
           }
         }
       }
-
-      // Track workspace deleted with Sensors
-      sensorsTrack("workspace_deleted", { workspace_id: input.id })
 
       // Invalidate git cache for this worktree
       if (chat?.worktreePath) {
@@ -1888,12 +1864,6 @@ export const chatsRouter = router({
         .where(eq(chats.id, input.chatId))
         .returning()
         .get()
-
-      // Track PR created with Sensors
-      sensorsTrack("pr_created", {
-        workspace_id: input.chatId,
-        pr_number: input.prNumber,
-      })
 
       return result
     }),

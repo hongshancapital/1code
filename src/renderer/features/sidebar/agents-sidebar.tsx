@@ -2042,6 +2042,7 @@ export function AgentsSidebar({
   // Handle creating a new workspace - navigate to new chat form with cowork mode selected
   const handleNewWorkspace = useCallback(() => {
     trackClickNewWorkspace()
+    trackClickNewChat("chat")
     triggerHaptic("light")
     setCurrentProjectMode("cowork")
     setSelectedChatId(null)
