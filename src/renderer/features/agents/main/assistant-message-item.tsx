@@ -28,6 +28,7 @@ import { AgentTodoTool } from "../ui/agent-todo-tool"
 import { AgentToolCall } from "../ui/agent-tool-call"
 import { AgentToolRegistry, getToolStatus } from "../ui/agent-tool-registry"
 import { AgentMcpToolCall, isMcpTool } from "../ui/agent-mcp-tool-call"
+import { GitActivityBadges } from "../ui/git-activity-badges"
 import { AgentWebFetchTool } from "../ui/agent-web-fetch-tool"
 import { AgentWebSearchCollapsible } from "../ui/agent-web-search-collapsible"
 import {
@@ -283,7 +284,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
   status,
   isMobile,
   subChatId,
-  chatId: _chatId,
+  chatId,
   sandboxSetupStatus = "ready",
 }: AssistantMessageItemProps) {
   const onRollback = useAtomValue(rollbackHandlerAtom)
@@ -764,6 +765,9 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
           <AgentMessageUsage metadata={msgMetadata} isStreaming={isStreaming} isMobile={isMobile} />
         </div>
       )}
+
+      {/* Git activity badges - commit/PR pills */}
+      {(!isStreaming || !isLastMessage) && <GitActivityBadges parts={messageParts} chatId={chatId} subChatId={subChatId} />}
 
       {isDev && showMessageJson && (
         <div className="px-2 mt-2">

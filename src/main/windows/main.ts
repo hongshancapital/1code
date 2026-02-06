@@ -146,6 +146,43 @@ function registerIpcHandlers(): void {
     return result.filePaths[0] || null
   })
 
+  // Save file with native dialog
+  ipcMain.handle(
+    "dialog:save-file",
+    async (
+      event,
+      options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] },
+    ) => {
+      const win = getWindowFromEvent(event)
+      if (!win) return { success: false }
+
+      // Ensure window is focused before showing dialog (required on macOS)
+      if (!win.isFocused()) {
+        win.focus()
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
+      const result = await dialog.showSaveDialog(win, {
+        defaultPath: options.filename,
+        filters: options.filters || [
+          { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      })
+
+      if (result.canceled || !result.filePath) return { success: false }
+
+      try {
+        const buffer = Buffer.from(options.base64Data, "base64")
+        writeFileSync(result.filePath, buffer)
+        return { success: true, filePath: result.filePath }
+      } catch (err) {
+        console.error("[dialog:save-file] Failed to write file:", err)
+        return { success: false }
+      }
+    },
+  )
+
   // Window controls - use event.sender to identify window
   ipcMain.handle("window:minimize", (event) => {
     getWindowFromEvent(event)?.minimize()
