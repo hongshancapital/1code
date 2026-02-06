@@ -428,18 +428,173 @@ export class WingetProvider implements WindowsPackageManager {
 
   async install(): Promise<ExecResult> {
     addLog({
-      step: "安装 winget - 准备下载",
+      step: "安装 winget - 开始",
       success: true,
     })
 
-    const command = `$ProgressPreference = 'SilentlyContinue'; $ErrorActionPreference = 'Stop'; try { $release = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $asset = $release.assets | Where-Object { $_.name -match 'msixbundle$' } | Select-Object -First 1; if (-not $asset) { throw 'No msixbundle found' }; $tempFile = Join-Path $env:TEMP 'winget.msixbundle'; Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile; Add-AppxPackage -Path $tempFile; Remove-Item $tempFile -Force; Write-Output 'Winget installed successfully' } catch { Write-Error $_.Exception.Message; exit 1 }`
+    // Step 1: Install VCLibs dependency (required for winget)
+    addLog({
+      step: "安装 winget - 检查 VCLibs 依赖",
+      success: true,
+    })
+
+    const vcLibsCommand = `
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+try {
+  # Check if VCLibs is already installed
+  $vclibs = Get-AppxPackage -Name 'Microsoft.VCLibs.140.00.UWPDesktop' -ErrorAction SilentlyContinue
+  if (-not $vclibs) {
+    Write-Output 'Installing VCLibs...'
+    $vcLibsUrl = 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx'
+    $vcLibsPath = Join-Path $env:TEMP 'vclibs.appx'
+    Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath
+    Add-AppxPackage -Path $vcLibsPath
+    Remove-Item $vcLibsPath -Force
+    Write-Output 'VCLibs installed'
+  } else {
+    Write-Output 'VCLibs already installed'
+  }
+} catch {
+  Write-Error $_.Exception.Message
+  exit 1
+}
+`.trim()
+
+    let vcLibsResult = await execPowerShell(vcLibsCommand, 120000, "安装 VCLibs 依赖")
+    if (!vcLibsResult.success) {
+      // Try with elevation
+      vcLibsResult = await installWithElevation(vcLibsCommand, "安装 VCLibs 依赖 (elevated)", { powershell: true })
+      if (!vcLibsResult.success) {
+        addLog({
+          step: "安装 winget - VCLibs 安装失败",
+          success: false,
+          error: vcLibsResult.stderr,
+        })
+        return vcLibsResult
+      }
+    }
+
+    // Step 2: Install UI.Xaml dependency (required for winget 1.6+)
+    addLog({
+      step: "安装 winget - 检查 UI.Xaml 依赖",
+      success: true,
+    })
+
+    const uiXamlCommand = `
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+try {
+  # Check if UI.Xaml 2.8 is already installed
+  $xaml = Get-AppxPackage -Name 'Microsoft.UI.Xaml.2.8' -ErrorAction SilentlyContinue
+  if (-not $xaml) {
+    Write-Output 'Installing UI.Xaml 2.8...'
+    # Download from NuGet and extract the appx
+    $nugetUrl = 'https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.6'
+    $nugetPath = Join-Path $env:TEMP 'uixaml.zip'
+    $extractPath = Join-Path $env:TEMP 'uixaml'
+    Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
+    Expand-Archive -Path $nugetPath -DestinationPath $extractPath -Force
+    $appxPath = Join-Path $extractPath 'tools\\AppX\\x64\\Release\\Microsoft.UI.Xaml.2.8.appx'
+    if (Test-Path $appxPath) {
+      Add-AppxPackage -Path $appxPath
+      Write-Output 'UI.Xaml 2.8 installed'
+    } else {
+      Write-Output 'UI.Xaml appx not found, skipping'
+    }
+    Remove-Item $nugetPath -Force -ErrorAction SilentlyContinue
+    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
+  } else {
+    Write-Output 'UI.Xaml 2.8 already installed'
+  }
+} catch {
+  # UI.Xaml failure is not fatal, winget might still work
+  Write-Output "UI.Xaml installation skipped: $_"
+}
+`.trim()
+
+    // UI.Xaml is optional, don't fail if it doesn't install
+    let uiXamlResult = await execPowerShell(uiXamlCommand, 120000, "安装 UI.Xaml 依赖")
+    if (!uiXamlResult.success) {
+      uiXamlResult = await installWithElevation(uiXamlCommand, "安装 UI.Xaml 依赖 (elevated)", { powershell: true })
+      // Don't return on failure, UI.Xaml is optional
+    }
+
+    // Step 3: Install winget itself
+    addLog({
+      step: "安装 winget - 下载 winget",
+      success: true,
+    })
+
+    const wingetCommand = `
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+try {
+  Write-Output 'Fetching latest winget release...'
+  $release = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'
+
+  # Find the msixbundle
+  $msixBundle = $release.assets | Where-Object { $_.name -match '\\.msixbundle$' } | Select-Object -First 1
+  if (-not $msixBundle) {
+    throw 'No msixbundle found in release'
+  }
+
+  # Also get the license file if available
+  $license = $release.assets | Where-Object { $_.name -match '_License.*\\.xml$' } | Select-Object -First 1
+
+  $bundlePath = Join-Path $env:TEMP 'winget.msixbundle'
+  Write-Output "Downloading winget from $($msixBundle.browser_download_url)..."
+  Invoke-WebRequest -Uri $msixBundle.browser_download_url -OutFile $bundlePath
+
+  if ($license) {
+    $licensePath = Join-Path $env:TEMP 'winget_license.xml'
+    Write-Output 'Downloading license...'
+    Invoke-WebRequest -Uri $license.browser_download_url -OutFile $licensePath
+    Write-Output 'Installing winget with license...'
+    Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -LicensePath $licensePath -ErrorAction SilentlyContinue
+  }
+
+  # Also try Add-AppxPackage as fallback
+  Write-Output 'Installing winget package...'
+  Add-AppxPackage -Path $bundlePath -ErrorAction Stop
+
+  Remove-Item $bundlePath -Force -ErrorAction SilentlyContinue
+  if ($licensePath) { Remove-Item $licensePath -Force -ErrorAction SilentlyContinue }
+
+  Write-Output 'Winget installed successfully'
+} catch {
+  Write-Error $_.Exception.Message
+  exit 1
+}
+`.trim()
 
     // Try normal install first
-    const result = await execPowerShell(command, 600000, "安装 winget")
-    if (result.success) return result
+    let result = await execPowerShell(wingetCommand, 600000, "安装 winget")
+    if (result.success) {
+      addLog({
+        step: "安装 winget - 完成",
+        success: true,
+      })
+      return result
+    }
 
     // Failed — check elevation status and try UAC (run as PowerShell script)
-    return await installWithElevation(command, "安装 winget (elevated)", { powershell: true })
+    result = await installWithElevation(wingetCommand, "安装 winget (elevated)", { powershell: true })
+
+    if (result.success) {
+      addLog({
+        step: "安装 winget - 完成 (elevated)",
+        success: true,
+      })
+    } else {
+      addLog({
+        step: "安装 winget - 失败",
+        success: false,
+        error: result.stderr,
+      })
+    }
+
+    return result
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
