@@ -1,6 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { CheckCircle, AlertCircle, ChevronDown, ChevronUp, Loader2, X, RotateCcw, SkipForward, FlaskConical, Package } from "lucide-react"
 import { useState, useEffect, useMemo, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { Progress } from "./ui/progress"
 import { IconSpinner } from "../icons"
 import {
@@ -19,6 +20,7 @@ const MAX_RETRIES = 3
 type InstallPhase = "detecting" | "installing_pm" | "installing_tools" | "complete"
 
 export function RuntimeInitBanner() {
+  const { t } = useTranslation('common')
   const [dismissed, setDismissed] = useAtom(runtimeInitBannerDismissedAtom)
   const simulatedMode = useAtomValue(runtimeSimulatedModeAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
@@ -63,25 +65,53 @@ export function RuntimeInitBanner() {
     },
   })
 
+  // Polling state for dev mode Terminal.app installation
+  const [pollingForPM, setPollingForPM] = useState(false)
+  const refreshToolsMutation = trpc.runner.refreshTools.useMutation()
+
   // Install package manager mutation
   const installPMMutation = trpc.runner.installPackageManager.useMutation({
     onSuccess: (result) => {
-      setIsInstallingPM(false)
       if (result.success) {
+        setIsInstallingPM(false)
         setInstallError(null)
         setInstallPhase("installing_tools")
-        // Refresh both PM detection and tools
         refetchPM()
         refetch()
+      } else if (result.error === "INSTALLING_IN_TERMINAL") {
+        // Dev mode: Homebrew installing in Terminal.app, poll for completion
+        setPollingForPM(true)
+      } else if (result.error === "NO_ADMIN" || result.error === "INSTALL_FAILED") {
+        setIsInstallingPM(false)
+        setInstallError(result.error === "NO_ADMIN"
+          ? t("runtime.noAdmin")
+          : t("runtime.installFailedGeneric"))
       } else {
-        setInstallError(result.error || "包管理器安装失败")
+        setIsInstallingPM(false)
+        setInstallError(result.error || t("runtime.installFailedGeneric"))
       }
     },
     onError: (error) => {
       setIsInstallingPM(false)
-      setInstallError(error.message || "包管理器安装失败")
+      setInstallError(error.message || t("runtime.installFailedGeneric"))
     },
   })
+
+  // Poll for PM installation completion (dev mode Terminal.app)
+  useEffect(() => {
+    if (!pollingForPM) return
+    const interval = setInterval(async () => {
+      await refreshToolsMutation.mutateAsync()
+      const { data } = await refetchPM()
+      if (data?.packageManager) {
+        setPollingForPM(false)
+        setIsInstallingPM(false)
+        setInstallPhase("installing_tools")
+        refetch()
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [pollingForPM]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Install tool mutation with improved error handling
   const installMutation = trpc.runner.installTool.useMutation({
@@ -91,11 +121,11 @@ export function RuntimeInitBanner() {
         setRetryCount(0)
         refetch()
       } else {
-        setInstallError(result.error || "安装失败")
+        setInstallError(result.error || t("runtime.installFailed"))
       }
     },
     onError: (error) => {
-      setInstallError(error.message || "安装失败")
+      setInstallError(error.message || t("runtime.installFailed"))
     },
     onSettled: () => {
       setInstallingCategory(null)
@@ -198,7 +228,7 @@ export function RuntimeInitBanner() {
   // Retry installation for the failed category
   const handleRetry = useCallback(() => {
     if (retryCount >= MAX_RETRIES) {
-      setInstallError("已达最大重试次数，请手动安装或跳过")
+      setInstallError(t("runtime.maxRetries"))
       return
     }
 
@@ -295,7 +325,7 @@ export function RuntimeInitBanner() {
         <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[280px]">
           <IconSpinner className="h-4 w-4 text-muted-foreground" />
           <div className="flex-1">
-            <div className="text-foreground text-xs">Checking environment...</div>
+            <div className="text-foreground text-xs">{t("runtime.checkingEnv")}</div>
             <Progress value={simProgress} className="mt-2 h-1" />
           </div>
         </div>
@@ -307,7 +337,7 @@ export function RuntimeInitBanner() {
       return (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2">
           <CheckCircle className="h-4 w-4 text-green-500" />
-          <span className="text-foreground text-xs">Environment ready</span>
+          <span className="text-foreground text-xs">{t("runtime.envReady")}</span>
         </div>
       )
     }
@@ -320,7 +350,7 @@ export function RuntimeInitBanner() {
           <div className="flex items-center gap-2 p-2">
             <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-foreground text-xs">安装失败</div>
+              <div className="text-foreground text-xs">{t("runtime.installFailed")}</div>
               <Progress value={simProgress} className="mt-1.5 h-1" />
             </div>
           </div>
@@ -334,19 +364,19 @@ export function RuntimeInitBanner() {
                 className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
               >
                 <RotateCcw className="h-3 w-3" />
-                重试
+                {t("runtime.retry")}
               </button>
               <button
                 className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 <SkipForward className="h-3 w-3" />
-                跳过
+                {t("runtime.skip")}
               </button>
               <button
                 onClick={handleViewDetails}
                 className="text-[10px] text-muted-foreground hover:text-foreground transition-colors ml-auto"
               >
-                手动配置 →
+                {t("runtime.manualConfig")} →
               </button>
             </div>
           </div>
@@ -413,7 +443,7 @@ export function RuntimeInitBanner() {
               onClick={handleViewDetails}
               className="mt-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              View all in Settings →
+              {t("runtime.viewSettings")} →
             </button>
           </div>
         )}
@@ -432,7 +462,7 @@ export function RuntimeInitBanner() {
       <div className="fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[280px]">
         <IconSpinner className="h-4 w-4 text-muted-foreground" />
         <div className="flex-1">
-          <div className="text-foreground text-xs">Checking environment...</div>
+          <div className="text-foreground text-xs">{t("runtime.checkingEnv")}</div>
           <Progress value={0} className="mt-2 h-1" />
         </div>
         <button
@@ -451,7 +481,7 @@ export function RuntimeInitBanner() {
     return (
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2">
         <CheckCircle className="h-4 w-4 text-green-500" />
-        <span className="text-foreground text-xs">Environment ready</span>
+        <span className="text-foreground text-xs">{t("runtime.envReady")}</span>
         <span className="text-[10px] text-muted-foreground">{countdown}s</span>
       </div>
     )
@@ -459,14 +489,14 @@ export function RuntimeInitBanner() {
 
   // Get display text based on current phase
   const getStatusText = () => {
-    if (installError) return "安装失败"
+    if (installError) return t("runtime.installFailed")
     if (isInstallingPM) {
       const pmName = pmData?.platform === "darwin" ? "Homebrew" : "Windows Package Manager"
-      return `Installing ${pmName}...`
+      return t("runtime.installingPM", { name: pmName })
     }
-    if (installingCategory) return `Installing ${installingTool}...`
-    if (installPhase === "installing_pm") return "Preparing package manager..."
-    return `Setting up environment (${satisfiedCount}/${totalCategories})`
+    if (installingCategory) return t("runtime.installingTool", { name: installingTool })
+    if (installPhase === "installing_pm") return t("runtime.preparingPM")
+    return t("runtime.settingUp", { satisfied: satisfiedCount, total: totalCategories })
   }
 
   // Installing or missing required tools
@@ -490,7 +520,7 @@ export function RuntimeInitBanner() {
           <Progress value={isInstallingPM ? 10 : progress} className="mt-1.5 h-1" />
           {isInstallingPM && (
             <div className="text-[10px] text-muted-foreground mt-1">
-              This may take a few minutes...
+              {t("runtime.pmInstallMayTakeLong")}
             </div>
           )}
         </div>
@@ -523,20 +553,20 @@ export function RuntimeInitBanner() {
               className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="h-3 w-3" />
-              重试 {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
+              {t("runtime.retry")} {retryCount > 0 && `(${retryCount}/${MAX_RETRIES})`}
             </button>
             <button
               onClick={handleSkip}
               className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <SkipForward className="h-3 w-3" />
-              跳过
+              {t("runtime.skip")}
             </button>
             <button
               onClick={handleViewDetails}
               className="text-[10px] text-muted-foreground hover:text-foreground transition-colors ml-auto"
             >
-              手动配置 →
+              {t("runtime.manualConfig")} →
             </button>
           </div>
         </div>
@@ -546,7 +576,7 @@ export function RuntimeInitBanner() {
       {overallTimeout && !installError && !allSatisfied && (
         <div className="border-t border-border px-2 py-1.5">
           <div className="text-[10px] text-muted-foreground mb-1.5">
-            环境检测超时，可选择跳过或手动配置
+            {t("runtime.envTimeout")}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -554,13 +584,13 @@ export function RuntimeInitBanner() {
               className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <SkipForward className="h-3 w-3" />
-              跳过全部
+              {t("runtime.skipAll")}
             </button>
             <button
               onClick={handleViewDetails}
               className="text-[10px] text-primary hover:text-primary/80 transition-colors ml-auto"
             >
-              手动配置 →
+              {t("runtime.manualConfig")} →
             </button>
           </div>
         </div>
@@ -588,7 +618,7 @@ export function RuntimeInitBanner() {
             onClick={handleViewDetails}
             className="mt-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            View all in Settings →
+            {t("runtime.viewSettings")} →
           </button>
         </div>
       )}

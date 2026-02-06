@@ -5,8 +5,9 @@
  */
 
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { BaseRuntimeProvider } from "./base-provider"
-import type { ExecResult } from "./types"
+import type { ExecResult, ToolDefinition, ToolInfo } from "./types"
 
 export class MacOSRuntimeProvider extends BaseRuntimeProvider {
   constructor() {
@@ -22,6 +23,61 @@ export class MacOSRuntimeProvider extends BaseRuntimeProvider {
     return command
   }
 
+  /** Well-known paths for tools that may not be in Electron's PATH */
+  private static readonly KNOWN_PATHS: Record<string, string[]> = {
+    brew: ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"],
+  }
+
+  /**
+   * Override detectTool: if `which` fails, try well-known absolute paths.
+   * Electron GUI apps may have a minimal PATH that misses Homebrew etc.
+   */
+  override async detectTool(def: ToolDefinition): Promise<ToolInfo> {
+    const result = await super.detectTool(def)
+    if (result.installed) return result
+
+    // Fallback: check known absolute paths
+    const knownPaths = MacOSRuntimeProvider.KNOWN_PATHS[def.name]
+    if (!knownPaths) return result
+
+    for (const absPath of knownPaths) {
+      if (!existsSync(absPath)) continue
+
+      // Found it — get version
+      const versionFlag = def.versionFlag || "--version"
+      const versionResult = await this.execCommand(`${absPath} ${versionFlag}`)
+      let version: string | null = null
+      if (versionResult.success) {
+        const output = versionResult.stdout || versionResult.stderr
+        if (output && def.versionParser) {
+          try { version = def.versionParser(output) } catch { version = output.split("\n")[0].trim() }
+        } else if (output) {
+          version = output.split("\n")[0].trim().replace(/^v/, "")
+        }
+      }
+
+      return { ...result, installed: true, version, path: absPath }
+    }
+
+    return result
+  }
+
+  /**
+   * Build PATH with common macOS tool locations that may not be in Electron's PATH
+   */
+  private getEnhancedPath(): string {
+    const basePath = process.env.PATH || ""
+    const extraPaths = [
+      "/opt/homebrew/bin",
+      "/opt/homebrew/sbin",
+      "/usr/local/bin",
+      "/usr/local/sbin",
+    ]
+    // Prepend extra paths that aren't already present
+    const missing = extraPaths.filter(p => !basePath.split(":").includes(p))
+    return missing.length > 0 ? `${missing.join(":")}:${basePath}` : basePath
+  }
+
   /**
    * Execute command using bash
    */
@@ -32,7 +88,7 @@ export class MacOSRuntimeProvider extends BaseRuntimeProvider {
         detached: false,
         env: {
           ...process.env,
-          PATH: process.env.PATH || "",
+          PATH: this.getEnhancedPath(),
         },
       })
 

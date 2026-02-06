@@ -30,16 +30,30 @@ import { TOOL_DEFINITIONS } from "../../runtime/tool-definitions"
 
 const execAsync = promisify(exec)
 
+/**
+ * Get enhanced PATH that includes common macOS tool locations.
+ * Electron GUI apps launched from Dock don't inherit shell profile PATH,
+ * so /opt/homebrew/bin etc. may be missing.
+ */
+function getEnhancedEnv(): NodeJS.ProcessEnv {
+  if (process.platform !== "darwin") return process.env
+  const basePath = process.env.PATH || ""
+  const extraPaths = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/local/sbin"]
+  const missing = extraPaths.filter(p => !basePath.split(":").includes(p))
+  if (missing.length === 0) return process.env
+  return { ...process.env, PATH: `${missing.join(":")}:${basePath}` }
+}
+
 // Set of skipped categories (persisted in memory for current session)
 const skippedCategories = new Set<string>()
 
-// Cache for runtime detection
+// Cache for runtime detection (debounce only — prevents rapid duplicate calls)
 let runtimeCache: { data: DetectedRuntimes; timestamp: number } | null = null
-const RUNTIME_CACHE_TTL = 60000 // 1 minute
+const RUNTIME_CACHE_TTL = 3000 // 3s debounce
 
-// Cache for tool detection
+// Cache for tool detection (debounce only)
 let toolsCache: { data: DetectedTools; timestamp: number } | null = null
-const TOOLS_CACHE_TTL = 60000 // 1 minute
+const TOOLS_CACHE_TTL = 3000 // 3s debounce
 
 // ============================================================================
 // Router
@@ -351,6 +365,7 @@ export const runnerRouter = router({
         const { stdout, stderr } = await execAsync(input.command, {
           timeout: 600000,
           shell: process.platform === "win32" ? "powershell.exe" : "/bin/bash",
+          env: getEnhancedEnv(),
         })
 
         // Clear cache so next detection will refresh
@@ -473,7 +488,7 @@ export const runnerRouter = router({
       }
     }
 
-    // macOS: Use osascript to elevate privileges (prompts for admin password)
+    // macOS: Check admin privilege first, then install Homebrew
     if (platform === "darwin") {
       // Ensure tools are detected first
       if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
@@ -490,50 +505,83 @@ export const runnerRouter = router({
         }
       }
 
+      // Check if current user has admin (sudo) access via dseditgroup
+      const { execFile } = await import("node:child_process")
+      const { promisify: promisifyLocal } = await import("node:util")
+      const execFileAsync = promisifyLocal(execFile)
+      const username = (await execFileAsync("whoami")).stdout.trim()
+
       try {
-        // Escape the command for AppleScript
-        const escapedCommand = recommendedPM.installCommand.replace(/"/g, '\\"')
-        const osascriptCommand = `osascript -e 'do shell script "${escapedCommand}" with administrator privileges'`
+        await execFileAsync("dseditgroup", ["-o", "checkmember", "-m", username, "admin"])
+      } catch {
+        // dseditgroup exits non-zero when user is NOT an admin
+        return {
+          success: false,
+          error: "NO_ADMIN",
+        }
+      }
 
-        const { stdout, stderr } = await execAsync(osascriptCommand, {
-          timeout: 600000,
-          shell: "/bin/bash",
-          env: {
-            ...process.env,
-            NONINTERACTIVE: "1",
-          },
+      // User is admin — grant temporary passwordless sudo via osascript,
+      // then install Homebrew, and clean up afterwards.
+      const { app } = await import("electron")
+      const sudoersFile = "/etc/sudoers.d/hong-temp"
+
+      // Step 1: Elevate via system password dialog to write temporary sudoers rule
+      try {
+        await execFileAsync("osascript", [
+          "-e",
+          `do shell script "echo '${username} ALL=(ALL) NOPASSWD: ALL' > ${sudoersFile} && chmod 0440 ${sudoersFile}" with administrator privileges`,
+        ], { timeout: 60000 }) // 60s for user to enter password
+      } catch {
+        return { success: false, error: "NO_ADMIN" }
+      }
+
+      // Step 2: Install Homebrew
+      // Dev mode: open Terminal.app so developer can see real-time output
+      // Production: run silently in background
+      if (!app.isPackaged) {
+        // Dev mode — open Terminal.app with install command + cleanup
+        try {
+          const fullCmd = `${recommendedPM.installCommand} ; sudo rm -f ${sudoersFile}`
+          const escapedCmd = fullCmd.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+          await execFileAsync("osascript", [
+            "-e",
+            `tell application "Terminal"\nactivate\ndo script "${escapedCmd}"\nend tell`,
+          ], { timeout: 10000 })
+          toolsCache = null
+          // Return special flag so frontend can poll for completion
+          return { success: false, error: "INSTALLING_IN_TERMINAL" }
+        } catch {
+          // Cleanup sudoers on failure
+          try { await execAsync(`sudo rm -f ${sudoersFile}`) } catch { /* best effort */ }
+          return { success: false, error: "INSTALL_FAILED" }
+        }
+      }
+
+      // Production mode — install silently
+      try {
+        const output = await execAsync(recommendedPM.installCommand, {
+          timeout: 600000, // 10 minutes for Homebrew installation
+          env: { ...getEnhancedEnv(), NONINTERACTIVE: "1" },
         })
-
-        // Clear cache so next detection will refresh
         toolsCache = null
-
         return {
           success: true,
-          output: stdout || stderr,
+          output: output.stdout,
           packageManager: recommendedPM.name,
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
-
-        // Check if user cancelled the authentication prompt
-        if (errorMessage.includes("User canceled") || errorMessage.includes("(-128)")) {
-          return {
-            success: false,
-            error: "用户取消了管理员权限授权。要安装 Homebrew，需要管理员权限。您可以选择跳过或稍后手动安装。",
-          }
+        if (errorMessage.includes("Need sudo access") || errorMessage.includes("not an Administrator")) {
+          return { success: false, error: "NO_ADMIN" }
         }
-
-        // Check if user lacks admin privileges
-        if (errorMessage.includes("administrator privileges") || errorMessage.includes("Need sudo")) {
-          return {
-            success: false,
-            error: "当前用户不是管理员，无法安装 Homebrew。请联系系统管理员将您的账户设为管理员，或选择跳过自动安装。",
-          }
-        }
-
-        return {
-          success: false,
-          error: errorMessage,
+        return { success: false, error: "INSTALL_FAILED" }
+      } finally {
+        // Step 3: Always clean up temporary sudoers rule
+        try {
+          await execAsync(`sudo rm -f ${sudoersFile}`)
+        } catch {
+          // Best effort cleanup
         }
       }
     }

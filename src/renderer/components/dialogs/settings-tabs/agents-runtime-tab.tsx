@@ -286,6 +286,7 @@ function getPlatformDisplayName(platform: NodeJS.Platform): string {
 
 function PackageManagerSection() {
   const { t } = useTranslation('settings')
+  const { t: tCommon } = useTranslation('common')
   const [isInstalling, setIsInstalling] = useState(false)
 
   // Get package manager info
@@ -297,7 +298,10 @@ function PackageManagerSection() {
   } = trpc.runner.getDetectedPackageManager.useQuery()
 
   // Get tools data for package manager details
-  const { data: toolsData } = trpc.runner.detectTools.useQuery()
+  const { data: toolsData, refetch: refetchTools } = trpc.runner.detectTools.useQuery()
+
+  // Force refresh tools (clears backend cache)
+  const refreshToolsMutation = trpc.runner.refreshTools.useMutation()
 
   // Install package manager mutation
   const installMutation = trpc.runner.installPackageManager.useMutation({
@@ -305,14 +309,34 @@ function PackageManagerSection() {
       if (result.success) {
         toast.success(`${result.packageManager} installed successfully`)
         refetch()
+        refetchTools()
+        setIsInstalling(false)
+      } else if (result.error === "INSTALLING_IN_TERMINAL") {
+        // Dev mode: installing in Terminal.app, poll for completion
+        toast.info(tCommon("runtime.pmInstallMayTakeLong"))
+        const poll = setInterval(async () => {
+          await refreshToolsMutation.mutateAsync()
+          const { data } = await refetch()
+          if (data?.packageManager) {
+            clearInterval(poll)
+            setIsInstalling(false)
+            refetchTools()
+            toast.success(`${data.packageManager} installed successfully`)
+          }
+        }, 3000)
+        setTimeout(() => { clearInterval(poll); setIsInstalling(false) }, 600000)
+      } else if (result.error === "NO_ADMIN" || result.error === "INSTALL_FAILED") {
+        toast.error(result.error === "NO_ADMIN"
+          ? tCommon("runtime.noAdmin")
+          : tCommon("runtime.installFailedGeneric"))
+        setIsInstalling(false)
       } else {
-        toast.error(`Failed to install package manager: ${result.error}`)
+        toast.error(result.error || tCommon("runtime.installFailedGeneric"))
+        setIsInstalling(false)
       }
     },
     onError: (error) => {
-      toast.error(`Failed to install package manager: ${error.message}`)
-    },
-    onSettled: () => {
+      toast.error(error.message || tCommon("runtime.installFailedGeneric"))
       setIsInstalling(false)
     },
   })
@@ -356,11 +380,11 @@ function PackageManagerSection() {
             variant="ghost"
             size="sm"
             className="h-7 gap-1.5"
-            onClick={() => refetch()}
-            disabled={isLoading || isRefetching}
+            onClick={async () => { await refreshToolsMutation.mutateAsync(); refetch(); refetchTools() }}
+            disabled={isLoading || isRefetching || refreshToolsMutation.isPending}
           >
             <RefreshCw
-              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
+              className={`h-3.5 w-3.5 ${isRefetching || refreshToolsMutation.isPending ? "animate-spin" : ""}`}
             />
             <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
           </Button>

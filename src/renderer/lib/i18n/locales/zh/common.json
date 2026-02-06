@@ -65,6 +65,25 @@
   "common": {
     "cancel": "取消"
   },
+  "runtime": {
+    "checkingEnv": "正在检测环境...",
+    "envReady": "环境就绪",
+    "settingUp": "正在配置环境 ({{satisfied}}/{{total}})",
+    "installingPM": "正在安装 {{name}}...",
+    "installingTool": "正在安装 {{name}}...",
+    "preparingPM": "正在准备包管理器...",
+    "installFailed": "安装失败",
+    "pmInstallMayTakeLong": "这可能需要几分钟...",
+    "noAdmin": "当前用户不是管理员，Homebrew 需要管理员权限才能安装。请联系系统管理员，或在终端中手动安装 Homebrew。",
+    "installFailedGeneric": "包管理器安装失败",
+    "manualConfig": "手动配置",
+    "skipAll": "跳过全部",
+    "skip": "跳过",
+    "retry": "重试",
+    "envTimeout": "环境检测超时，可选择跳过或手动配置",
+    "viewSettings": "在设置中查看全部",
+    "maxRetries": "已达最大重试次数，请手动安装或跳过"
+  },
   "moveToWorkspace": {
     "title": "转换为正式项目",
     "description": "将对话保存到指定位置，方便整理和继续工作。",
