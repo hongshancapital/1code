@@ -114,18 +114,25 @@ export function track(
 
 /**
  * 用户登录
- * $is_login_id: true 告知神策 userId 是登录 ID，后续埋点会与此用户绑定
+ * 设置 currentUserId，后续所有 track 调用都会使用这个 ID 作为 distinctId
+ * 同时设置用户属性（profileSet）
+ *
+ * 注意：Node.js SDK 没有 login() 方法，我们通过：
+ * 1. 保存 userId 到 currentUserId
+ * 2. 后续 track() 时使用 currentUserId 作为 distinctId，并带上 $is_login_id: true
  */
 export function login(userId: string, properties?: Record<string, any>): void {
   currentUserId = userId
 
   if (isDev() || !sensors || userOptedOut) return
 
+  // 设置用户属性
   sensors.profileSet(userId, {
     ...getCommonProperties(),
     ...properties,
     $is_login_id: true,
   })
+
   console.log(`[Sensors] User logged in: ${userId}`)
 }
 
