@@ -183,6 +183,7 @@ import { GroupingToggle } from "./components/grouping-toggle"
 import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "./components/tag-selector-submenu"
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 import { MoveToWorkspaceDialog } from "../../components/dialogs/move-to-workspace-dialog"
+import { useNavigate } from "../../lib/router"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -1941,6 +1942,9 @@ export function AgentsSidebar({
   const bottomGradientRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // Memory router for navigating with project context sync
+  const { navigateToChat } = useNavigate()
+
   // Multiple drafts state - uses event-based sync instead of polling
   const drafts = useNewChatDrafts()
 
@@ -2884,17 +2888,21 @@ export function AgentsSidebar({
     // Extract original ID for remote chats
     const originalId = isRemote ? chatId.replace(/^remote_/, '') : chatId
 
-    setSelectedChatId(originalId)
-    setSelectedChatIsRemote(isRemote)
-    // Sync chatSourceMode for ChatView to load data from correct source
-    setChatSourceMode(isRemote ? "sandbox" : "local")
+    if (isRemote) {
+      // Remote chats bypass memory router
+      setSelectedChatId(originalId)
+      setSelectedChatIsRemote(true)
+      setChatSourceMode("sandbox")
+    } else {
+      // Local chats use memory router for project context sync
+      navigateToChat(originalId)
+    }
     setShowNewChatForm(false) // Clear new chat form state when selecting a workspace
-    setDesktopView(null) // Clear automations/inbox view when selecting a chat
     // On mobile, notify parent to switch to chat mode
     if (isMobileFullscreen && onChatSelect) {
       onChatSelect()
     }
-  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, setDesktopView, isMobileFullscreen, onChatSelect])
+  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, navigateToChat, isMobileFullscreen, onChatSelect])
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent, chatId: string) => {
     e.stopPropagation()

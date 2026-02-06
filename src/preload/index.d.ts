@@ -81,6 +81,9 @@ export interface DesktopApi {
 
   // Git commit success (from claude.ts Bash output detection)
   onGitCommitSuccess: (callback: (data: { subChatId: string; commitHash: string; branchInfo: string }) => void) => () => void
+
+  // Memory router: deep link navigation
+  onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => () => void
 }
 
 declare global {
