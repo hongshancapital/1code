@@ -1220,7 +1220,7 @@ function WindowsInstallLogs() {
   return (
     <RuntimeSection
       title="Windows 安装日志 (调试)"
-      icon={Terminal}
+      icon={<Terminal className="w-5 h-5" />}
       description="查看 Windows 包管理器安装过程的详细日志"
     >
       <div className="flex flex-col gap-3">

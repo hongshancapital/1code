@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import {
   autoOfflineModeAtom,
   betaAutomationsEnabledAtom,
+  betaMemoryEnabledAtom,
   betaUpdatesEnabledAtom,
   enableTasksAtom,
   historyEnabledAtom,
@@ -57,6 +58,7 @@ export function AgentsBetaTab() {
   const [enableTasks, setEnableTasks] = useAtom(enableTasksAtom)
   const [betaUpdatesEnabled, setBetaUpdatesEnabled] = useAtom(betaUpdatesEnabledAtom)
   const [skillAwarenessEnabled, setSkillAwarenessEnabled] = useAtom(skillAwarenessEnabledAtom)
+  const [betaMemoryEnabled, setBetaMemoryEnabled] = useAtom(betaMemoryEnabledAtom)
 
   // Automations is dev-only feature
   const canEnableAutomations = isFeatureAvailable("automations")
@@ -209,6 +211,22 @@ export function AgentsBetaTab() {
           <Switch
             checked={skillAwarenessEnabled}
             onCheckedChange={setSkillAwarenessEnabled}
+          />
+        </div>
+
+        {/* Memory & Search Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t('beta.memory.title')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('beta.memory.description')}
+            </span>
+          </div>
+          <Switch
+            checked={betaMemoryEnabled}
+            onCheckedChange={setBetaMemoryEnabled}
           />
         </div>
       </div>

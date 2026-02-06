@@ -20,6 +20,7 @@ import {
   litellmSelectedModelAtom,
   userPersonalizationAtom,
   skillAwarenessEnabledAtom,
+  betaMemoryEnabledAtom,
   memoryEnabledAtom,
   memoryRecordingEnabledAtom,
 } from "../../../lib/atoms"
@@ -217,8 +218,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const historyEnabled = appStore.get(historyEnabledAtom)
     const enableTasks = appStore.get(enableTasksAtom)
     const skillAwarenessEnabled = appStore.get(skillAwarenessEnabledAtom)
-    const memoryEnabled = appStore.get(memoryEnabledAtom)
-    const memoryRecordingEnabled = appStore.get(memoryRecordingEnabledAtom)
+    const betaMemoryEnabled = appStore.get(betaMemoryEnabledAtom)
+    const memoryEnabled = betaMemoryEnabled ? appStore.get(memoryEnabledAtom) : false
+    const memoryRecordingEnabled = betaMemoryEnabled ? appStore.get(memoryRecordingEnabledAtom) : false
 
     // Read model selection dynamically (so model changes apply to existing chats)
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)

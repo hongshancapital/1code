@@ -1028,6 +1028,19 @@ export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
 // ============================================
 
 /**
+ * Beta: Enable Memory & Search feature
+ * When disabled (default), all memory functionality is off:
+ * - No recording, no context injection, no search
+ * - Memory tab hidden from settings sidebar
+ */
+export const betaMemoryEnabledAtom = atomWithStorage<boolean>(
+  "preferences:beta-memory-enabled",
+  false, // Default OFF - beta feature
+  undefined,
+  { getOnInit: true },
+)
+
+/**
  * Memory recording toggle
  * When enabled (default), memory observations are automatically captured
  * When disabled, no memory data is recorded

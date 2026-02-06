@@ -22,7 +22,7 @@ import {
 } from "../ui/dialog"
 import { trpc } from "../../lib/trpc"
 import { selectedProjectAtom, selectedAgentChatIdAtom, showNewChatFormAtom, selectedChatIsRemoteAtom } from "../../features/agents/atoms"
-import { chatSourceModeAtom } from "../../lib/atoms"
+import { betaMemoryEnabledAtom, chatSourceModeAtom } from "../../lib/atoms"
 import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
 import { toast } from "sonner"
 import {
@@ -214,6 +214,7 @@ export function GlobalSearchDialog() {
   const [query, setQuery] = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const selectedProject = useAtomValue(selectedProjectAtom)
+  const betaMemoryEnabled = useAtomValue(betaMemoryEnabledAtom)
 
   // Resize state
   const [isResizing, setIsResizing] = useState(false)
@@ -258,7 +259,7 @@ export function GlobalSearchDialog() {
     return () => clearTimeout(timer)
   }, [query])
 
-  // Search query
+  // Search query (only when beta memory is enabled)
   const { data: results, isLoading } = trpc.memory.search.useQuery(
     {
       query: debouncedQuery,
@@ -267,7 +268,7 @@ export function GlobalSearchDialog() {
       mode: "hybrid",
     },
     {
-      enabled: debouncedQuery.length > 1,
+      enabled: betaMemoryEnabled && debouncedQuery.length > 1,
       staleTime: 30000,
     },
   )
@@ -278,8 +279,10 @@ export function GlobalSearchDialog() {
     return groupResults(results as HybridSearchResult[])
   }, [results])
 
-  // Handle keyboard shortcut
+  // Handle keyboard shortcut (only when beta memory is enabled)
   useEffect(() => {
+    if (!betaMemoryEnabled) return
+
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
@@ -289,7 +292,7 @@ export function GlobalSearchDialog() {
 
     document.addEventListener("keydown", down)
     return () => document.removeEventListener("keydown", down)
-  }, [setOpen])
+  }, [setOpen, betaMemoryEnabled])
 
   // Reset query when dialog closes
   useEffect(() => {

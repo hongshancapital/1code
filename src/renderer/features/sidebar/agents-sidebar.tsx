@@ -26,6 +26,7 @@ import {
   type SettingsTab,
   showWorkspaceIconAtom,
   betaAutomationsEnabledAtom,
+  betaMemoryEnabledAtom,
   // Grouping atoms
   workspaceGroupedViewAtom,
   manageTagsDialogOpenAtom,
@@ -1291,13 +1292,17 @@ const HomeButton = memo(function HomeButton() {
 })
 
 // Isolated Search Button - matches Home button style
+// Only shown when beta memory feature is enabled
 const SearchButton = memo(function SearchButton() {
   const { t } = useTranslation('sidebar')
+  const betaMemoryEnabled = useAtomValue(betaMemoryEnabledAtom)
   const setGlobalSearchOpen = useSetAtom(globalSearchOpenAtom)
 
   const handleClick = useCallback(() => {
     setGlobalSearchOpen(true)
   }, [setGlobalSearchOpen])
+
+  if (!betaMemoryEnabled) return null
 
   return (
     <button
