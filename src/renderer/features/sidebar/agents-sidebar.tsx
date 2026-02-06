@@ -165,7 +165,7 @@ import { NetworkStatus } from "../../components/ui/network-status"
 import { useAgentSubChatStore, OPEN_SUB_CHATS_CHANGE_EVENT } from "../agents/stores/sub-chat-store"
 import { getWindowId } from "../../contexts/WindowContext"
 import { AgentsHelpPopover } from "../agents/components/agents-help-popover"
-import { isDesktopApp } from "../../lib/utils/platform"
+import { isDesktopApp, isMacOS } from "../../lib/utils/platform"
 import { useResolvedHotkeyDisplay } from "../../lib/hotkeys"
 import { useNewChatDrafts, deleteNewChatDraft } from "../agents/lib/drafts"
 import {
@@ -1508,7 +1508,8 @@ const SidebarHeader = memo(function SidebarHeader({
       onMouseLeave={handleSidebarMouseLeave}
     >
       {/* Draggable area for window movement - background layer (hidden in fullscreen) */}
-      {isDesktop && !isFullscreen && (
+      {/* Only show on macOS where traffic lights need space; Windows/Linux don't need this */}
+      {isDesktop && !isFullscreen && isMacOS() && (
         <div
           className="absolute inset-x-0 top-0 h-[32px] z-0"
           style={{
