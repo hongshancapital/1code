@@ -406,22 +406,7 @@ export const runnerRouter = router({
         })
         output = stdout || stderr
       }
-      // Windows: Open Microsoft Store for winget installation
-      else if (platform === "win32" && recommendedPM.name === "winget") {
-        // For winget, just open the Microsoft Store
-        // The command is already 'start ms-windows-store://...'
-        await execAsync(recommendedPM.installCommand, {
-          timeout: 10000,
-          shell: "cmd.exe",
-        })
-
-        // Return a message guiding the user
-        return {
-          success: false, // Not actually installed yet, user needs to complete in Store
-          error: "已打开 Microsoft Store 的 App Installer 页面。请在 Store 中点击「获取」或「安装」按钮完成安装。安装完成后，请点击「刷新」按钮重新检测。",
-        }
-      }
-      // Windows: Other tools
+      // Windows: All tools use PowerShell for silent installation
       else {
         const { stdout, stderr } = await execAsync(recommendedPM.installCommand, {
           timeout: 600000,

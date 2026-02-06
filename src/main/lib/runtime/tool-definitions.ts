@@ -32,7 +32,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     name: "winget",
     displayName: "Windows Package Manager",
     category: "package_manager",
-    description: "Windows package manager",
+    description: "Windows package manager (official)",
     priority: 100,
     versionParser: (output) => {
       const match = output.match(/v(\d+\.\d+\.\d+)/)
@@ -40,9 +40,24 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     installCommands: {
       // winget 通常预装在 Windows 10 1809+ 和 Windows 11
-      // 如果没有，需要从 Microsoft Store 安装 "App Installer"
-      // 这里提供手动安装链接，因为自动安装需要 Store
-      win32: 'start ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1',
+      // 如果没有，从 GitHub 下载最新版本静默安装
+      win32: `powershell -c "$ProgressPreference = 'SilentlyContinue'; $url = (Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest').assets | Where-Object { $$_.name -match 'msixbundle$$' } | Select-Object -First 1 -ExpandProperty browser_download_url; Invoke-WebRequest -Uri $$url -OutFile '$$env:TEMP\\winget.msixbundle'; Add-AppxPackage -Path '$$env:TEMP\\winget.msixbundle'; Remove-Item '$$env:TEMP\\winget.msixbundle'"`,
+    },
+  },
+
+  // Windows - Chocolatey (backup package manager)
+  {
+    name: "choco",
+    displayName: "Chocolatey",
+    category: "package_manager",
+    description: "Windows package manager (community)",
+    priority: 80,
+    versionParser: (output) => {
+      const match = output.match(/Chocolatey\s+v?(\d+\.\d+\.\d+)/)
+      return match ? match[1] : output.split("\n")[0].trim()
+    },
+    installCommands: {
+      win32: `powershell -c "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"`,
     },
   },
 
@@ -129,7 +144,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     versionParser: (output) => output.replace(/^git version\s*/, "").split(" ")[0],
     installCommands: {
       darwin: "brew install git",
-      win32: "winget install Git.Git",
+      win32: "winget install Git.Git --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install git",
     },
   },
@@ -147,7 +162,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     versionParser: (output) => output.replace(/^ripgrep\s*/, "").split(" ")[0],
     installCommands: {
       darwin: "brew install ripgrep",
-      win32: "winget install BurntSushi.ripgrep.MSVC",
+      win32: "winget install BurntSushi.ripgrep.MSVC --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install ripgrep",
     },
   },
@@ -165,7 +180,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     versionParser: (output) => output.replace(/^jq-/, ""),
     installCommands: {
       darwin: "brew install jq",
-      win32: "winget install jqlang.jq",
+      win32: "winget install jqlang.jq --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install jq",
     },
   },
@@ -183,7 +198,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     versionParser: (output) => output.split(" ")[1],
     installCommands: {
       darwin: "brew install curl",
-      win32: "winget install cURL.cURL",
+      win32: "winget install cURL.cURL --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install curl",
     },
   },
@@ -213,7 +228,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     minVersion: "18.0.0",
     installCommands: {
       darwin: "brew install node",
-      win32: "winget install OpenJS.NodeJS.LTS",
+      win32: "winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements",
       linux: "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install nodejs",
     },
   },
@@ -234,7 +249,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     installCommands: {
       darwin: "brew install python",
-      win32: "winget install Python.Python.3.12",
+      win32: "winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install python3",
     },
   },
