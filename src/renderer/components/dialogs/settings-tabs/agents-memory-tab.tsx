@@ -56,7 +56,7 @@ import {
 } from "../../ui/alert-dialog"
 import { useAtom, useAtomValue } from "jotai"
 import { selectedProjectAtom } from "../../../features/agents/atoms"
-import { memoryEnabledAtom } from "../../../lib/atoms"
+import { memoryEnabledAtom, memoryRecordingEnabledAtom } from "../../../lib/atoms"
 import { Switch } from "../../ui/switch"
 
 // Observation type icons (borrowed from claude-mem)
@@ -286,6 +286,7 @@ function MemoryTimeline({
 export function AgentsMemoryTab() {
   const { t } = useTranslation("settings")
   const selectedProject = useAtomValue(selectedProjectAtom)
+  const [memoryRecordingEnabled, setMemoryRecordingEnabled] = useAtom(memoryRecordingEnabledAtom)
   const [memoryEnabled, setMemoryEnabled] = useAtom(memoryEnabledAtom)
   // Default to showing all projects, can filter to specific project
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -400,6 +401,29 @@ export function AgentsMemoryTab() {
             />
             {t("memory.refresh")}
           </Button>
+        </div>
+      </div>
+
+      {/* Memory Recording Toggle */}
+      <div className="rounded-lg border p-4 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium">
+              {t("memory.recording.title")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("memory.recording.description")}
+            </span>
+            {!memoryRecordingEnabled && (
+              <span className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                {t("memory.recording.disabledHint")}
+              </span>
+            )}
+          </div>
+          <Switch
+            checked={memoryRecordingEnabled}
+            onCheckedChange={setMemoryRecordingEnabled}
+          />
         </div>
       </div>
 

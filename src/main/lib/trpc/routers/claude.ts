@@ -1110,6 +1110,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
           .optional(), // User personalization for AI recognition
         skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
         memoryEnabled: z.boolean().optional(), // Enable memory context injection (default true)
+        memoryRecordingEnabled: z.boolean().optional(), // Enable memory recording (default true)
       }),
     )
     .subscription(({ input }) => {
@@ -1250,7 +1251,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             // 2.4. Memory hooks: Start session and record user prompt (fire-and-forget)
             let memorySessionId: string | null = null
             const promptNumber = existingMessages.filter((m: any) => m.role === "user").length + 1
-            if (projectId) {
+            if (projectId && input.memoryRecordingEnabled !== false) {
               try {
                 memorySessionId = await memoryHooks.onSessionStart({
                   subChatId: input.subChatId,

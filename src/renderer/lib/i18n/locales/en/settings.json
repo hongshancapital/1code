@@ -817,6 +817,11 @@
     "allMemories": "All memories",
     "refresh": "Refresh",
     "refreshed": "Memory refreshed",
+    "recording": {
+      "title": "Record Memory",
+      "description": "Automatically capture observations during conversations",
+      "disabledHint": "No memory data will be recorded"
+    },
     "enable": {
       "title": "Enable Memory in Conversations",
       "description": "Inject memory context into AI conversations for more personalized responses",

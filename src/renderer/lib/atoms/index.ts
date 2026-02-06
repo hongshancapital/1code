@@ -1037,6 +1037,18 @@ export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
 // ============================================
 
 /**
+ * Memory recording toggle
+ * When enabled (default), memory observations are automatically captured
+ * When disabled, no memory data is recorded
+ */
+export const memoryRecordingEnabledAtom = atomWithStorage<boolean>(
+  "preferences:memory-recording-enabled",
+  true, // Default ON - memory is recorded
+  undefined,
+  { getOnInit: true },
+)
+
+/**
  * Memory context injection toggle
  * When enabled (default), memory context is injected into AI conversations
  * When disabled, memory is still recorded but not used in conversations

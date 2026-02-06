@@ -817,6 +817,11 @@
     "allMemories": "全部记忆",
     "refresh": "刷新",
     "refreshed": "记忆已刷新",
+    "recording": {
+      "title": "记录记忆",
+      "description": "在对话过程中自动捕获观察数据",
+      "disabledHint": "不会记录任何记忆数据"
+    },
     "enable": {
       "title": "在对话中启用记忆",
       "description": "将记忆上下文注入 AI 对话以获得更个性化的回复",
