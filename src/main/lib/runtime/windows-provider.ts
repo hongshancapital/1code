@@ -6,7 +6,8 @@
 
 import { spawn } from "node:child_process"
 import { BaseRuntimeProvider } from "./base-provider"
-import type { ExecResult } from "./types"
+import { CATEGORY_INFO } from "./constants"
+import type { ExecResult, ToolDefinition, ToolInfo } from "./types"
 
 /**
  * Windows-specific command aliases
@@ -23,7 +24,8 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
   }
 
   getWhichCommand(): string {
-    return "where"
+    // Use where.exe (not PowerShell alias) for reliable command detection
+    return "C:\\Windows\\System32\\where.exe"
   }
 
   resolveCommandAlias(command: string): string {
@@ -31,13 +33,12 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
   }
 
   /**
-   * Execute command using PowerShell for better compatibility
+   * Execute command using cmd.exe for better compatibility with native tools
    *
-   * PowerShell advantages over cmd.exe:
-   * - Better PATH resolution
-   * - More consistent output format
-   * - Better Unicode support
-   * - Can handle complex commands
+   * Note: We use cmd.exe instead of PowerShell because:
+   * - Faster startup time
+   * - Better compatibility with native Windows commands like where.exe
+   * - More predictable behavior with PATH resolution
    */
   async execCommand(command: string, timeoutMs = 10000): Promise<ExecResult> {
     return new Promise((resolve) => {
@@ -45,23 +46,23 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
       let finalCommand = command
       const cmdParts = command.split(" ")
       const cmdName = cmdParts[0]
-      if (WINDOWS_COMMAND_ALIASES[cmdName]) {
-        cmdParts[0] = WINDOWS_COMMAND_ALIASES[cmdName]
-        finalCommand = cmdParts.join(" ")
+
+      // Check if this is a where.exe command - preserve it
+      if (!command.startsWith("C:\\Windows\\System32\\where.exe")) {
+        if (WINDOWS_COMMAND_ALIASES[cmdName]) {
+          cmdParts[0] = WINDOWS_COMMAND_ALIASES[cmdName]
+          finalCommand = cmdParts.join(" ")
+        }
       }
 
-      const child = spawn("powershell.exe", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        finalCommand,
-      ], {
+      const child = spawn("cmd.exe", ["/c", finalCommand], {
         stdio: ["ignore", "pipe", "pipe"],
         detached: false,
         env: {
           ...process.env,
           PATH: process.env.PATH || "",
         },
+        shell: false,
       })
 
       let stdout = ""
@@ -103,7 +104,9 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
           clearTimeout(timer)
 
           const combinedOutput = stdout + stderr
-          if (this.isNotFoundError(combinedOutput)) {
+
+          // Check for "not found" errors
+          if (this.isNotFoundError(combinedOutput) || code === 1 && !stdout.trim()) {
             resolve({
               stdout: "",
               stderr: "",
@@ -111,6 +114,7 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
               error: "not_found",
             })
           } else if (code === 0 || stdout.trim() || stderr.trim()) {
+            // Success if we got output or exit code 0
             resolve({
               stdout: stdout.trim(),
               stderr: stderr.trim(),
@@ -140,5 +144,68 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
         }
       })
     })
+  }
+
+  /**
+   * Override detectTool to handle Windows-specific quirks
+   */
+  override async detectTool(def: ToolDefinition): Promise<ToolInfo> {
+    const categoryInfo = CATEGORY_INFO[def.category]
+    const finalName = this.resolveCommandAlias(def.name)
+
+    // Use where.exe to find the executable
+    const whichCmd = this.getWhichCommand()
+    const pathResult = await this.execCommand(`${whichCmd} ${finalName}`)
+
+    if (!pathResult.success || !pathResult.stdout) {
+      return {
+        name: def.name,
+        displayName: def.displayName,
+        category: def.category,
+        installed: false,
+        version: null,
+        path: null,
+        installCommand: this.getInstallCommand(def),
+        description: def.description,
+        required: categoryInfo.required,
+        minVersion: def.minVersion,
+        priority: def.priority,
+      }
+    }
+
+    // Get version - use the resolved alias name
+    const versionFlag = def.versionFlag || "--version"
+    const versionResult = await this.execCommand(`${finalName} ${versionFlag}`)
+
+    let version: string | null = null
+    if (versionResult.success) {
+      const versionOutput = versionResult.stdout || versionResult.stderr
+
+      if (versionOutput && !this.isErrorOutput(versionOutput)) {
+        if (def.versionParser) {
+          try {
+            version = def.versionParser(versionOutput)
+          } catch {
+            version = versionOutput.split("\n")[0].trim()
+          }
+        } else {
+          version = versionOutput.split("\n")[0].trim().replace(/^v/, "")
+        }
+      }
+    }
+
+    return {
+      name: def.name,
+      displayName: def.displayName,
+      category: def.category,
+      installed: true,
+      version,
+      path: pathResult.stdout.split("\n")[0].trim(),
+      installCommand: this.getInstallCommand(def),
+      description: def.description,
+      required: categoryInfo.required,
+      minVersion: def.minVersion,
+      priority: def.priority,
+    }
   }
 }
