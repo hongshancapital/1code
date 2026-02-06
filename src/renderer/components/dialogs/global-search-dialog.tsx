@@ -5,7 +5,7 @@
 
 import * as React from "react"
 import { useCallback, useEffect, useState, useMemo, useRef } from "react"
-import { useAtom, useAtomValue, useSetAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import {
   Command,
@@ -21,9 +21,9 @@ import {
   DialogContent,
 } from "../ui/dialog"
 import { trpc } from "../../lib/trpc"
-import { selectedProjectAtom, selectedAgentChatIdAtom, showNewChatFormAtom, selectedChatIsRemoteAtom } from "../../features/agents/atoms"
-import { betaMemoryEnabledAtom, chatSourceModeAtom } from "../../lib/atoms"
-import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
+import { selectedProjectAtom } from "../../features/agents/atoms"
+import { betaMemoryEnabledAtom } from "../../lib/atoms"
+import { useNavigate } from "../../lib/router"
 import { toast } from "sonner"
 import {
   Search,
@@ -302,12 +302,8 @@ export function GlobalSearchDialog() {
     }
   }, [open])
 
-  // Navigation helpers
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
-  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
-  const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
-  const setChatSourceMode = useSetAtom(chatSourceModeAtom)
-  const subChatStore = useAgentSubChatStore()
+  // Navigation via memory router
+  const { navigateToMessage, navigateToSubChat } = useNavigate()
   const utils = trpc.useUtils()
 
   // Restore archived chat mutation - with optimistic cache update (matching archive-popover behavior)
@@ -342,53 +338,17 @@ export function GlobalSearchDialog() {
 
         if (data?.subChat && data.chat) {
           // If chat is archived, restore it first
-          const wasArchived = !!data.chat.archivedAt
-          if (wasArchived) {
-            // Use sync mutate (not async) like archive-popover does
-            // The optimistic cache update in onSuccess makes it work immediately
+          if (data.chat.archivedAt) {
             restoreChatMutation.mutate({ id: data.chat.id })
             toast.info(t('globalSearch.restoredFromArchive'))
           }
 
-          // Navigate immediately (matching archive-popover pattern)
-          // Set source mode and remote flags for proper data loading
-          setSelectedChatId(data.chat.id)
-          setSelectedChatIsRemote(false)
-          setChatSourceMode("local")
-          setShowNewChatForm(false)
-
-          // Set the active subChat after a delay
-          const delay = wasArchived ? 300 : 100
-          setTimeout(() => {
-            subChatStore.setChatId(data.chat!.id)
-            subChatStore.setActiveSubChat(data.subChat.id)
-
-            // Scroll to specific content if toolCallId is available
-            if (result.toolCallId) {
-              // Wait for messages to render, then scroll to the tool call
-              setTimeout(() => {
-                // Try multiple selector patterns for tool calls
-                const selectors = [
-                  `[data-tool-call-id="${result.toolCallId}"]`,
-                  `[data-message-id="${result.toolCallId}"]`,
-                  `[id="${result.toolCallId}"]`,
-                ]
-
-                for (const selector of selectors) {
-                  const targetElement = document.querySelector(selector)
-                  if (targetElement) {
-                    targetElement.scrollIntoView({ behavior: "smooth", block: "center" })
-                    // Add highlight effect
-                    targetElement.classList.add("ring-2", "ring-primary", "ring-offset-2")
-                    setTimeout(() => {
-                      targetElement.classList.remove("ring-2", "ring-primary", "ring-offset-2")
-                    }, 2000)
-                    break
-                  }
-                }
-              }, 300)
-            }
-          }, delay)
+          // Use memory router for navigation — handles chat/project/subChat/scroll all in one
+          if (result.toolCallId) {
+            navigateToMessage(data.chat.id, data.subChat.id, result.toolCallId)
+          } else {
+            navigateToSubChat(data.chat.id, data.subChat.id)
+          }
 
           toast.success(t('globalSearch.navigatedTo', { name: data.subChat.name || t('globalSearch.untitled') }))
         } else {
@@ -401,7 +361,7 @@ export function GlobalSearchDialog() {
     } else {
       toast.info(t('globalSearch.noSession'))
     }
-  }, [setOpen, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, subChatStore, utils, t, restoreChatMutation])
+  }, [setOpen, navigateToMessage, navigateToSubChat, utils, t, restoreChatMutation])
 
   // Calculate content height (total - header - footer - resize handle)
   const contentHeight = dialogHeight - 44 - 36 - 8 // header ~44px, footer ~36px, handle 8px
