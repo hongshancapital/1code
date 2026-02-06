@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { ChevronRight } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { ChatMarkdownRenderer } from "../../../components/chat-markdown-renderer"
+import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { AgentToolInterrupted } from "./agent-tool-interrupted"
 import { areToolPropsEqual } from "./agent-tool-utils"
 
@@ -17,6 +18,7 @@ interface ThinkingToolPart {
   output?: {
     completed?: boolean
   }
+  startedAt?: number
 }
 
 interface AgentThinkingToolProps {
@@ -24,9 +26,17 @@ interface AgentThinkingToolProps {
   chatStatus?: string
 }
 
-// Constants for thinking preview and scrolling
 const PREVIEW_LENGTH = 60
-const SCROLL_THRESHOLD = 500
+
+function formatElapsedTime(ms: number): string {
+  if (ms < 1000) return ""
+  const seconds = Math.floor(ms / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (remainingSeconds === 0) return `${minutes}m`
+  return `${minutes}m ${remainingSeconds}s`
+}
 
 export const AgentThinkingTool = memo(function AgentThinkingTool({
   part,
@@ -53,6 +63,18 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
     wasStreamingRef.current = isStreaming
   }, [isStreaming])
 
+  // Elapsed time — ticks every second while streaming
+  const startedAtRef = useRef(part.startedAt || Date.now())
+  const [elapsedMs, setElapsedMs] = useState(0)
+
+  useEffect(() => {
+    if (!isStreaming) return
+    const tick = () => setElapsedMs(Date.now() - startedAtRef.current)
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [isStreaming])
+
   // Auto-scroll to bottom when streaming
   useEffect(() => {
     if (isStreaming && isExpanded && scrollRef.current) {
@@ -65,6 +87,7 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
 
   // Build preview for collapsed state
   const previewText = thinkingText.slice(0, PREVIEW_LENGTH).replace(/\n/g, " ")
+  const elapsedDisplay = isStreaming ? formatElapsedTime(elapsedMs) : ""
 
   // Show interrupted state if thinking was interrupted without completing
   if (isInterrupted && !thinkingText) {
@@ -80,13 +103,29 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
       >
         <div className="flex-1 min-w-0 flex items-center gap-1">
           <div className="text-xs flex items-center gap-1.5 min-w-0">
-            <span className="font-medium whitespace-nowrap shrink-0 text-muted-foreground">
-              {isStreaming ? t("thinking.active") : t("thinking.completed")}
+            <span className="font-medium whitespace-nowrap shrink-0">
+              {isStreaming ? (
+                <TextShimmer
+                  as="span"
+                  duration={1.2}
+                  className="inline-flex items-center text-xs leading-none h-4 m-0"
+                >
+                  {t("thinking.active")}
+                </TextShimmer>
+              ) : (
+                <span className="text-muted-foreground">{t("thinking.completed")}</span>
+              )}
             </span>
             {/* Preview text when collapsed */}
             {!isExpanded && previewText && (
               <span className="text-muted-foreground/60 truncate">
-                {previewText}...
+                {previewText}
+              </span>
+            )}
+            {/* Elapsed time */}
+            {elapsedDisplay && (
+              <span className="text-muted-foreground/50 tabular-nums shrink-0">
+                {elapsedDisplay}
               </span>
             )}
             {/* Chevron - rotates when expanded, visible on hover when collapsed */}
@@ -103,32 +142,26 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
 
       {/* Thinking content - only show when expanded */}
       {isExpanded && thinkingText && (
-        <div className="relative">
-          {/* Top gradient fade when streaming and has lots of content */}
-          {isStreaming && thinkingText.length > SCROLL_THRESHOLD && (
-            <div className="absolute inset-x-0 top-0 h-5 bg-linear-to-b from-background/70 to-transparent z-10 pointer-events-none" />
-          )}
-
-          {/* Scrollable container */}
+        <div className="relative mt-1">
+          {/* Top gradient fade when streaming */}
+          <div
+            className={cn(
+              "absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none transition-opacity duration-200",
+              isStreaming ? "opacity-100" : "opacity-0",
+            )}
+          />
           <div
             ref={scrollRef}
             className={cn(
-              "px-2",
-              isStreaming &&
-                thinkingText.length > SCROLL_THRESHOLD &&
-                "overflow-y-auto scrollbar-none max-h-24",
+              "px-2 opacity-50",
+              isStreaming && "overflow-y-auto scrollbar-none max-h-24",
             )}
           >
-            {/* Markdown content */}
             <ChatMarkdownRenderer
               content={thinkingText}
               size="sm"
-              className="text-muted-foreground"
+              isStreaming={isStreaming}
             />
-            {/* Blinking cursor when streaming */}
-            {isStreaming && (
-              <span className="inline-block w-1 h-3 bg-muted-foreground/50 ml-0.5 animate-pulse" />
-            )}
           </div>
         </div>
       )}

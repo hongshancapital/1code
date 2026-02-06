@@ -369,6 +369,14 @@ export const assistantIdsForUserMsgAtomFamily = atomFamily((userMsgId: string) =
   })
 )
 
+// Is this user message the first one? (for hiding rollback on first message)
+export const isFirstUserMessageAtomFamily = atomFamily((userMsgId: string) =>
+  atom((get) => {
+    const userIds = get(userMessageIdsAtom)
+    return userIds[0] === userMsgId
+  })
+)
+
 // Is this user message the last one?
 export const isLastUserMessageAtomFamily = atomFamily((userMsgId: string) =>
   atom((get) => {
@@ -466,8 +474,11 @@ type TokenData = {
   reasoningTokens: number
   totalTokens: number
   messageCount: number
+  totalMessageCount: number
   // Track last message's output tokens to detect when streaming completes
   lastMsgOutputTokens: number
+  // Track last message parts signature to detect compact boundary updates
+  lastMsgPartsKey: string
 }
 const tokenDataCacheByChat = new Map<string, TokenData>()
 
@@ -479,29 +490,51 @@ export const messageTokenDataAtom = atom((get) => {
   const lastId = ids[ids.length - 1]
   const lastMsg = lastId ? get(messageAtomFamily(lastId)) : null
   const lastMsgOutputTokens = lastMsg?.metadata?.outputTokens ?? 0
+  const lastMsgParts = lastMsg?.parts
+  const lastPart = lastMsgParts?.[lastMsgParts.length - 1]
+  const lastMsgPartsKey = `${lastMsgParts?.length ?? 0}:${lastPart?.type ?? ""}:${lastPart?.state ?? ""}`
 
   const cached = tokenDataCacheByChat.get(subChatId)
 
   // Cache is valid if:
-  // 1. Message count is the same AND
-  // 2. Last message's output tokens haven't changed (detects streaming completion)
+  // 1. Total message count is the same AND
+  // 2. Last message's output tokens haven't changed (detects streaming completion) AND
+  // 3. Last message parts signature hasn't changed (detects compact boundary updates)
   if (
     cached &&
-    ids.length === cached.messageCount &&
-    lastMsgOutputTokens === cached.lastMsgOutputTokens
+    ids.length === cached.totalMessageCount &&
+    lastMsgOutputTokens === cached.lastMsgOutputTokens &&
+    lastMsgPartsKey === cached.lastMsgPartsKey
   ) {
     return cached
   }
 
-  // Recalculate token data
+  // Find the last completed compact boundary — tokens after compact reflect current window
+  let startIndex = 0
+  for (let i = 0; i < ids.length; i++) {
+    const msg = get(messageAtomFamily(ids[i]!))
+    const parts = msg?.parts
+    if (
+      parts?.some(
+        (part) =>
+          part.type === "tool-Compact" &&
+          (part.state === "output-available" || part.state === "result"),
+      )
+    ) {
+      // Include the compact result itself in the token window
+      startIndex = i
+    }
+  }
+
+  // Recalculate token data from compact boundary
   let inputTokens = 0
   let outputTokens = 0
   let cacheReadTokens = 0
   let cacheWriteTokens = 0
   let reasoningTokens = 0
 
-  for (const id of ids) {
-    const msg = get(messageAtomFamily(id))
+  for (let i = startIndex; i < ids.length; i++) {
+    const msg = get(messageAtomFamily(ids[i]!))
     const metadata = msg?.metadata
     if (metadata) {
       inputTokens += metadata.inputTokens ?? 0
@@ -512,6 +545,8 @@ export const messageTokenDataAtom = atom((get) => {
     }
   }
 
+  const messageCount = Math.max(0, ids.length - startIndex)
+
   const newTokenData: TokenData = {
     inputTokens,
     outputTokens,
@@ -519,8 +554,10 @@ export const messageTokenDataAtom = atom((get) => {
     cacheWriteTokens,
     reasoningTokens,
     totalTokens: inputTokens + outputTokens,
-    messageCount: ids.length,
+    messageCount,
+    totalMessageCount: ids.length,
     lastMsgOutputTokens,
+    lastMsgPartsKey,
   }
 
   tokenDataCacheByChat.set(subChatId, newTokenData)

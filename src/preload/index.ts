@@ -130,6 +130,8 @@ contextBridge.exposeInMainWorld("desktopApi", {
     ipcRenderer.invoke("app:show-notification", options),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
   selectAudioFile: (): Promise<string | null> => ipcRenderer.invoke("dialog:select-audio-file"),
+  saveFile: (options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] }) =>
+    ipcRenderer.invoke("dialog:save-file", options) as Promise<{ success: boolean; filePath?: string }>,
 
   // API base URL (for fetch requests to server)
   getApiBaseUrl: () => ipcRenderer.invoke("app:get-api-base-url"),
@@ -422,6 +424,7 @@ export interface DesktopApi {
   loadVSCodeTheme: (themePath: string) => Promise<VSCodeThemeData>
   // File dialogs
   selectAudioFile: () => Promise<string | null>
+  saveFile: (options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ success: boolean; filePath?: string }>
   // Memory router: deep link navigation
   onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => () => void
 }
