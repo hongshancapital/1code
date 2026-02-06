@@ -73,7 +73,6 @@ export function track(
   eventName: string,
   properties?: Record<string, any>,
 ): void {
-  console.log(eventName, isDev(), initialized);
   if (isDev() || !initialized) return
 
   sensors.track(eventName, properties)
