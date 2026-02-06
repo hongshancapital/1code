@@ -91,9 +91,19 @@ export const widgetVisibilityAtomFamily = atomFamily((workspaceId: string) =>
   atom(
     (get) => {
       const stored = get(widgetVisibilityStorageAtom)[workspaceId]
-      // Deduplicate and validate against registry
-      const visibility = stored ?? DEFAULT_VISIBLE_WIDGETS
-      return [...new Set(visibility)].filter((id) =>
+      if (!stored) {
+        // No stored preference - use defaults
+        return [...new Set(DEFAULT_VISIBLE_WIDGETS)].filter((id) =>
+          WIDGET_REGISTRY.some((w) => w.id === id)
+        )
+      }
+      // Merge in any newly registered widgets that are in defaults but missing from stored list
+      // This ensures new widgets (e.g. mcp, skills) appear for existing workspaces
+      const missingDefaults = DEFAULT_VISIBLE_WIDGETS.filter(
+        (id) => !stored.includes(id)
+      )
+      const merged = [...stored, ...missingDefaults]
+      return [...new Set(merged)].filter((id) =>
         WIDGET_REGISTRY.some((w) => w.id === id)
       )
     },
@@ -123,9 +133,18 @@ export const widgetOrderAtomFamily = atomFamily((workspaceId: string) =>
   atom(
     (get) => {
       const stored = get(widgetOrderStorageAtom)[workspaceId]
-      // Deduplicate and validate against registry
-      const order = stored ?? DEFAULT_WIDGET_ORDER
-      return [...new Set(order)].filter((id) =>
+      if (!stored) {
+        return [...new Set(DEFAULT_WIDGET_ORDER)].filter((id) =>
+          WIDGET_REGISTRY.some((w) => w.id === id)
+        )
+      }
+      // Append any newly registered widgets that are missing from stored order
+      // This ensures new widgets get a position in the order for existing workspaces
+      const missingWidgets = DEFAULT_WIDGET_ORDER.filter(
+        (id) => !stored.includes(id)
+      )
+      const merged = [...stored, ...missingWidgets]
+      return [...new Set(merged)].filter((id) =>
         WIDGET_REGISTRY.some((w) => w.id === id)
       )
     },
