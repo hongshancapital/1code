@@ -51,7 +51,7 @@ import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 import type { FileStatus } from "../../../../shared/changes-types"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
-import { trackMessageSent } from "../../../lib/analytics"
+import { track as sensorsTrack } from "../../../lib/sensors-analytics"
 import {
   chatSourceModeAtom,
   customClaudeConfigAtom,
@@ -3050,9 +3050,9 @@ const ChatViewInner = memo(function ChatViewInner({
     }
 
     // Track message sent
-    trackMessageSent({
-      workspaceId: subChatId,
-      messageLength: finalText.length,
+    sensorsTrack("message_sent", {
+      workspace_id: subChatId,
+      message_length: finalText.length,
       mode: subChatModeRef.current,
     })
 
@@ -3271,9 +3271,9 @@ const ChatViewInner = memo(function ChatViewInner({
       }
 
       // Track message sent
-      trackMessageSent({
-        workspaceId: subChatId,
-        messageLength: item.message.length,
+      sensorsTrack("message_sent", {
+        workspace_id: subChatId,
+        message_length: item.message.length,
         mode: subChatModeRef.current,
       })
 
@@ -3430,9 +3430,9 @@ const ChatViewInner = memo(function ChatViewInner({
     }
 
     // Track message sent
-    trackMessageSent({
-      workspaceId: subChatId,
-      messageLength: finalText.length,
+    sensorsTrack("message_sent", {
+      workspace_id: subChatId,
+      message_length: finalText.length,
       mode: subChatModeRef.current,
     })
 

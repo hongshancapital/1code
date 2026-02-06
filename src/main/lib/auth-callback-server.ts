@@ -3,8 +3,8 @@ import { createServer, Server } from "http"
 import { join } from "path"
 import { app, session } from "electron"
 import { getAuthManager } from "../auth-manager"
-import { trackAuthCompleted, setSubscriptionPlan } from "./analytics"
 import { handleMcpOAuthCallback } from "./mcp-auth"
+import { login as sensorsLogin, track as sensorsTrack } from "./sensors-analytics"
 import { AUTH_SERVER_PORT, OKTA_CALLBACK_PORT } from "../constants"
 import { getEnv } from "./env"
 
@@ -74,21 +74,10 @@ export async function handleAuthCode(
     console.log("[Auth] Success for user:", authData.user.email)
     logAuthDebug(`Success for user: ${authData.user.email}`)
 
-    // Track successful authentication (skip when embedded in Tinker)
+    // Track successful authentication with Sensors (skip when embedded in Tinker)
     if (!isEmbeddedInTinker) {
-      trackAuthCompleted(authData.user.id, authData.user.email)
-    }
-
-    // Fetch and set subscription plan for analytics (skip when embedded in Tinker)
-    if (!isEmbeddedInTinker) {
-      try {
-        const planData = await authManager!.fetchUserPlan()
-        if (planData) {
-          setSubscriptionPlan(planData.plan)
-        }
-      } catch (e) {
-        console.warn("[Auth] Failed to fetch user plan for analytics:", e)
-      }
+      sensorsLogin(authData.user.id, { email: authData.user.email })
+      sensorsTrack("auth_completed", { user_id: authData.user.id })
     }
 
     // Set desktop token cookie using persist:main partition

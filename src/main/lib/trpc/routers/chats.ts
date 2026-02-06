@@ -4,12 +4,7 @@ import * as path from "path"
 import simpleGit from "simple-git"
 import { z } from "zod"
 import { getDeviceInfo } from "../../device-id"
-import {
-  trackPRCreated,
-  trackWorkspaceArchived,
-  trackWorkspaceCreated,
-  trackWorkspaceDeleted,
-} from "../../analytics"
+import { track as sensorsTrack } from "../../sensors-analytics"
 import { chats, getDatabase, modelUsage, projects, subChats } from "../../db"
 import {
   createWorktreeForChat,
@@ -489,11 +484,11 @@ export const chatsRouter = router({
         subChats: [subChat],
       }
 
-      // Track workspace created
-      trackWorkspaceCreated({
-        id: chat.id,
-        projectId: input.projectId,
-        useWorktree: input.useWorktree,
+      // Track workspace created with Sensors
+      sensorsTrack("workspace_created", {
+        workspace_id: chat.id,
+        project_id: input.projectId,
+        use_worktree: input.useWorktree,
       })
 
       console.log("[chats.create] returning:", response)
@@ -559,8 +554,8 @@ export const chatsRouter = router({
         .returning()
         .get()
 
-      // Track workspace archived
-      trackWorkspaceArchived(input.id)
+      // Track workspace archived with Sensors
+      sensorsTrack("workspace_archived", { workspace_id: input.id })
 
       // Kill terminal processes in background (don't await)
       terminalManager.killByWorkspaceId(input.id).then((killResult) => {
@@ -687,8 +682,8 @@ export const chatsRouter = router({
         }
       }
 
-      // Track workspace deleted
-      trackWorkspaceDeleted(input.id)
+      // Track workspace deleted with Sensors
+      sensorsTrack("workspace_deleted", { workspace_id: input.id })
 
       // Invalidate git cache for this worktree
       if (chat?.worktreePath) {
@@ -1484,10 +1479,10 @@ export const chatsRouter = router({
         .returning()
         .get()
 
-      // Track PR created
-      trackPRCreated({
-        workspaceId: input.chatId,
-        prNumber: input.prNumber,
+      // Track PR created with Sensors
+      sensorsTrack("pr_created", {
+        workspace_id: input.chatId,
+        pr_number: input.prNumber,
       })
 
       return result

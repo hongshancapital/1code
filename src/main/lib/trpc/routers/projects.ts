@@ -10,7 +10,7 @@ import { existsSync } from "node:fs"
 import { mkdir, copyFile, unlink } from "node:fs/promises"
 import { extname } from "node:path"
 import { getGitRemoteInfo, isGitRepo } from "../../git"
-import { trackProjectOpened } from "../../analytics"
+import { track as sensorsTrack } from "../../sensors-analytics"
 import { getLaunchDirectory } from "../../cli"
 import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
 
@@ -176,9 +176,9 @@ export const projectsRouter = router({
         .get()
 
       // Track project opened
-      trackProjectOpened({
-        id: updatedProject!.id,
-        hasGitRemote: !!gitInfo.remoteUrl,
+      sensorsTrack("project_opened", {
+        project_id: updatedProject!.id,
+        has_git_remote: !!gitInfo.remoteUrl,
       })
 
       return updatedProject
@@ -200,7 +200,7 @@ export const projectsRouter = router({
       .get()
 
     // Track project opened
-    trackProjectOpened({
+    sensorsTrack("project_opened", {
       id: newProject!.id,
       hasGitRemote: !!gitInfo.remoteUrl,
     })
@@ -378,9 +378,9 @@ export const projectsRouter = router({
           .get()
 
         if (existing) {
-          trackProjectOpened({
-            id: existing.id,
-            hasGitRemote: !!existing.gitRemoteUrl,
+          sensorsTrack("project_opened", {
+            project_id: existing.id,
+            has_git_remote: !!existing.gitRemoteUrl,
           })
           return existing
         }
@@ -401,7 +401,7 @@ export const projectsRouter = router({
           .returning()
           .get()
 
-        trackProjectOpened({
+        sensorsTrack("project_opened", {
           id: newProject!.id,
           hasGitRemote: !!gitInfo.remoteUrl,
         })
@@ -433,9 +433,9 @@ export const projectsRouter = router({
         .returning()
         .get()
 
-      trackProjectOpened({
-        id: newProject!.id,
-        hasGitRemote: !!gitInfo.remoteUrl,
+      sensorsTrack("project_opened", {
+        project_id: newProject!.id,
+        has_git_remote: !!gitInfo.remoteUrl,
       })
 
       return newProject
@@ -531,7 +531,7 @@ export const projectsRouter = router({
 
       // Track project opened
       if (updatedProject) {
-        trackProjectOpened({
+        sensorsTrack("project_opened", {
           id: updatedProject.id,
           hasGitRemote: !!gitInfo.remoteUrl,
         })

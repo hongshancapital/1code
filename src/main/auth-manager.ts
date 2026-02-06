@@ -537,7 +537,6 @@ export class AuthManager {
 
   /**
    * Fetch user's subscription plan from web backend
-   * Used for PostHog analytics enrichment
    */
   async fetchUserPlan(): Promise<{ email: string; plan: string; status: string | null } | null> {
     const token = await this.getValidToken()

@@ -30,8 +30,7 @@ interface OptionalEnv {
   MAIN_VITE_OPENAI_API_KEY?: string
 
   // Analytics (disabled if not set)
-  MAIN_VITE_POSTHOG_KEY?: string
-  MAIN_VITE_POSTHOG_HOST?: string
+  MAIN_VITE_SENSORS_SERVER_URL?: string
 
   // LiteLLM proxy (internal use)
   MAIN_VITE_LITELLM_BASE_URL?: string
@@ -97,8 +96,7 @@ export function validateEnv(): Env {
     // Optional
     MAIN_VITE_SENTRY_DSN: import.meta.env.MAIN_VITE_SENTRY_DSN,
     MAIN_VITE_OPENAI_API_KEY: import.meta.env.MAIN_VITE_OPENAI_API_KEY,
-    MAIN_VITE_POSTHOG_KEY: import.meta.env.MAIN_VITE_POSTHOG_KEY,
-    MAIN_VITE_POSTHOG_HOST: import.meta.env.MAIN_VITE_POSTHOG_HOST,
+    MAIN_VITE_SENSORS_SERVER_URL: import.meta.env.MAIN_VITE_SENSORS_SERVER_URL,
     MAIN_VITE_LITELLM_BASE_URL: import.meta.env.MAIN_VITE_LITELLM_BASE_URL,
     MAIN_VITE_LITELLM_API_KEY: import.meta.env.MAIN_VITE_LITELLM_API_KEY,
 

@@ -96,6 +96,10 @@ import { ConfirmArchiveDialog } from "../../components/confirm-archive-dialog"
 import { trpc } from "../../lib/trpc"
 import { toast } from "sonner"
 import {
+  trackClickNewWorkspace,
+  trackClickNewChat,
+} from "../../lib/sensors-analytics"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -2077,6 +2081,7 @@ export function AgentsSidebar({
 
   // Handle creating a new chat - navigate to new chat form with chat mode selected
   const handleNewChat = useCallback(() => {
+    trackClickNewChat("new chat")
     triggerHaptic("light")
     setCurrentProjectMode("chat")
     setSelectedChatId(null)
@@ -2087,6 +2092,7 @@ export function AgentsSidebar({
 
   // Handle creating a new workspace - navigate to new chat form with cowork mode selected
   const handleNewWorkspace = useCallback(() => {
+    trackClickNewWorkspace()
     triggerHaptic("light")
     setCurrentProjectMode("cowork")
     setSelectedChatId(null)

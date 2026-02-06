@@ -16,7 +16,13 @@ import {
   BillingMethodPage,
   LiteLLMOnboardingPage,
 } from "./features/onboarding"
-import { identify, initAnalytics, shutdown } from "./lib/analytics"
+import {
+  initSensors,
+  login as sensorsLogin,
+  registerCommonProps,
+  track as sensorsTrack,
+  shutdown as shutdownSensors,
+} from "./lib/sensors-analytics"
 import {
   anthropicOnboardingCompletedAtom,
   apiKeyOnboardingCompletedAtom,
@@ -315,34 +321,33 @@ function AppContent() {
 }
 
 export function App() {
-  // Initialize analytics on mount
+  // Initialize Sensors Analytics on mount
   useEffect(() => {
-    initAnalytics()
+    initSensors()
 
-    // Sync analytics opt-out status to main process
-    const syncOptOutStatus = async () => {
-      try {
-        const optOut =
-          localStorage.getItem("preferences:analytics-opt-out") === "true"
-        await window.desktopApi?.setAnalyticsOptOut(optOut)
-      } catch (error) {
-        console.warn("[Analytics] Failed to sync opt-out status:", error)
-      }
-    }
-    syncOptOutStatus()
+    // 注册神策公共属性
+    registerCommonProps({
+      source: "desktop",
+    })
 
-    // Identify user if already authenticated
-    const identifyUser = async () => {
+    // Login user for Sensors Analytics if already authenticated
+    const loginUser = async () => {
       try {
         const user = await window.desktopApi?.getUser()
         if (user?.id) {
-          identify(user.id, { email: user.email, name: user.name })
+          sensorsLogin(user.id)
         }
       } catch (error) {
-        console.warn("[Analytics] Failed to identify user:", error)
+        console.warn("[Sensors] Failed to login user:", error)
       }
     }
-    identifyUser()
+    loginUser()
+
+    // 测试神策埋点 - 发送渲染进程启动事件
+    sensorsTrack("cowork_renderer_started", {
+      timestamp: new Date().toISOString(),
+    })
+    console.log("[Sensors] Test event sent: cowork_renderer_started")
 
     // Listen for session expiration (when refresh token fails)
     const unsubscribeSessionExpired = window.desktopApi?.onSessionExpired?.(() => {
@@ -365,7 +370,7 @@ export function App() {
 
     // Cleanup on unmount
     return () => {
-      shutdown()
+      shutdownSensors()
       unsubscribeSessionExpired?.()
       unsubscribeReauthenticating?.()
     }

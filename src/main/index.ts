@@ -15,11 +15,11 @@ import { startAuthCallbackServers,  handleAuthCode, type AuthCallbackHandlers } 
 import { Readable } from "stream"
 import { AuthManager, initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
 import {
-  identify,
-  initAnalytics,
-  shutdown as shutdownAnalytics,
-  trackAppOpened,
-} from "./lib/analytics"
+  initSensors,
+  login as sensorsLogin,
+  shutdown as shutdownSensors,
+  track as sensorsTrack,
+} from "./lib/sensors-analytics"
 import {
   checkForUpdates,
   downloadUpdate,
@@ -771,8 +771,19 @@ if (gotTheLock) {
     // Set auth callback handlers to AuthManager for on-demand Okta server startup
     authManager.setAuthCallbackHandlers(authCallbackHandlers)
 
-    // Initialize analytics after auth manager so we can identify user
-    initAnalytics()
+    // Initialize Sensors Analytics (skip if embedded in Tinker)
+    if (isEmbeddedInTinker) {
+      console.log("[App] Skipping Sensors init (embedded in Tinker)")
+    } else {
+      initSensors()
+      console.log("[App] Sensors Analytics initialized")
+
+      // 测试神策埋点 - 发送应用启动事件
+      sensorsTrack("cowork_app_started", {
+        timestamp: new Date().toISOString(),
+      })
+      console.log("[Sensors] Test event sent: cowork_app_started")
+    }
 
     // If user already authenticated from previous session, validate token and refresh user info
     if (authManager.isAuthenticated()) {
@@ -780,9 +791,9 @@ if (gotTheLock) {
       const validatedUser = await authManager.validateAndRefreshUser()
 
       if (validatedUser) {
-        // Token is valid, identify user for analytics
-        identify(validatedUser.id, { email: validatedUser.email })
-        console.log("[Analytics] User identified from validated session:", validatedUser.id)
+        // Token is valid, login user for Sensors Analytics
+        sensorsLogin(validatedUser.id, { email: validatedUser.email })
+        console.log("[Sensors] User logged in from validated session:", validatedUser.id)
       } else {
         // Token expired (401), try to refresh first
         console.log("[App] Token expired, attempting refresh...")
@@ -792,8 +803,8 @@ if (gotTheLock) {
           // Refresh successful, validate again to get fresh user info
           const refreshedUser = await authManager.validateAndRefreshUser()
           if (refreshedUser) {
-            identify(refreshedUser.id, { email: refreshedUser.email })
-            console.log("[Analytics] User identified after token refresh:", refreshedUser.id)
+            sensorsLogin(refreshedUser.id, { email: refreshedUser.email })
+            console.log("[Sensors] User logged in after token refresh:", refreshedUser.id)
           }
         } else {
           // Refresh failed, auto-start OAuth for returning users
@@ -808,9 +819,6 @@ if (gotTheLock) {
         }
       }
     }
-
-    // Track app opened (now with correct user ID if authenticated)
-    trackAppOpened()
 
     // Set up callback to update cookie when token is refreshed
     authManager.setOnTokenRefresh(async (authData) => {
@@ -917,7 +925,7 @@ if (gotTheLock) {
     cancelAllPendingOAuth()
     AutomationEngine.getInstance().cleanup()
     await cleanupGitWatchers()
-    await shutdownAnalytics()
+    await shutdownSensors()
     await closeDatabase()
   })
 

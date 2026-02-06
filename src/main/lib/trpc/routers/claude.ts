@@ -6,7 +6,6 @@ import { readFileSync } from "fs"
 import * as os from "os"
 import path from "path"
 import { z } from "zod"
-import { setConnectionMethod } from "../../analytics"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
   buildClaudeEnv,
@@ -1239,18 +1238,6 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             // Use offline config if available
             const finalCustomConfig = offlineResult.config || resolvedCustomConfig
             const isUsingOllama = offlineResult.isUsingOllama
-
-            // Track connection method for analytics
-            let connectionMethod = "claude-subscription" // default (Claude Code OAuth)
-            if (isUsingOllama) {
-              connectionMethod = "offline-ollama"
-            } else if (finalCustomConfig) {
-              // Has custom config = either API key or custom model
-              const isDefaultAnthropicUrl = !finalCustomConfig.baseUrl ||
-                finalCustomConfig.baseUrl.includes("anthropic.com")
-              connectionMethod = isDefaultAnthropicUrl ? "api-key" : "custom-model"
-            }
-            setConnectionMethod(connectionMethod)
 
             // Offline status is shown in sidebar, no need to emit message here
             // (emitting text-delta without text-start breaks UI text rendering)
