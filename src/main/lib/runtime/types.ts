@@ -18,6 +18,14 @@ export type ToolCategory =
   | "go_runtime"
   | "rust_runtime"
 
+/**
+ * Windows package IDs for different package managers
+ */
+export interface WindowsPackageIds {
+  winget?: string
+  choco?: string
+}
+
 export interface ToolDefinition {
   name: string
   displayName: string
@@ -28,6 +36,8 @@ export interface ToolDefinition {
   versionFlag?: string
   versionParser?: (output: string) => string
   installCommands: Partial<Record<SupportedPlatform, string>>
+  /** Windows-specific package IDs for winget and Chocolatey */
+  windowsPackageIds?: WindowsPackageIds
 }
 
 export interface ToolInfo {

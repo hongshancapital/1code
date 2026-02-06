@@ -147,6 +147,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       win32: "winget install Git.Git --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install git",
     },
+    windowsPackageIds: {
+      winget: "Git.Git",
+      choco: "git",
+    },
   },
 
   // ============================================================================
@@ -164,6 +168,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       darwin: "brew install ripgrep",
       win32: "winget install BurntSushi.ripgrep.MSVC --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install ripgrep",
+    },
+    windowsPackageIds: {
+      winget: "BurntSushi.ripgrep.MSVC",
+      choco: "ripgrep",
     },
   },
 
@@ -183,6 +191,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       win32: "winget install jqlang.jq --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install jq",
     },
+    windowsPackageIds: {
+      winget: "jqlang.jq",
+      choco: "jq",
+    },
   },
 
   // ============================================================================
@@ -200,6 +212,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       darwin: "brew install curl",
       win32: "winget install cURL.cURL --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install curl",
+    },
+    windowsPackageIds: {
+      winget: "cURL.cURL",
+      choco: "curl",
     },
   },
 
@@ -231,6 +247,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       win32: "winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements",
       linux: "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt install nodejs",
     },
+    windowsPackageIds: {
+      winget: "OpenJS.NodeJS.LTS",
+      choco: "nodejs-lts",
+    },
   },
 
   // ============================================================================
@@ -251,6 +271,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       darwin: "brew install python",
       win32: "winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements",
       linux: "sudo apt install python3",
+    },
+    windowsPackageIds: {
+      winget: "Python.Python.3.12",
+      choco: "python",
     },
   },
 

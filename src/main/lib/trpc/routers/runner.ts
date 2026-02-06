@@ -16,6 +16,15 @@ import {
   type RuntimeEnvironment,
 } from "../../runtime"
 
+// Import Windows package manager registry
+import {
+  getWindowsPackageManagerRegistry,
+  resetWindowsPackageManagerRegistry,
+} from "../../runtime/windows-package-managers"
+
+// Import tool definitions to get Windows package IDs
+import { TOOL_DEFINITIONS } from "../../runtime/tool-definitions"
+
 const execAsync = promisify(exec)
 
 // Set of skipped categories (persisted in memory for current session)
@@ -265,6 +274,7 @@ export const runnerRouter = router({
 
   /**
    * Install a tool using the provided command
+   * On Windows, automatically tries both winget and Chocolatey with fallback
    * Note: This runs the command in a shell. For commands requiring sudo,
    * the user will be prompted for password in the terminal.
    */
@@ -275,10 +285,61 @@ export const runnerRouter = router({
         command: z.string(),
       })
     )
-    .mutation(async ({ input }): Promise<{ success: boolean; error?: string; output?: string }> => {
+    .mutation(async ({ input }): Promise<{ success: boolean; error?: string; output?: string; provider?: string }> => {
       try {
-        // Execute the install command
-        // Use a longer timeout for installation (10 minutes)
+        // On Windows, try to use the package manager registry with automatic fallback
+        if (process.platform === "win32") {
+          // Find the tool definition to get package IDs
+          const toolDef = TOOL_DEFINITIONS.find(t => t.name === input.toolName)
+
+          if (toolDef?.windowsPackageIds) {
+            const registry = getWindowsPackageManagerRegistry()
+
+            // Try winget first, then Chocolatey
+            const wingetId = toolDef.windowsPackageIds.winget
+            const chocoId = toolDef.windowsPackageIds.choco
+
+            if (wingetId) {
+              const result = await registry.installTool(wingetId, {
+                silent: true,
+                acceptLicenses: true,
+              })
+
+              if (result.success) {
+                // Clear cache so next detection will refresh
+                toolsCache = null
+                resetWindowsPackageManagerRegistry()
+
+                return {
+                  success: true,
+                  output: result.output,
+                  provider: result.provider,
+                }
+              }
+            }
+
+            // If winget failed and we have a choco ID, try Chocolatey
+            if (chocoId) {
+              const result = await registry.installTool(chocoId, {
+                silent: true,
+                acceptLicenses: true,
+              })
+
+              if (result.success) {
+                toolsCache = null
+                resetWindowsPackageManagerRegistry()
+
+                return {
+                  success: true,
+                  output: result.output,
+                  provider: result.provider,
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback to direct command execution for non-Windows or tools without package IDs
         const { stdout, stderr } = await execAsync(input.command, {
           timeout: 600000,
           shell: process.platform === "win32" ? "powershell.exe" : "/bin/bash",
@@ -353,8 +414,9 @@ export const runnerRouter = router({
   }),
 
   /**
-   * Install package manager (Homebrew on macOS, Winget on Windows)
+   * Install package manager (Homebrew on macOS, Winget/Chocolatey on Windows)
    * Linux package managers are pre-installed, so this only works on macOS/Windows
+   * On Windows, automatically tries both winget and Chocolatey
    */
   installPackageManager: publicProcedure.mutation(async (): Promise<{
     success: boolean
@@ -372,26 +434,55 @@ export const runnerRouter = router({
       }
     }
 
-    // Ensure tools are detected first
-    if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
-      toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
-    }
+    // Windows: Use the package manager registry
+    if (platform === "win32") {
+      const registry = getWindowsPackageManagerRegistry()
 
-    const pmCategory = toolsCache.data.categories.find((c) => c.category === "package_manager")
-    const recommendedPM = pmCategory?.recommendedTool
+      try {
+        const result = await registry.ensurePackageManager()
 
-    if (!recommendedPM || !recommendedPM.installCommand) {
-      return {
-        success: false,
-        error: "No package manager installation available for this platform",
+        if (result.success) {
+          // Clear cache so next detection will refresh
+          toolsCache = null
+
+          return {
+            success: true,
+            output: `成功安装 ${result.provider}`,
+            packageManager: result.provider,
+          }
+        }
+
+        return {
+          success: false,
+          error: result.error || "Failed to install package manager",
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        return {
+          success: false,
+          error: errorMessage,
+        }
       }
     }
 
-    try {
-      let output: string
+    // macOS: Use osascript to elevate privileges (prompts for admin password)
+    if (platform === "darwin") {
+      // Ensure tools are detected first
+      if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+        toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
+      }
 
-      // macOS: Use osascript to elevate privileges (prompts for admin password)
-      if (platform === "darwin") {
+      const pmCategory = toolsCache.data.categories.find((c) => c.category === "package_manager")
+      const recommendedPM = pmCategory?.recommendedTool
+
+      if (!recommendedPM || !recommendedPM.installCommand) {
+        return {
+          success: false,
+          error: "No package manager installation available for this platform",
+        }
+      }
+
+      try {
         // Escape the command for AppleScript
         const escapedCommand = recommendedPM.installCommand.replace(/"/g, '\\"')
         const osascriptCommand = `osascript -e 'do shell script "${escapedCommand}" with administrator privileges'`
@@ -404,48 +495,44 @@ export const runnerRouter = router({
             NONINTERACTIVE: "1",
           },
         })
-        output = stdout || stderr
-      }
-      // Windows: All tools use PowerShell for silent installation
-      else {
-        const { stdout, stderr } = await execAsync(recommendedPM.installCommand, {
-          timeout: 600000,
-          shell: "powershell.exe",
-        })
-        output = stdout || stderr
-      }
 
-      // Clear cache so next detection will refresh
-      toolsCache = null
+        // Clear cache so next detection will refresh
+        toolsCache = null
 
-      return {
-        success: true,
-        output,
-        packageManager: recommendedPM.name,
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        return {
+          success: true,
+          output: stdout || stderr,
+          packageManager: recommendedPM.name,
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
 
-      // Check if user cancelled the authentication prompt
-      if (errorMessage.includes("User canceled") || errorMessage.includes("(-128)")) {
+        // Check if user cancelled the authentication prompt
+        if (errorMessage.includes("User canceled") || errorMessage.includes("(-128)")) {
+          return {
+            success: false,
+            error: "用户取消了管理员权限授权。要安装 Homebrew，需要管理员权限。您可以选择跳过或稍后手动安装。",
+          }
+        }
+
+        // Check if user lacks admin privileges
+        if (errorMessage.includes("administrator privileges") || errorMessage.includes("Need sudo")) {
+          return {
+            success: false,
+            error: "当前用户不是管理员，无法安装 Homebrew。请联系系统管理员将您的账户设为管理员，或选择跳过自动安装。",
+          }
+        }
+
         return {
           success: false,
-          error: "用户取消了管理员权限授权。要安装 Homebrew，需要管理员权限。您可以选择跳过或稍后手动安装。",
+          error: errorMessage,
         }
       }
+    }
 
-      // Check if user lacks admin privileges
-      if (errorMessage.includes("administrator privileges") || errorMessage.includes("Need sudo")) {
-        return {
-          success: false,
-          error: "当前用户不是管理员，无法安装 Homebrew。请联系系统管理员将您的账户设为管理员，或选择跳过自动安装。",
-        }
-      }
-
-      return {
-        success: false,
-        error: errorMessage,
-      }
+    return {
+      success: false,
+      error: "Unsupported platform",
     }
   }),
 })

@@ -12,6 +12,7 @@ export { BaseRuntimeProvider } from "./base-provider"
 export { WindowsRuntimeProvider } from "./windows-provider"
 export { MacOSRuntimeProvider } from "./macos-provider"
 export { LinuxRuntimeProvider } from "./linux-provider"
+export * from "./windows-package-managers"
 
 import { getRuntimeProvider } from "./provider-factory"
 import { TOOL_DEFINITIONS } from "./tool-definitions"
