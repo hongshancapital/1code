@@ -129,13 +129,20 @@ export function getElevationStatus(): ElevationStatus {
 
 /**
  * Execute a command with UAC elevation (triggers system UAC dialog).
- * Uses a temporary .bat file + Start-Process -Verb RunAs to capture output.
+ *
+ * If `powershell: true`, writes the command as a .ps1 script and runs it via
+ * `Start-Process powershell.exe -File ... -Verb RunAs`.
+ * Otherwise wraps the command in a .bat file and runs via `Start-Process cmd.exe`.
+ *
+ * Output is captured via temporary files to work around the elevated process
+ * running in a separate window/session.
  */
 async function elevatedExec(
   command: string,
-  timeoutMs = 600000,
-  logStep?: string,
+  options: { timeoutMs?: number; logStep?: string; powershell?: boolean } = {},
 ): Promise<ExecResult> {
+  const { timeoutMs = 600000, logStep, powershell = false } = options
+
   if (logStep) {
     addLog({ step: `${logStep} - UAC elevated exec`, command, success: true })
   }
@@ -143,28 +150,49 @@ async function elevatedExec(
   const tmpDir = join(tmpdir(), `hong-elevate-${Date.now()}`)
   mkdirSync(tmpDir, { recursive: true })
 
-  const cmdFile = join(tmpDir, "command.bat")
   const stdoutFile = join(tmpDir, "stdout.txt")
   const stderrFile = join(tmpDir, "stderr.txt")
   const exitCodeFile = join(tmpDir, "exitcode.txt")
 
-  // Write batch file that captures stdout/stderr/exit code
-  const batContent = [
-    "@echo off",
-    "chcp 65001 >nul",
-    `${command} > "${stdoutFile}" 2> "${stderrFile}"`,
-    `echo %errorlevel% > "${exitCodeFile}"`,
-  ].join("\r\n")
-  writeFileSync(cmdFile, batContent, "utf8")
+  // Build the wrapper script that captures output
+  let wrapperFile: string
+  let startProcessArgs: string
 
-  // Escape paths for PowerShell
-  const escapedCmdFile = cmdFile.replace(/'/g, "''")
+  if (powershell) {
+    // Write a .ps1 wrapper that executes the command and captures output
+    wrapperFile = join(tmpDir, "command.ps1")
+    const ps1Content = [
+      "$ErrorActionPreference = 'Continue'",
+      "try {",
+      `  ${command} > "${stdoutFile}" 2> "${stderrFile}"`,
+      `  $LASTEXITCODE | Out-File -FilePath "${exitCodeFile}" -Encoding utf8`,
+      "} catch {",
+      `  $_.Exception.Message | Out-File -FilePath "${stderrFile}" -Encoding utf8`,
+      `  1 | Out-File -FilePath "${exitCodeFile}" -Encoding utf8`,
+      "}",
+    ].join("\r\n")
+    writeFileSync(wrapperFile, ps1Content, "utf8")
 
-  const psCommand = `Start-Process cmd.exe -ArgumentList '/c "${escapedCmdFile}"' -Verb RunAs -Wait -WindowStyle Hidden`
+    const escapedWrapper = wrapperFile.replace(/'/g, "''")
+    startProcessArgs = `Start-Process powershell.exe -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${escapedWrapper}' -Verb RunAs -Wait -WindowStyle Hidden`
+  } else {
+    // Write a .bat wrapper
+    wrapperFile = join(tmpDir, "command.bat")
+    const batContent = [
+      "@echo off",
+      "chcp 65001 >nul",
+      `${command} > "${stdoutFile}" 2> "${stderrFile}"`,
+      `echo %errorlevel% > "${exitCodeFile}"`,
+    ].join("\r\n")
+    writeFileSync(wrapperFile, batContent, "utf8")
+
+    const escapedWrapper = wrapperFile.replace(/'/g, "''")
+    startProcessArgs = `Start-Process cmd.exe -ArgumentList '/c','${escapedWrapper}' -Verb RunAs -Wait -WindowStyle Hidden`
+  }
 
   try {
     await execAsync(
-      `powershell.exe -NoProfile -NonInteractive -Command "${psCommand.replace(/"/g, '\\"')}"`,
+      `powershell.exe -NoProfile -NonInteractive -Command "${startProcessArgs.replace(/"/g, '\\"')}"`,
       { timeout: timeoutMs },
     )
 
@@ -179,7 +207,7 @@ async function elevatedExec(
     if (logStep) {
       addLog({
         step: `${logStep} - UAC ${success ? "succeeded" : "failed"}`,
-        command,
+        command: command.substring(0, 200),
         stdout: stdout.substring(0, 200),
         stderr: stderr.substring(0, 200),
         success,
@@ -201,7 +229,7 @@ async function elevatedExec(
     if (logStep) {
       addLog({
         step: `${logStep} - UAC ${isCancelled ? "cancelled by user" : "error"}`,
-        command,
+        command: command.substring(0, 200),
         success: false,
         error: isCancelled ? "uac_cancelled" : errorMsg,
       })
@@ -232,6 +260,7 @@ async function elevatedExec(
 async function installWithElevation(
   command: string,
   logStep: string,
+  options: { powershell?: boolean } = {},
 ): Promise<ExecResult> {
   const status = getElevationStatus()
 
@@ -241,7 +270,11 @@ async function installWithElevation(
   }
 
   // can-elevate (or elevated, though unlikely to reach here)
-  const result = await elevatedExec(command, 600000, logStep)
+  const result = await elevatedExec(command, {
+    timeoutMs: 600000,
+    logStep,
+    powershell: options.powershell,
+  })
 
   if (!result.success && result.stderr === "UAC_CANCELLED") {
     return { stdout: "", stderr: "UAC_CANCELLED", success: false, error: "execution_failed" }
@@ -405,11 +438,8 @@ export class WingetProvider implements WindowsPackageManager {
     const result = await execPowerShell(command, 600000, "安装 winget")
     if (result.success) return result
 
-    // Failed — check elevation status and try UAC
-    return await installWithElevation(
-      `powershell.exe -NoProfile -NonInteractive -Command "${command.replace(/"/g, '\\"')}"`,
-      "安装 winget (elevated)",
-    )
+    // Failed — check elevation status and try UAC (run as PowerShell script)
+    return await installWithElevation(command, "安装 winget (elevated)", { powershell: true })
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -481,11 +511,8 @@ export class ChocolateyProvider implements WindowsPackageManager {
     const result = await execPowerShell(command, 600000, "安装 Chocolatey")
     if (result.success) return result
 
-    // Failed — try with elevation
-    return await installWithElevation(
-      `powershell.exe -NoProfile -NonInteractive -Command "${command.replace(/"/g, '\\"')}"`,
-      "安装 Chocolatey (elevated)",
-    )
+    // Failed — try with elevation (run as PowerShell script)
+    return await installWithElevation(command, "安装 Chocolatey (elevated)", { powershell: true })
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
