@@ -164,6 +164,16 @@
   color: hsl(0 0% 5%) !important;
 }
 
+/* Memory router - scroll-to-target highlight pulse */
+.router-highlight {
+  animation: router-highlight-pulse 3s ease-out;
+}
+
+@keyframes router-highlight-pulse {
+  0% { background-color: rgb(59 130 246 / 0.2); }
+  100% { background-color: transparent; }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

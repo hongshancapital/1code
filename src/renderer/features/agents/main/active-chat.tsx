@@ -164,6 +164,7 @@ import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
 import { useAutoImport } from "../hooks/use-auto-import"
 import { useAutoScroll } from "../hooks/useAutoScroll"
+import { useScrollToTarget } from "../../../lib/router"
 import { useChangedFilesTracking } from "../hooks/use-changed-files-tracking"
 import { useDesktopNotifications } from "../hooks/use-desktop-notifications"
 import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
@@ -1455,6 +1456,9 @@ const ChatViewInner = memo(function ChatViewInner({
     isAtBottom,
     enableAutoScroll,
   } = useAutoScroll(isActive)
+
+  // Memory router: scroll to target message when navigated via useNavigate
+  useScrollToTarget(chatContainerRef, subChatId, isActive)
 
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)

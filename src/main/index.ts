@@ -173,6 +173,33 @@ function handleDeepLink(url: string): void {
         return
       }
     }
+
+    // Handle navigation deep link: hong://navigate/{chatId}/{subChatId}/{messageId}?highlight=xxx
+    if (parsed.pathname.startsWith("/navigate") || parsed.host === "navigate") {
+      const pathParts = (parsed.host === "navigate" ? parsed.pathname : parsed.pathname.replace(/^\/navigate/, ""))
+        .split("/")
+        .filter(Boolean)
+      const chatId = pathParts[0]
+      if (chatId) {
+        const route = {
+          chatId,
+          subChatId: pathParts[1] || undefined,
+          messageId: pathParts[2] || undefined,
+          highlight: parsed.searchParams.get("highlight") || undefined,
+          timestamp: Date.now(),
+        }
+        console.log("[DeepLink] Navigate route:", route)
+        const windows = getAllWindows()
+        for (const win of windows) {
+          if (!win.isDestroyed()) {
+            win.webContents.send("navigate:route", route)
+            win.focus()
+            break
+          }
+        }
+        return
+      }
+    }
   } catch (e) {
     console.error("[DeepLink] Failed to parse:", e)
   }

@@ -8,6 +8,7 @@ import { TRPCProvider } from "./contexts/TRPCProvider"
 import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext"
 import { selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
+import { useNavigate } from "./lib/router"
 import { AgentsLayout } from "./features/layout/agents-layout"
 import { useTrafficLightSync } from "./lib/hooks/use-traffic-light-sync"
 import {
@@ -96,6 +97,7 @@ function AppContent() {
   const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
   const [welcomeNameInputCompleted, setWelcomeNameInputCompleted] = useAtom(welcomeNameInputCompletedAtom)
   const { setActiveSubChat, addToOpenSubChats, setChatId } = useAgentSubChatStore()
+  const { navigateTo } = useNavigate()
 
   // Track if auth check has completed
   const [authCheckCompleted, setAuthCheckCompleted] = useState(false)
@@ -137,14 +139,13 @@ function AppContent() {
     const params = getInitialWindowParams()
     if (params.chatId) {
       console.log("[App] Opening chat from window params:", params.chatId, params.subChatId)
-      setSelectedChatId(params.chatId)
-      setChatId(params.chatId)
-      if (params.subChatId) {
-        addToOpenSubChats(params.subChatId)
-        setActiveSubChat(params.subChatId)
-      }
+      navigateTo({
+        chatId: params.chatId,
+        subChatId: params.subChatId,
+        timestamp: Date.now(),
+      })
     }
-  }, [setSelectedChatId, setChatId, addToOpenSubChats, setActiveSubChat])
+  }, [navigateTo])
 
   // Check if user has existing CLI config (API key or proxy)
   // Based on PR #29 by @sa4hnd

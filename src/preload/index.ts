@@ -102,6 +102,13 @@ contextBridge.exposeInMainWorld("desktopApi", {
     return () => ipcRenderer.removeListener("window:focus-change", handler)
   },
 
+  // Memory router: deep link navigation
+  onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => {
+    const handler = (_event: unknown, route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => callback(route)
+    ipcRenderer.on("navigate:route", handler)
+    return () => ipcRenderer.removeListener("navigate:route", handler)
+  },
+
   // Zoom controls
   zoomIn: () => ipcRenderer.invoke("window:zoom-in"),
   zoomOut: () => ipcRenderer.invoke("window:zoom-out"),
@@ -415,6 +422,8 @@ export interface DesktopApi {
   loadVSCodeTheme: (themePath: string) => Promise<VSCodeThemeData>
   // File dialogs
   selectAudioFile: () => Promise<string | null>
+  // Memory router: deep link navigation
+  onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => () => void
 }
 
 // Expose embedded flag for renderer process
