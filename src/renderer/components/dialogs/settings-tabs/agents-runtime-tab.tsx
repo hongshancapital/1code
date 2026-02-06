@@ -1180,7 +1180,7 @@ export function AgentsRuntimeTab() {
         <RustSection />
 
         {/* Windows Installation Logs (Debug) */}
-        {window.desktopApi.platform === "win32" && <WindowsInstallLogs />}
+        {window.desktopApi.platform === "win32" ? <WindowsInstallLogs /> : null}
       </div>
     </div>
   )
