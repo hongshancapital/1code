@@ -34,6 +34,7 @@ import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStat
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
+import { computePreviewStatsFromMessages } from "./chats"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
 import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
@@ -2599,9 +2600,12 @@ ${prompt}
                   metadata,
                 }
                 const finalMessages = [...messagesToSave, assistantMessage]
+                const finalMessagesJson = JSON.stringify(finalMessages)
+                const stats = computePreviewStatsFromMessages(finalMessagesJson, input.mode)
                 db.update(subChats)
                   .set({
-                    messages: JSON.stringify(finalMessages),
+                    messages: finalMessagesJson,
+                    statsJson: JSON.stringify(stats),
                     sessionId: metadata.sessionId,
                     streamId: null,
                     updatedAt: new Date(),
@@ -2729,10 +2733,13 @@ ${prompt}
               })
 
               const finalMessages = [...messagesToSave, assistantMessage]
+              const finalMessagesJson = JSON.stringify(finalMessages)
+              const stats = computePreviewStatsFromMessages(finalMessagesJson, input.mode)
 
               db.update(subChats)
                 .set({
-                  messages: JSON.stringify(finalMessages),
+                  messages: finalMessagesJson,
+                  statsJson: JSON.stringify(stats),
                   sessionId: savedSessionId,
                   streamId: null,
                   updatedAt: new Date(),

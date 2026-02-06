@@ -25,15 +25,15 @@ import { Logo } from "../ui/logo"
 /**
  * Auth flow state machine:
  *
- * Modal opens → checking (system token?)
- *   → found token → importing → success → close
+ * Modal opens → checking
+ *   → found token → has_system_token (STOP & ASK USER)
+ *       → User "Use Existing" → importing → success → close
+ *       → User "Re-authenticate" → setup_token (CLI) or sandbox
  *   → no token → setup_token (CLI) or sandbox OAuth fallback
- *       → setup_token: CLI runs, browser opens, user authenticates
- *       → sandbox: needs Hong Desktop token, fallback path
- *   → error: show message + retry
  */
 type AuthFlowState =
   | { step: "checking" }
+  | { step: "has_system_token"; token: string }
   | { step: "importing" }
   | { step: "setup_token" }
   | { step: "starting" }
@@ -61,7 +61,9 @@ export function ClaudeLoginModal() {
   const [authCode, setAuthCode] = useState("")
   const [savedOauthUrl, setSavedOauthUrl] = useState<string | null>(null)
   const urlOpenedRef = useRef(false)
-  const autoStartedRef = useRef(false)
+
+  // Track if we have already run the initial check sequence
+  const initialCheckDoneRef = useRef(false)
 
   // tRPC mutations and utils
   const utils = trpc.useUtils()
@@ -74,6 +76,7 @@ export function ClaudeLoginModal() {
   // Queries (only enabled when modal is open)
   const systemTokenQuery = trpc.claudeCode.getSystemToken.useQuery(undefined, {
     enabled: open,
+    refetchOnMount: true,
   })
   const cliInstalledQuery = trpc.claudeCode.checkCliInstalled.useQuery(undefined, {
     enabled: open,
@@ -120,44 +123,6 @@ export function ClaudeLoginModal() {
     setOpen(false)
   }, [utils, triggerAuthRetry, setOpen])
 
-  // === Auto-start flow when modal opens and queries are ready ===
-  useEffect(() => {
-    if (!open || autoStartedRef.current) return
-    if (!systemTokenQuery.isFetched || !cliInstalledQuery.isFetched) return
-
-    autoStartedRef.current = true
-
-    // Priority 1: System token exists → auto-import
-    if (systemTokenQuery.data?.token) {
-      setFlowState({ step: "importing" })
-      importSystemTokenMutation.mutateAsync()
-        .then(() => handleAuthSuccess())
-        .catch((err) => {
-          setFlowState({
-            step: "error",
-            message: err instanceof Error ? err.message : "Failed to import token",
-          })
-        })
-      return
-    }
-
-    // Priority 2: CLI installed → run setup-token
-    if (cliInstalledQuery.data?.installed) {
-      setFlowState({ step: "setup_token" })
-      runSetupTokenMutation.mutateAsync()
-        .then(() => handleAuthSuccess())
-        .catch((err) => {
-          // CLI failed, try sandbox fallback
-          console.warn("[ClaudeLoginModal] setup-token failed, trying sandbox:", err)
-          startSandboxAuth()
-        })
-      return
-    }
-
-    // Priority 3: Sandbox OAuth fallback
-    startSandboxAuth()
-  }, [open, systemTokenQuery.isFetched, cliInstalledQuery.isFetched]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Start sandbox OAuth flow (may fail if no Hong Desktop token)
   const startSandboxAuth = useCallback(async () => {
     setFlowState({ step: "starting" })
@@ -182,6 +147,48 @@ export function ClaudeLoginModal() {
       }
     }
   }, [startAuthMutation])
+
+  // Start CLI setup-token flow
+  const startCliAuth = useCallback(async () => {
+    setFlowState({ step: "setup_token" })
+    try {
+      await runSetupTokenMutation.mutateAsync()
+      await handleAuthSuccess()
+    } catch (err) {
+      // CLI failed, try sandbox fallback
+      console.warn("[ClaudeLoginModal] setup-token failed, trying sandbox:", err)
+      startSandboxAuth()
+    }
+  }, [runSetupTokenMutation, handleAuthSuccess, startSandboxAuth])
+
+  // Determine next step after checking system token (if ignored or not found)
+  const proceedToAuth = useCallback(() => {
+    if (cliInstalledQuery.data?.installed) {
+      startCliAuth()
+    } else {
+      startSandboxAuth()
+    }
+  }, [cliInstalledQuery.data?.installed, startCliAuth, startSandboxAuth])
+
+  // === Initial Check Sequence ===
+  useEffect(() => {
+    if (!open || initialCheckDoneRef.current) return
+    if (!systemTokenQuery.isFetched || !cliInstalledQuery.isFetched) return
+
+    initialCheckDoneRef.current = true
+
+    // Priority 1: System token exists → SHOW IT (Do not auto-import to avoid loops)
+    if (systemTokenQuery.data?.token) {
+      setFlowState({
+        step: "has_system_token",
+        token: systemTokenQuery.data.token
+      })
+      return
+    }
+
+    // Priority 2: Auto-start auth if no token found
+    proceedToAuth()
+  }, [open, systemTokenQuery.isFetched, cliInstalledQuery.isFetched, systemTokenQuery.data?.token, proceedToAuth])
 
   // Update flow state when we get the OAuth URL from sandbox
   useEffect(() => {
@@ -220,11 +227,30 @@ export function ClaudeLoginModal() {
       setAuthCode("")
       setSavedOauthUrl(null)
       urlOpenedRef.current = false
-      autoStartedRef.current = false
+      initialCheckDoneRef.current = false
     }
   }, [open])
 
-  // Check if the code looks like a valid Claude auth code (format: XXX#YYY)
+  // Handle "Use Existing" click
+  const handleUseExistingToken = async () => {
+    setFlowState({ step: "importing" })
+    try {
+      await importSystemTokenMutation.mutateAsync()
+      await handleAuthSuccess()
+    } catch (err) {
+      setFlowState({
+        step: "error",
+        message: err instanceof Error ? err.message : "Failed to import token",
+      })
+    }
+  }
+
+  // Handle "Re-authenticate" click
+  const handleReauthenticate = () => {
+    proceedToAuth()
+  }
+
+  // Check if the code looks like a valid Claude auth code
   const isValidCodeFormat = (code: string) => {
     const trimmed = code.trim()
     return trimmed.length > 50 && trimmed.includes("#")
@@ -255,7 +281,6 @@ export function ClaudeLoginModal() {
     const value = e.target.value
     setAuthCode(value)
 
-    // Auto-submit if the pasted value looks like a valid auth code
     if (isValidCodeFormat(value) && flowState.step === "has_url") {
       const { sandboxUrl, sessionId } = flowState
       setTimeout(async () => {
@@ -290,11 +315,10 @@ export function ClaudeLoginModal() {
   }
 
   const handleRetry = () => {
-    autoStartedRef.current = false
+    initialCheckDoneRef.current = false
     urlOpenedRef.current = false
     setSavedOauthUrl(null)
     setAuthCode("")
-    // Re-check system token (user may have run `claude login` in terminal)
     systemTokenQuery.refetch()
     cliInstalledQuery.refetch()
     setFlowState({ step: "checking" })
@@ -311,7 +335,6 @@ export function ClaudeLoginModal() {
     setOpen(false)
   }
 
-  // Handle modal open/close - clear pending retry if closing without success
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       clearPendingRetry()
@@ -331,8 +354,9 @@ export function ClaudeLoginModal() {
   const getLoadingMessage = () => {
     switch (flowState.step) {
       case "checking":
-      case "importing":
         return "Checking credentials..."
+      case "importing":
+        return "Importing credentials..."
       case "setup_token":
         return "Authenticating in browser..."
       case "starting":
@@ -343,17 +367,21 @@ export function ClaudeLoginModal() {
     }
   }
 
+  const formatTokenPreview = (token: string) => {
+    const trimmed = token.trim()
+    if (trimmed.length <= 16) return trimmed
+    return `${trimmed.slice(0, 19)}...${trimmed.slice(-6)}`
+  }
+
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="w-[380px] p-6">
-        {/* Close button */}
         <AlertDialogCancel className="absolute right-4 top-4 h-6 w-6 p-0 border-0 bg-transparent hover:bg-muted rounded-sm opacity-70 hover:opacity-100">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </AlertDialogCancel>
 
         <div className="flex flex-col gap-8">
-          {/* Header with dual icons */}
           <div className="text-center flex flex-col gap-4">
             <div className="flex items-center justify-center gap-2 p-2 mx-auto w-max rounded-full border border-border">
               <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
@@ -373,9 +401,8 @@ export function ClaudeLoginModal() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="flex flex-col gap-6">
-            {/* Loading states: checking / importing / setup_token / starting / waiting_url */}
+            {/* Loading states */}
             {isLoading && (
               <div className="flex flex-col items-center gap-3 py-2">
                 <IconSpinner className="h-5 w-5" />
@@ -383,7 +410,27 @@ export function ClaudeLoginModal() {
               </div>
             )}
 
-            {/* Code Input - Show when sandbox has URL ready */}
+            {/* Found System Token State - USER DECISION REQUIRED */}
+            {flowState.step === "has_system_token" && (
+              <div className="flex flex-col gap-4">
+                <div className="p-4 bg-muted/50 border border-border rounded-lg">
+                  <p className="text-sm font-medium mb-2">Existing credentials found</p>
+                  <pre className="px-2.5 py-2 text-xs text-foreground whitespace-pre-wrap break-all font-mono bg-background/60 rounded border border-border/60">
+                    {formatTokenPreview(flowState.token)}
+                  </pre>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button onClick={handleUseExistingToken} className="w-full">
+                    Use Existing Credentials
+                  </Button>
+                  <Button variant="secondary" onClick={handleReauthenticate} className="w-full">
+                    Re-authenticate
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Code Input (Sandbox Flow) */}
             {(flowState.step === "has_url" || isSubmitting) && (
               <div className="flex flex-col gap-4">
                 <Input
@@ -426,7 +473,6 @@ export function ClaudeLoginModal() {
                   <p className="text-sm text-destructive">{flowState.message}</p>
                 </div>
 
-                {/* Show copy command hint if it's a CLI-related error */}
                 {flowState.message.includes("claude login") && (
                   <button
                     onClick={handleCopyCommand}

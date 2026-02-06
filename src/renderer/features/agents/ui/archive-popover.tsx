@@ -10,6 +10,7 @@ import {
   selectedChatIsRemoteAtom,
 } from "../atoms"
 import { showWorkspaceIconAtom, chatSourceModeAtom } from "../../../lib/atoms"
+import { useNavigate } from "../../../lib/router"
 // [CLOUD DISABLED] Remote API hooks - disabled until cloud backend is available
 // import {
 //   useRemoteArchivedChats,
@@ -251,6 +252,7 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
   const [selectedChatIsRemote, setSelectedChatIsRemote] = useAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const showWorkspaceIcon = useAtomValue(showWorkspaceIconAtom)
+  const { navigateToChat } = useNavigate()
 
   // Get utils outside of callbacks - hooks must be called at top level
   const utils = trpc.useUtils()
@@ -468,11 +470,16 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
   const handleSelectChat = useCallback((id: string) => {
     const isRemote = id.startsWith('remote_')
     const originalId = isRemote ? id.replace(/^remote_/, '') : id
-    setSelectedChatId(originalId)
-    setSelectedChatIsRemote(isRemote)
-    // Sync chatSourceMode for ChatView to load data from correct source
-    setChatSourceMode(isRemote ? "sandbox" : "local")
-  }, [setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode])
+    if (isRemote) {
+      // Remote chats bypass memory router
+      setSelectedChatId(originalId)
+      setSelectedChatIsRemote(true)
+      setChatSourceMode("sandbox")
+    } else {
+      // Local chats (including archived) use memory router for project context sync
+      navigateToChat(originalId)
+    }
+  }, [setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, navigateToChat])
 
   const handleRestoreChat = useCallback((id: string) => {
     // Check if this is a remote chat by its prefixed ID
@@ -489,11 +496,10 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
       })
     } else {
       localRestoreMutation.mutate({ id })
-      setSelectedChatId(id)
-      setSelectedChatIsRemote(false)
-      setChatSourceMode("local")
+      // Navigate with project context sync after restore
+      navigateToChat(id)
     }
-  }, [localRestoreMutation, remoteRestoreMutation, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode])
+  }, [localRestoreMutation, remoteRestoreMutation, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, navigateToChat])
 
   const handleSetRef = useCallback((index: number, el: HTMLDivElement | null) => {
     chatItemRefs.current[index] = el

@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { cn } from "../../../lib/utils"
+import { cn, isMac } from "../../../lib/utils"
 
 /**
  * Invisible no-drag zone over native macOS traffic lights.
  * Prevents the drag region from intercepting clicks on the native buttons.
  * Native traffic lights are always visible (managed by main process).
+ * Only renders on macOS - Windows and Linux don't have traffic lights.
  */
 export function TrafficLights({
   isFullscreen = null,
@@ -17,7 +18,8 @@ export function TrafficLights({
   isDesktop?: boolean
   className?: string
 }) {
-  if (!isDesktop || isFullscreen === true) return null
+  // Only show on macOS - Windows/Linux don't have traffic lights
+  if (!isDesktop || isFullscreen === true || !isMac()) return null
 
   return (
     <div
@@ -39,7 +41,8 @@ export function TrafficLights({
 
 /**
  * Spacer component for macOS traffic light buttons (close/minimize/maximize)
- * Only renders in Electron desktop app to provide space for the buttons
+ * Only renders in Electron desktop app on macOS to provide space for the buttons
+ * Windows and Linux don't need this space as they don't have traffic lights
  * Animates height smoothly when appearing/disappearing (e.g. fullscreen transitions)
  *
  * isFullscreen can be:
@@ -69,7 +72,8 @@ export function TrafficLightSpacer({
     prevFullscreenRef.current = isFullscreen
   }, [isFullscreen])
 
-  const shouldShow = isDesktop && isFullscreen !== true
+  // Only show on macOS - Windows/Linux don't have traffic lights
+  const shouldShow = isDesktop && isFullscreen !== true && isMac()
 
   return (
     <div

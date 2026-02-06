@@ -6,6 +6,7 @@
 import SensorsAnalytics from "sa-sdk-node"
 import { app } from "electron"
 import { getDeviceId } from "./device-id"
+import { getEnv } from "./env"
 
 interface SensorsConfig {
   serverUrl: string
@@ -14,7 +15,6 @@ interface SensorsConfig {
 
 // 从 env 获取配置（Hong 独立运行场景）
 function getSensorsConfigFromEnv(): SensorsConfig | undefined {
-  const { getEnv } = require("./env")
   const env = getEnv()
   if (!env.MAIN_VITE_SENSORS_SERVER_URL) {
     return undefined

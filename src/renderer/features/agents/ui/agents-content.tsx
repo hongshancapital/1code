@@ -9,6 +9,7 @@ const useRouter = () => ({ push: (_url: string) => {}, replace: (_url: string, _
 // Desktop: mock Clerk hooks
 const useUser = () => ({ user: null })
 const useClerk = () => ({ signOut: (_opts?: { redirectUrl?: string }) => {} })
+import { useNavigate } from "../../../lib/router"
 import {
   selectedAgentChatIdAtom,
   selectedChatIsRemoteAtom,
@@ -109,6 +110,15 @@ export function AgentsContent() {
   const { user } = useUser()
   const { signOut } = useClerk()
   const isAdmin = useIsAdmin()
+  const { navigateTo } = useNavigate()
+
+  // Listen for deep link navigation events from main process (hong://navigate/...)
+  useEffect(() => {
+    const unsubscribe = window.desktopApi?.onNavigateRoute?.((route) => {
+      navigateTo(route)
+    })
+    return () => { unsubscribe?.() }
+  }, [navigateTo])
 
   // Quick-switch dialog state - Agents (Opt+Ctrl+Tab)
   const [quickSwitchOpen, setQuickSwitchOpen] = useAtom(

@@ -35,7 +35,7 @@ function getFallbackName(userMessage: string): string {
 }
 
 // Type definitions for sub-chat preview stats
-interface SubChatPreviewInput {
+export interface SubChatPreviewInput {
   messageId: string
   index: number
   content: string
@@ -46,7 +46,7 @@ interface SubChatPreviewInput {
   totalTokens: number
 }
 
-interface SubChatPreviewStats {
+export interface SubChatPreviewStats {
   inputs: SubChatPreviewInput[]
 }
 
@@ -55,7 +55,7 @@ interface SubChatPreviewStats {
  * Token usage will be filled in separately when needed.
  * This is used by updateSubChatMessages to pre-compute stats on save.
  */
-function computePreviewStatsFromMessages(
+export function computePreviewStatsFromMessages(
   messagesJson: string,
   subChatMode: string
 ): SubChatPreviewStats {
@@ -1276,10 +1276,13 @@ export const chatsRouter = router({
         }
       })
 
-      // 6. Update the sub-chat with truncated messages
+      // 6. Update the sub-chat with truncated messages and recompute stats
+      const truncatedMessagesJson = JSON.stringify(truncatedMessages)
+      const stats = computePreviewStatsFromMessages(truncatedMessagesJson, subChat.mode || "agent")
       db.update(subChats)
         .set({
-          messages: JSON.stringify(truncatedMessages),
+          messages: truncatedMessagesJson,
+          statsJson: JSON.stringify(stats),
           updatedAt: new Date(),
         })
         .where(eq(subChats.id, input.subChatId))
