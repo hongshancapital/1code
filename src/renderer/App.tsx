@@ -20,7 +20,6 @@ import {
   initSensors,
   login as sensorsLogin,
   registerCommonProps,
-  track as sensorsTrack,
   shutdown as shutdownSensors,
 } from "./lib/sensors-analytics"
 import {

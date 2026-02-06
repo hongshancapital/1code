@@ -12,14 +12,14 @@ interface SensorsConfig {
 }
 
 function getSensorsConfig(): SensorsConfig | undefined {
-  const env = getEnv()
+  const serverUrl = import.meta.env.VITE_SENSORS_SERVER_URL
 
-  if (!env.VITE_SENSORS_SERVER_URL) {
+  if (!serverUrl) {
     return undefined
   }
 
   return {
-    serverUrl: env.VITE_SENSORS_SERVER_URL,
+    serverUrl,
     isDebug: import.meta.env.DEV,
   }
 }
@@ -39,10 +39,12 @@ function isDev(): boolean {
  * 初始化神策 SDK
  */
 export function initSensors(): void {
+  console.log("[Sensors] initSensors called, isDev:", isDev())
   if (isDev()) return
   if (initialized) return
 
   const config = getSensorsConfig()
+  console.log("[Sensors] config:", config)
   if (!config) return
 
   sensors.init({

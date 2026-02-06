@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { isDesktopApp } from "../../lib/utils/platform"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
+import { login as sensorsLogin } from "../../lib/sensors-analytics"
 
 import {
   agentsSidebarOpenAtom,
@@ -191,6 +192,10 @@ export function AgentsLayout() {
     if (!window.desktopApi?.onAuthSuccess) return
 
     const unsubscribe = window.desktopApi.onAuthSuccess(async (user) => {
+      // 登录成功后调用 sensors login 合并匿名数据
+      if (user?.email) {
+        sensorsLogin(user.email)
+      }
       // Fetch full user info after auth success to get latest imageUrl
       if (window.desktopApi?.getUser) {
         const fullUser = await window.desktopApi.getUser()
