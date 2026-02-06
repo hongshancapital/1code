@@ -15,6 +15,66 @@ import type { ExecResult } from "./types"
 const execAsync = promisify(exec)
 
 /**
+ * Well-known installation paths for Windows package managers.
+ * Electron apps launched from shortcuts may not inherit full PATH.
+ */
+function getWindowsExtraPaths(): string[] {
+  const paths: string[] = []
+  // winget
+  if (process.env.LOCALAPPDATA) {
+    paths.push(`${process.env.LOCALAPPDATA}\\Microsoft\\WindowsApps`)
+  }
+  if (process.env.PROGRAMFILES) {
+    paths.push(`${process.env.PROGRAMFILES}\\WinGet\\Links`)
+  }
+  // Chocolatey
+  paths.push("C:\\ProgramData\\chocolatey\\bin")
+  return paths
+}
+
+/**
+ * Get an enhanced environment with common Windows tool paths appended.
+ */
+function getWindowsEnhancedEnv(): NodeJS.ProcessEnv {
+  if (process.platform !== "win32") return process.env
+  const basePath = process.env.PATH || ""
+  const segments = basePath.split(";")
+  const missing = getWindowsExtraPaths().filter(
+    (p) => !segments.some((s) => s.toLowerCase() === p.toLowerCase()),
+  )
+  if (missing.length === 0) return process.env
+  return { ...process.env, PATH: `${basePath};${missing.join(";")}` }
+}
+
+/**
+ * Refresh process.env.PATH from registry so newly installed tools are visible.
+ * Reads Machine + User PATH from the Windows registry and merges them.
+ */
+async function refreshWindowsPath(): Promise<void> {
+  if (process.platform !== "win32") return
+
+  try {
+    const { stdout } = await execAsync(
+      `powershell.exe -NoProfile -NonInteractive -Command "[Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH','User')"`,
+      { timeout: 10000 },
+    )
+    const registryPath = stdout.trim()
+    if (registryPath) {
+      // Merge: keep any Electron-only paths, add registry paths that are missing
+      const currentSegments = (process.env.PATH || "").split(";").map((s) => s.toLowerCase())
+      const newSegments = registryPath.split(";").filter(
+        (s) => s && !currentSegments.includes(s.toLowerCase()),
+      )
+      if (newSegments.length > 0) {
+        process.env.PATH = `${process.env.PATH};${newSegments.join(";")}`
+      }
+    }
+  } catch {
+    // Best effort — don't break the flow
+  }
+}
+
+/**
  * Installation log for debugging
  */
 export interface InstallLog {
@@ -158,10 +218,15 @@ async function elevatedExec(
   let wrapperFile: string
   let startProcessArgs: string
 
+  // Build extra PATH entries so elevated processes can find winget/choco
+  const extraPathEntries = getWindowsExtraPaths().join(";")
+
   if (powershell) {
     // Write a .ps1 wrapper that executes the command and captures output
     wrapperFile = join(tmpDir, "command.ps1")
     const ps1Content = [
+      // Inject extra paths so winget/choco are reachable in the elevated session
+      `$env:PATH += ";${extraPathEntries}"`,
       "$ErrorActionPreference = 'Continue'",
       "try {",
       `  ${command} > "${stdoutFile}" 2> "${stderrFile}"`,
@@ -181,6 +246,8 @@ async function elevatedExec(
     const batContent = [
       "@echo off",
       "chcp 65001 >nul",
+      // Inject extra paths so winget/choco are reachable in the elevated session
+      `set "PATH=%PATH%;${extraPathEntries}"`,
       `${command} > "${stdoutFile}" 2> "${stderrFile}"`,
       `echo %errorlevel% > "${exitCodeFile}"`,
     ].join("\r\n")
@@ -309,6 +376,7 @@ async function execPowerShell(
     ], {
       stdio: ["ignore", "pipe", "pipe"],
       detached: false,
+      env: getWindowsEnhancedEnv(),
     })
 
     let stdout = ""
@@ -423,7 +491,21 @@ export class WingetProvider implements WindowsPackageManager {
 
   async isAvailable(): Promise<boolean> {
     const result = await execPowerShell("winget --version", 5000, "检测 winget")
-    return result.success
+    if (result.success) return true
+
+    // Fallback: try the well-known direct path.
+    // Note: winget.exe under WindowsApps is an App Execution Alias (reparse point),
+    // so existsSync may return false even when it exists. Just try running it directly.
+    const localAppData = process.env.LOCALAPPDATA
+    if (localAppData) {
+      const directPath = join(localAppData, "Microsoft", "WindowsApps", "winget.exe")
+      const directResult = await execPowerShell(
+        `& "${directPath}" --version`, 5000, "检测 winget (直接路径)",
+      )
+      if (directResult.success) return true
+    }
+
+    return false
   }
 
   async install(): Promise<ExecResult> {
@@ -554,9 +636,18 @@ try {
     Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -LicensePath $licensePath -ErrorAction SilentlyContinue
   }
 
-  # Also try Add-AppxPackage as fallback
+  # Try Add-AppxPackage; on 0x80073CF3 conflict, retry with -ForceUpdateFromAnyVersion
   Write-Output 'Installing winget package...'
-  Add-AppxPackage -Path $bundlePath -ErrorAction Stop
+  try {
+    Add-AppxPackage -Path $bundlePath -ErrorAction Stop
+  } catch {
+    if ($_.Exception.Message -match '0x80073CF3') {
+      Write-Output 'Version conflict detected, retrying with -ForceUpdateFromAnyVersion...'
+      Add-AppxPackage -Path $bundlePath -ForceUpdateFromAnyVersion -ErrorAction Stop
+    } else {
+      throw
+    }
+  }
 
   Remove-Item $bundlePath -Force -ErrorAction SilentlyContinue
   if ($licensePath) { Remove-Item $licensePath -Force -ErrorAction SilentlyContinue }
@@ -571,10 +662,8 @@ try {
     // Try normal install first
     let result = await execPowerShell(wingetCommand, 600000, "安装 winget")
     if (result.success) {
-      addLog({
-        step: "安装 winget - 完成",
-        success: true,
-      })
+      await refreshWindowsPath()
+      addLog({ step: "安装 winget - 完成", success: true })
       return result
     }
 
@@ -582,11 +671,18 @@ try {
     result = await installWithElevation(wingetCommand, "安装 winget (elevated)", { powershell: true })
 
     if (result.success) {
-      addLog({
-        step: "安装 winget - 完成 (elevated)",
-        success: true,
-      })
+      await refreshWindowsPath()
+      addLog({ step: "安装 winget - 完成 (elevated)", success: true })
     } else {
+      // Even if install "failed", winget may already exist (just a PATH issue or
+      // an older version was already present). Refresh PATH and check before giving up.
+      await refreshWindowsPath()
+      const stillAvailable = await this.isAvailable()
+      if (stillAvailable) {
+        addLog({ step: "安装 winget - 已存在 (PATH 问题)", success: true })
+        return { stdout: "winget already available", stderr: "", success: true }
+      }
+
       addLog({
         step: "安装 winget - 失败",
         success: false,
@@ -615,11 +711,16 @@ try {
     const command = `winget install ${args.join(" ")}`
 
     // Try normal install first
-    const result = await execPowerShell(command, 600000, `winget 安装 ${packageId}`)
-    if (result.success) return result
+    let result = await execPowerShell(command, 600000, `winget 安装 ${packageId}`)
+    if (!result.success) {
+      // Failed — try with elevation
+      result = await installWithElevation(command, `winget 安装 ${packageId} (elevated)`)
+    }
 
-    // Failed — try with elevation
-    return await installWithElevation(command, `winget 安装 ${packageId} (elevated)`)
+    if (result.success) {
+      await refreshWindowsPath()
+    }
+    return result
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {
@@ -651,7 +752,18 @@ export class ChocolateyProvider implements WindowsPackageManager {
 
   async isAvailable(): Promise<boolean> {
     const result = await execPowerShell("choco --version", 5000, "检测 Chocolatey")
-    return result.success
+    if (result.success) return true
+
+    // Fallback: try the well-known direct path
+    const directPath = "C:\\ProgramData\\chocolatey\\bin\\choco.exe"
+    if (existsSync(directPath)) {
+      const directResult = await execPowerShell(
+        `& "${directPath}" --version`, 5000, "检测 Chocolatey (直接路径)",
+      )
+      return directResult.success
+    }
+
+    return false
   }
 
   async install(): Promise<ExecResult> {
@@ -663,11 +775,25 @@ export class ChocolateyProvider implements WindowsPackageManager {
     const command = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
 
     // Try normal install first
-    const result = await execPowerShell(command, 600000, "安装 Chocolatey")
-    if (result.success) return result
+    let result = await execPowerShell(command, 600000, "安装 Chocolatey")
+    if (!result.success) {
+      // Failed — try with elevation (run as PowerShell script)
+      result = await installWithElevation(command, "安装 Chocolatey (elevated)", { powershell: true })
+    }
 
-    // Failed — try with elevation (run as PowerShell script)
-    return await installWithElevation(command, "安装 Chocolatey (elevated)", { powershell: true })
+    // Regardless of exit code, refresh PATH and verify choco is actually usable.
+    // The install script exits 0 even when it detects an existing install and
+    // does nothing, but choco may still not be on PATH.
+    await refreshWindowsPath()
+
+    if (await this.isAvailable()) {
+      addLog({ step: "安装 Chocolatey - 验证通过", success: true })
+      return { stdout: result.stdout, stderr: result.stderr, success: true }
+    }
+
+    // Still not available — treat as failure
+    addLog({ step: "安装 Chocolatey - 验证失败 (choco 不在 PATH 中)", success: false, error: "verification_failed" })
+    return { stdout: result.stdout, stderr: "Chocolatey installed but not found on PATH", success: false, error: "execution_failed" }
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -684,11 +810,16 @@ export class ChocolateyProvider implements WindowsPackageManager {
     const command = `choco ${args.join(" ")}`
 
     // Try normal install first
-    const result = await execPowerShell(command, 600000, `Chocolatey 安装 ${packageId}`)
-    if (result.success) return result
+    let result = await execPowerShell(command, 600000, `Chocolatey 安装 ${packageId}`)
+    if (!result.success) {
+      // Failed — try with elevation
+      result = await installWithElevation(command, `Chocolatey 安装 ${packageId} (elevated)`)
+    }
 
-    // Failed — try with elevation
-    return await installWithElevation(command, `Chocolatey 安装 ${packageId} (elevated)`)
+    if (result.success) {
+      await refreshWindowsPath()
+    }
+    return result
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {

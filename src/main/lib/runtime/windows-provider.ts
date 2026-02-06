@@ -18,6 +18,29 @@ const WINDOWS_COMMAND_ALIASES: Record<string, string> = {
   pip3: "pip",
 }
 
+/**
+ * Well-known installation paths for Windows tools that may not be
+ * in Electron's inherited PATH (e.g. when launched from a shortcut).
+ */
+function getEnhancedPath(): string {
+  const basePath = process.env.PATH || ""
+  const extra: string[] = []
+  if (process.env.LOCALAPPDATA) {
+    extra.push(`${process.env.LOCALAPPDATA}\\Microsoft\\WindowsApps`)
+  }
+  if (process.env.PROGRAMFILES) {
+    extra.push(`${process.env.PROGRAMFILES}\\WinGet\\Links`)
+  }
+  extra.push("C:\\ProgramData\\chocolatey\\bin")
+
+  const segments = basePath.split(";")
+  const missing = extra.filter(
+    (p) => !segments.some((s) => s.toLowerCase() === p.toLowerCase()),
+  )
+  if (missing.length === 0) return basePath
+  return `${basePath};${missing.join(";")}`
+}
+
 export class WindowsRuntimeProvider extends BaseRuntimeProvider {
   constructor() {
     super("win32")
@@ -60,7 +83,7 @@ export class WindowsRuntimeProvider extends BaseRuntimeProvider {
         detached: false,
         env: {
           ...process.env,
-          PATH: process.env.PATH || "",
+          PATH: getEnhancedPath(),
         },
         shell: false,
       })
