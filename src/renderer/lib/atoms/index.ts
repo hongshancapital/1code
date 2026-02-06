@@ -463,15 +463,6 @@ export const useNativeFrameAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
-// Preferences - Analytics Opt-out
-// When true, user has opted out of analytics tracking
-export const analyticsOptOutAtom = atomWithStorage<boolean>(
-  "preferences:analytics-opt-out",
-  false, // Default to opt-in (false means not opted out)
-  undefined,
-  { getOnInit: true },
-)
-
 // Beta: Enable git features in diff sidebar (commit, staging, file selection)
 // When enabled, shows checkboxes for file selection and commit UI in diff sidebar
 // When disabled, shows simple file list with "Create PR" button

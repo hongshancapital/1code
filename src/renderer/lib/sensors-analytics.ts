@@ -26,42 +26,24 @@ function getSensorsConfig(): SensorsConfig | undefined {
 
 let initialized = false
 
-// 检查是否为开发模式：
-// 1. file:// 协议下（Electron）检查 FORCE_ANALYTICS
-// 2. http://localhost 下检查 __FORCE_ANALYTICS__
-const isDev = (() => {
+// 检查是否为开发模式（改为函数，每次调用时计算）
+function isDev(): boolean {
   if (typeof window === "undefined") return true
   const isFileProtocol = window.location.protocol === "file:"
   const isLocalhost = window.location.hostname === "localhost"
-  // Electron file:// 使用 import.meta.env，localhost 使用 window 变量
-  const forceAnalytics = isFileProtocol
-    ? import.meta.env.VITE_FORCE_ANALYTICS === "true"
-    : window.__FORCE_ANALYTICS__
+  const forceAnalytics = import.meta.env.VITE_FORCE_ANALYTICS === "true"
   return (isFileProtocol || isLocalhost) && !forceAnalytics
-})()
-
-function isOptedOut(): boolean {
-  try {
-    const optOut = localStorage.getItem("preferences:analytics-opt-out")
-    return optOut === "true"
-  } catch {
-    return false
-  }
 }
 
 /**
  * 初始化神策 SDK
  */
 export function initSensors(): void {
-  if (isDev) return
+  if (isDev()) return
   if (initialized) return
 
   const config = getSensorsConfig()
-
-  if (!config) {
-    console.log("[Sensors] Skipping initialization (no config)")
-    return
-  }
+  if (!config) return
 
   sensors.init({
     server_url: config.serverUrl,
@@ -83,7 +65,8 @@ export function track(
   eventName: string,
   properties?: Record<string, any>,
 ): void {
-  if (isDev || !initialized || isOptedOut()) return
+  console.log(eventName, isDev(), initialized);
+  if (isDev() || !initialized) return
 
   sensors.track(eventName, properties)
 }
@@ -92,7 +75,7 @@ export function track(
  * 设置用户属性
  */
 export function login(userId: string): void {
-  if (isDev || !initialized || isOptedOut()) return
+  if (isDev() || !initialized) return
 
   sensors.login(userId)
 }
@@ -101,7 +84,7 @@ export function login(userId: string): void {
  * 重置用户
  */
 export function logout(): void {
-  if (isDev || !initialized) return
+  if (isDev() || !initialized) return
 
   sensors.logout()
 }
@@ -110,7 +93,7 @@ export function logout(): void {
  * 设置公共属性
  */
 export function registerCommonProps(props: Record<string, any>): void {
-  if (isDev || !initialized) return
+  if (isDev() || !initialized) return
 
   sensors.registerPage(props)
 }

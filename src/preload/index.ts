@@ -116,9 +116,6 @@ contextBridge.exposeInMainWorld("desktopApi", {
   toggleDevTools: () => ipcRenderer.invoke("window:toggle-devtools"),
   unlockDevTools: () => ipcRenderer.invoke("window:unlock-devtools"),
 
-  // Analytics
-  setAnalyticsOptOut: (optedOut: boolean) => ipcRenderer.invoke("analytics:set-opt-out", optedOut),
-
   // Native features
   setBadge: (count: number | null) => ipcRenderer.invoke("app:set-badge", count),
   setBadgeIcon: (imageData: string | null) => ipcRenderer.invoke("app:set-badge-icon", imageData),
@@ -348,7 +345,6 @@ export interface DesktopApi {
   setWindowTitle: (title: string) => Promise<void>
   toggleDevTools: () => Promise<void>
   unlockDevTools: () => Promise<void>
-  setAnalyticsOptOut: (optedOut: boolean) => Promise<void>
   setBadge: (count: number | null) => Promise<void>
   setBadgeIcon: (imageData: string | null) => Promise<void>
   showNotification: (options: { title: string; body: string }) => Promise<void>

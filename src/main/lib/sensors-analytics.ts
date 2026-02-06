@@ -27,7 +27,6 @@ function getSensorsConfigFromEnv(): SensorsConfig | undefined {
 
 let sensors: SensorsAnalytics | undefined
 let currentDistinctId: string | undefined // 使用 email 作为 distinctId，与 Web 端保持一致
-let userOptedOut = false
 
 const isDev = (): boolean => {
   try {
@@ -77,13 +76,6 @@ export function initSensors(config?: SensorsConfig): void {
 }
 
 /**
- * 设置 opt-out 状态
- */
-export function setOptOut(optedOut: boolean): void {
-  userOptedOut = optedOut
-}
-
-/**
  * 追踪事件
  * distinctId 使用 email（与 Web 端 sensors.login(email) 保持一致）
  * 匿名用户使用 deviceId 作为 distinctId
@@ -93,7 +85,7 @@ export function track(
   eventName: string,
   properties?: Record<string, any>,
 ): void {
-  if (isDev() || !sensors || userOptedOut) return
+  if (isDev() || !sensors) return
 
   const distinctId = currentDistinctId || getDeviceId()
   const isLoggedIn = !!currentDistinctId
@@ -121,7 +113,7 @@ export function login(email: string, properties?: Record<string, any>): void {
   currentDistinctId = email
 
   // 以下操作需要 SDK 可用
-  if (isDev() || !sensors || userOptedOut) return
+  if (isDev() || !sensors) return
 
   // 如果之前是匿名状态，调用 trackSignup 合并匿名数据到登录用户
   if (wasAnonymous) {
