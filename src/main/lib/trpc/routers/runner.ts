@@ -331,6 +331,11 @@ export const runnerRouter = router({
                   provider: result.provider,
                 }
               }
+
+              // Propagate permission errors immediately
+              if (result.error === "NO_ADMIN") {
+                return { success: false, error: "NO_ADMIN" }
+              }
             }
 
             // If winget failed and we have a choco ID, try Chocolatey with choco-specific package ID
@@ -352,10 +357,15 @@ export const runnerRouter = router({
                 }
               }
 
+              // Propagate permission errors
+              if (result.error === "NO_ADMIN") {
+                return { success: false, error: "NO_ADMIN" }
+              }
+
               // Both failed, return the last error
               return {
                 success: false,
-                error: result.error || "所有包管理器安装尝试均失败",
+                error: "INSTALL_FAILED",
               }
             }
           }
@@ -457,7 +467,7 @@ export const runnerRouter = router({
       }
     }
 
-    // Windows: Use the package manager registry
+    // Windows: Use the package manager registry with UAC elevation support
     if (platform === "win32") {
       const registry = getWindowsPackageManagerRegistry()
 
@@ -470,20 +480,23 @@ export const runnerRouter = router({
 
           return {
             success: true,
-            output: `成功安装 ${result.provider}`,
+            output: `Successfully installed ${result.provider}`,
             packageManager: result.provider,
           }
         }
 
+        // Propagate structured error codes (NO_ADMIN, INSTALL_FAILED, etc.)
         return {
           success: false,
-          error: result.error || "Failed to install package manager",
+          error: result.error === "NO_ADMIN" ? "NO_ADMIN"
+            : result.error === "UAC_CANCELLED" ? "NO_ADMIN"
+            : "INSTALL_FAILED",
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error"
         return {
           success: false,
-          error: errorMessage,
+          error: errorMessage.includes("NO_ADMIN") ? "NO_ADMIN" : "INSTALL_FAILED",
         }
       }
     }

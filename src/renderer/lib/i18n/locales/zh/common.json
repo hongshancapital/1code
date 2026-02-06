@@ -76,6 +76,7 @@
     "pmInstallMayTakeLong": "这可能需要几分钟...",
     "noAdmin": "需要管理员权限才能安装 Homebrew。请先通过公司提权工具或系统管理员获取管理员权限，然后点击重试。",
     "noAdminTitle": "需要管理员权限",
+    "noAdminWindows": "需要管理员权限。系统会弹出 UAC 授权窗口。如果您没有管理员权限，请联系 IT 管理员或使用公司的提权工具获取权限后重试。",
     "noAdminRetry": "已获取权限？重试安装",
     "installFailedGeneric": "包管理器安装失败",
     "manualConfig": "手动配置",

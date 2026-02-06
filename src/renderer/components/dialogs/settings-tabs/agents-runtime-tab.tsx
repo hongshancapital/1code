@@ -326,7 +326,10 @@ function PackageManagerSection() {
         }, 3000)
         setTimeout(() => { clearInterval(poll); setIsInstalling(false) }, 600000)
       } else if (result.error === "NO_ADMIN") {
-        toast.warning(tCommon("runtime.noAdmin"), { duration: 8000 })
+        const noAdminMsg = pmData?.platform === "win32"
+          ? tCommon("runtime.noAdminWindows")
+          : tCommon("runtime.noAdmin")
+        toast.warning(noAdminMsg, { duration: 8000 })
         setIsInstalling(false)
       } else if (result.error === "INSTALL_FAILED") {
         toast.error(tCommon("runtime.installFailedGeneric"))

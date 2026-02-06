@@ -85,7 +85,11 @@ export function RuntimeInitBanner() {
       } else if (result.error === "NO_ADMIN") {
         setIsInstallingPM(false)
         setNeedsAdminRetry(true)
-        setInstallError(t("runtime.noAdmin"))
+        setInstallError(
+          pmData?.platform === "win32"
+            ? t("runtime.noAdminWindows")
+            : t("runtime.noAdmin"),
+        )
       } else if (result.error === "INSTALL_FAILED") {
         setIsInstallingPM(false)
         setInstallError(t("runtime.installFailedGeneric"))

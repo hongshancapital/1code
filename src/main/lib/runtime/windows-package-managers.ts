@@ -5,8 +5,14 @@
  * with automatic fallback
  */
 
-import { spawn } from "node:child_process"
+import { exec, execSync, spawn } from "node:child_process"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+import { promisify } from "node:util"
 import type { ExecResult } from "./types"
+
+const execAsync = promisify(exec)
 
 /**
  * Installation log for debugging
@@ -86,6 +92,162 @@ export interface InstallOptions {
   silent?: boolean
   acceptLicenses?: boolean
   version?: string
+}
+
+/**
+ * Windows elevation status
+ */
+export type ElevationStatus = "elevated" | "can-elevate" | "cannot-elevate"
+
+/**
+ * Check current process elevation status on Windows.
+ * - 'elevated': already running with admin privileges
+ * - 'can-elevate': user is in Administrators group, can trigger UAC
+ * - 'cannot-elevate': user is not an admin, UAC will require admin credentials
+ */
+export function getElevationStatus(): ElevationStatus {
+  // Check if already elevated via `net session`
+  try {
+    execSync("net session", { stdio: "ignore" })
+    return "elevated"
+  } catch {
+    // Not elevated
+  }
+
+  // Check if user is in Administrators group (SID S-1-5-32-544)
+  try {
+    const groups = execSync("whoami /groups", { encoding: "utf8" })
+    if (groups.includes("S-1-5-32-544")) {
+      return "can-elevate"
+    }
+  } catch {
+    // Ignore
+  }
+
+  return "cannot-elevate"
+}
+
+/**
+ * Execute a command with UAC elevation (triggers system UAC dialog).
+ * Uses a temporary .bat file + Start-Process -Verb RunAs to capture output.
+ */
+async function elevatedExec(
+  command: string,
+  timeoutMs = 600000,
+  logStep?: string,
+): Promise<ExecResult> {
+  if (logStep) {
+    addLog({ step: `${logStep} - UAC elevated exec`, command, success: true })
+  }
+
+  const tmpDir = join(tmpdir(), `hong-elevate-${Date.now()}`)
+  mkdirSync(tmpDir, { recursive: true })
+
+  const cmdFile = join(tmpDir, "command.bat")
+  const stdoutFile = join(tmpDir, "stdout.txt")
+  const stderrFile = join(tmpDir, "stderr.txt")
+  const exitCodeFile = join(tmpDir, "exitcode.txt")
+
+  // Write batch file that captures stdout/stderr/exit code
+  const batContent = [
+    "@echo off",
+    "chcp 65001 >nul",
+    `${command} > "${stdoutFile}" 2> "${stderrFile}"`,
+    `echo %errorlevel% > "${exitCodeFile}"`,
+  ].join("\r\n")
+  writeFileSync(cmdFile, batContent, "utf8")
+
+  // Escape paths for PowerShell
+  const escapedCmdFile = cmdFile.replace(/'/g, "''")
+
+  const psCommand = `Start-Process cmd.exe -ArgumentList '/c "${escapedCmdFile}"' -Verb RunAs -Wait -WindowStyle Hidden`
+
+  try {
+    await execAsync(
+      `powershell.exe -NoProfile -NonInteractive -Command "${psCommand.replace(/"/g, '\\"')}"`,
+      { timeout: timeoutMs },
+    )
+
+    const stdout = existsSync(stdoutFile) ? readFileSync(stdoutFile, "utf8").trim() : ""
+    const stderr = existsSync(stderrFile) ? readFileSync(stderrFile, "utf8").trim() : ""
+    const exitCode = existsSync(exitCodeFile)
+      ? parseInt(readFileSync(exitCodeFile, "utf8").trim(), 10)
+      : -1
+
+    const success = exitCode === 0
+
+    if (logStep) {
+      addLog({
+        step: `${logStep} - UAC ${success ? "succeeded" : "failed"}`,
+        command,
+        stdout: stdout.substring(0, 200),
+        stderr: stderr.substring(0, 200),
+        success,
+        error: success ? undefined : "execution_failed",
+      })
+    }
+
+    return { stdout, stderr, success, error: success ? undefined : "execution_failed" }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error"
+
+    // User cancelled UAC dialog or other error
+    const isCancelled =
+      errorMsg.includes("canceled") ||
+      errorMsg.includes("cancelled") ||
+      errorMsg.includes("refused") ||
+      errorMsg.includes("1223")
+
+    if (logStep) {
+      addLog({
+        step: `${logStep} - UAC ${isCancelled ? "cancelled by user" : "error"}`,
+        command,
+        success: false,
+        error: isCancelled ? "uac_cancelled" : errorMsg,
+      })
+    }
+
+    return {
+      stdout: "",
+      stderr: isCancelled ? "UAC_CANCELLED" : errorMsg,
+      success: false,
+      error: "execution_failed",
+    }
+  } finally {
+    // Clean up temp files
+    try {
+      rmSync(tmpDir, { recursive: true, force: true })
+    } catch {
+      // Best effort
+    }
+  }
+}
+
+/**
+ * Try elevated installation based on current elevation status.
+ * - 'elevated': shouldn't reach here (already have admin)
+ * - 'can-elevate': trigger UAC dialog
+ * - 'cannot-elevate': return NO_ADMIN error
+ */
+async function installWithElevation(
+  command: string,
+  logStep: string,
+): Promise<ExecResult> {
+  const status = getElevationStatus()
+
+  if (status === "cannot-elevate") {
+    addLog({ step: `${logStep} - user is not admin`, success: false, error: "NO_ADMIN" })
+    return { stdout: "", stderr: "NO_ADMIN", success: false, error: "execution_failed" }
+  }
+
+  // can-elevate (or elevated, though unlikely to reach here)
+  const result = await elevatedExec(command, 600000, logStep)
+
+  if (!result.success && result.stderr === "UAC_CANCELLED") {
+    return { stdout: "", stderr: "UAC_CANCELLED", success: false, error: "execution_failed" }
+  }
+
+  return result
 }
 
 /**
@@ -236,25 +398,18 @@ export class WingetProvider implements WindowsPackageManager {
       step: "安装 winget - 准备下载",
       success: true,
     })
-    // Download and install latest winget from GitHub
-    const command = `
-      $ProgressPreference = 'SilentlyContinue'
-      $ErrorActionPreference = 'Stop'
-      try {
-        $release = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'
-        $asset = $release.assets | Where-Object { $_.name -match 'msixbundle$' } | Select-Object -First 1
-        if (-not $asset) { throw 'No msixbundle found' }
-        $tempFile = Join-Path $env:TEMP 'winget.msixbundle'
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
-        Add-AppxPackage -Path $tempFile
-        Remove-Item $tempFile -Force
-        Write-Output 'Winget installed successfully'
-      } catch {
-        Write-Error $_.Exception.Message
-        exit 1
-      }
-    `
-    return await execPowerShell(command, 600000, "安装 winget")
+
+    const command = `$ProgressPreference = 'SilentlyContinue'; $ErrorActionPreference = 'Stop'; try { $release = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'; $asset = $release.assets | Where-Object { $_.name -match 'msixbundle$' } | Select-Object -First 1; if (-not $asset) { throw 'No msixbundle found' }; $tempFile = Join-Path $env:TEMP 'winget.msixbundle'; Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile; Add-AppxPackage -Path $tempFile; Remove-Item $tempFile -Force; Write-Output 'Winget installed successfully' } catch { Write-Error $_.Exception.Message; exit 1 }`
+
+    // Try normal install first
+    const result = await execPowerShell(command, 600000, "安装 winget")
+    if (result.success) return result
+
+    // Failed — check elevation status and try UAC
+    return await installWithElevation(
+      `powershell.exe -NoProfile -NonInteractive -Command "${command.replace(/"/g, '\\"')}"`,
+      "安装 winget (elevated)",
+    )
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -273,7 +428,13 @@ export class WingetProvider implements WindowsPackageManager {
     }
 
     const command = `winget install ${args.join(" ")}`
-    return await execPowerShell(command, 600000, `winget 安装 ${packageId}`)
+
+    // Try normal install first
+    const result = await execPowerShell(command, 600000, `winget 安装 ${packageId}`)
+    if (result.success) return result
+
+    // Failed — try with elevation
+    return await installWithElevation(command, `winget 安装 ${packageId} (elevated)`)
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {
@@ -314,12 +475,17 @@ export class ChocolateyProvider implements WindowsPackageManager {
       success: true,
     })
 
-    const command = `
-      Set-ExecutionPolicy Bypass -Scope Process -Force
-      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-      iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    `
-    return await execPowerShell(command, 600000, "安装 Chocolatey")
+    const command = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
+
+    // Try normal install first
+    const result = await execPowerShell(command, 600000, "安装 Chocolatey")
+    if (result.success) return result
+
+    // Failed — try with elevation
+    return await installWithElevation(
+      `powershell.exe -NoProfile -NonInteractive -Command "${command.replace(/"/g, '\\"')}"`,
+      "安装 Chocolatey (elevated)",
+    )
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -334,7 +500,13 @@ export class ChocolateyProvider implements WindowsPackageManager {
     }
 
     const command = `choco ${args.join(" ")}`
-    return await execPowerShell(command, 600000, `Chocolatey 安装 ${packageId}`)
+
+    // Try normal install first
+    const result = await execPowerShell(command, 600000, `Chocolatey 安装 ${packageId}`)
+    if (result.success) return result
+
+    // Failed — try with elevation
+    return await installWithElevation(command, `Chocolatey 安装 ${packageId} (elevated)`)
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {
@@ -475,6 +647,11 @@ export class WindowsPackageManagerRegistry {
         error: result.error,
       })
 
+      // Propagate structured error codes
+      if (result.stderr === "NO_ADMIN" || result.stderr === "UAC_CANCELLED") {
+        return { success: false, error: "NO_ADMIN" }
+      }
+
       return {
         success: false,
         error: result.stderr || "Installation failed",
@@ -533,7 +710,8 @@ export class WindowsPackageManagerRegistry {
   }
 
   /**
-   * Install a package manager if none are available
+   * Install a package manager if none are available.
+   * Returns structured error codes: NO_ADMIN, UAC_CANCELLED, INSTALL_FAILED
    */
   async ensurePackageManager(): Promise<{
     success: boolean
@@ -548,6 +726,7 @@ export class WindowsPackageManagerRegistry {
 
     // Try to install providers in priority order
     const sorted = [...this.providers].sort((a, b) => b.priority - a.priority)
+    let lastError = "INSTALL_FAILED"
 
     for (const provider of sorted) {
       try {
@@ -556,6 +735,16 @@ export class WindowsPackageManagerRegistry {
           this.cachedProvider = provider
           return { success: true, provider: provider.name }
         }
+
+        // Propagate structured error codes from elevation logic
+        if (result.stderr === "NO_ADMIN") {
+          return { success: false, error: "NO_ADMIN" }
+        }
+        if (result.stderr === "UAC_CANCELLED") {
+          return { success: false, error: "NO_ADMIN" }
+        }
+
+        lastError = result.stderr || "INSTALL_FAILED"
       } catch (error) {
         // Continue to next provider
         continue
@@ -564,7 +753,7 @@ export class WindowsPackageManagerRegistry {
 
     return {
       success: false,
-      error: "Failed to install any package manager",
+      error: lastError,
     }
   }
 

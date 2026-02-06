@@ -76,6 +76,7 @@
     "pmInstallMayTakeLong": "This may take a few minutes...",
     "noAdmin": "Administrator privileges required to install Homebrew. Please obtain admin access via your company's privilege elevation tool or system administrator, then retry.",
     "noAdminTitle": "Admin privileges required",
+    "noAdminWindows": "Administrator privileges required. The system will prompt for UAC approval. If you don't have admin access, please contact your IT administrator or use your company's privilege elevation tool, then retry.",
     "noAdminRetry": "Got privileges? Retry installation",
     "installFailedGeneric": "Package manager installation failed",
     "manualConfig": "Manual setup",
