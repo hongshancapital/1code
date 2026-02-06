@@ -295,12 +295,10 @@ export const runnerRouter = router({
           if (toolDef?.windowsPackageIds) {
             const registry = getWindowsPackageManagerRegistry()
 
-            // Try winget first, then Chocolatey
+            // Try winget first with winget-specific package ID
             const wingetId = toolDef.windowsPackageIds.winget
-            const chocoId = toolDef.windowsPackageIds.choco
-
             if (wingetId) {
-              const result = await registry.installTool(wingetId, {
+              const result = await registry.installToolWithProvider("winget", wingetId, {
                 silent: true,
                 acceptLicenses: true,
               })
@@ -318,9 +316,10 @@ export const runnerRouter = router({
               }
             }
 
-            // If winget failed and we have a choco ID, try Chocolatey
+            // If winget failed and we have a choco ID, try Chocolatey with choco-specific package ID
+            const chocoId = toolDef.windowsPackageIds.choco
             if (chocoId) {
-              const result = await registry.installTool(chocoId, {
+              const result = await registry.installToolWithProvider("choco", chocoId, {
                 silent: true,
                 acceptLicenses: true,
               })
@@ -334,6 +333,12 @@ export const runnerRouter = router({
                   output: result.output,
                   provider: result.provider,
                 }
+              }
+
+              // Both failed, return the last error
+              return {
+                success: false,
+                error: result.error || "所有包管理器安装尝试均失败",
               }
             }
           }

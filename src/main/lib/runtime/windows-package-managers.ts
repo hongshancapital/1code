@@ -291,6 +291,55 @@ export class WindowsPackageManagerRegistry {
   }
 
   /**
+   * Install a tool using a specific package manager by name
+   */
+  async installToolWithProvider(
+    providerName: string,
+    packageId: string,
+    options: InstallOptions = {}
+  ): Promise<{ success: boolean; provider?: string; error?: string; output?: string }> {
+    const provider = this.getProvider(providerName)
+
+    if (!provider) {
+      return {
+        success: false,
+        error: `Package manager「${providerName}」not found`,
+      }
+    }
+
+    // Check if provider is available
+    const isAvailable = await provider.isAvailable()
+    if (!isAvailable) {
+      return {
+        success: false,
+        error: `Package manager「${providerName}」is not available`,
+      }
+    }
+
+    try {
+      const result = await provider.installTool(packageId, options)
+      if (result.success) {
+        return {
+          success: true,
+          provider: provider.name,
+          output: result.stdout,
+        }
+      }
+
+      return {
+        success: false,
+        error: result.stderr || "Installation failed",
+        output: result.stdout,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  /**
    * Install a tool using the best available package manager
    * Automatically falls back to next provider if first fails
    */
