@@ -39,7 +39,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       return match ? match[1] : output.split("\n")[0].trim()
     },
     installCommands: {
-      win32: 'powershell -c "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"',
+      // winget 通常预装在 Windows 10 1809+ 和 Windows 11
+      // 如果没有，需要从 Microsoft Store 安装 "App Installer"
+      // 这里提供手动安装链接，因为自动安装需要 Store
+      win32: 'start ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1',
     },
   },
 
@@ -311,7 +314,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     installCommands: {
       darwin: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-      win32: "powershell -c \"irm https://win.rustup.rs -OutFile rustup-init.exe; .\\rustup-init.exe -y\"",
+      // Windows: Download and run rustup-init with default options
+      // Note: Requires restart of shell/app to update PATH
+      win32: "powershell -c \"Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile $env:TEMP\\rustup-init.exe; Start-Process -Wait -FilePath $env:TEMP\\rustup-init.exe -ArgumentList '-y'; Remove-Item $env:TEMP\\rustup-init.exe\"",
       linux: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
     },
   },
@@ -328,7 +333,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     installCommands: {
       darwin: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
-      win32: "powershell -c \"irm https://win.rustup.rs -OutFile rustup-init.exe; .\\rustup-init.exe -y\"",
+      // Cargo is installed with rustc via rustup
+      win32: "powershell -c \"Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile $env:TEMP\\rustup-init.exe; Start-Process -Wait -FilePath $env:TEMP\\rustup-init.exe -ArgumentList '-y'; Remove-Item $env:TEMP\\rustup-init.exe\"",
       linux: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y",
     },
   },
