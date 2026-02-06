@@ -1,8 +1,8 @@
 "use client"
 
 import { useAtom, useSetAtom } from "jotai"
-import { X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { Copy, X } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { pendingAuthRetryMessageAtom } from "../../features/agents/atoms"
 import {
   agentsLoginModalOpenAtom,
@@ -22,8 +22,20 @@ import { ClaudeCodeIcon, IconSpinner } from "../ui/icons"
 import { Input } from "../ui/input"
 import { Logo } from "../ui/logo"
 
+/**
+ * Auth flow state machine:
+ *
+ * Modal opens → checking (system token?)
+ *   → found token → importing → success → close
+ *   → no token → setup_token (CLI) or sandbox OAuth fallback
+ *       → setup_token: CLI runs, browser opens, user authenticates
+ *       → sandbox: needs Hong Desktop token, fallback path
+ *   → error: show message + retry
+ */
 type AuthFlowState =
-  | { step: "idle" }
+  | { step: "checking" }
+  | { step: "importing" }
+  | { step: "setup_token" }
   | { step: "starting" }
   | {
       step: "waiting_url"
@@ -45,20 +57,29 @@ export function ClaudeLoginModal() {
   const [open, setOpen] = useAtom(agentsLoginModalOpenAtom)
   const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
-  const [flowState, setFlowState] = useState<AuthFlowState>({ step: "idle" })
+  const [flowState, setFlowState] = useState<AuthFlowState>({ step: "checking" })
   const [authCode, setAuthCode] = useState("")
-  const [userClickedConnect, setUserClickedConnect] = useState(false)
-  const [urlOpened, setUrlOpened] = useState(false)
   const [savedOauthUrl, setSavedOauthUrl] = useState<string | null>(null)
   const urlOpenedRef = useRef(false)
+  const autoStartedRef = useRef(false)
 
   // tRPC mutations and utils
   const utils = trpc.useUtils()
   const startAuthMutation = trpc.claudeCode.startAuth.useMutation()
   const submitCodeMutation = trpc.claudeCode.submitCode.useMutation()
   const openOAuthUrlMutation = trpc.claudeCode.openOAuthUrl.useMutation()
+  const importSystemTokenMutation = trpc.claudeCode.importSystemToken.useMutation()
+  const runSetupTokenMutation = trpc.claudeCode.runSetupToken.useMutation()
 
-  // Poll for OAuth URL
+  // Queries (only enabled when modal is open)
+  const systemTokenQuery = trpc.claudeCode.getSystemToken.useQuery(undefined, {
+    enabled: open,
+  })
+  const cliInstalledQuery = trpc.claudeCode.checkCliInstalled.useQuery(undefined, {
+    enabled: open,
+  })
+
+  // Poll for OAuth URL (sandbox flow only)
   const pollStatusQuery = trpc.claudeCode.pollStatus.useQuery(
     {
       sandboxUrl: flowState.step === "waiting_url" ? flowState.sandboxUrl : "",
@@ -70,12 +91,101 @@ export function ClaudeLoginModal() {
     }
   )
 
-  // Update flow state when we get the OAuth URL
+  // Helper to trigger retry after successful auth
+  const triggerAuthRetry = useCallback(() => {
+    const pending = appStore.get(pendingAuthRetryMessageAtom)
+    if (pending) {
+      console.log("[ClaudeLoginModal] Auth success - triggering retry for subChatId:", pending.subChatId)
+      appStore.set(pendingAuthRetryMessageAtom, { ...pending, readyToRetry: true })
+    }
+  }, [])
+
+  // Helper to clear pending retry (on cancel/close without success)
+  const clearPendingRetry = useCallback(() => {
+    const pending = appStore.get(pendingAuthRetryMessageAtom)
+    if (pending && !pending.readyToRetry) {
+      console.log("[ClaudeLoginModal] Modal closed without success - clearing pending retry")
+      appStore.set(pendingAuthRetryMessageAtom, null)
+    }
+  }, [])
+
+  // Verify account stored in DB, then trigger retry and close
+  const handleAuthSuccess = useCallback(async () => {
+    await utils.anthropicAccounts.getActive.invalidate()
+    const activeAccount = await utils.anthropicAccounts.getActive.fetch()
+    if (!activeAccount) {
+      throw new Error("Account not found after authentication. Please try again.")
+    }
+    triggerAuthRetry()
+    setOpen(false)
+  }, [utils, triggerAuthRetry, setOpen])
+
+  // === Auto-start flow when modal opens and queries are ready ===
   useEffect(() => {
-    if (
-      flowState.step === "waiting_url" &&
-      pollStatusQuery.data?.oauthUrl
-    ) {
+    if (!open || autoStartedRef.current) return
+    if (!systemTokenQuery.isFetched || !cliInstalledQuery.isFetched) return
+
+    autoStartedRef.current = true
+
+    // Priority 1: System token exists → auto-import
+    if (systemTokenQuery.data?.token) {
+      setFlowState({ step: "importing" })
+      importSystemTokenMutation.mutateAsync()
+        .then(() => handleAuthSuccess())
+        .catch((err) => {
+          setFlowState({
+            step: "error",
+            message: err instanceof Error ? err.message : "Failed to import token",
+          })
+        })
+      return
+    }
+
+    // Priority 2: CLI installed → run setup-token
+    if (cliInstalledQuery.data?.installed) {
+      setFlowState({ step: "setup_token" })
+      runSetupTokenMutation.mutateAsync()
+        .then(() => handleAuthSuccess())
+        .catch((err) => {
+          // CLI failed, try sandbox fallback
+          console.warn("[ClaudeLoginModal] setup-token failed, trying sandbox:", err)
+          startSandboxAuth()
+        })
+      return
+    }
+
+    // Priority 3: Sandbox OAuth fallback
+    startSandboxAuth()
+  }, [open, systemTokenQuery.isFetched, cliInstalledQuery.isFetched]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start sandbox OAuth flow (may fail if no Hong Desktop token)
+  const startSandboxAuth = useCallback(async () => {
+    setFlowState({ step: "starting" })
+    try {
+      const result = await startAuthMutation.mutateAsync()
+      setFlowState({
+        step: "waiting_url",
+        sandboxId: result.sandboxId,
+        sandboxUrl: result.sandboxUrl,
+        sessionId: result.sessionId,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to start authentication"
+      // Provide helpful error message for users without Hong Desktop login
+      if (message.includes("Not authenticated with Hóng")) {
+        setFlowState({
+          step: "error",
+          message: "Please run `claude login` in your terminal to authenticate your Claude Code subscription.",
+        })
+      } else {
+        setFlowState({ step: "error", message })
+      }
+    }
+  }, [startAuthMutation])
+
+  // Update flow state when we get the OAuth URL from sandbox
+  useEffect(() => {
+    if (flowState.step === "waiting_url" && pollStatusQuery.data?.oauthUrl) {
       setSavedOauthUrl(pollStatusQuery.data.oauthUrl)
       setFlowState({
         step: "has_url",
@@ -95,102 +205,29 @@ export function ClaudeLoginModal() {
     }
   }, [pollStatusQuery.data, flowState])
 
-  // Open URL in browser when ready (after user clicked Connect)
+  // Auto-open browser when sandbox URL is ready
   useEffect(() => {
-    if (
-      flowState.step === "has_url" &&
-      userClickedConnect &&
-      !urlOpenedRef.current
-    ) {
+    if (flowState.step === "has_url" && !urlOpenedRef.current) {
       urlOpenedRef.current = true
-      setUrlOpened(true)
       openOAuthUrlMutation.mutate(flowState.oauthUrl)
     }
-  }, [flowState, userClickedConnect, openOAuthUrlMutation])
+  }, [flowState, openOAuthUrlMutation])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      setFlowState({ step: "idle" })
+      setFlowState({ step: "checking" })
       setAuthCode("")
-      setUserClickedConnect(false)
-      setUrlOpened(false)
       setSavedOauthUrl(null)
       urlOpenedRef.current = false
-      // Clear pending retry if modal closed without success (user cancelled)
-      // Note: We don't clear here because success handler sets readyToRetry=true first
+      autoStartedRef.current = false
     }
   }, [open])
-
-  // Helper to trigger retry after successful OAuth
-  const triggerAuthRetry = () => {
-    const pending = appStore.get(pendingAuthRetryMessageAtom)
-    if (pending) {
-      console.log("[ClaudeLoginModal] OAuth success - triggering retry for subChatId:", pending.subChatId)
-      appStore.set(pendingAuthRetryMessageAtom, { ...pending, readyToRetry: true })
-    }
-  }
-
-  // Helper to clear pending retry (on cancel/close without success)
-  const clearPendingRetry = () => {
-    const pending = appStore.get(pendingAuthRetryMessageAtom)
-    if (pending && !pending.readyToRetry) {
-      console.log("[ClaudeLoginModal] Modal closed without success - clearing pending retry")
-      appStore.set(pendingAuthRetryMessageAtom, null)
-    }
-  }
 
   // Check if the code looks like a valid Claude auth code (format: XXX#YYY)
   const isValidCodeFormat = (code: string) => {
     const trimmed = code.trim()
     return trimmed.length > 50 && trimmed.includes("#")
-  }
-
-  const handleConnectClick = async () => {
-    setUserClickedConnect(true)
-
-    if (flowState.step === "has_url") {
-      // URL is ready, open it immediately
-      urlOpenedRef.current = true
-      setUrlOpened(true)
-      openOAuthUrlMutation.mutate(flowState.oauthUrl)
-    } else if (flowState.step === "error") {
-      // Retry on error
-      urlOpenedRef.current = false
-      setUrlOpened(false)
-      setFlowState({ step: "starting" })
-      try {
-        const result = await startAuthMutation.mutateAsync()
-        setFlowState({
-          step: "waiting_url",
-          sandboxId: result.sandboxId,
-          sandboxUrl: result.sandboxUrl,
-          sessionId: result.sessionId,
-        })
-      } catch (err) {
-        setFlowState({
-          step: "error",
-          message: err instanceof Error ? err.message : "Failed to start authentication",
-        })
-      }
-    } else if (flowState.step === "idle") {
-      // Start auth
-      setFlowState({ step: "starting" })
-      try {
-        const result = await startAuthMutation.mutateAsync()
-        setFlowState({
-          step: "waiting_url",
-          sandboxId: result.sandboxId,
-          sandboxUrl: result.sandboxUrl,
-          sessionId: result.sessionId,
-        })
-      } catch (err) {
-        setFlowState({
-          step: "error",
-          message: err instanceof Error ? err.message : "Failed to start authentication",
-        })
-      }
-    }
   }
 
   const handleSubmitCode = async () => {
@@ -205,18 +242,7 @@ export function ClaudeLoginModal() {
         sessionId,
         code: authCode.trim(),
       })
-
-      // 验证账号是否真的被存储到数据库
-      await utils.anthropicAccounts.getActive.invalidate()
-      const activeAccount = await utils.anthropicAccounts.getActive.fetch()
-
-      if (!activeAccount) {
-        throw new Error("Account not found after authentication. Please try again.")
-      }
-
-      // Success - trigger retry and close modal
-      triggerAuthRetry()
-      setOpen(false)
+      await handleAuthSuccess()
     } catch (err) {
       setFlowState({
         step: "error",
@@ -240,18 +266,7 @@ export function ClaudeLoginModal() {
             sessionId,
             code: value.trim(),
           })
-
-          // 验证账号是否真的被存储到数据库
-          await utils.anthropicAccounts.getActive.invalidate()
-          const activeAccount = await utils.anthropicAccounts.getActive.fetch()
-
-          if (!activeAccount) {
-            throw new Error("Account not found after authentication. Please try again.")
-          }
-
-          // Success - trigger retry and close modal
-          triggerAuthRetry()
-          setOpen(false)
+          await handleAuthSuccess()
         } catch (err) {
           setFlowState({
             step: "error",
@@ -274,6 +289,21 @@ export function ClaudeLoginModal() {
     }
   }
 
+  const handleRetry = () => {
+    autoStartedRef.current = false
+    urlOpenedRef.current = false
+    setSavedOauthUrl(null)
+    setAuthCode("")
+    // Re-check system token (user may have run `claude login` in terminal)
+    systemTokenQuery.refetch()
+    cliInstalledQuery.refetch()
+    setFlowState({ step: "checking" })
+  }
+
+  const handleCopyCommand = () => {
+    navigator.clipboard.writeText("claude login")
+  }
+
   const handleOpenModelsSettings = () => {
     clearPendingRetry()
     setSettingsActiveTab("models" as SettingsTab)
@@ -281,16 +311,36 @@ export function ClaudeLoginModal() {
     setOpen(false)
   }
 
-  const isLoadingAuth =
-    flowState.step === "starting" || flowState.step === "waiting_url"
-  const isSubmitting = flowState.step === "submitting"
-
   // Handle modal open/close - clear pending retry if closing without success
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       clearPendingRetry()
     }
     setOpen(newOpen)
+  }
+
+  const isLoading =
+    flowState.step === "checking" ||
+    flowState.step === "importing" ||
+    flowState.step === "setup_token" ||
+    flowState.step === "starting" ||
+    flowState.step === "waiting_url"
+
+  const isSubmitting = flowState.step === "submitting"
+
+  const getLoadingMessage = () => {
+    switch (flowState.step) {
+      case "checking":
+      case "importing":
+        return "Checking credentials..."
+      case "setup_token":
+        return "Authenticating in browser..."
+      case "starting":
+      case "waiting_url":
+        return "Connecting..."
+      default:
+        return ""
+    }
   }
 
   return (
@@ -325,25 +375,16 @@ export function ClaudeLoginModal() {
 
           {/* Content */}
           <div className="flex flex-col gap-6">
-            {/* Connect Button - shows loader only if user clicked AND loading */}
-            {!urlOpened && flowState.step !== "has_url" && flowState.step !== "error" && (
-              <Button
-                onClick={handleConnectClick}
-                className="w-full"
-                disabled={userClickedConnect && isLoadingAuth}
-              >
-                {userClickedConnect && isLoadingAuth ? (
-                  <IconSpinner className="h-4 w-4" />
-                ) : (
-                  "Connect"
-                )}
-              </Button>
+            {/* Loading states: checking / importing / setup_token / starting / waiting_url */}
+            {isLoading && (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <IconSpinner className="h-5 w-5" />
+                <p className="text-sm text-muted-foreground">{getLoadingMessage()}</p>
+              </div>
             )}
 
-            {/* Code Input - Show after URL is opened or if has_url */}
-            {(urlOpened ||
-              flowState.step === "has_url" ||
-              flowState.step === "submitting") && (
+            {/* Code Input - Show when sandbox has URL ready */}
+            {(flowState.step === "has_url" || isSubmitting) && (
               <div className="flex flex-col gap-4">
                 <Input
                   value={authCode}
@@ -384,9 +425,21 @@ export function ClaudeLoginModal() {
                 <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <p className="text-sm text-destructive">{flowState.message}</p>
                 </div>
+
+                {/* Show copy command hint if it's a CLI-related error */}
+                {flowState.message.includes("claude login") && (
+                  <button
+                    onClick={handleCopyCommand}
+                    className="flex items-center justify-center gap-2 p-3 bg-muted/50 border border-border rounded-lg text-sm font-mono hover:bg-muted transition-colors"
+                  >
+                    <span>claude login</span>
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                )}
+
                 <Button
                   variant="secondary"
-                  onClick={handleConnectClick}
+                  onClick={handleRetry}
                   className="w-full"
                 >
                   Try Again

@@ -3,7 +3,7 @@ import { safeStorage, shell } from "electron"
 import { z } from "zod"
 import { getAuthManager } from "../../../auth-manager"
 import { getClaudeShellEnvironment } from "../../claude"
-import { getExistingClaudeToken } from "../../claude-token"
+import { getExistingClaudeToken, isClaudeCliInstalled, runClaudeSetupToken } from "../../claude-token"
 import { getApiUrl } from "../../config"
 import {
   anthropicAccounts,
@@ -183,7 +183,7 @@ export const claudeCodeRouter = router({
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Unknown error" }))
+      const error = await response.json().catch(() => ({ error: `Server error (${response.status})` }))
       throw new Error(error.error || `Start auth failed: ${response.status}`)
     }
 
@@ -425,6 +425,37 @@ export const claudeCodeRouter = router({
       .run()
 
     console.log("[ClaudeCode] Disconnected")
+    return { success: true }
+  }),
+
+  /**
+   * Check if Claude CLI is installed on the system
+   */
+  checkCliInstalled: publicProcedure.query(() => {
+    return { installed: isClaudeCliInstalled() }
+  }),
+
+  /**
+   * Run `claude setup-token` to authenticate locally without sandbox
+   * Does not require Hong Desktop login - works independently
+   */
+  runSetupToken: publicProcedure.mutation(async () => {
+    const result = await runClaudeSetupToken((msg) => {
+      console.log("[ClaudeCode] setup-token:", msg)
+    })
+
+    if (!result.success) {
+      throw new Error(result.error || "Setup token failed")
+    }
+
+    // Token is now in system keychain, read it and store in our database
+    const token = result.token || getExistingClaudeToken()
+    if (!token) {
+      throw new Error("Token not found after authentication")
+    }
+
+    storeOAuthToken(token)
+    console.log("[ClaudeCode] Token stored via setup-token")
     return { success: true }
   }),
 
