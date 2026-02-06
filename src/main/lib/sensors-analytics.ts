@@ -93,6 +93,7 @@ export function setOptOut(optedOut: boolean): void {
 
 /**
  * 追踪事件
+ * 当用户已登录时，$is_login_id: true 告知神策 distinctId 是登录 ID
  */
 export function track(
   eventName: string,
@@ -101,16 +102,19 @@ export function track(
   if (isDev() || !sensors || userOptedOut) return
 
   const distinctId = currentUserId || "anonymous"
+  const isLoggedIn = !!currentUserId
 
   sensors.track(distinctId, eventName, {
     ...getCommonProperties(),
     ...properties,
+    $is_login_id: isLoggedIn,
   })
-  console.log(`[Sensors] Event tracked: ${eventName}`)
+  console.log(`[Sensors] Event tracked: ${eventName}, isLoggedIn: ${isLoggedIn}`)
 }
 
 /**
  * 用户登录
+ * $is_login_id: true 告知神策 userId 是登录 ID，后续埋点会与此用户绑定
  */
 export function login(userId: string, properties?: Record<string, any>): void {
   currentUserId = userId
@@ -120,7 +124,9 @@ export function login(userId: string, properties?: Record<string, any>): void {
   sensors.profileSet(userId, {
     ...getCommonProperties(),
     ...properties,
+    $is_login_id: true,
   })
+  console.log(`[Sensors] User logged in: ${userId}`)
 }
 
 /**
