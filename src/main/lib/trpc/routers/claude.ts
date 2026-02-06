@@ -1,5 +1,5 @@
 import { observable } from "@trpc/server/observable"
-import { eq, like } from "drizzle-orm"
+import { eq, like, desc } from "drizzle-orm"
 import { app, BrowserWindow, safeStorage } from "electron"
 import * as fs from "fs/promises"
 import { readFileSync } from "fs"
@@ -29,7 +29,7 @@ import {
 } from "../../claude"
 import { getEnv } from "../../env"
 import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
-import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
+import { chats, claudeCodeCredentials, getDatabase, memorySessions, modelUsage, observations, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
@@ -1109,6 +1109,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
           })
           .optional(), // User personalization for AI recognition
         skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
+        memoryEnabled: z.boolean().optional(), // Enable memory context injection (default true)
       }),
     )
     .subscription(({ input }) => {
@@ -1788,6 +1789,61 @@ ${prompt}
               console.log('[Ollama] Context prefix added to prompt')
             }
 
+            // Build memory context (only when enabled, default true)
+            let memoryAppendSection: string | undefined
+            if (input.memoryEnabled !== false && projectId) {
+              try {
+                const memoryObs = db
+                  .select()
+                  .from(observations)
+                  .where(eq(observations.projectId, projectId))
+                  .orderBy(desc(observations.createdAtEpoch))
+                  .limit(20)
+                  .all()
+
+                const memorySess = db
+                  .select()
+                  .from(memorySessions)
+                  .where(eq(memorySessions.projectId, projectId))
+                  .orderBy(desc(memorySessions.startedAtEpoch))
+                  .limit(5)
+                  .all()
+
+                const lines: string[] = []
+                if (memorySess.length > 0) {
+                  lines.push("## Recent Sessions\n")
+                  for (const session of memorySess) {
+                    if (session.summaryRequest) {
+                      lines.push(`- **${session.summaryRequest}**`)
+                      if (session.summaryLearned) {
+                        lines.push(`  - Learned: ${session.summaryLearned}`)
+                      }
+                      if (session.summaryCompleted) {
+                        lines.push(`  - Completed: ${session.summaryCompleted}`)
+                      }
+                    }
+                  }
+                  lines.push("")
+                }
+                if (memoryObs.length > 0) {
+                  lines.push("## Recent Observations\n")
+                  for (const o of memoryObs) {
+                    lines.push(`- [${o.type}] ${o.title}`)
+                    if (o.narrative) {
+                      lines.push(`  > ${o.narrative.slice(0, 100)}...`)
+                    }
+                  }
+                }
+
+                const content = lines.join("\n")
+                if (content.trim()) {
+                  memoryAppendSection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
+                }
+              } catch (err) {
+                console.error("[Memory] Failed to generate context:", err)
+              }
+            }
+
             // Build system prompt using PromptBuilder (composable architecture)
             const promptBuilder = getPromptBuilder()
             const systemPromptConfig = await promptBuilder.buildSystemPrompt(
@@ -1798,6 +1854,7 @@ ${prompt}
                 includeSkillAwareness: input.skillAwarenessEnabled !== false,
                 includeAgentsMd: true,
                 userProfile: input.userProfile,
+                ...(memoryAppendSection && { appendSections: [memoryAppendSection] }),
               },
               input.cwd
             )

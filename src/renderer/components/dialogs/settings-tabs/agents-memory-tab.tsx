@@ -7,7 +7,6 @@
 import { useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "../../ui/button"
-import { ScrollArea } from "../../ui/scroll-area"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
 import {
@@ -26,7 +25,6 @@ import {
   Database,
   CheckCircle,
   XCircle,
-  X,
   MessageCircle,
   Filter,
   ChevronDown,
@@ -56,8 +54,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "../../ui/alert-dialog"
-import { useAtomValue } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { selectedProjectAtom } from "../../../features/agents/atoms"
+import { memoryEnabledAtom } from "../../../lib/atoms"
+import { Switch } from "../../ui/switch"
 
 // Observation type icons (borrowed from claude-mem)
 const OBSERVATION_ICONS: Record<string, React.ReactNode> = {
@@ -135,128 +135,6 @@ function StatCard({
   )
 }
 
-// Session with counts type
-interface SessionWithCounts {
-  id: string
-  projectId: string | null
-  chatId: string | null
-  subChatId: string | null
-  status: string
-  startedAtEpoch: number | null
-  completedAtEpoch: number | null
-  summaryRequest: string | null
-  summaryLearned: string | null
-  summaryCompleted: string | null
-  observationCount: number
-  promptCount: number
-}
-
-// Session item component
-function SessionItem({
-  session,
-}: {
-  session: SessionWithCounts
-}) {
-  const totalItems = session.observationCount + session.promptCount
-  const statusIcon = session.status === "completed" ? (
-    <CheckCircle className="h-3 w-3 text-green-500" />
-  ) : session.status === "failed" ? (
-    <XCircle className="h-3 w-3 text-red-500" />
-  ) : (
-    <Circle className="h-3 w-3 text-yellow-500 animate-pulse" />
-  )
-
-  return (
-    <div className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-      <div className="shrink-0">{statusIcon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate">
-            {session.summaryRequest || `Session ${session.id.slice(0, 8)}`}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {session.startedAtEpoch ? formatDate(session.startedAtEpoch) : "Unknown"}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Eye className="h-3 w-3" />
-            {session.observationCount} observations
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageSquare className="h-3 w-3" />
-            {session.promptCount} prompts
-          </span>
-        </div>
-      </div>
-      {totalItems > 0 && (
-        <div className="shrink-0 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
-          {totalItems} items
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Sessions list component
-function SessionsList({
-  sessions,
-}: {
-  sessions: SessionWithCounts[]
-}) {
-  // Sort by time (newest first)
-  const sortedSessions = useMemo(() => {
-    return [...sessions].sort((a, b) => (b.startedAtEpoch || 0) - (a.startedAtEpoch || 0))
-  }, [sessions])
-
-  // Group by date
-  const groupedByDate = useMemo(() => {
-    const groups = new Map<string, SessionWithCounts[]>()
-    for (const session of sortedSessions) {
-      const date = formatDate(session.startedAtEpoch)
-      if (!groups.has(date)) groups.set(date, [])
-      groups.get(date)!.push(session)
-    }
-    return groups
-  }, [sortedSessions])
-
-  if (sortedSessions.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Calendar className="h-12 w-12 text-muted-foreground/30 mb-4" />
-        <p className="text-sm text-muted-foreground">No sessions yet</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Sessions are created when you chat with the AI
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      {Array.from(groupedByDate.entries()).map(([date, items]) => (
-        <div key={date}>
-          {/* Date header */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs font-medium text-muted-foreground px-2">
-              {date}
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
-          {/* Session items */}
-          <div className="space-y-1">
-            {items.map((session) => (
-              <SessionItem key={session.id} session={session} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // Full observation type for detail view
 interface FullObservation {
   id: string
@@ -292,6 +170,8 @@ function MemoryTimeline({
   onSelectObservation?: (id: string) => void
   onDeleteObservation?: (id: string) => void
 }) {
+  const { t } = useTranslation("settings")
+
   // Apply type filter
   const filteredObservations = useMemo(() => {
     if (!typeFilter) return observations
@@ -318,9 +198,9 @@ function MemoryTimeline({
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Brain className="h-12 w-12 text-muted-foreground/30 mb-4" />
-        <p className="text-sm text-muted-foreground">No memories yet</p>
+        <p className="text-sm text-muted-foreground">{t("memory.empty.noMemories")}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Memories are collected as you use the chat
+          {t("memory.empty.noMemoriesHint")}
         </p>
       </div>
     )
@@ -361,7 +241,7 @@ function MemoryTimeline({
                     <div className="flex items-center gap-2">
                       {OBSERVATION_ICONS[obs.type] || <Circle className="h-4 w-4 text-gray-400" />}
                       <span className="text-sm font-medium truncate">
-                        {obs.title || "Untitled"}
+                        {obs.title || t("memory.observation.untitled")}
                       </span>
                       <span className="text-xs text-muted-foreground ml-auto shrink-0">
                         {obs.createdAtEpoch ? new Date(obs.createdAtEpoch).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -406,13 +286,13 @@ function MemoryTimeline({
 export function AgentsMemoryTab() {
   const { t } = useTranslation("settings")
   const selectedProject = useAtomValue(selectedProjectAtom)
+  const [memoryEnabled, setMemoryEnabled] = useAtom(memoryEnabledAtom)
   // Default to showing all projects, can filter to specific project
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const projectId = selectedProjectId
   const [isClearing, setIsClearing] = useState(false)
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [selectedObservationId, setSelectedObservationId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<"observations" | "sessions">("observations")
 
   // Fetch stats
   const {
@@ -441,7 +321,7 @@ export function AgentsMemoryTab() {
   // Clear all memory mutation
   const clearAllMutation = trpc.memory.clearAllMemory.useMutation({
     onSuccess: () => {
-      toast.success("All memory cleared")
+      toast.success(t("memory.dangerZone.cleared"))
       refetchStats()
       refetchRecent()
       setIsClearing(false)
@@ -455,7 +335,7 @@ export function AgentsMemoryTab() {
   // Delete single observation mutation
   const deleteMutation = trpc.memory.deleteObservation.useMutation({
     onSuccess: () => {
-      toast.success("Memory deleted")
+      toast.success(t("memory.delete.deleted"))
       refetchStats()
       refetchRecent()
       setSelectedObservationId(null)
@@ -473,11 +353,11 @@ export function AgentsMemoryTab() {
   const handleRefresh = () => {
     refetchStats()
     refetchRecent()
-    toast.success("Memory refreshed")
+    toast.success(t("memory.refreshed"))
   }
 
   const handleDeleteObservation = (id: string) => {
-    if (confirm("Delete this memory?")) {
+    if (confirm(t("memory.delete.confirmDelete"))) {
       deleteMutation.mutate({ id })
     }
   }
@@ -500,12 +380,12 @@ export function AgentsMemoryTab() {
         <div>
           <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Memory
+            {t("memory.title")}
           </h3>
           <p className="text-sm text-muted-foreground">
             {projectId
-              ? "Filtered by project"
-              : "All memories"}
+              ? t("memory.filteredByProject")
+              : t("memory.allMemories")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -518,33 +398,56 @@ export function AgentsMemoryTab() {
             <RefreshCw
               className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
             />
-            Refresh
+            {t("memory.refresh")}
           </Button>
+        </div>
+      </div>
+
+      {/* Memory Enable Toggle */}
+      <div className="rounded-lg border p-4 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium">
+              {t("memory.enable.title")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("memory.enable.description")}
+            </span>
+            {!memoryEnabled && (
+              <span className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                {t("memory.enable.disabledHint")}
+              </span>
+            )}
+          </div>
+          <Switch
+            checked={memoryEnabled}
+            onCheckedChange={setMemoryEnabled}
+          />
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
         <StatCard
-          title="Sessions"
+          title={t("memory.stats.sessions")}
           value={stats?.sessions ?? 0}
           icon={<Calendar className="h-5 w-5 text-primary" />}
           isLoading={statsLoading}
         />
         <StatCard
-          title="Observations"
+          title={t("memory.stats.observations")}
           value={stats?.observations ?? 0}
           icon={<Eye className="h-5 w-5 text-primary" />}
           isLoading={statsLoading}
         />
         <StatCard
-          title="Prompts"
+          title={t("memory.stats.prompts")}
           value={stats?.prompts ?? 0}
           icon={<MessageSquare className="h-5 w-5 text-primary" />}
           isLoading={statsLoading}
         />
         <StatCard
-          title="Vectors"
+          title={t("memory.stats.vectors")}
           value={stats?.vectors ?? 0}
           icon={<Database className="h-5 w-5 text-primary" />}
           isLoading={statsLoading}
@@ -557,60 +460,37 @@ export function AgentsMemoryTab() {
           <>
             <CheckCircle className="h-4 w-4 text-green-500" />
             <span className="text-green-600 dark:text-green-400">
-              Vector search enabled
+              {t("memory.vectorStatus.enabled")}
             </span>
           </>
         ) : (
           <>
             <XCircle className="h-4 w-4 text-yellow-500" />
             <span className="text-yellow-600 dark:text-yellow-400">
-              Vector search initializing...
+              {t("memory.vectorStatus.initializing")}
             </span>
           </>
         )}
       </div>
 
       {/* Timeline */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex flex-col min-h-0 max-h-[50vh]">
         <div className="flex items-center justify-between mb-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-              Recent Memory
-            </h4>
-            {/* View toggle */}
-            <div className="flex items-center border rounded-md p-0.5 bg-muted/30">
-              <Button
-                variant={viewMode === "observations" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setViewMode("observations")}
-              >
-                <Eye className="h-3 w-3 mr-1" />
-                Observations
-              </Button>
-              <Button
-                variant={viewMode === "sessions" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => setViewMode("sessions")}
-              >
-                <Calendar className="h-3 w-3 mr-1" />
-                Sessions
-              </Button>
-            </div>
-          </div>
-          {viewMode === "observations" && availableTypes.length > 0 && (
+          <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+            {t("memory.timeline.recentMemory")}
+          </h4>
+          {availableTypes.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 text-xs">
                   <Filter className="h-3 w-3 mr-1" />
-                  {typeFilter ? OBSERVATION_TYPE_LABELS[typeFilter] || typeFilter : "All Types"}
+                  {typeFilter ? OBSERVATION_TYPE_LABELS[typeFilter] || typeFilter : t("memory.timeline.allTypes")}
                   <ChevronDown className="h-3 w-3 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setTypeFilter(null)}>
-                  All Types
+                  {t("memory.timeline.allTypes")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {availableTypes.map((type) => (
@@ -623,24 +503,20 @@ export function AgentsMemoryTab() {
             </DropdownMenu>
           )}
         </div>
-        <ScrollArea className="flex-1 border rounded-lg p-3">
+        <div className="flex-1 min-h-0 border rounded-lg p-3 overflow-y-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : viewMode === "observations" ? (
+          ) : (
             <MemoryTimeline
               observations={recent?.observations ?? []}
               typeFilter={typeFilter}
               onSelectObservation={setSelectedObservationId}
               onDeleteObservation={handleDeleteObservation}
             />
-          ) : (
-            <SessionsList
-              sessions={(recent?.sessions ?? []) as SessionWithCounts[]}
-            />
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Observation Detail Dialog */}
@@ -649,7 +525,7 @@ export function AgentsMemoryTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedObservation?.type && OBSERVATION_ICONS[selectedObservation.type]}
-              {selectedObservation?.title || "Observation Detail"}
+              {selectedObservation?.title || t("memory.observation.detail")}
             </DialogTitle>
             {selectedObservation?.subtitle && (
               <DialogDescription>{selectedObservation.subtitle}</DialogDescription>
@@ -679,7 +555,7 @@ export function AgentsMemoryTab() {
               {/* Narrative */}
               {selectedObservation.narrative && (
                 <div>
-                  <h5 className="text-sm font-medium mb-1">Content</h5>
+                  <h5 className="text-sm font-medium mb-1">{t("memory.observation.content")}</h5>
                   <div className="p-3 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
                     {selectedObservation.narrative}
                   </div>
@@ -689,7 +565,7 @@ export function AgentsMemoryTab() {
               {/* Facts */}
               {safeJsonParse(selectedObservation.facts, []).length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium mb-1">Facts</h5>
+                  <h5 className="text-sm font-medium mb-1">{t("memory.observation.facts")}</h5>
                   <div className="flex flex-wrap gap-1">
                     {safeJsonParse(selectedObservation.facts, []).map((fact: string, i: number) => (
                       <span key={i} className="px-2 py-0.5 bg-blue-500/10 text-blue-600 rounded text-xs">
@@ -703,7 +579,7 @@ export function AgentsMemoryTab() {
               {/* Concepts */}
               {safeJsonParse(selectedObservation.concepts, []).length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium mb-1">Concepts</h5>
+                  <h5 className="text-sm font-medium mb-1">{t("memory.observation.concepts")}</h5>
                   <div className="flex flex-wrap gap-1">
                     {safeJsonParse(selectedObservation.concepts, []).map((concept: string, i: number) => (
                       <span key={i} className="px-2 py-0.5 bg-purple-500/10 text-purple-600 rounded text-xs">
@@ -717,7 +593,7 @@ export function AgentsMemoryTab() {
               {/* Files Read */}
               {safeJsonParse(selectedObservation.filesRead, []).length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium mb-1">Files Read</h5>
+                  <h5 className="text-sm font-medium mb-1">{t("memory.observation.filesRead")}</h5>
                   <div className="space-y-1">
                     {safeJsonParse(selectedObservation.filesRead, []).map((file: string, i: number) => (
                       <div key={i} className="text-xs text-muted-foreground font-mono truncate">
@@ -731,7 +607,7 @@ export function AgentsMemoryTab() {
               {/* Files Modified */}
               {safeJsonParse(selectedObservation.filesModified, []).length > 0 && (
                 <div>
-                  <h5 className="text-sm font-medium mb-1">Files Modified</h5>
+                  <h5 className="text-sm font-medium mb-1">{t("memory.observation.filesModified")}</h5>
                   <div className="space-y-1">
                     {safeJsonParse(selectedObservation.filesModified, []).map((file: string, i: number) => (
                       <div key={i} className="text-xs text-muted-foreground font-mono truncate">
@@ -748,14 +624,14 @@ export function AgentsMemoryTab() {
                   variant="destructive"
                   size="sm"
                   onClick={() => {
-                    if (confirm("Delete this memory?")) {
+                    if (confirm(t("memory.delete.confirmDelete"))) {
                       deleteMutation.mutate({ id: selectedObservation.id })
                     }
                   }}
                   disabled={deleteMutation.isPending}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Memory
+                  {t("memory.delete.deleteMemory")}
                 </Button>
               </div>
             </div>
@@ -767,10 +643,10 @@ export function AgentsMemoryTab() {
       {stats && stats.observations > 0 && (
         <div className="border-t pt-4">
           <h4 className="text-sm font-medium text-destructive mb-2">
-            Danger Zone
+            {t("memory.dangerZone.title")}
           </h4>
           <p className="text-sm text-muted-foreground mb-3">
-            Clear all memory. This action cannot be undone.
+            {t("memory.dangerZone.description")}
           </p>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -780,22 +656,24 @@ export function AgentsMemoryTab() {
                 disabled={isClearing}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                {isClearing ? "Clearing..." : "Clear All Memory"}
+                {isClearing ? t("memory.dangerZone.clearing") : t("memory.dangerZone.clearAll")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogTitle>{t("memory.dangerZone.confirmTitle")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete all {stats?.observations || 0} observations,
-                  {stats?.prompts || 0} prompts, and {stats?.sessions || 0} sessions.
-                  This action cannot be undone.
+                  {t("memory.dangerZone.confirmDescription", {
+                    observations: stats?.observations || 0,
+                    prompts: stats?.prompts || 0,
+                    sessions: stats?.sessions || 0,
+                  })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t("memory.dangerZone.cancel")}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleClear}>
-                  Delete All
+                  {t("memory.dangerZone.deleteAll")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

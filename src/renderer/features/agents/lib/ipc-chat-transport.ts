@@ -20,6 +20,7 @@ import {
   litellmSelectedModelAtom,
   userPersonalizationAtom,
   skillAwarenessEnabledAtom,
+  memoryEnabledAtom,
 } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
@@ -215,6 +216,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const historyEnabled = appStore.get(historyEnabledAtom)
     const enableTasks = appStore.get(enableTasksAtom)
     const skillAwarenessEnabled = appStore.get(skillAwarenessEnabledAtom)
+    const memoryEnabled = appStore.get(memoryEnabledAtom)
 
     // Read model selection dynamically (so model changes apply to existing chats)
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)
@@ -301,6 +303,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
 askUserQuestionTimeout,
             enableTasks,
             skillAwarenessEnabled,
+            memoryEnabled,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
