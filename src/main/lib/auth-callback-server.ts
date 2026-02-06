@@ -75,8 +75,9 @@ export async function handleAuthCode(
     logAuthDebug(`Success for user: ${authData.user.email}`)
 
     // Track successful authentication with Sensors (skip when embedded in Tinker)
+    // Use email as distinctId to match Web SDK's sensors.login(email)
     if (!isEmbeddedInTinker) {
-      sensorsLogin(authData.user.id, { email: authData.user.email })
+      sensorsLogin(authData.user.email)
       sensorsTrack("auth_completed", { user_id: authData.user.id })
     }
 

@@ -331,11 +331,12 @@ export function App() {
     })
 
     // Login user for Sensors Analytics if already authenticated
+    // Use email as distinctId to match Web SDK's sensors.login(email)
     const loginUser = async () => {
       try {
         const user = await window.desktopApi?.getUser()
-        if (user?.id) {
-          sensorsLogin(user.id)
+        if (user?.email) {
+          sensorsLogin(user.email)
         }
       } catch (error) {
         console.warn("[Sensors] Failed to login user:", error)

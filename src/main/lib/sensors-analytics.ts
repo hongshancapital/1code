@@ -25,7 +25,7 @@ function getSensorsConfigFromEnv(): SensorsConfig | undefined {
 }
 
 let sensors: SensorsAnalytics | undefined
-let currentUserId: string | undefined
+let currentDistinctId: string | undefined // 使用 email 作为 distinctId，与 Web 端保持一致
 let userOptedOut = false
 
 const isDev = (): boolean => {
@@ -93,7 +93,8 @@ export function setOptOut(optedOut: boolean): void {
 
 /**
  * 追踪事件
- * 当用户已登录时，$is_login_id: true 告知神策 distinctId 是登录 ID
+ * distinctId 使用 email（与 Web 端 sensors.login(email) 保持一致）
+ * $is_login_id: true 告知神策这是登录 ID
  */
 export function track(
   eventName: string,
@@ -101,46 +102,46 @@ export function track(
 ): void {
   if (isDev() || !sensors || userOptedOut) return
 
-  const distinctId = currentUserId || "anonymous"
-  const isLoggedIn = !!currentUserId
+  const distinctId = currentDistinctId || "anonymous"
+  const isLoggedIn = !!currentDistinctId
 
   sensors.track(distinctId, eventName, {
     ...getCommonProperties(),
     ...properties,
     $is_login_id: isLoggedIn,
   })
-  console.log(`[Sensors] Event tracked: ${eventName}, isLoggedIn: ${isLoggedIn}`)
+  console.log(`[Sensors] Event tracked: ${eventName}, distinctId: ${distinctId}`)
 }
 
 /**
  * 用户登录
- * 设置 currentUserId，后续所有 track 调用都会使用这个 ID 作为 distinctId
- * 同时设置用户属性（profileSet）
+ * @param email 用户邮箱，作为 distinctId（与 Web 端 sensors.login(email) 保持一致）
+ * @param properties 用户属性
  *
- * 注意：Node.js SDK 没有 login() 方法，我们通过：
- * 1. 保存 userId 到 currentUserId
- * 2. 后续 track() 时使用 currentUserId 作为 distinctId，并带上 $is_login_id: true
+ * Node.js SDK 没有 login() 方法，我们通过：
+ * 1. 保存 email 作为 distinctId
+ * 2. 后续 track() 时使用 email 作为 distinctId，带上 $is_login_id: true
  */
-export function login(userId: string, properties?: Record<string, any>): void {
-  currentUserId = userId
+export function login(email: string, properties?: Record<string, any>): void {
+  currentDistinctId = email
 
   if (isDev() || !sensors || userOptedOut) return
 
   // 设置用户属性
-  sensors.profileSet(userId, {
+  sensors.profileSet(email, {
     ...getCommonProperties(),
     ...properties,
     $is_login_id: true,
   })
 
-  console.log(`[Sensors] User logged in: ${userId}`)
+  console.log(`[Sensors] User logged in: ${email}`)
 }
 
 /**
  * 用户登出
  */
 export function logout(): void {
-  currentUserId = undefined
+  currentDistinctId = undefined
 }
 
 /**

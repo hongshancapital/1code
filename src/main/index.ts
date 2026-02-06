@@ -791,9 +791,9 @@ if (gotTheLock) {
       const validatedUser = await authManager.validateAndRefreshUser()
 
       if (validatedUser) {
-        // Token is valid, login user for Sensors Analytics
-        sensorsLogin(validatedUser.id, { email: validatedUser.email })
-        console.log("[Sensors] User logged in from validated session:", validatedUser.id)
+        // Token is valid, login user for Sensors Analytics (use email as distinctId)
+        sensorsLogin(validatedUser.email)
+        console.log("[Sensors] User logged in from validated session:", validatedUser.email)
       } else {
         // Token expired (401), try to refresh first
         console.log("[App] Token expired, attempting refresh...")
@@ -803,8 +803,8 @@ if (gotTheLock) {
           // Refresh successful, validate again to get fresh user info
           const refreshedUser = await authManager.validateAndRefreshUser()
           if (refreshedUser) {
-            sensorsLogin(refreshedUser.id, { email: refreshedUser.email })
-            console.log("[Sensors] User logged in after token refresh:", refreshedUser.id)
+            sensorsLogin(refreshedUser.email)
+            console.log("[Sensors] User logged in after token refresh:", refreshedUser.email)
           }
         } else {
           // Refresh failed, auto-start OAuth for returning users
