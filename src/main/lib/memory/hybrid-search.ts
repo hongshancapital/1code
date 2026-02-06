@@ -70,6 +70,9 @@ function calculateRrfScore(
 
 // ============ FTS5 Search ============
 
+// Detect CJK characters (Chinese, Japanese, Korean) that FTS5 default tokenizer can't handle
+const CJK_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/
+
 interface FtsResult {
   id: string
   title: string | null
@@ -88,17 +91,48 @@ async function searchObservationsFts(
   limit = 50,
 ): Promise<FtsResult[]> {
   const db = getDatabase()
+  const trimmedQuery = query.trim()
 
-  // Build FTS5 query with prefix matching
-  const ftsQuery = query
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((term) => `"${term}"*`)
-    .join(" OR ")
+  if (!trimmedQuery) return []
 
-  if (!ftsQuery) return []
+  // For short queries (1-2 chars) or CJK text, use LIKE search
+  // FTS5 default tokenizer doesn't support CJK word segmentation
+  const useLikeSearch = trimmedQuery.length <= 2 || CJK_REGEX.test(trimmedQuery)
 
   try {
+    if (useLikeSearch) {
+      const likePattern = `%${trimmedQuery}%`
+      const results = db.all<FtsResult>(sql`
+        SELECT
+          id,
+          title,
+          subtitle,
+          narrative,
+          session_id as sessionId,
+          project_id as projectId,
+          created_at_epoch as createdAtEpoch,
+          tool_call_id as toolCallId,
+          0 as rank
+        FROM observations
+        WHERE (title LIKE ${likePattern} OR subtitle LIKE ${likePattern} OR narrative LIKE ${likePattern})
+        ${projectId ? sql`AND project_id = ${projectId}` : sql``}
+        ORDER BY created_at_epoch DESC
+        LIMIT ${limit}
+      `)
+
+      // Assign synthetic ranks for RRF (0-based index)
+      return results.map((r, i) => ({ ...r, rank: -(limit - i) }))
+    }
+
+    // Build FTS5 query with prefix matching (English/Latin text)
+    const ftsQuery = trimmedQuery
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((term) => `"${term}"*`)
+      .join(" OR ")
+
+    if (!ftsQuery) return []
+
     const results = db.all<FtsResult>(sql`
       SELECT
         o.id,
@@ -138,16 +172,45 @@ async function searchPromptsFts(
   }>
 > {
   const db = getDatabase()
+  const trimmedQuery = query.trim()
 
-  const ftsQuery = query
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((term) => `"${term}"*`)
-    .join(" OR ")
+  if (!trimmedQuery) return []
 
-  if (!ftsQuery) return []
+  const useLikeSearch = trimmedQuery.length <= 2 || CJK_REGEX.test(trimmedQuery)
 
   try {
+    if (useLikeSearch) {
+      const likePattern = `%${trimmedQuery}%`
+      const results = db.all<{
+        id: string
+        promptText: string
+        sessionId: string
+        createdAtEpoch: number | null
+        rank: number
+      }>(sql`
+        SELECT
+          id,
+          prompt_text as promptText,
+          session_id as sessionId,
+          created_at_epoch as createdAtEpoch,
+          0 as rank
+        FROM user_prompts
+        WHERE prompt_text LIKE ${likePattern}
+        ORDER BY created_at_epoch DESC
+        LIMIT ${limit}
+      `)
+
+      return results.map((r, i) => ({ ...r, rank: -(limit - i) }))
+    }
+
+    const ftsQuery = trimmedQuery
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((term) => `"${term}"*`)
+      .join(" OR ")
+
+    if (!ftsQuery) return []
+
     return db.all(sql`
       SELECT
         p.id,

@@ -1,7 +1,12 @@
 /**
  * Embeddings Generator
  * Uses @xenova/transformers for local embedding generation
- * Model: Xenova/all-MiniLM-L6-v2 (384 dimensions)
+ * Model: Xenova/multilingual-e5-small (384 dimensions, 100+ languages including Chinese)
+ *
+ * NOTE: E5 models require input prefixes:
+ *   - "query: " for search queries
+ *   - "passage: " for documents being indexed
+ * Callers (vector-store.ts) are responsible for adding the correct prefix.
  */
 
 import { pipeline, env, type FeatureExtractionPipeline } from "@xenova/transformers"
@@ -14,7 +19,7 @@ env.cacheDir = path.join(app.getPath("userData"), "models")
 // env.allowRemoteModels = true
 
 // Embedding configuration
-export const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2"
+export const EMBEDDING_MODEL = "Xenova/multilingual-e5-small"
 export const EMBEDDING_DIMENSION = 384
 
 // Singleton pipeline instance
@@ -23,7 +28,7 @@ let initPromise: Promise<FeatureExtractionPipeline> | null = null
 
 /**
  * Initialize the embedding pipeline (singleton)
- * Downloads the model on first use (~22MB)
+ * Downloads the model on first use (~90MB quantized)
  */
 export async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline> {
   if (embeddingPipeline) {
