@@ -408,6 +408,7 @@ export function GlobalSearchDialog() {
       <DialogContent
         className="overflow-hidden p-0 shadow-lg max-w-2xl flex flex-col"
         style={{ height: dialogHeight }}
+        showCloseButton={false}
       >
         <Command className="flex flex-col flex-1 min-h-0 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground">
           <div className="flex items-center border-b px-3 shrink-0">
@@ -420,7 +421,7 @@ export function GlobalSearchDialog() {
               autoFocus
             />
             {isLoading && (
-              <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+              <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground ml-2 shrink-0" />
             )}
           </div>
           <CommandList className="flex-1 overflow-y-auto" style={{ maxHeight: contentHeight }}>
