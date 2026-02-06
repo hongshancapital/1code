@@ -514,145 +514,12 @@ export class WingetProvider implements WindowsPackageManager {
       success: true,
     })
 
-    // Step 1: Install VCLibs dependency (required for winget)
+    // Download dependencies + winget itself in a single script to avoid
+    // hitting GitHub API rate limits (one API call instead of two).
+    // The DesktopAppInstaller_Dependencies.zip contains VCLibs, UI.Xaml,
+    // and WindowsAppRuntime — all required for winget to work.
     addLog({
-      step: "安装 winget - 检查 VCLibs 依赖",
-      success: true,
-    })
-
-    const vcLibsCommand = `
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'Stop'
-try {
-  # Check if VCLibs is already installed
-  $vclibs = Get-AppxPackage -Name 'Microsoft.VCLibs.140.00.UWPDesktop' -ErrorAction SilentlyContinue
-  if (-not $vclibs) {
-    Write-Output 'Installing VCLibs...'
-    $vcLibsUrl = 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx'
-    $vcLibsPath = Join-Path $env:TEMP 'vclibs.appx'
-    Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath
-    Add-AppxPackage -Path $vcLibsPath
-    Remove-Item $vcLibsPath -Force
-    Write-Output 'VCLibs installed'
-  } else {
-    Write-Output 'VCLibs already installed'
-  }
-} catch {
-  Write-Error $_.Exception.Message
-  exit 1
-}
-`.trim()
-
-    let vcLibsResult = await execPowerShell(vcLibsCommand, 120000, "安装 VCLibs 依赖")
-    if (!vcLibsResult.success) {
-      // Try with elevation
-      vcLibsResult = await installWithElevation(vcLibsCommand, "安装 VCLibs 依赖 (elevated)", { powershell: true })
-      if (!vcLibsResult.success) {
-        addLog({
-          step: "安装 winget - VCLibs 安装失败",
-          success: false,
-          error: vcLibsResult.stderr,
-        })
-        return vcLibsResult
-      }
-    }
-
-    // Step 2: Install UI.Xaml dependency (required for winget 1.6+)
-    addLog({
-      step: "安装 winget - 检查 UI.Xaml 依赖",
-      success: true,
-    })
-
-    const uiXamlCommand = `
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'Stop'
-try {
-  # Check if UI.Xaml 2.8 is already installed
-  $xaml = Get-AppxPackage -Name 'Microsoft.UI.Xaml.2.8' -ErrorAction SilentlyContinue
-  if (-not $xaml) {
-    Write-Output 'Installing UI.Xaml 2.8...'
-    # Download from NuGet and extract the appx
-    $nugetUrl = 'https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.6'
-    $nugetPath = Join-Path $env:TEMP 'uixaml.zip'
-    $extractPath = Join-Path $env:TEMP 'uixaml'
-    Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
-    Expand-Archive -Path $nugetPath -DestinationPath $extractPath -Force
-    $appxPath = Join-Path $extractPath 'tools\\AppX\\x64\\Release\\Microsoft.UI.Xaml.2.8.appx'
-    if (Test-Path $appxPath) {
-      Add-AppxPackage -Path $appxPath
-      Write-Output 'UI.Xaml 2.8 installed'
-    } else {
-      Write-Output 'UI.Xaml appx not found, skipping'
-    }
-    Remove-Item $nugetPath -Force -ErrorAction SilentlyContinue
-    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
-  } else {
-    Write-Output 'UI.Xaml 2.8 already installed'
-  }
-} catch {
-  # UI.Xaml failure is not fatal, winget might still work
-  Write-Output "UI.Xaml installation skipped: $_"
-}
-`.trim()
-
-    // UI.Xaml is optional, don't fail if it doesn't install
-    let uiXamlResult = await execPowerShell(uiXamlCommand, 120000, "安装 UI.Xaml 依赖")
-    if (!uiXamlResult.success) {
-      uiXamlResult = await installWithElevation(uiXamlCommand, "安装 UI.Xaml 依赖 (elevated)", { powershell: true })
-      // Don't return on failure, UI.Xaml is optional
-    }
-
-    // Step 3: Install WindowsAppRuntime dependency (required for winget 1.22+)
-    addLog({
-      step: "安装 winget - 检查 WindowsAppRuntime 依赖",
-      success: true,
-    })
-
-    const appRuntimeCommand = `
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'Stop'
-try {
-  # Check if any WindowsAppRuntime 1.x is already installed
-  $runtime = Get-AppxPackage -Name 'Microsoft.WindowsAppRuntime.*' -ErrorAction SilentlyContinue | Where-Object { $_.Version -ge '8000.0.0.0' }
-  if (-not $runtime) {
-    Write-Output 'Installing WindowsAppRuntime...'
-    # Download the latest stable Windows App Runtime installer from NuGet
-    $nugetUrl = 'https://www.nuget.org/api/v2/package/Microsoft.WindowsAppRuntime.MSIX/1.8'
-    $nugetPath = Join-Path $env:TEMP 'windowsappruntime.zip'
-    $extractPath = Join-Path $env:TEMP 'windowsappruntime'
-    Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
-    Expand-Archive -Path $nugetPath -DestinationPath $extractPath -Force
-
-    # Install all platform-specific MSIX packages
-    $msixFiles = Get-ChildItem -Path $extractPath -Recurse -Filter '*.msix' | Where-Object { $_.Name -match 'x64' -or $_.Name -match 'neutral' }
-    foreach ($msix in $msixFiles) {
-      Write-Output "Installing $($msix.Name)..."
-      Add-AppxPackage -Path $msix.FullName -ErrorAction SilentlyContinue
-    }
-
-    Remove-Item $nugetPath -Force -ErrorAction SilentlyContinue
-    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Output 'WindowsAppRuntime installed'
-  } else {
-    Write-Output "WindowsAppRuntime already installed: $($runtime.Version)"
-  }
-} catch {
-  # Not fatal - winget install will report the real dependency error
-  Write-Output "WindowsAppRuntime installation skipped: $_"
-}
-`.trim()
-
-    // WindowsAppRuntime is critical but we don't fail on it — winget install will
-    // give us the definitive error if the dependency is truly missing.
-    let appRuntimeResult = await execPowerShell(appRuntimeCommand, 180000, "安装 WindowsAppRuntime 依赖")
-    if (!appRuntimeResult.success) {
-      appRuntimeResult = await installWithElevation(appRuntimeCommand, "安装 WindowsAppRuntime 依赖 (elevated)", { powershell: true })
-      // Don't return on failure, let winget install try anyway
-    }
-
-    // Step 4: Install winget itself
-    addLog({
-      step: "安装 winget - 下载 winget",
+      step: "安装 winget - 下载并安装",
       success: true,
     })
 
@@ -660,40 +527,63 @@ try {
 $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 try {
-  Write-Output 'Fetching latest winget release...'
+  Write-Output 'Fetching latest winget release info...'
   $release = Invoke-RestMethod 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'
 
-  # Find the msixbundle
+  # --- Install dependencies from DesktopAppInstaller_Dependencies.zip ---
+  $depsAsset = $release.assets | Where-Object { $_.name -eq 'DesktopAppInstaller_Dependencies.zip' } | Select-Object -First 1
+  if ($depsAsset) {
+    $depsZip = Join-Path $env:TEMP 'winget_deps.zip'
+    $depsDir = Join-Path $env:TEMP 'winget_deps'
+
+    Write-Output "Downloading dependencies ($([math]::Round($depsAsset.size / 1MB)) MB)..."
+    Invoke-WebRequest -Uri $depsAsset.browser_download_url -OutFile $depsZip
+
+    if (Test-Path $depsDir) { Remove-Item $depsDir -Recurse -Force }
+    Expand-Archive -Path $depsZip -DestinationPath $depsDir -Force
+
+    # Install all x64 dependency packages (appx, msix)
+    $packages = Get-ChildItem -Path $depsDir -Recurse -Include '*.appx','*.msix' | Where-Object { $_.Name -match 'x64|neutral' -and $_.Name -notmatch 'arm' }
+    foreach ($pkg in $packages) {
+      Write-Output "Installing dependency: $($pkg.Name)..."
+      try {
+        Add-AppxPackage -Path $pkg.FullName -ErrorAction Stop
+        Write-Output "  OK"
+      } catch {
+        if ($_.Exception.Message -match '0x80073CF3|0x80073D06|0x80070002') {
+          Write-Output "  Retrying with -ForceUpdateFromAnyVersion..."
+          try {
+            Add-AppxPackage -Path $pkg.FullName -ForceUpdateFromAnyVersion -ErrorAction Stop
+            Write-Output "  OK (force)"
+          } catch {
+            Write-Output "  Skipped: $($_.Exception.Message)"
+          }
+        } else {
+          Write-Output "  Skipped: $($_.Exception.Message)"
+        }
+      }
+    }
+
+    Remove-Item $depsZip -Force -ErrorAction SilentlyContinue
+    Remove-Item $depsDir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Output 'Dependencies installed'
+  } else {
+    Write-Output 'No dependencies zip in release, skipping'
+  }
+
+  # --- Install winget msixbundle ---
   $msixBundle = $release.assets | Where-Object { $_.name -match '\\.msixbundle$' } | Select-Object -First 1
   if (-not $msixBundle) {
     throw 'No msixbundle found in release'
   }
 
-  # Also get the license file if available
   $license = $release.assets | Where-Object { $_.name -match '_License.*\\.xml$' } | Select-Object -First 1
 
-  # Get all dependency packages (WindowsAppRuntime, etc.)
-  $dependencies = $release.assets | Where-Object { $_.name -match '\\.msix$' -and $_.name -notmatch 'msixbundle' }
-
   $bundlePath = Join-Path $env:TEMP 'winget.msixbundle'
-  Write-Output "Downloading winget from $($msixBundle.browser_download_url)..."
+  Write-Output "Downloading winget ($([math]::Round($msixBundle.size / 1MB)) MB)..."
   Invoke-WebRequest -Uri $msixBundle.browser_download_url -OutFile $bundlePath
 
-  # Download and install dependencies from the release (if any)
-  $depPaths = @()
-  foreach ($dep in $dependencies) {
-    $depPath = Join-Path $env:TEMP $dep.name
-    Write-Output "Downloading dependency $($dep.name)..."
-    Invoke-WebRequest -Uri $dep.browser_download_url -OutFile $depPath
-    $depPaths += $depPath
-  }
-
-  # Install dependencies first
-  foreach ($depPath in $depPaths) {
-    Write-Output "Installing dependency $(Split-Path $depPath -Leaf)..."
-    Add-AppxPackage -Path $depPath -ErrorAction SilentlyContinue
-  }
-
+  $licensePath = $null
   if ($license) {
     $licensePath = Join-Path $env:TEMP 'winget_license.xml'
     Write-Output 'Downloading license...'
@@ -702,13 +592,13 @@ try {
     Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -LicensePath $licensePath -ErrorAction SilentlyContinue
   }
 
-  # Try Add-AppxPackage; on 0x80073CF3 conflict, retry with -ForceUpdateFromAnyVersion
+  # Try Add-AppxPackage; on dependency/conflict errors, retry with -ForceUpdateFromAnyVersion
   Write-Output 'Installing winget package...'
   try {
     Add-AppxPackage -Path $bundlePath -ErrorAction Stop
   } catch {
-    if ($_.Exception.Message -match '0x80073CF3') {
-      Write-Output 'Version conflict detected, retrying with -ForceUpdateFromAnyVersion...'
+    if ($_.Exception.Message -match '0x80073CF3|0x80073D06') {
+      Write-Output 'Conflict detected, retrying with -ForceUpdateFromAnyVersion...'
       Add-AppxPackage -Path $bundlePath -ForceUpdateFromAnyVersion -ErrorAction Stop
     } else {
       throw
@@ -716,7 +606,6 @@ try {
   }
 
   Remove-Item $bundlePath -Force -ErrorAction SilentlyContinue
-  foreach ($depPath in $depPaths) { Remove-Item $depPath -Force -ErrorAction SilentlyContinue }
   if ($licensePath) { Remove-Item $licensePath -Force -ErrorAction SilentlyContinue }
 
   Write-Output 'Winget installed successfully'
@@ -859,16 +748,33 @@ export class ChocolateyProvider implements WindowsPackageManager {
     }
 
     // Chocolatey install script may have bailed because it detected a broken/empty
-    // installation. Remove the broken marker and retry with a forced fresh install.
-    if (result.stdout && result.stdout.includes("existing Chocolatey installation was detected")) {
+    // installation. The script checks: 1) choco on PATH, 2) $env:ChocolateyInstall
+    // or $env:PROGRAMDATA\chocolatey exists with files.
+    // Fix: must use elevation to delete C:\ProgramData\chocolatey, and also clear
+    // the ChocolateyInstall env var from the registry.
+    const detectedExisting = result.stdout && result.stdout.includes("existing Chocolatey installation was detected")
+    if (detectedExisting || (result.stdout && result.stdout.includes("Files from a previous installation"))) {
       addLog({ step: "安装 Chocolatey - 检测到损坏安装，强制重装", success: true })
 
-      const forceCommand = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $env:ChocolateyInstall = 'C:\\ProgramData\\chocolatey'; if (Test-Path $env:ChocolateyInstall) { Remove-Item $env:ChocolateyInstall -Recurse -Force -ErrorAction SilentlyContinue }; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
+      // This command MUST run elevated because:
+      // - C:\ProgramData\chocolatey requires admin to delete
+      // - Removing Machine-level env vars requires admin
+      const forceCommand = [
+        "Set-ExecutionPolicy Bypass -Scope Process -Force",
+        "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072",
+        // Remove ChocolateyInstall env var from Machine and User level so install.ps1 won't detect it
+        "[Environment]::SetEnvironmentVariable('ChocolateyInstall', $null, 'Machine')",
+        "[Environment]::SetEnvironmentVariable('ChocolateyInstall', $null, 'User')",
+        "Remove-Item Env:\\ChocolateyInstall -ErrorAction SilentlyContinue",
+        // Remove the entire chocolatey directory
+        "$chocoPath = 'C:\\ProgramData\\chocolatey'",
+        "if (Test-Path $chocoPath) { Remove-Item $chocoPath -Recurse -Force }",
+        // Run the installer fresh
+        "iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))",
+      ].join("; ")
 
-      let retryResult = await execPowerShell(forceCommand, 600000, "安装 Chocolatey (强制重装)")
-      if (!retryResult.success) {
-        retryResult = await installWithElevation(forceCommand, "安装 Chocolatey (强制重装 elevated)", { powershell: true })
-      }
+      // Always use elevation — deleting C:\ProgramData\chocolatey requires admin
+      const retryResult = await installWithElevation(forceCommand, "安装 Chocolatey (强制重装 elevated)", { powershell: true })
 
       await refreshWindowsPath()
 
