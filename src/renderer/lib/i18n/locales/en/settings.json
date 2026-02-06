@@ -729,7 +729,9 @@
       "openUserData": "Open userData",
       "devTools": "DevTools",
       "reload": "Reload",
-      "copyInfo": "Copy Info"
+      "copyInfo": "Copy Info",
+      "retriggerRuntimeInit": "Re-init Runtime",
+      "runtimeInitTriggered": "Runtime init banner re-triggered"
     },
     "toastTesting": {
       "title": "Toast Testing",

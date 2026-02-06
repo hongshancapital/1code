@@ -729,7 +729,9 @@
       "openUserData": "打开用户数据",
       "devTools": "开发工具",
       "reload": "重新加载",
-      "copyInfo": "复制信息"
+      "copyInfo": "复制信息",
+      "retriggerRuntimeInit": "重新初始化运行时",
+      "runtimeInitTriggered": "已重新触发运行时初始化"
     },
     "toastTesting": {
       "title": "Toast 测试",

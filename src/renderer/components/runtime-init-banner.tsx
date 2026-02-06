@@ -33,6 +33,7 @@ export function RuntimeInitBanner() {
   const [overallTimeout, setOverallTimeout] = useState(false)
   const [installPhase, setInstallPhase] = useState<InstallPhase>("detecting")
   const [isInstallingPM, setIsInstallingPM] = useState(false)
+  const [needsAdminRetry, setNeedsAdminRetry] = useState(false)
 
   // Simulated installation state query
   const { data: simulatedState } = trpc.debug.getSimulatedInstallState.useQuery(undefined, {
@@ -81,11 +82,13 @@ export function RuntimeInitBanner() {
       } else if (result.error === "INSTALLING_IN_TERMINAL") {
         // Dev mode: Homebrew installing in Terminal.app, poll for completion
         setPollingForPM(true)
-      } else if (result.error === "NO_ADMIN" || result.error === "INSTALL_FAILED") {
+      } else if (result.error === "NO_ADMIN") {
         setIsInstallingPM(false)
-        setInstallError(result.error === "NO_ADMIN"
-          ? t("runtime.noAdmin")
-          : t("runtime.installFailedGeneric"))
+        setNeedsAdminRetry(true)
+        setInstallError(t("runtime.noAdmin"))
+      } else if (result.error === "INSTALL_FAILED") {
+        setIsInstallingPM(false)
+        setInstallError(t("runtime.installFailedGeneric"))
       } else {
         setIsInstallingPM(false)
         setInstallError(result.error || t("runtime.installFailedGeneric"))
@@ -225,6 +228,14 @@ export function RuntimeInitBanner() {
   }, [installingCategory, toolsData])
 
   // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
+  // Retry PM install after user obtains admin privileges
+  const handleRetryPMInstall = useCallback(() => {
+    setNeedsAdminRetry(false)
+    setInstallError(null)
+    setIsInstallingPM(true)
+    installPMMutation.mutate()
+  }, [installPMMutation])
+
   // Retry installation for the failed category
   const handleRetry = useCallback(() => {
     if (retryCount >= MAX_RETRIES) {
@@ -489,6 +500,7 @@ export function RuntimeInitBanner() {
 
   // Get display text based on current phase
   const getStatusText = () => {
+    if (installError && needsAdminRetry) return t("runtime.noAdminTitle")
     if (installError) return t("runtime.installFailed")
     if (isInstallingPM) {
       const pmName = pmData?.platform === "darwin" ? "Homebrew" : "Windows Package Manager"
@@ -504,7 +516,9 @@ export function RuntimeInitBanner() {
     <div className="fixed top-4 right-4 z-50 flex flex-col rounded-lg border border-border bg-popover text-sm text-popover-foreground shadow-lg animate-in fade-in-0 slide-in-from-top-2 min-w-[280px] max-w-[320px]">
       {/* Header - compact */}
       <div className="flex items-center gap-2 p-2">
-        {installError ? (
+        {installError && needsAdminRetry ? (
+          <AlertCircle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+        ) : installError ? (
           <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
         ) : isInstallingPM ? (
           <Package className="h-3.5 w-3.5 animate-pulse text-primary flex-shrink-0" />
@@ -540,8 +554,33 @@ export function RuntimeInitBanner() {
         </button>
       </div>
 
-      {/* Error state with retry/skip options */}
-      {installError && (
+      {/* NO_ADMIN: prompt user to obtain privileges and retry */}
+      {installError && needsAdminRetry && (
+        <div className="border-t border-border px-2 py-1.5">
+          <div className="text-[10px] text-amber-600 dark:text-amber-400 mb-1.5 break-words">
+            {installError}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRetryPMInstall}
+              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" />
+              {t("runtime.noAdminRetry")}
+            </button>
+            <button
+              onClick={handleSkip}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SkipForward className="h-3 w-3" />
+              {t("runtime.skip")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* General error state with retry/skip options */}
+      {installError && !needsAdminRetry && (
         <div className="border-t border-border px-2 py-1.5">
           <div className="text-[10px] text-destructive mb-1.5 break-words">
             {installError.length > 100 ? installError.slice(0, 100) + "..." : installError}

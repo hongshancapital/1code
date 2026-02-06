@@ -8,7 +8,7 @@ import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
 import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain } from "lucide-react"
 import { showMessageJsonAtom } from "../../../features/agents/atoms"
-import { runtimeSimulatedModeAtom } from "../../../lib/atoms"
+import { runtimeSimulatedModeAtom, runtimeInitBannerDismissedAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
 
 // Hook to detect narrow screen
@@ -68,6 +68,7 @@ export function AgentsDebugTab() {
   const [reactScanEnabled, setReactScanEnabled] = useState(false)
   const [reactScanLoading, setReactScanLoading] = useState(false)
   const [showMessageJson, setShowMessageJson] = useAtom(showMessageJsonAtom)
+  const setRuntimeBannerDismissed = useSetAtom(runtimeInitBannerDismissedAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
   // Check if we're in dev mode (only show React Scan in dev)
@@ -416,6 +417,17 @@ export function AgentsDebugTab() {
               <Copy className="h-4 w-4 mr-2" />
             )}
             {t('debug.quickActions.copyInfo')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setRuntimeBannerDismissed(false)
+              toast.success(t('debug.quickActions.runtimeInitTriggered'))
+            }}
+          >
+            <Play className="h-4 w-4 mr-2" />
+            {t('debug.quickActions.retriggerRuntimeInit')}
           </Button>
         </div>
       </div>

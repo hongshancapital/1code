@@ -325,10 +325,11 @@ function PackageManagerSection() {
           }
         }, 3000)
         setTimeout(() => { clearInterval(poll); setIsInstalling(false) }, 600000)
-      } else if (result.error === "NO_ADMIN" || result.error === "INSTALL_FAILED") {
-        toast.error(result.error === "NO_ADMIN"
-          ? tCommon("runtime.noAdmin")
-          : tCommon("runtime.installFailedGeneric"))
+      } else if (result.error === "NO_ADMIN") {
+        toast.warning(tCommon("runtime.noAdmin"), { duration: 8000 })
+        setIsInstalling(false)
+      } else if (result.error === "INSTALL_FAILED") {
+        toast.error(tCommon("runtime.installFailedGeneric"))
         setIsInstalling(false)
       } else {
         toast.error(result.error || tCommon("runtime.installFailedGeneric"))
