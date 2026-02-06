@@ -31,7 +31,8 @@
       "Bash(eval \"du -sh $HOME/Library/Application\\\\ Support/hong-desktop/claude-sessions/*\")",
       "Bash(bash -c 'du -sh \"\"$HOME/Library/Application Support/hong-desktop/claude-sessions\"\"/* | sort -rh | head -10')",
       "Bash(bash -c 'ls -la \"\"$HOME/Library/Application Support/hong-desktop/data/\"\" | grep backup')",
-      "Bash(bash -c:*)"
+      "Bash(bash -c:*)",
+      "Bash(wc:*)"
     ]
   }
 }

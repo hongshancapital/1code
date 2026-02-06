@@ -331,6 +331,193 @@ export const subChatTags = sqliteTable(
   ],
 )
 
+// ============ INSIGHTS (Usage Reports) ============
+export const insights = sqliteTable(
+  "insights",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    // Report type: 'daily' | 'weekly'
+    reportType: text("report_type").notNull(),
+    // Report date (YYYY-MM-DD for daily, week start date for weekly)
+    reportDate: text("report_date").notNull(),
+    // Pre-computed statistics (JSON)
+    statsJson: text("stats_json").notNull(),
+    // AI-generated summary (1-2 sentences for card display)
+    summary: text("summary"),
+    // AI-generated HTML report (detailed, for dialog display)
+    reportHtml: text("report_html"),
+    // AI-generated Markdown report (legacy, kept for compatibility)
+    reportMarkdown: text("report_markdown"),
+    // Status: 'pending' | 'generating' | 'completed' | 'failed'
+    status: text("status").notNull().default("pending"),
+    // Error message if failed
+    error: text("error"),
+    // Temporary data directory for Agent to read
+    dataDir: text("data_dir"),
+    // Timestamps
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("insights_type_date_idx").on(table.reportType, table.reportDate),
+    index("insights_created_at_idx").on(table.createdAt),
+  ],
+)
+
+// ============ MEMORY SESSIONS (借鉴 claude-mem sdk_sessions) ============
+// 每个 SubChat 的一次完整会话对应一个 MemorySession
+export const memorySessions = sqliteTable(
+  "memory_sessions",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    // 关联到我们的数据模型
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    chatId: text("chat_id").references(() => chats.id, { onDelete: "cascade" }),
+    subChatId: text("sub_chat_id").references(() => subChats.id, {
+      onDelete: "cascade",
+    }),
+    // 状态管理
+    status: text("status").notNull().default("active"), // "active" | "completed" | "failed"
+    startedAt: integer("started_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    startedAtEpoch: integer("started_at_epoch").$defaultFn(() => Date.now()),
+    completedAt: integer("completed_at", { mode: "timestamp" }),
+    completedAtEpoch: integer("completed_at_epoch"),
+    // 会话摘要 (借鉴 claude-mem session_summaries)
+    summaryRequest: text("summary_request"),
+    summaryInvestigated: text("summary_investigated"),
+    summaryLearned: text("summary_learned"),
+    summaryCompleted: text("summary_completed"),
+    summaryNextSteps: text("summary_next_steps"),
+    summaryNotes: text("summary_notes"),
+    // Token 统计
+    discoveryTokens: integer("discovery_tokens").default(0),
+  },
+  (table) => [
+    index("memory_sessions_project_idx").on(table.projectId),
+    index("memory_sessions_sub_chat_idx").on(table.subChatId),
+    index("memory_sessions_status_idx").on(table.status),
+    index("memory_sessions_started_at_idx").on(table.startedAtEpoch),
+  ],
+)
+
+export const memorySessionsRelations = relations(
+  memorySessions,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [memorySessions.projectId],
+      references: [projects.id],
+    }),
+    chat: one(chats, {
+      fields: [memorySessions.chatId],
+      references: [chats.id],
+    }),
+    subChat: one(subChats, {
+      fields: [memorySessions.subChatId],
+      references: [subChats.id],
+    }),
+    observations: many(observations),
+    userPrompts: many(userPrompts),
+  }),
+)
+
+// ============ OBSERVATIONS (借鉴 claude-mem observations) ============
+// 记录每次工具调用的观察信息
+export const observations = sqliteTable(
+  "observations",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => memorySessions.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    // 类型系统 (借鉴 claude-mem)
+    // "decision" | "bugfix" | "feature" | "refactor" | "discovery" | "change"
+    type: text("type").notNull(),
+    title: text("title"),
+    subtitle: text("subtitle"),
+    narrative: text("narrative"),
+    // JSON 数组字段
+    facts: text("facts"), // JSON: string[]
+    concepts: text("concepts"), // JSON: string[]
+    filesRead: text("files_read"), // JSON: string[]
+    filesModified: text("files_modified"), // JSON: string[]
+    // 工具关联
+    toolName: text("tool_name"),
+    toolCallId: text("tool_call_id"),
+    promptNumber: integer("prompt_number"),
+    discoveryTokens: integer("discovery_tokens").default(0),
+    // 时间戳
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    createdAtEpoch: integer("created_at_epoch").$defaultFn(() => Date.now()),
+  },
+  (table) => [
+    index("observations_session_idx").on(table.sessionId),
+    index("observations_project_idx").on(table.projectId),
+    index("observations_type_idx").on(table.type),
+    index("observations_created_at_idx").on(table.createdAtEpoch),
+  ],
+)
+
+export const observationsRelations = relations(observations, ({ one }) => ({
+  session: one(memorySessions, {
+    fields: [observations.sessionId],
+    references: [memorySessions.id],
+  }),
+  project: one(projects, {
+    fields: [observations.projectId],
+    references: [projects.id],
+  }),
+}))
+
+// ============ USER PROMPTS (借鉴 claude-mem user_prompts) ============
+// 记录用户的每次输入
+export const userPrompts = sqliteTable(
+  "user_prompts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => memorySessions.id, { onDelete: "cascade" }),
+    promptNumber: integer("prompt_number").notNull(),
+    promptText: text("prompt_text").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    createdAtEpoch: integer("created_at_epoch").$defaultFn(() => Date.now()),
+  },
+  (table) => [
+    index("user_prompts_session_idx").on(table.sessionId),
+    index("user_prompts_created_at_idx").on(table.createdAtEpoch),
+  ],
+)
+
+export const userPromptsRelations = relations(userPrompts, ({ one }) => ({
+  session: one(memorySessions, {
+    fields: [userPrompts.sessionId],
+    references: [memorySessions.id],
+  }),
+}))
+
 // ============ TYPE EXPORTS ============
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
@@ -355,3 +542,11 @@ export type ChatTag = typeof chatTags.$inferSelect
 export type NewChatTag = typeof chatTags.$inferInsert
 export type SubChatTag = typeof subChatTags.$inferSelect
 export type NewSubChatTag = typeof subChatTags.$inferInsert
+export type Insight = typeof insights.$inferSelect
+export type NewInsight = typeof insights.$inferInsert
+export type MemorySession = typeof memorySessions.$inferSelect
+export type NewMemorySession = typeof memorySessions.$inferInsert
+export type Observation = typeof observations.$inferSelect
+export type NewObservation = typeof observations.$inferInsert
+export type UserPrompt = typeof userPrompts.$inferSelect
+export type NewUserPrompt = typeof userPrompts.$inferInsert

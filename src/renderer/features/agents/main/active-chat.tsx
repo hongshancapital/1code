@@ -101,6 +101,9 @@ import {
   agentsSubChatsSidebarModeAtom,
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
+  subChatStatusStorageAtom,
+  markSubChatUnseen,
+  clearSubChatUnseen,
   fileSearchDialogOpenAtom,
   fileViewerDisplayModeAtom,
   fileViewerOpenAtomFamily,
@@ -155,6 +158,7 @@ import type { TextSelectionSource } from "../context/text-selection-context"
 import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
 import { useAutoImport } from "../hooks/use-auto-import"
+import { useAutoScroll } from "../hooks/useAutoScroll"
 import { useChangedFilesTracking } from "../hooks/use-changed-files-tracking"
 import { useDesktopNotifications } from "../hooks/use-desktop-notifications"
 import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
@@ -222,6 +226,7 @@ import { TextSelectionPopover } from "../ui/text-selection-popover"
 import { autoRenameAgentChat } from "../utils/auto-rename"
 import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } from "../utils/pr-message"
 import { ChatInputArea } from "./chat-input-area"
+import { CHAT_LAYOUT, PLAYBACK_SPEEDS, type PlaybackSpeed } from "./constants"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
@@ -294,21 +299,6 @@ function getFirstSubChatId(
   )
   return sorted[0]?.id ?? null
 }
-
-// Layout constants for chat header and sticky messages
-const CHAT_LAYOUT = {
-  // Padding top for chat content
-  paddingTopSidebarOpen: "pt-12", // When sidebar open (absolute header overlay)
-  paddingTopSidebarClosed: "pt-4", // When sidebar closed (regular header)
-  paddingTopMobile: "pt-14", // Mobile has header
-  // Sticky message top position (title is now in flex above scroll, so top-0)
-  stickyTopSidebarOpen: "top-0", // When sidebar open (desktop, absolute header)
-  stickyTopSidebarClosed: "top-0", // When sidebar closed (desktop, flex header)
-  stickyTopMobile: "top-0", // Mobile (flex header, so top-0)
-  // Header padding when absolute
-  headerPaddingSidebarOpen: "pt-1.5 pb-12 px-3 pl-2",
-  headerPaddingSidebarClosed: "p-2 pt-1.5",
-} as const
 
 // NOTE: These model/agent definitions are retained for future use
 // const claudeModels = [
@@ -1447,23 +1437,19 @@ const ChatViewInner = memo(function ChatViewInner({
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
 
-  // Scroll management state (like canvas chat)
-  // Using only ref to avoid re-renders on scroll
-  const shouldAutoScrollRef = useRef(true)
-  const isAutoScrollingRef = useRef(false) // Flag to ignore scroll events caused by auto-scroll
-  const isInitializingScrollRef = useRef(false) // Flag to ignore scroll events during scroll initialization (content loading)
-  const hasUnapprovedPlanRef = useRef(false) // Track unapproved plan state for scroll initialization
-  const chatContainerRef = useRef<HTMLElement | null>(null)
-
-  // Cleanup isAutoScrollingRef on unmount to prevent stuck state
-  useEffect(() => {
-    return () => {
-      isAutoScrollingRef.current = false
-    }
-  }, [])
-
-  // Track chat container height via CSS custom property (no re-renders)
-  const chatContainerObserverRef = useRef<ResizeObserver | null>(null)
+  // Auto-scroll management via custom hook
+  const {
+    chatContainerRef,
+    chatContainerObserverRef,
+    shouldAutoScrollRef,
+    isAutoScrollingRef,
+    isInitializingScrollRef,
+    hasUnapprovedPlanRef,
+    handleScroll,
+    scrollToBottom,
+    isAtBottom,
+    enableAutoScroll,
+  } = useAutoScroll(isActive)
 
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1499,89 +1485,6 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Rollback state
   const [isRollingBack, setIsRollingBack] = useState(false)
-
-  // Check if user is at bottom of chat (like canvas)
-  const isAtBottom = useCallback(() => {
-    const container = chatContainerRef.current
-    if (!container) return true
-    const threshold = 50 // pixels from bottom
-    return (
-      container.scrollHeight - container.scrollTop - container.clientHeight <=
-      threshold
-    )
-  }, [])
-
-
-  // Track previous scroll position to detect scroll direction
-  const prevScrollTopRef = useRef(0)
-
-  // Handle scroll events to detect user scrolling
-  // Updates shouldAutoScrollRef based on scroll direction
-  // Using refs only to avoid re-renders on scroll
-  const handleScroll = useCallback(() => {
-    // Skip scroll handling for inactive tabs (keep-alive)
-    if (!isActiveRef.current) return
-
-    const container = chatContainerRef.current
-    if (!container) return
-
-    const currentScrollTop = container.scrollTop
-    const prevScrollTop = prevScrollTopRef.current
-    prevScrollTopRef.current = currentScrollTop
-
-    // Ignore scroll events during initialization (content loading)
-    if (isInitializingScrollRef.current) return
-
-    // If user scrolls UP - disable auto-scroll immediately
-    // This works even during auto-scroll animation (user intent takes priority)
-    if (currentScrollTop < prevScrollTop) {
-      shouldAutoScrollRef.current = false
-      return
-    }
-
-    // Ignore other scroll direction checks during auto-scroll animation
-    if (isAutoScrollingRef.current) return
-
-    // If user scrolls DOWN and reaches bottom - enable auto-scroll
-    shouldAutoScrollRef.current = isAtBottom()
-  }, [isAtBottom])
-
-  // Scroll to bottom handler with ease-in-out animation
-  const scrollToBottom = useCallback(() => {
-    const container = chatContainerRef.current
-    if (!container) return
-
-    isAutoScrollingRef.current = true
-    shouldAutoScrollRef.current = true
-
-    const start = container.scrollTop
-    const duration = 300 // ms
-    const startTime = performance.now()
-
-    // Ease-in-out cubic function
-    const easeInOutCubic = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-
-    const animateScroll = (currentTime: number) => {
-      const elapsed = currentTime - startTime
-      const progress = Math.min(elapsed / duration, 1)
-      const easedProgress = easeInOutCubic(progress)
-
-      // Calculate end on each frame to handle dynamic content
-      const end = container.scrollHeight - container.clientHeight
-      container.scrollTop = start + (end - start) * easedProgress
-
-      if (progress < 1) {
-        requestAnimationFrame(animateScroll)
-      } else {
-        // Ensure we're at the absolute bottom
-        container.scrollTop = container.scrollHeight
-        isAutoScrollingRef.current = false
-      }
-    }
-
-    requestAnimationFrame(animateScroll)
-  }, [])
 
   // tRPC utils for cache invalidation
   const utils = api.useUtils()
@@ -2137,18 +2040,44 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Pre-compute token data for ChatInputArea to avoid passing unstable messages array
   // This prevents ChatInputArea from re-rendering on every streaming chunk
+  // After compaction, only count tokens from messages after the compact boundary
   const messageTokenData = useMemo(() => {
     let totalInputTokens = 0
     let totalOutputTokens = 0
     let totalCostUsd = 0
-    for (const msg of messages) {
+
+    // Find the most recent compact boundary (from end to start)
+    let startIndex = 0
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.role === "assistant" && msg.parts) {
+        const hasCompactBoundary = msg.parts.some(
+          (p: any) => p.type === "system-Compact" && p.state === "output-available"
+        )
+        if (hasCompactBoundary) {
+          // Start counting from the message after the compact boundary
+          startIndex = i + 1
+          break
+        }
+      }
+    }
+
+    // Only count tokens from messages after the compact boundary
+    for (let i = startIndex; i < messages.length; i++) {
+      const msg = messages[i]
       if (msg.metadata) {
         totalInputTokens += msg.metadata.inputTokens || 0
         totalOutputTokens += msg.metadata.outputTokens || 0
         totalCostUsd += msg.metadata.totalCostUsd || 0
       }
     }
-    return { totalInputTokens, totalOutputTokens, totalCostUsd, messageCount: messages.length }
+
+    return {
+      totalInputTokens,
+      totalOutputTokens,
+      totalCostUsd,
+      messageCount: messages.length - startIndex,
+    }
   }, [messages])
 
   // Track previous streaming state to detect stream stop
@@ -2814,18 +2743,29 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
+  // Track previous isActive state to detect activation
+  const wasActiveRef = useRef(isActive)
 
   // Initialize scroll position on mount (only once per tab with keep-alive)
   // Strategy: wait for content to stabilize, then scroll to bottom ONCE
   // No jumping around - just wait and scroll when ready
   useEffect(() => {
+    // Detect when tab becomes active (switching to this chat)
+    const justBecameActive = !wasActiveRef.current && isActive
+    wasActiveRef.current = isActive
+
     // Skip if not active (keep-alive: hidden tabs don't need scroll init)
     if (!isActive) return
 
     const container = chatContainerRef.current
     if (!container) return
 
-    // With keep-alive, only initialize once per tab mount
+    // Reset initialization when tab becomes active (user switched to this chat)
+    if (justBecameActive) {
+      hasInitializedRef.current = false
+    }
+
+    // With keep-alive, only initialize once per tab mount (or when becoming active)
     if (hasInitializedRef.current) return
     hasInitializedRef.current = true
 
@@ -3494,26 +3434,23 @@ const ChatViewInner = memo(function ChatViewInner({
   ])
 
   // Retry message - resend the last user message when no response was received
-  const handleRetryMessage = useCallback(async () => {
-    // Find the last user message
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg || !lastUserMsg.parts) return
-
+  // Uses regenerate() to re-trigger without duplicating the user message
+  const handleRetryMessage = useCallback(() => {
     // Don't retry if currently streaming
     if (isStreaming) return
+
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (!lastUserMsg) return
 
     // Don't retry if there's already an assistant response for this message
     const lastUserMsgIndex = messages.indexOf(lastUserMsg)
     const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
     if (hasAssistantResponse) return
 
-    // Re-send the message by calling sendMessage with the same parts
-    try {
-      await sendMessageRef.current({ role: "user", parts: lastUserMsg.parts })
-    } catch (error) {
-      console.error("[handleRetryMessage] Error retrying message:", error)
-    }
-  }, [messages, isStreaming])
+    // Use regenerate to re-send without duplicating user message
+    regenerate()
+  }, [messages, isStreaming, regenerate])
 
   // NOTE: Auto-processing of queue is now handled globally by QueueProcessor
   // component in agents-layout.tsx. This ensures queues continue processing
@@ -4005,6 +3942,7 @@ export function ChatView({
   const unseenChanges = useAtomValue(agentsUnseenChangesAtom)
   const setUnseenChanges = useSetAtom(agentsUnseenChangesAtom)
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom)
+  const setSubChatStatus = useSetAtom(subChatStatusStorageAtom)
   const setJustCreatedIds = useSetAtom(justCreatedIdsAtom)
   const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
   const setUndoStack = useSetAtom(undoStackAtom)
@@ -4466,6 +4404,7 @@ export function ChatView({
   // Clear sub-chat "unseen changes" indicator when sub-chat becomes active
   useEffect(() => {
     if (!activeSubChatId) return
+    // Clear from both old atom and new persisted storage
     setSubChatUnseenChanges((prev: Set<string>) => {
       if (prev.has(activeSubChatId)) {
         const next = new Set(prev)
@@ -4474,7 +4413,8 @@ export function ChatView({
       }
       return prev
     })
-  }, [activeSubChatId, setSubChatUnseenChanges])
+    clearSubChatUnseen(setSubChatStatus, activeSubChatId)
+  }, [activeSubChatId, setSubChatUnseenChanges, setSubChatStatus])
 
   // tRPC utils for optimistic cache updates
   const utils = api.useUtils()
@@ -4515,10 +4455,27 @@ export function ChatView({
   const { data: subChatMessagesData, isLoading: isLoadingMessages } = trpc.chats.getSubChatMessages.useQuery(
     { id: activeSubChatId! },
     {
-      enabled: !!activeSubChatId && chatSourceMode === "local" && !!activeSubChatExistsInWorkspace,
+      // 修复：移除 activeSubChatExistsInWorkspace 条件
+      // 问题：当 localAgentChat 还在加载时，activeSubChatExistsInWorkspace 为 false，
+      // 导致消息查询不执行。由于 staleTime: Infinity，即使后来条件满足，
+      // 查询可能也不会重新执行。
+      // 解决：让查询总是执行，后端会处理不存在的 subChat（返回 null）
+      enabled: !!activeSubChatId && chatSourceMode === "local",
       staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
     }
   )
+
+  // DEBUG: 追踪消息加载状态
+  useEffect(() => {
+    console.log('[DEBUG] 消息加载状态', {
+      activeSubChatId: activeSubChatId?.slice(-8),
+      chatSourceMode,
+      isLoadingMessages,
+      hasMessagesData: !!subChatMessagesData,
+      messagesLength: subChatMessagesData?.messages?.length,
+      messagesPreview: subChatMessagesData?.messages?.substring(0, 100),
+    })
+  }, [activeSubChatId, chatSourceMode, isLoadingMessages, subChatMessagesData])
 
   const { data: remoteAgentChat, isLoading: _isRemoteLoading } = useRemoteChat(
     chatSourceMode === "sandbox" ? chatId : null,
@@ -4560,6 +4517,17 @@ export function ChatView({
     return localAgentChat ? { ...localAgentChat, isRemote: false as const } : null
   }, [chatSourceMode, remoteAgentChat, localAgentChat])
 
+  // Extract sub-chats from agentChat (defined early since it's used in multiple places)
+  const agentSubChats = (agentChat?.subChats ?? []) as Array<{
+    id: string
+    name?: string | null
+    mode?: "plan" | "agent" | null
+    created_at?: Date | string | null
+    updated_at?: Date | string | null
+    messages?: any
+    stream_id?: string | null
+  }>
+
   // Compute if we're waiting for local chat data (used as loading gate)
   // Only show loading if there's no data AND we're loading - this prevents
   // blocking the UI during cache invalidation/refetch when data already exists
@@ -4597,16 +4565,6 @@ export function ChatView({
     if (!remoteAgentChat) return []
     return getMatchingProjects(projects ?? [], remoteAgentChat)
   }, [remoteAgentChat, projects, getMatchingProjects])
-
-  const agentSubChats = (agentChat?.subChats ?? []) as Array<{
-    id: string
-    name?: string | null
-    mode?: "plan" | "agent" | null
-    created_at?: Date | string | null
-    updated_at?: Date | string | null
-    messages?: any
-    stream_id?: string | null
-  }>
 
   // Get project mode from chat's associated project
   // Each chat has its own project with its own mode
@@ -5402,14 +5360,18 @@ Make sure to preserve all functionality from both branches when resolving confli
     diffViewRef.current?.markAllUnviewed()
   }, [])
 
+  // Track if we've initialized mode for this chatId to avoid overwriting user's mode changes
+  const initializedChatIdRef = useRef<string | null>(null)
+
   // Initialize store when chat data loads
   useEffect(() => {
     if (!agentChat) return
 
     const store = useAgentSubChatStore.getState()
+    const isNewChat = store.chatId !== chatId
 
     // Only initialize if chatId changed
-    if (store.chatId !== chatId) {
+    if (isNewChat) {
       store.setChatId(chatId)
     }
 
@@ -5466,10 +5428,14 @@ Make sure to preserve all functionality from both branches when resolving confli
     freshState.setAllSubChats(allSubChats)
 
     // Initialize atomFamily mode for each sub-chat from database
-    // This ensures new chats with mode="plan" use the correct mode
-    for (const sc of dbSubChats) {
-      if (sc.mode) {
-        appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
+    // IMPORTANT: Only do this when chatId changes (new chat loaded), not on every agentChat update
+    // This prevents overwriting user's mode changes when agentChat is invalidated/refetched
+    if (initializedChatIdRef.current !== chatId) {
+      initializedChatIdRef.current = chatId
+      for (const sc of dbSubChats) {
+        if (sc.mode) {
+          appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
+        }
       }
     }
 
@@ -5536,7 +5502,34 @@ Make sure to preserve all functionality from both branches when resolving confli
       // Return existing chat if we have it
       const existing = agentChatStore.get(subChatId)
       if (existing) {
-        return existing
+        // 检查：如果缓存的 Chat 初始化时消息为空，但现在有消息数据了
+        // 需要清除缓存并重新创建，以使用新的消息数据
+        // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
+        const hasNewMessages = subChatMessagesData?.messages && subChatId === activeSubChatId
+        if (hasNewMessages) {
+          try {
+            const parsed = JSON.parse(subChatMessagesData.messages)
+            // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
+            const existingMessages = existing.messages ?? []
+            console.log('[getOrCreateChat] Checking cache', {
+              subChatId: subChatId.slice(-8),
+              cachedMsgCount: existingMessages.length,
+              newMsgCount: parsed.length,
+            })
+            // 如果缓存为空但数据库有消息，重新创建 Chat
+            if (existingMessages.length === 0 && parsed.length > 0) {
+              console.log('[getOrCreateChat] Recreating chat with new messages')
+              agentChatStore.delete(subChatId)
+              // 不 return，继续往下创建新 Chat
+            } else {
+              return existing
+            }
+          } catch {
+            return existing
+          }
+        } else {
+          return existing
+        }
       }
 
       // Find sub-chat data
@@ -5575,8 +5568,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               }),
             }
           })
-        } catch {
-          console.warn("[getOrCreateChat] Failed to parse lazy-loaded messages")
+        } catch (err) {
+          console.warn("[getOrCreateChat] Failed to parse lazy-loaded messages", err)
         }
       } else if (Array.isArray(subChat?.messages)) {
         // Fallback for remote chats or when lazy loading hasn't completed
@@ -5668,11 +5661,13 @@ Make sure to preserve all functionality from both branches when resolving confli
           const isViewingThisChat = currentSelectedChatId === chatId
 
           if (!isViewingThisSubChat) {
+            // Mark as unseen in both old atom and new persisted storage
             setSubChatUnseenChanges((prev: Set<string>) => {
               const next = new Set(prev)
               next.add(subChatId)
               return next
             })
+            markSubChatUnseen(setSubChatStatus, subChatId)
           }
 
           // Also mark parent chat as unseen if user is not viewing it
@@ -5723,6 +5718,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       chatId,
       currentMode,
       setSubChatUnseenChanges,
+      setSubChatStatus,
       selectedChatId,
       setUnseenChanges,
       notifyAgentComplete,
@@ -5870,11 +5866,13 @@ Make sure to preserve all functionality from both branches when resolving confli
           const isViewingThisChat = currentSelectedChatId === chatId
 
           if (!isViewingThisSubChat) {
+            // Mark as unseen in both old atom and new persisted storage
             setSubChatUnseenChanges((prev: Set<string>) => {
               const next = new Set(prev)
               next.add(newId)
               return next
             })
+            markSubChatUnseen(setSubChatStatus, newId)
           }
 
           // Also mark parent chat as unseen if user is not viewing it
@@ -5920,6 +5918,7 @@ Make sure to preserve all functionality from both branches when resolving confli
     defaultAgentMode,
     utils,
     setSubChatUnseenChanges,
+    setSubChatStatus,
     selectedChatId,
     setUnseenChanges,
     notifyAgentComplete,
@@ -6579,8 +6578,9 @@ Make sure to preserve all functionality from both branches when resolving confli
               <div className="relative flex-1 min-h-0">
                 {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
                 {/* Also wait for messages to load for local chats (lazy loading optimization) */}
-                {/* Only show messages loading spinner if sub-chat exists in this workspace */}
-                {(isLocalChatLoading || (chatSourceMode === "local" && activeSubChatExistsInWorkspace && isLoadingMessages)) ? (
+                {/* NOTE: Removed activeSubChatExistsInWorkspace check to fix race condition where messages */}
+                {/* aren't loaded yet but the gate passes, causing empty Chat objects to be cached */}
+                {(isLocalChatLoading || (chatSourceMode === "local" && isLoadingMessages)) ? (
                   <div className="flex items-center justify-center h-full">
                     <IconSpinner className="h-6 w-6 animate-spin" />
                   </div>

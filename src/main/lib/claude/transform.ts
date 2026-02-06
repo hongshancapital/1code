@@ -244,6 +244,9 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         currentThinkingId = `thinking-${Date.now()}`
         accumulatedThinking = ""
         inThinkingBlock = true
+        // Mark as streamed IMMEDIATELY to prevent assistant message from emitting duplicate
+        // (assistant message may arrive before content_block_stop)
+        emittedToolIds.add("thinking-streamed")
         yield {
           type: "tool-input-start",
           toolCallId: currentThinkingId,
@@ -254,7 +257,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
       // Thinking/reasoning streaming - emit as tool-like chunks for UI
       if (event.delta?.type === "thinking_delta" && currentThinkingId && inThinkingBlock) {
         const thinkingText = String(event.delta.thinking || "")
-        
+
         // Accumulate and emit delta
         accumulatedThinking += thinkingText
         yield {
@@ -263,7 +266,7 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
           inputTextDelta: thinkingText,
         }
       }
-      
+
       // Thinking complete (content_block_stop while in thinking block)
       if (event.type === "content_block_stop" && inThinkingBlock && currentThinkingId) {
         // Emit the complete thinking tool
@@ -292,16 +295,16 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
     if (msg.type === "assistant" && msg.message?.content) {
       for (const block of msg.message.content) {
         // Handle thinking blocks from Extended Thinking
-        // Skip if already emitted via streaming (thinking_delta)
+        // Skip if already emitted via streaming (thinking_delta) or previous assistant message
         if (block.type === "thinking" && block.thinking) {
-          // Check if we already streamed this thinking block
-          // We compare by checking if accumulated thinking matches
-          const wasStreamed = emittedToolIds.has("thinking-streamed")
-          
-          if (wasStreamed) {
+          // Check if we already emitted thinking (via streaming or previous assistant message)
+          if (emittedToolIds.has("thinking-streamed")) {
             continue
           }
-          
+
+          // Mark as emitted FIRST to prevent any race conditions or duplicates
+          emittedToolIds.add("thinking-streamed")
+
           // Emit as tool-input-available with special "Thinking" tool name
           // This allows the UI to render it like other tools
           const thinkingId = genId()

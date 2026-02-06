@@ -38,6 +38,7 @@ export interface ProjectInfo {
   name?: string | null
   mode?: string | null
   path?: string
+  isPlayground?: boolean | null
 }
 
 interface GroupedChatListProps {
@@ -77,12 +78,47 @@ export const GroupedChatList = memo(function GroupedChatList({
     enabled: groupMode === "tag",
   })
 
-  // Group chats by folder or tag
+  // Group chats by type, folder, or tag
   const { groups, groupInfos } = useMemo(() => {
     const groupMap = new Map<string, GroupedChatItem[]>()
     const infoMap = new Map<string, GroupInfo>()
 
-    if (groupMode === "folder") {
+    if (groupMode === "type") {
+      // Group by type: Workspaces (regular projects) vs Chats (playground projects)
+      const workspaces: GroupedChatItem[] = []
+      const playgrounds: GroupedChatItem[] = []
+
+      for (const chat of chats) {
+        const project = chat.projectId ? projectsMap.get(chat.projectId) : null
+        if (project?.isPlayground) {
+          playgrounds.push(chat)
+        } else {
+          workspaces.push(chat)
+        }
+      }
+
+      // Add Workspaces group first (if has items)
+      if (workspaces.length > 0) {
+        groupMap.set("__workspaces__", workspaces)
+        infoMap.set("__workspaces__", {
+          id: "__workspaces__",
+          title: "Workspaces",
+          count: workspaces.length,
+          icon: "folder",
+        })
+      }
+
+      // Add Chats group (if has items)
+      if (playgrounds.length > 0) {
+        groupMap.set("__chats__", playgrounds)
+        infoMap.set("__chats__", {
+          id: "__chats__",
+          title: "Chats",
+          count: playgrounds.length,
+          icon: "message-circle",
+        })
+      }
+    } else if (groupMode === "folder") {
       // Group by project folder
       for (const chat of chats) {
         const project = chat.projectId ? projectsMap.get(chat.projectId) : null
@@ -172,8 +208,15 @@ export const GroupedChatList = memo(function GroupedChatList({
       }
     }
 
-    // Sort groups: preset tags first (by PRESET_TAGS order), then custom tags, alphabetically for folders
+    // Sort groups: type groups first, then preset tags, custom tags, alphabetically for folders
     const sortedEntries = [...groupMap.entries()].sort(([aId], [bId]) => {
+      // Type mode: Workspaces first, then Chats
+      if (groupMode === "type") {
+        if (aId === "__workspaces__") return -1
+        if (bId === "__workspaces__") return 1
+        return 0
+      }
+
       // Always put "other" / "no tag" at the end
       if (aId === "__other__" || aId === "__no_tag__") return 1
       if (bId === "__other__" || bId === "__no_tag__") return -1
@@ -309,7 +352,7 @@ export const GroupedChatList = memo(function GroupedChatList({
               onToggleCollapse={handleToggleCollapse}
               allGroups={allGroupInfos}
               onGroupSelect={handleGroupSelect}
-              groupMode={groupMode === "tag" ? "tag" : "folder"}
+              groupMode={groupMode === "tag" ? "tag" : groupMode === "type" ? "type" : "folder"}
             />
 
             {/* Group Items - rendered by parent component */}

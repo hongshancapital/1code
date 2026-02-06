@@ -20,7 +20,6 @@ import {
 } from "../../lib/atoms/traffic-light"
 import { cn } from "../../lib/utils"
 import {
-  BrainFilledIcon,
   BugFilledIcon,
   CustomAgentIconFilled,
   FlaskFilledIcon,
@@ -31,6 +30,7 @@ import {
   SkillIconFilled,
   TerminalFilledIcon,
 } from "../../components/ui/icons"
+import { Play, Brain, BrainCircuit } from "lucide-react"
 import { desktopViewAtom } from "../agents/atoms"
 
 // Check if we're in development mode
@@ -46,28 +46,34 @@ type TabDefinition = {
   icon: React.ComponentType<{ className?: string }> | any
 }
 
-// General settings tabs
+// General settings tabs (user preferences)
 const MAIN_TAB_DEFS: TabDefinition[] = [
   { id: "profile", labelKey: "sidebar.profile", icon: ProfileIconFilled },
   { id: "preferences", labelKey: "sidebar.preferences", icon: SlidersFilledIcon },
   { id: "appearance", labelKey: "sidebar.appearance", icon: EyeOpenFilledIcon },
   { id: "keyboard", labelKey: "sidebar.keyboard", icon: KeyboardFilledIcon },
-  { id: "beta", labelKey: "sidebar.beta", icon: FlaskFilledIcon },
 ]
 
-// Advanced tabs (base - without Debug)
-const ADVANCED_TAB_DEFS: TabDefinition[] = [
+// Project-related tabs (projects, models, runtime)
+const PROJECT_TAB_DEFS: TabDefinition[] = [
   { id: "projects", labelKey: "sidebar.projects", icon: FolderFilledIcon },
-  { id: "models", labelKey: "sidebar.models", icon: BrainFilledIcon },
+  { id: "models", labelKey: "sidebar.models", icon: BrainCircuit },
+  { id: "runtime" as SettingsTab, labelKey: "sidebar.runtime", icon: Play },
+]
+
+// Extension tabs (skills, commands, mcp, agents, plugins)
+const EXTENSION_TAB_DEFS: TabDefinition[] = [
   { id: "skills", labelKey: "sidebar.skills", icon: SkillIconFilled },
-  { id: "agents", labelKey: "sidebar.customAgents", icon: CustomAgentIconFilled },
+  { id: "commands" as SettingsTab, labelKey: "sidebar.commands", icon: TerminalFilledIcon },
   { id: "mcp", labelKey: "sidebar.mcpServers", icon: OriginalMCPIcon },
+  { id: "agents", labelKey: "sidebar.customAgents", icon: CustomAgentIconFilled },
   { id: "plugins", labelKey: "sidebar.plugins", icon: PluginFilledIcon },
-  {
-    id: "runtime" as SettingsTab,
-    labelKey: "sidebar.runtime",
-    icon: TerminalFilledIcon,
-  },
+]
+
+// Advanced/experimental tabs
+const ADVANCED_TAB_DEFS: TabDefinition[] = [
+  { id: "memory", labelKey: "sidebar.memory", icon: Brain },
+  { id: "beta", labelKey: "sidebar.beta", icon: FlaskFilledIcon },
 ]
 
 // Debug tab definition
@@ -140,9 +146,9 @@ export function SettingsSidebar() {
   // Show debug tab if in development OR if devtools are unlocked
   const showDebugTab = isDevelopment || devToolsUnlocked
 
-  const mainTabs = useMemo(() => {
-    if (showDebugTab) return [...MAIN_TAB_DEFS, DEBUG_TAB_DEF]
-    return MAIN_TAB_DEFS
+  const advancedTabs = useMemo(() => {
+    if (showDebugTab) return [...ADVANCED_TAB_DEFS, DEBUG_TAB_DEF]
+    return ADVANCED_TAB_DEFS
   }, [showDebugTab])
 
   const handleTabClick = (tabId: SettingsTab) => {
@@ -183,9 +189,9 @@ export function SettingsSidebar() {
 
       {/* Tab list */}
       <div className="flex flex-col flex-1 overflow-y-auto px-2 pb-4 gap-4">
-        {/* Main Tabs */}
+        {/* Main Tabs (user preferences) */}
         <div className="flex flex-col gap-1">
-          {mainTabs.map((tab) => (
+          {MAIN_TAB_DEFS.map((tab) => (
             <TabButton
               key={tab.id}
               tab={tab}
@@ -199,9 +205,41 @@ export function SettingsSidebar() {
         {/* Separator */}
         <div className="border-t border-border/50 mx-2" />
 
-        {/* Advanced Tabs */}
+        {/* Project-related Tabs */}
         <div className="flex flex-col gap-1">
-          {ADVANCED_TAB_DEFS.map((tab) => (
+          {PROJECT_TAB_DEFS.map((tab) => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              label={t(tab.labelKey)}
+              isActive={activeTab === tab.id}
+              onClick={() => handleTabClick(tab.id)}
+            />
+          ))}
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border/50 mx-2" />
+
+        {/* Extension Tabs */}
+        <div className="flex flex-col gap-1">
+          {EXTENSION_TAB_DEFS.map((tab) => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              label={t(tab.labelKey)}
+              isActive={activeTab === tab.id}
+              onClick={() => handleTabClick(tab.id)}
+            />
+          ))}
+        </div>
+
+        {/* Separator */}
+        <div className="border-t border-border/50 mx-2" />
+
+        {/* Advanced/Beta Tabs */}
+        <div className="flex flex-col gap-1">
+          {advancedTabs.map((tab) => (
             <TabButton
               key={tab.id}
               tab={tab}

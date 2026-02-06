@@ -6,13 +6,16 @@ import { settingsPluginsSidebarWidthAtom } from "../../../features/agents/atoms"
 import { agentsSettingsDialogActiveTabAtom, type SettingsTab } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { Terminal, ChevronRight, Loader2 } from "lucide-react"
+import { Terminal, ChevronRight, Loader2, Store, Package } from "lucide-react"
 import { PluginFilledIcon, SkillIconFilled, CustomAgentIconFilled, OriginalMCPIcon } from "../../ui/icons"
 import { Button } from "../../ui/button"
 import { Label } from "../../ui/label"
 import { Switch } from "../../ui/switch"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { toast } from "sonner"
+import { MarketplaceView } from "./marketplace-view"
+
+type PluginsViewMode = "installed" | "marketplace"
 
 /** Format plugin name: "pyright-lsp" → "Pyright Lsp" */
 function formatPluginName(name: string): string {
@@ -279,8 +282,48 @@ function PluginListItem({
   )
 }
 
-// --- Main Component ---
-export function AgentsPluginsTab() {
+// --- View Mode Toggle ---
+function ViewModeToggle({
+  mode,
+  onChange,
+  t,
+}: {
+  mode: PluginsViewMode
+  onChange: (mode: PluginsViewMode) => void
+  t: (key: string) => string
+}) {
+  return (
+    <div className="flex items-center gap-1 p-0.5 bg-muted rounded-lg">
+      <button
+        onClick={() => onChange("installed")}
+        className={cn(
+          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+          mode === "installed"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Package className="h-3.5 w-3.5" />
+        {t("plugins.viewMode.installed")}
+      </button>
+      <button
+        onClick={() => onChange("marketplace")}
+        className={cn(
+          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+          mode === "marketplace"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Store className="h-3.5 w-3.5" />
+        {t("plugins.viewMode.marketplace")}
+      </button>
+    </div>
+  )
+}
+
+// --- Installed Plugins View (extracted from original) ---
+function InstalledPluginsView() {
   const { t } = useTranslation("settings")
   const [selectedPluginSource, setSelectedPluginSource] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -550,6 +593,26 @@ export function AgentsPluginsTab() {
             )}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// --- Main Component ---
+export function AgentsPluginsTab() {
+  const { t } = useTranslation("settings")
+  const [viewMode, setViewMode] = useState<PluginsViewMode>("installed")
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* View mode toggle header */}
+      <div className="flex items-center justify-center px-4 py-2 border-b border-border/50 shrink-0">
+        <ViewModeToggle mode={viewMode} onChange={setViewMode} t={t} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {viewMode === "installed" ? <InstalledPluginsView /> : <MarketplaceView />}
       </div>
     </div>
   )

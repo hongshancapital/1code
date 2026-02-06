@@ -27,6 +27,7 @@ import { AgentThinkingTool } from "../ui/agent-thinking-tool"
 import { AgentTodoTool } from "../ui/agent-todo-tool"
 import { AgentToolCall } from "../ui/agent-tool-call"
 import { AgentToolRegistry, getToolStatus } from "../ui/agent-tool-registry"
+import { AgentMcpToolCall, isMcpTool } from "../ui/agent-mcp-tool-call"
 import { AgentWebFetchTool } from "../ui/agent-web-fetch-tool"
 import { AgentWebSearchCollapsible } from "../ui/agent-web-search-collapsible"
 import {
@@ -604,11 +605,24 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
           isPending={isPending}
           isError={isError}
           onClick={handleClick}
+          toolCallId={part.toolCallId}
         />
       )
     }
 
     if (part.type?.startsWith("tool-")) {
+      // Check if it's an MCP tool (format: tool-mcp__servername__toolname)
+      if (isMcpTool(part.type)) {
+        return (
+          <AgentMcpToolCall
+            key={idx}
+            toolType={part.type}
+            part={part}
+            chatStatus={status}
+          />
+        )
+      }
+      // Fallback for other unknown tools
       return (
         <div key={idx} className="text-xs text-muted-foreground py-0.5 px-2">
           {part.type.replace("tool-", "")}

@@ -48,7 +48,6 @@ import {
 import {
   GITHUB_TRIGGER_OPTIONS,
   LINEAR_TRIGGER_OPTIONS,
-  CLAUDE_MODELS,
   PlatformIcon,
   type Platform,
   type TriggerType,
@@ -109,7 +108,7 @@ export function AutomationsDetailView() {
   // ============================================================================
   const [name, setName] = useState("")
   const [instructions, setInstructions] = useState("")
-  const [selectedModel, setSelectedModel] = useState<string>(CLAUDE_MODELS[0].id)
+  // Model selection removed - automations use the system-level model setting
   const [addToInbox, setAddToInbox] = useState(true)
   const [respondToTrigger, setRespondToTrigger] = useState(true)
   const [isEnabled, setIsEnabled] = useState(true)
@@ -515,18 +514,9 @@ export function AutomationsDetailView() {
                     </div>
                     <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1 text-sm leading-5">
                       <span>Run</span>
-                      <Select value={selectedModel} onValueChange={setSelectedModel}>
-                        <SelectTrigger className="inline-flex items-center gap-0.5 px-1.5 h-5 rounded bg-accent/50 hover:bg-accent text-sm border-0 w-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CLAUDE_MODELS.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <span className="inline-flex items-center gap-0.5 px-1.5 h-5 rounded bg-accent/50 text-sm">
+                        Claude
+                      </span>
                       <span>in</span>
                       <span className="inline-flex items-center gap-0.5 px-1 h-5 rounded bg-accent/50 text-sm opacity-70">
                         Agent

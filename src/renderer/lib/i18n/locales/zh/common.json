@@ -61,5 +61,20 @@
       "title": "哎呀！程序崩溃了",
       "message": "遇到了意外错误。别担心，刷新页面通常就能解决问题。"
     }
+  },
+  "common": {
+    "cancel": "取消"
+  },
+  "moveToWorkspace": {
+    "title": "转换为正式项目",
+    "description": "将对话保存到指定位置，方便整理和继续工作。",
+    "projectName": "文件夹名称",
+    "projectNamePlaceholder": "输入文件夹名称",
+    "targetFolder": "存放位置",
+    "selectFolder": "选择位置...",
+    "move": "确定",
+    "moving": "处理中...",
+    "success": "已转换为正式项目",
+    "error": "转换失败"
   }
 }

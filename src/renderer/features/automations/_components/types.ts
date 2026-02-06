@@ -27,8 +27,3 @@ export interface AutomationTemplate {
   description: string
   instructions: string
 }
-
-export interface ClaudeModel {
-  id: string
-  name: string
-}

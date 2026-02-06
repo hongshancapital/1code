@@ -4,7 +4,9 @@
     "title": "Workspaces",
     "pinned": "Pinned workspaces",
     "recent": "Recent workspaces",
-    "search": "Search workspaces...",
+    "search": "Search",
+    "filterPlaceholder": "Filter workspaces...",
+    "noResults": "No matching workspaces",
     "startNew": "Start a new workspace",
     "archive": "Archive workspace",
     "archiving": "Archiving...",
@@ -108,11 +110,13 @@
   "grouping": {
     "enable": "Enable grouped view",
     "disable": "Disable grouped view",
+    "byType": "Group by type",
     "byFolder": "Group by folder",
     "byTag": "Group by tag",
     "noGroups": "No groups",
     "ungrouped": "Ungrouped",
     "other": "Other",
+    "typeGrouping": "Type grouping",
     "tagGrouping": "Tag grouping",
     "folderGrouping": "Folder grouping",
     "quickJump": "Click to quickly jump to group",
@@ -136,10 +140,16 @@
       "artifacts": "Artifacts",
       "explorer": "Explorer",
       "backgroundTasks": "Background Tasks",
-      "mcpServers": "MCP Servers"
+      "mcpServers": "MCP Servers",
+      "skills": "Skills"
     },
     "workspace": {
       "noInfo": "No workspace info available",
+      "type": "Type",
+      "chat": "Chat",
+      "action": "Action",
+      "convertToProject": "Convert to Project",
+      "convertToProjectHelp": "Save this chat to a folder of your choice, making it easier to organize and continue your work.",
       "repository": "Repository",
       "branch": "Branch",
       "pullRequest": "Pull Request",
@@ -195,7 +205,21 @@
       "expandLabel": "Artifacts with {{count}} files. Click to {{action}}"
     },
     "mcpWidget": {
-      "noServers": "Configure MCP servers"
+      "noServers": "Configure MCP servers",
+      "builtin": "Built-in",
+      "enable": "Enable MCP server",
+      "disable": "Disable MCP server"
+    },
+    "skillsWidget": {
+      "noSkills": "Configure skills",
+      "skillCount": "{{count}} skill",
+      "skillCount_other": "{{count}} skills",
+      "sources": {
+        "project": "Project",
+        "user": "User",
+        "plugin": "Plugin",
+        "builtin": "Built-in"
+      }
     }
   },
   "tagManager": {

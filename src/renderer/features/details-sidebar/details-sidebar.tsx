@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useTranslation } from "react-i18next"
-import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu } from "lucide-react"
+import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu, Sparkles } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,6 +39,7 @@ import { ArtifactsWidget } from "./sections/artifacts-widget"
 import { ExplorerWidget } from "./sections/explorer-widget"
 import { BackgroundTasksWidget } from "./sections/background-tasks-widget"
 import { McpWidget } from "./sections/mcp-widget"
+import { SkillsWidget } from "./sections/skills-widget"
 import type { ParsedDiffFile } from "./types"
 import type { AgentMode } from "../agents/atoms"
 import {
@@ -139,6 +140,11 @@ export function DetailsSidebar({
     setSettingsOpen(true)
   }, [setSettingsTab, setSettingsOpen])
 
+  const handleOpenSkillsSettings = useCallback(() => {
+    setSettingsTab("skills")
+    setSettingsOpen(true)
+  }, [setSettingsTab, setSettingsOpen])
+
   // Per-workspace widget visibility
   const widgetVisibilityAtom = useMemo(
     () => widgetVisibilityAtomFamily(chatId),
@@ -232,6 +238,8 @@ export function DetailsSidebar({
         return Cpu
       case "mcp":
         return OriginalMCPIcon
+      case "skills":
+        return Sparkles
       default:
         return Box
     }
@@ -450,6 +458,7 @@ export function DetailsSidebar({
                   <ExplorerWidget
                     key="explorer"
                     worktreePath={worktreePath ?? undefined}
+                    subChatId={activeSubChatId ?? null}
                     onExpand={onExpandExplorer}
                   />
                 )
@@ -490,6 +499,34 @@ export function DetailsSidebar({
                     hideExpand
                   >
                     <McpWidget />
+                  </WidgetCard>
+                )
+
+              case "skills":
+                return (
+                  <WidgetCard
+                    key="skills"
+                    widgetId="skills"
+                    title={t("details.widgets.skills")}
+                    badge={
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleOpenSkillsSettings}
+                            className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md opacity-0 group-hover:opacity-100 transition-[background-color,opacity] duration-150 ease-out shrink-0"
+                            aria-label="Skills Settings"
+                          >
+                            <ArrowUpRight className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">{t("details.openSettings")}</TooltipContent>
+                      </Tooltip>
+                    }
+                    hideExpand
+                  >
+                    <SkillsWidget />
                   </WidgetCard>
                 )
 

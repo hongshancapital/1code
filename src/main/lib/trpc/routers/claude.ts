@@ -1,5 +1,5 @@
 import { observable } from "@trpc/server/observable"
-import { eq, like } from "drizzle-orm"
+import { eq, like, desc } from "drizzle-orm"
 import { app, BrowserWindow, safeStorage } from "electron"
 import * as fs from "fs/promises"
 import { readFileSync } from "fs"
@@ -10,25 +10,36 @@ import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
   buildClaudeEnv,
   checkOfflineFallback,
+  clearClaudeQueryCache,
+  clearConfigCache,
   createTransformer,
   getBundledClaudeBinaryPath,
+  getClaudeQuery,
+  getConfigLoader,
+  getPromptBuilder,
+  initializePromptBuilder,
   logClaudeEnv,
   logRawClaudeMessage,
+  mcpCacheKey,
+  workingMcpServers,
+  PLAN_MODE_BLOCKED_TOOLS,
+  CHAT_MODE_BLOCKED_TOOLS,
   type UIMessageChunk,
 } from "../../claude"
 import { getEnv } from "../../env"
 import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
-import { chats, claudeCodeCredentials, getDatabase, modelUsage, subChats } from "../../db"
+import { chats, claudeCodeCredentials, getDatabase, memorySessions, modelUsage, observations, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
-import { discoverPluginMcpServers } from "../../plugins"
+import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
+import { memoryHooks } from "../../memory"
 
 /**
  * Type for Claude SDK streaming messages
@@ -304,6 +315,74 @@ function parseMentions(prompt: string): {
 }
 
 /**
+ * Code file extensions that should NOT be tracked as artifacts (deliverables).
+ * These are source code files that are intermediate work products, not final outputs.
+ * Note: HTML is intentionally NOT in this list - it's a deliverable format.
+ */
+const CODE_FILE_EXTENSIONS = new Set([
+  // JavaScript/TypeScript
+  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts",
+  // Python
+  ".py", ".pyw", ".pyi", ".pyc", ".pyo",
+  // Java/Kotlin/Scala
+  ".java", ".kt", ".kts", ".scala", ".sc",
+  // C/C++/Objective-C
+  ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".hxx", ".m", ".mm",
+  // C#/F#
+  ".cs", ".fs", ".fsx",
+  // Go
+  ".go",
+  // Rust
+  ".rs",
+  // Ruby
+  ".rb", ".rake", ".gemspec",
+  // PHP
+  ".php", ".phtml", ".php3", ".php4", ".php5", ".phps",
+  // Swift
+  ".swift",
+  // Shell/Scripts
+  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".psm1", ".bat", ".cmd",
+  // Lua
+  ".lua",
+  // Perl
+  ".pl", ".pm", ".t",
+  // R
+  ".r", ".R", ".rmd", ".Rmd",
+  // Julia
+  ".jl",
+  // Haskell
+  ".hs", ".lhs",
+  // Elixir/Erlang
+  ".ex", ".exs", ".erl", ".hrl",
+  // Clojure
+  ".clj", ".cljs", ".cljc", ".edn",
+  // Vue/Svelte (component files)
+  ".vue", ".svelte",
+  // Config/Definition files (these are code-like)
+  ".json", ".jsonc", ".yaml", ".yml", ".toml", ".ini", ".cfg",
+  // CSS/Style files
+  ".css", ".scss", ".sass", ".less", ".styl",
+  // GraphQL
+  ".graphql", ".gql",
+  // SQL
+  ".sql",
+  // WebAssembly
+  ".wasm", ".wat",
+  // Assembly
+  ".asm", ".s",
+])
+
+/**
+ * Check if a file should be tracked as an artifact (deliverable).
+ * Code files are excluded - they can still appear in contexts but not as primary artifacts.
+ * HTML files are considered deliverables and are included.
+ */
+function shouldTrackAsArtifact(filePath: string): boolean {
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase()
+  return !CODE_FILE_EXTENSIONS.has(ext)
+}
+
+/**
  * Artifact context type - represents files or URLs used as context for an artifact
  */
 interface ArtifactContext {
@@ -438,40 +517,14 @@ function getClaudeCodeToken(): string | null {
   }
 }
 
-// Dynamic import for ESM module - CACHED to avoid re-importing on every message
-let cachedClaudeQuery: typeof import("@anthropic-ai/claude-agent-sdk").query | null = null
-const getClaudeQuery = async () => {
-  if (cachedClaudeQuery) {
-    return cachedClaudeQuery
-  }
-  const sdk = await import("@anthropic-ai/claude-agent-sdk")
-  cachedClaudeQuery = sdk.query
-  return cachedClaudeQuery
-}
-
 // Active sessions for cancellation (onAbort handles stash + abort + restore)
 // Active sessions for cancellation
 const activeSessions = new Map<string, AbortController>()
 
-// In-memory cache of working MCP server names (resets on app restart)
-// Key: "scope::serverName" where scope is "__global__" or projectPath
-// Value: true if working (has tools), false if failed
-export const workingMcpServers = new Map<string, boolean>()
-
-// Helper to build scoped cache key
-const GLOBAL_SCOPE = "__global__"
-function mcpCacheKey(scope: string | null, serverName: string): string {
-  return `${scope ?? GLOBAL_SCOPE}::${serverName}`
-}
+// workingMcpServers and mcpCacheKey are imported from config-loader (single source of truth)
 
 // Cache for symlinks (track which subChatIds have already set up symlinks)
 const symlinksCreated = new Set<string>()
-
-// Cache for MCP config (avoid re-reading ~/.claude.json on every message)
-const mcpConfigCache = new Map<string, {
-  config: Record<string, any> | undefined
-  mtime: number
-}>()
 
 const pendingToolApprovals = new Map<
   string,
@@ -485,24 +538,16 @@ const pendingToolApprovals = new Map<
   }
 >()
 
-const PLAN_MODE_BLOCKED_TOOLS = new Set([
-  "Bash",
-  "NotebookEdit",
-])
+// Initialize PromptBuilder with runtime environment provider (lazy init)
+let promptBuilderInitialized = false
+function ensurePromptBuilderInitialized() {
+  if (!promptBuilderInitialized) {
+    initializePromptBuilder(getCachedRuntimeEnvironment)
+    promptBuilderInitialized = true
+  }
+}
 
-// Tools blocked in chat mode (playground) - only allow conversation, no file operations
-// When user wants to work with files, they should convert to cowork/coding mode
-const CHAT_MODE_BLOCKED_TOOLS = new Set([
-  "Read",
-  "Write",
-  "Edit",
-  "Glob",
-  "Grep",
-  "Bash",
-  "NotebookEdit",
-  "LS",
-  "Find",
-])
+// PLAN_MODE_BLOCKED_TOOLS and CHAT_MODE_BLOCKED_TOOLS are imported from policies (single source of truth)
 
 // Check if a cwd is the playground directory (for chat mode)
 function isPlaygroundPath(cwd: string): boolean {
@@ -535,9 +580,9 @@ export type ImageAttachment = z.infer<typeof imageAttachmentSchema>
  * Clear all performance caches (for testing/debugging)
  */
 export function clearClaudeCaches() {
-  cachedClaudeQuery = null
+  clearClaudeQueryCache()
   symlinksCreated.clear()
-  mcpConfigCache.clear()
+  clearConfigCache() // Clear ClaudeConfigLoader cache
   console.log("[claude] All caches cleared")
 }
 
@@ -1062,6 +1107,9 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             personalPreferences: z.string().max(1000).optional(),
           })
           .optional(), // User personalization for AI recognition
+        skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
+        memoryEnabled: z.boolean().optional(), // Enable memory context injection (default true)
+        memoryRecordingEnabled: z.boolean().optional(), // Enable memory recording (default true)
       }),
     )
     .subscription(({ input }) => {
@@ -1137,6 +1185,9 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
         ;(async () => {
           try {
+            // Ensure PromptBuilder has runtime environment provider
+            ensurePromptBuilderInitialized()
+
             const db = getDatabase()
 
             // 1. Get existing messages from DB
@@ -1194,6 +1245,28 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 })
                 .where(eq(subChats.id, input.subChatId))
                 .run()
+            }
+
+            // 2.4. Memory hooks: Start session and record user prompt (fire-and-forget)
+            let memorySessionId: string | null = null
+            const promptNumber = existingMessages.filter((m: any) => m.role === "user").length + 1
+            if (projectId && input.memoryRecordingEnabled !== false) {
+              try {
+                memorySessionId = await memoryHooks.onSessionStart({
+                  subChatId: input.subChatId,
+                  projectId,
+                  chatId: input.chatId,
+                })
+                if (memorySessionId) {
+                  await memoryHooks.onUserPrompt({
+                    sessionId: memorySessionId,
+                    prompt: input.prompt,
+                    promptNumber,
+                  })
+                }
+              } catch (memErr) {
+                console.error("[Memory] Hook error (onSessionStart/onUserPrompt):", memErr)
+              }
             }
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
@@ -1364,7 +1437,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
               isUsingOllama ? input.chatId : input.subChatId
             )
 
-            // MCP servers to pass to SDK (read from ~/.claude.json)
+            // MCP servers to pass to SDK - loaded via ClaudeConfigLoader
             let mcpServersForSdk: Record<string, any> | undefined
 
             // Ensure isolated config dir exists and symlink skills/agents from ~/.claude/
@@ -1407,85 +1480,27 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 symlinksCreated.add(cacheKey)
               }
 
-              // Read MCP servers from ~/.claude.json for the original project path
-              // These will be passed directly to the SDK via options.mcpServers
-              // OPTIMIZATION: Cache MCP config by file mtime to avoid re-parsing on every message
-              const claudeJsonSource = path.join(os.homedir(), ".claude.json")
+              // Load MCP servers via ClaudeConfigLoader (unified configuration)
               try {
-                const stats = await fs.stat(claudeJsonSource).catch(() => null)
+                const configLoader = getConfigLoader()
+                const authManager = getAuthManager()
+                const loadedConfig = await configLoader.getConfig(
+                  {
+                    cwd: input.projectPath || input.cwd,
+                    projectPath: input.projectPath,
+                    includeBuiltin: true,
+                    includePlugins: true,
+                    filterNonWorking: true,
+                    disabledMcpServers: input.disabledMcpServers,
+                  },
+                  authManager
+                )
 
-                if (stats) {
-                  const currentMtime = stats.mtimeMs
-                  const cached = mcpConfigCache.get(claudeJsonSource)
-                  const lookupPath = input.projectPath || input.cwd
-
-                  // Get or refresh cached config
-                  let claudeConfig: any
-                  if (cached && cached.mtime === currentMtime) {
-                    claudeConfig = cached.config
-                  } else {
-                    claudeConfig = JSON.parse(await fs.readFile(claudeJsonSource, "utf-8"))
-                    mcpConfigCache.set(claudeJsonSource, { config: claudeConfig, mtime: currentMtime })
-                  }
-
-                  // Merge global + project servers (project overrides global)
-                  // getProjectMcpServers resolves worktree paths internally
-                  const globalServers = claudeConfig.mcpServers || {}
-                  const projectServers = getProjectMcpServers(claudeConfig, lookupPath) || {}
-
-                  // Load plugin MCP servers (filtered by enabled plugins and approval)
-                  const [enabledPluginSources, pluginMcpConfigs, approvedServers] = await Promise.all([
-                    getEnabledPlugins(),
-                    discoverPluginMcpServers(),
-                    getApprovedPluginMcpServers(),
-                  ])
-
-                  const pluginServers: Record<string, McpServerConfig> = {}
-                  for (const config of pluginMcpConfigs) {
-                    if (enabledPluginSources.includes(config.pluginSource)) {
-                      for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
-                        if (!globalServers[name] && !projectServers[name]) {
-                          const identifier = `${config.pluginSource}:${name}`
-                          if (approvedServers.includes(identifier)) {
-                            pluginServers[name] = serverConfig
-                          }
-                        }
-                      }
-                    }
-                  }
-
-                  // Priority: project > global > plugin
-                  // Then inject built-in MCP (lowest priority, can be overridden by user config)
-                  // Uses async to ensure token is fresh (auto-refreshed if needed)
-                  const authManager = getAuthManager()
-                  const allServers = await injectBuiltinMcp({ ...pluginServers, ...globalServers, ...projectServers }, authManager)
-
-                  // Filter to only working MCPs using scoped cache keys
-                  if (workingMcpServers.size > 0) {
-                    const filtered: Record<string, any> = {}
-                    // Resolve worktree path to original project path to match cache keys
-                    const resolvedProjectPath = resolveProjectPathFromWorktree(lookupPath) || lookupPath
-                    for (const [name, config] of Object.entries(allServers)) {
-                      // Use resolved project scope if server is from project, otherwise global
-                      const scope = name in projectServers ? resolvedProjectPath : null
-                      const cacheKey = mcpCacheKey(scope, name)
-                      // Include server if it's marked working, or if it's not in cache at all
-                      // (plugin servers won't be in the cache yet)
-                      if (workingMcpServers.get(cacheKey) === true || !workingMcpServers.has(cacheKey)) {
-                        filtered[name] = config
-                      }
-                    }
-                    mcpServersForSdk = filtered
-                    const skipped = Object.keys(allServers).length - Object.keys(filtered).length
-                    if (skipped > 0) {
-                      console.log(`[claude] Filtered out ${skipped} non-working MCP(s)`)
-                    }
-                  } else {
-                    mcpServersForSdk = allServers
-                  }
+                if (Object.keys(loadedConfig.mcpServers).length > 0) {
+                  mcpServersForSdk = loadedConfig.mcpServers
                 }
               } catch (configErr) {
-                console.error(`[claude] Failed to read MCP config:`, configErr)
+                console.error(`[claude] Failed to load MCP config via ClaudeConfigLoader:`, configErr)
               }
             } catch (mkdirErr) {
               console.error(`[claude] Failed to setup isolated config dir:`, mkdirErr)
@@ -1573,14 +1588,14 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             }
 
             // Skip MCP servers entirely in offline mode (Ollama) - they slow down initialization by 60+ seconds
-            // Otherwise pass all MCP servers - the SDK will handle connection
+            // Otherwise ensure MCP tokens are fresh before passing to SDK
             let mcpServersFiltered: Record<string, any> | undefined
 
             if (isUsingOllama) {
               console.log('[Ollama] Skipping MCP servers to speed up initialization')
               mcpServersFiltered = undefined
             } else {
-              // Ensure MCP tokens are fresh (refresh if within 5 min of expiry)
+              // Refresh MCP tokens (disabled servers already filtered by ConfigLoader)
               if (mcpServersForSdk && Object.keys(mcpServersForSdk).length > 0) {
                 const lookupPath = input.projectPath || input.cwd
                 mcpServersFiltered = await ensureMcpTokensFresh(mcpServersForSdk, lookupPath)
@@ -1762,57 +1777,75 @@ ${prompt}
               console.log('[Ollama] Context prefix added to prompt')
             }
 
-            // Build user profile section for system prompt
-            let userProfileSection = ""
-            console.log('[claude] userProfile received:', input.userProfile)
-            if (input.userProfile) {
-              const { preferredName, personalPreferences } = input.userProfile
-              const profileParts: string[] = []
-              if (preferredName?.trim()) {
-                profileParts.push(`- Preferred name: ${preferredName.trim()}`)
-              }
-              if (personalPreferences?.trim()) {
-                profileParts.push(`- Personal preferences: ${personalPreferences.trim()}`)
-              }
-              if (profileParts.length > 0) {
-                userProfileSection = `\n\n# User Profile\nThe following describes the user you are assisting:\n${profileParts.join("\n")}\n\nPlease use the user's preferred name naturally and warmly in your responses to create a friendly, personalized experience.`
+            // Build memory context (only when enabled, default true)
+            let memoryAppendSection: string | undefined
+            if (input.memoryEnabled !== false && projectId) {
+              try {
+                const memoryObs = db
+                  .select()
+                  .from(observations)
+                  .where(eq(observations.projectId, projectId))
+                  .orderBy(desc(observations.createdAtEpoch))
+                  .limit(20)
+                  .all()
+
+                const memorySess = db
+                  .select()
+                  .from(memorySessions)
+                  .where(eq(memorySessions.projectId, projectId))
+                  .orderBy(desc(memorySessions.startedAtEpoch))
+                  .limit(5)
+                  .all()
+
+                const lines: string[] = []
+                if (memorySess.length > 0) {
+                  lines.push("## Recent Sessions\n")
+                  for (const session of memorySess) {
+                    if (session.summaryRequest) {
+                      lines.push(`- **${session.summaryRequest}**`)
+                      if (session.summaryLearned) {
+                        lines.push(`  - Learned: ${session.summaryLearned}`)
+                      }
+                      if (session.summaryCompleted) {
+                        lines.push(`  - Completed: ${session.summaryCompleted}`)
+                      }
+                    }
+                  }
+                  lines.push("")
+                }
+                if (memoryObs.length > 0) {
+                  lines.push("## Recent Observations\n")
+                  for (const o of memoryObs) {
+                    lines.push(`- [${o.type}] ${o.title}`)
+                    if (o.narrative) {
+                      lines.push(`  > ${o.narrative.slice(0, 100)}...`)
+                    }
+                  }
+                }
+
+                const content = lines.join("\n")
+                if (content.trim()) {
+                  memoryAppendSection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
+                }
+              } catch (err) {
+                console.error("[Memory] Failed to generate context:", err)
               }
             }
 
-            // Get runtime environment info for system prompt
-            let runtimeSection = ""
-            try {
-              const runtimeEnv = await getCachedRuntimeEnvironment()
-              if (runtimeEnv.tools.length > 0) {
-                const toolsList = runtimeEnv.tools
-                  .map((t) => `- ${t.category}: ${t.name}${t.version ? ` (${t.version})` : ""}`)
-                  .join("\n")
-                runtimeSection = `\n\n# Runtime Environment\nThe following tools are available on this system. Prefer using these when applicable:\n${toolsList}`
-              }
-            } catch (e) {
-              console.warn("[claude] Failed to get runtime environment:", e)
-            }
-
-            // System prompt config - use preset for both Claude and Ollama
-            // Append user profile, runtime env, and AGENTS.md content to the system prompt
-            const appendParts = [
-              userProfileSection,
-              runtimeSection,
-              agentsMdContent
-                ? `\n\n# AGENTS.md\nThe following are the project's AGENTS.md instructions:\n\n${agentsMdContent}`
-                : "",
-            ].filter(Boolean)
-
-            const systemPromptConfig = appendParts.length > 0
-              ? {
-                  type: "preset" as const,
-                  preset: "claude_code" as const,
-                  append: appendParts.join(""),
-                }
-              : {
-                  type: "preset" as const,
-                  preset: "claude_code" as const,
-                }
+            // Build system prompt using PromptBuilder (composable architecture)
+            const promptBuilder = getPromptBuilder()
+            const systemPromptConfig = await promptBuilder.buildSystemPrompt(
+              {
+                type: "chat",
+                includeSoftwareIntro: true,
+                includeRuntimeInfo: true,
+                includeSkillAwareness: input.skillAwarenessEnabled !== false,
+                includeAgentsMd: true,
+                userProfile: input.userProfile,
+                ...(memoryAppendSection && { appendSections: [memoryAppendSection] }),
+              },
+              input.cwd
+            )
             console.log('[claude] systemPromptConfig append:', systemPromptConfig.append ? systemPromptConfig.append.slice(0, 200) : 'none')
 
             const queryOptions = {
@@ -2319,9 +2352,10 @@ ${prompt}
                         toolPart.state = "result"
 
                         // Notify renderer about file changes for Write/Edit tools
+                        // Only track non-code files as artifacts (HTML is allowed)
                         if (toolPart.type === "tool-Write" || toolPart.type === "tool-Edit") {
                           const filePath = toolPart.input?.file_path
-                          if (filePath) {
+                          if (filePath && shouldTrackAsArtifact(filePath)) {
                             // Extract contexts from all tool calls in this message
                             const contexts = extractArtifactContexts(parts)
                             console.log(`[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`)
@@ -2337,11 +2371,48 @@ ${prompt}
                           }
                         }
 
+                        // Detect git commit success from Bash output
+                        // Format: [branch abc1234] commit message
+                        if (toolPart.type === "tool-Bash" || toolPart.toolName === "Bash") {
+                          const output = typeof chunk.output === "string" ? chunk.output : ""
+                          const commitMatch = output.match(/\[([^\]]+)\s+([a-f0-9]{7,})\]/)
+                          if (commitMatch) {
+                            const [, branchInfo, commitHash] = commitMatch
+                            console.log(`[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`)
+                            const windows = BrowserWindow.getAllWindows()
+                            for (const win of windows) {
+                              win.webContents.send("git-commit-success", {
+                                subChatId: input.subChatId,
+                                commitHash,
+                                branchInfo,
+                              })
+                            }
+                          }
+                        }
+
                         // Check if ExitPlanMode just completed - stop the stream
                         if (exitPlanModeToolCallId && chunk.toolCallId === exitPlanModeToolCallId) {
                           console.log(`[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, emitting finish`)
                           planCompleted = true
                           safeEmit({ type: "finish" } as UIMessageChunk)
+                        }
+
+                        // Memory hook: Record tool output (fire-and-forget)
+                        // Extract toolName from type if not set directly (type is "tool-Read", "tool-Edit" etc)
+                        const toolName = toolPart.toolName || toolPart.type?.replace("tool-", "")
+                        console.log(`[Memory] Tool output: toolName=${toolName} memorySessionId=${memorySessionId} projectId=${projectId}`)
+                        if (memorySessionId && projectId && toolName) {
+                          memoryHooks.onToolOutput({
+                            sessionId: memorySessionId,
+                            projectId,
+                            toolName,
+                            toolInput: toolPart.input,
+                            toolOutput: chunk.output,
+                            toolCallId: chunk.toolCallId,
+                            promptNumber,
+                          }).catch((err) => {
+                            console.error("[Memory] Hook error (onToolOutput):", err)
+                          })
                         }
                       }
                       break
@@ -2769,6 +2840,29 @@ ${prompt}
               await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
             }
 
+            // Memory hook: Record AI response text (fire-and-forget)
+            if (memorySessionId && projectId && currentText.trim()) {
+              memoryHooks.onAssistantMessage({
+                sessionId: memorySessionId,
+                projectId,
+                text: currentText,
+                messageId: metadata.sdkMessageUuid,
+                promptNumber,
+              }).catch((err) => {
+                console.error("[Memory] Hook error (onAssistantMessage):", err)
+              })
+            }
+
+            // Memory hook: End session (fire-and-forget)
+            if (memorySessionId) {
+              memoryHooks.onSessionEnd({
+                sessionId: memorySessionId,
+                subChatId: input.subChatId,
+              }).catch((err) => {
+                console.error("[Memory] Hook error (onSessionEnd):", err)
+              })
+            }
+
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1)
             console.log(`[SD] M:END sub=${subId} reason=ok n=${chunkCount} last=${lastChunkType} t=${duration}s`)
             safeComplete()
@@ -2865,6 +2959,112 @@ ${prompt}
    * Also populates the workingMcpServers cache
    */
   getAllMcpConfig: publicProcedure.query(getAllMcpConfigHandler),
+
+  /**
+   * Retry connection to a specific MCP server
+   * Returns updated status and tools for that server
+   */
+  retryMcpServer: publicProcedure
+    .input(
+      z.object({
+        serverName: z.string(),
+        groupName: z.string(), // "Global", project name, or "Plugin: xxx"
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { serverName, groupName } = input
+      console.log(`[MCP] Retrying connection to ${serverName} in group ${groupName}`)
+
+      try {
+        // Re-fetch all config to find this server
+        const config = await readClaudeConfig()
+
+        let serverConfig: McpServerConfig | undefined
+        let scope: string | null = null
+
+        // Find the server in the appropriate group
+        if (groupName === "Global") {
+          serverConfig = config.mcpServers?.[serverName]
+          scope = null
+        } else if (groupName.startsWith("Plugin:")) {
+          // Plugin MCP servers - need to look in plugin configs
+          const plugins = await discoverInstalledPlugins()
+          const pluginConfigs = await discoverPluginMcpServers()
+
+          for (const pluginMcp of pluginConfigs) {
+            if (pluginMcp.mcpServers[serverName]) {
+              serverConfig = pluginMcp.mcpServers[serverName]
+              scope = `plugin:${pluginMcp.pluginSource}`
+              break
+            }
+          }
+        } else {
+          // Project-specific server
+          // groupName is the project path or name
+          // For now, check if it's in global (most common case)
+          serverConfig = config.mcpServers?.[serverName]
+          scope = null
+        }
+
+        if (!serverConfig) {
+          return {
+            success: false,
+            error: `Server ${serverName} not found in ${groupName}`,
+            status: "failed" as const,
+            tools: [],
+          }
+        }
+
+        // Try to connect and fetch tools
+        const tools = await fetchToolsForServer(serverConfig)
+
+        // Update cache
+        const cacheKey = mcpCacheKey(scope, serverName)
+
+        if (tools.length > 0) {
+          workingMcpServers.set(cacheKey, true)
+          console.log(`[MCP] Successfully connected to ${serverName}: ${tools.length} tools`)
+          return {
+            success: true,
+            status: "connected" as const,
+            tools,
+          }
+        }
+
+        // No tools - check if needs auth
+        workingMcpServers.set(cacheKey, false)
+        let needsAuth = false
+
+        if (serverConfig.url) {
+          try {
+            const baseUrl = getMcpBaseUrl(serverConfig.url)
+            const metadata = await fetchOAuthMetadata(baseUrl)
+            needsAuth = !!metadata && !!metadata.authorization_endpoint
+          } catch {
+            // If probe fails, assume no auth needed
+          }
+        }
+
+        const status = needsAuth ? "needs-auth" : "failed"
+        console.log(`[MCP] Failed to connect to ${serverName}: status=${status}`)
+
+        return {
+          success: false,
+          status,
+          tools: [],
+          needsAuth,
+          error: needsAuth ? "Authentication required" : "Connection failed",
+        }
+      } catch (error) {
+        console.error(`[MCP] Error retrying ${serverName}:`, error)
+        return {
+          success: false,
+          status: "failed" as const,
+          tools: [],
+          error: error instanceof Error ? error.message : "Unknown error",
+        }
+      }
+    }),
 
   /**
    * Cancel active session

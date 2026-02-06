@@ -462,11 +462,38 @@ export const ChatInputArea = memo(function ChatInputArea({
   )
   const [subChatMode, setSubChatMode] = useAtom(subChatModeAtom)
 
-  // Helper to update mode (atomFamily + Zustand store sync)
+  // tRPC utils for cache invalidation (moved up for mutation use)
+  const trpcUtils = trpc.useUtils()
+
+  // Mutation for updating sub-chat mode in database (persists across chat switches)
+  const updateSubChatModeMutation = trpc.chats.updateSubChatMode.useMutation({
+    onSuccess: () => {
+      // Invalidate to refetch with new mode from DB
+      trpcUtils.chats.get.invalidate({ id: parentChatId })
+    },
+    onError: (error, variables) => {
+      // Don't revert if sub-chat not found in DB - it may not be persisted yet
+      if (error.message === "Sub-chat not found") {
+        console.warn("Sub-chat not found in DB, keeping local mode state")
+        return
+      }
+      // Revert local state on error
+      const revertedMode: AgentMode = variables.mode === "plan" ? "agent" : "plan"
+      setSubChatMode(revertedMode)
+      useAgentSubChatStore.getState().updateSubChatMode(variables.id, revertedMode)
+      console.error("Failed to update sub-chat mode:", error.message)
+    },
+  })
+
+  // Helper to update mode (atomFamily + Zustand store + database sync)
   const updateMode = useCallback((newMode: AgentMode) => {
     setSubChatMode(newMode)
     useAgentSubChatStore.getState().updateSubChatMode(subChatId, newMode)
-  }, [setSubChatMode, subChatId])
+    // Persist to database so mode survives chat switches
+    if (!subChatId.startsWith("temp-")) {
+      updateSubChatModeMutation.mutate({ id: subChatId, mode: newMode })
+    }
+  }, [setSubChatMode, subChatId, updateSubChatModeMutation])
 
   // Toggle mode helper
   const toggleMode = useCallback(() => {
@@ -902,8 +929,6 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   // Image extensions that should be handled as attachments (base64)
   const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"])
-
-  const trpcUtils = trpc.useUtils()
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -1402,7 +1427,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                           <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">
                             {selectedModel?.name}{" "}
-                            <span className="text-muted-foreground">4.5</span>
+                            <span className="text-muted-foreground">{selectedModel?.version || "4.5"}</span>
                           </span>
                           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
@@ -1423,7 +1448,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                                 <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <span>
                                   {model.name}{" "}
-                                  <span className="text-muted-foreground">4.5</span>
+                                  <span className="text-muted-foreground">{model.version || "4.5"}</span>
                                 </span>
                               </div>
                               {isSelected && (

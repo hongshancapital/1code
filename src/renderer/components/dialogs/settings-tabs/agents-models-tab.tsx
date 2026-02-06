@@ -254,6 +254,7 @@ function AuthMethodCard({
   disabled,
   disabledReason,
 }: {
+  id:string
   title: string
   description: string
   isSelected: boolean

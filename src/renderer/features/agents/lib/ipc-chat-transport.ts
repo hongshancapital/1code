@@ -19,6 +19,9 @@ import {
   overrideModelModeAtom,
   litellmSelectedModelAtom,
   userPersonalizationAtom,
+  skillAwarenessEnabledAtom,
+  memoryEnabledAtom,
+  memoryRecordingEnabledAtom,
 } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
@@ -208,11 +211,14 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     // Read extended thinking setting dynamically (so toggle applies to existing chats)
     const thinkingEnabled = appStore.get(extendedThinkingEnabledAtom)
     // Max thinking tokens for extended thinking mode
-    // SDK adds +1 internally, so 64000 becomes 64001 which exceeds Opus 4.5 limit
+    // SDK adds +1 internally, so 64000 becomes 64001 which exceeds Opus limit
     // Using 32000 to stay safely under the 64000 max output tokens limit
     const maxThinkingTokens = thinkingEnabled ? 32_000 : undefined
     const historyEnabled = appStore.get(historyEnabledAtom)
     const enableTasks = appStore.get(enableTasksAtom)
+    const skillAwarenessEnabled = appStore.get(skillAwarenessEnabledAtom)
+    const memoryEnabled = appStore.get(memoryEnabledAtom)
+    const memoryRecordingEnabled = appStore.get(memoryRecordingEnabledAtom)
 
     // Read model selection dynamically (so model changes apply to existing chats)
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)
@@ -298,6 +304,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
             offlineModeEnabled,
 askUserQuestionTimeout,
             enableTasks,
+            skillAwarenessEnabled,
+            memoryEnabled,
+            memoryRecordingEnabled,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
@@ -579,6 +588,15 @@ askUserQuestionTimeout,
             },
             onError: (err: Error) => {
               console.log(`[SD] R:ERROR sub=${subId} n=${chunkCount} last=${lastChunkType} err=${err.message}`)
+
+              // Clear compacting state on error (prevent UI from being stuck)
+              const compacting = appStore.get(compactingSubChatsAtom)
+              if (compacting.has(this.config.subChatId)) {
+                const newCompacting = new Set(compacting)
+                newCompacting.delete(this.config.subChatId)
+                appStore.set(compactingSubChatsAtom, newCompacting)
+              }
+
               // Track transport errors in Sentry
               Sentry.captureException(err, {
                 tags: {
@@ -596,6 +614,15 @@ askUserQuestionTimeout,
             },
             onComplete: () => {
               console.log(`[SD] R:COMPLETE sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+
+              // Clear compacting state on complete (in case compact_boundary wasn't received)
+              const compacting = appStore.get(compactingSubChatsAtom)
+              if (compacting.has(this.config.subChatId)) {
+                const newCompacting = new Set(compacting)
+                newCompacting.delete(this.config.subChatId)
+                appStore.set(compactingSubChatsAtom, newCompacting)
+              }
+
               // Note: Don't clear pending questions here - let active-chat.tsx handle it
               // via the stream stop detection effect. Clearing here causes race conditions
               // where sync effect immediately restores from messages.
@@ -611,6 +638,15 @@ askUserQuestionTimeout,
         // Handle abort
         options.abortSignal?.addEventListener("abort", () => {
           console.log(`[SD] R:ABORT sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+
+          // Clear compacting state on abort
+          const compacting = appStore.get(compactingSubChatsAtom)
+          if (compacting.has(this.config.subChatId)) {
+            const newCompacting = new Set(compacting)
+            newCompacting.delete(this.config.subChatId)
+            appStore.set(compactingSubChatsAtom, newCompacting)
+          }
+
           sub.unsubscribe()
           // trpcClient.claude.cancel.mutate({ subChatId: this.config.subChatId })
           try {

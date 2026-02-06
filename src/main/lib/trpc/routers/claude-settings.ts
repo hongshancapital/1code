@@ -129,7 +129,17 @@ export async function getEnabledPlugins(): Promise<string[]> {
   }
 
   const settings = await readClaudeSettings()
-  const plugins = Array.isArray(settings.enabledPlugins) ? settings.enabledPlugins as string[] : []
+
+  // Support both array format ["plugin1", "plugin2"] and object format { "plugin1": true, "plugin2": true }
+  let plugins: string[] = []
+  if (Array.isArray(settings.enabledPlugins)) {
+    plugins = settings.enabledPlugins as string[]
+  } else if (settings.enabledPlugins && typeof settings.enabledPlugins === 'object') {
+    // Object format: filter for enabled plugins (value is true)
+    plugins = Object.entries(settings.enabledPlugins)
+      .filter(([, enabled]) => enabled === true)
+      .map(([pluginSource]) => pluginSource)
+  }
 
   enabledPluginsCache = { plugins, timestamp: Date.now() }
   return plugins

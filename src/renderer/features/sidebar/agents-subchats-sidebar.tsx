@@ -21,6 +21,11 @@ import {
   suppressInputFocusAtom,
   currentProjectModeAtom,
   type UndoItem,
+  // New unified status atoms
+  unseenSubChatIdsAtom,
+  committedSubChatIdsAtom,
+  subChatStatusStorageAtom,
+  clearSubChatUnseen,
 } from "../agents/atoms"
 import {
   selectedTeamIdAtom,
@@ -112,11 +117,16 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
 }: SidebarSearchHistoryPopoverProps) {
   const { t } = useTranslation('sidebar')
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  // Use new persisted status atoms
+  const unseenSubChatIds = useAtomValue(unseenSubChatIdsAtom)
+  const committedSubChatIds = useAtomValue(committedSubChatIdsAtom)
 
   const renderItem = useCallback((subChat: SubChatMeta) => {
     const timeAgo = formatTimeAgo(subChat.updated_at || subChat.created_at)
     const isLoading = loadingSubChats.has(subChat.id)
-    const hasUnseen = subChatUnseenChanges.has(subChat.id)
+    // Use new persisted status atoms (fallback to legacy for compatibility)
+    const hasUnseen = unseenSubChatIds.has(subChat.id) || subChatUnseenChanges.has(subChat.id)
+    const isCommitted = committedSubChatIds.has(subChat.id)
     const mode = subChat.mode || "agent"
     const hasPendingQuestion = pendingQuestionsMap.has(subChat.id)
 
@@ -132,9 +142,13 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
           ) : (
             <AgentIcon className="w-4 h-4 text-muted-foreground" />
           )}
-          {hasUnseen && !isLoading && !hasPendingQuestion && (
+          {/* Status badge: green (committed) > blue (unseen) */}
+          {(isCommitted || hasUnseen) && !isLoading && !hasPendingQuestion && (
             <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-popover flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                isCommitted ? "bg-green-500" : "bg-[#307BD0]"
+              )} />
             </div>
           )}
         </div>
@@ -146,7 +160,7 @@ const SidebarSearchHistoryPopover = memo(function SidebarSearchHistoryPopover({
         </span>
       </div>
     )
-  }, [loadingSubChats, subChatUnseenChanges, pendingQuestionsMap])
+  }, [loadingSubChats, subChatUnseenChanges, pendingQuestionsMap, unseenSubChatIds, committedSubChatIds])
 
   return (
     <SearchCombobox
@@ -214,8 +228,43 @@ export function AgentsSubChatsSidebar({
     }))
   )
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
-  const subChatFiles = useAtomValue(subChatFilesAtom)
+  const subChatFilesFromStream = useAtomValue(subChatFilesAtom)
   const selectedTeamId = useAtomValue(selectedTeamIdAtom)
+
+  // Get all sub-chat IDs for stats query
+  const allSubChatIds = useMemo(() => allSubChats.map(sc => sc.id), [allSubChats])
+
+  // Fetch pre-computed stats from DB for all sub-chats
+  const { data: subChatStatsData } = trpc.chats.getSubChatStats.useQuery(
+    { subChatIds: allSubChatIds },
+    {
+      enabled: allSubChatIds.length > 0,
+      staleTime: 5000, // Cache for 5 seconds
+      refetchOnWindowFocus: false,
+    }
+  )
+
+  // Merge stream-based stats with DB stats (stream takes priority for active chat)
+  const subChatFiles = useMemo(() => {
+    const merged = new Map(subChatFilesFromStream)
+
+    // Add DB stats for sub-chats that don't have stream data
+    if (subChatStatsData) {
+      for (const stat of subChatStatsData) {
+        if (!merged.has(stat.subChatId) && (stat.fileCount > 0 || stat.additions > 0 || stat.deletions > 0)) {
+          // Convert to SubChatFileChange format (single aggregated entry)
+          merged.set(stat.subChatId, [{
+            filePath: `${stat.fileCount} files`,
+            displayPath: `${stat.fileCount} files`,
+            additions: stat.additions,
+            deletions: stat.deletions,
+          }])
+        }
+      }
+    }
+
+    return merged
+  }, [subChatFilesFromStream, subChatStatsData])
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
 
@@ -261,8 +310,14 @@ export function AgentsSubChatsSidebar({
       }
     },
   })
+  // Legacy unseen atom (deprecated)
   const subChatUnseenChanges = useAtomValue(agentsSubChatUnseenChangesAtom)
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom)
+
+  // New unified status atoms (persisted)
+  const unseenSubChatIds = useAtomValue(unseenSubChatIdsAtom)
+  const committedSubChatIds = useAtomValue(committedSubChatIdsAtom)
+  const setSubChatStatus = useSetAtom(subChatStatusStorageAtom)
 
   // Resolved hotkey for tooltip
   const newAgentHotkey = useResolvedHotkeyDisplay("new-agent")
@@ -463,7 +518,7 @@ export function AgentsSubChatsSidebar({
     const store = useAgentSubChatStore.getState()
     store.setActiveSubChat(subChatId)
 
-    // Clear unseen indicator for this sub-chat
+    // Clear unseen indicator for this sub-chat (both old atom and new persisted storage)
     setSubChatUnseenChanges((prev: Set<string>) => {
       if (prev.has(subChatId)) {
         const next = new Set(prev)
@@ -472,6 +527,7 @@ export function AgentsSubChatsSidebar({
       }
       return prev
     })
+    clearSubChatUnseen(setSubChatStatus, subChatId)
   }
 
   const handleArchiveSubChat = useCallback(
@@ -1219,7 +1275,9 @@ export function AgentsSubChatsSidebar({
                           const isFocused =
                             focusedChatIndex === globalIndex &&
                             focusedChatIndex >= 0
-                          const hasUnseen = subChatUnseenChanges.has(subChat.id)
+                          // Use new persisted status atoms (fallback to legacy for compatibility)
+                          const hasUnseen = unseenSubChatIds.has(subChat.id) || subChatUnseenChanges.has(subChat.id)
+                          const isCommitted = committedSubChatIds.has(subChat.id)
                           const timeAgo = formatTimeAgo(
                             subChat.updated_at || subChat.created_at,
                           )
@@ -1353,7 +1411,7 @@ export function AgentsSubChatsSidebar({
                                         )}
                                       </div>
                                       {/* Badge in bottom-right corner - hidden in multi-select mode and when pending question */}
-                                      {(isSubChatLoading || hasUnseen || hasPendingPlan) &&
+                                      {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) &&
                                         !isMultiSelectMode && !hasPendingQuestion && (
                                           <div
                                             className={cn(
@@ -1363,14 +1421,16 @@ export function AgentsSubChatsSidebar({
                                                 : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
                                             )}
                                           >
-                                            {/* Priority: loader > amber dot (pending plan) > blue dot (unseen) */}
+                                            {/* Priority: loader > amber (pending plan) > green (committed) > blue (unseen) */}
                                             {isSubChatLoading ? (
                                               <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
                                             ) : hasPendingPlan ? (
                                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            ) : (
-                                              <LoadingDot isLoading={false} className="w-2.5 h-2.5 text-muted-foreground" />
-                                            )}
+                                            ) : isCommitted ? (
+                                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                            ) : hasUnseen ? (
+                                              <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
+                                            ) : null}
                                           </div>
                                         )}
                                     </div>
@@ -1519,7 +1579,9 @@ export function AgentsSubChatsSidebar({
                           const isFocused =
                             focusedChatIndex === globalIndex &&
                             focusedChatIndex >= 0
-                          const hasUnseen = subChatUnseenChanges.has(subChat.id)
+                          // Use new persisted status atoms (fallback to legacy for compatibility)
+                          const hasUnseen = unseenSubChatIds.has(subChat.id) || subChatUnseenChanges.has(subChat.id)
+                          const isCommitted = committedSubChatIds.has(subChat.id)
                           const timeAgo = formatTimeAgo(
                             subChat.updated_at || subChat.created_at,
                           )
@@ -1653,7 +1715,7 @@ export function AgentsSubChatsSidebar({
                                         )}
                                       </div>
                                       {/* Badge - hidden in multi-select mode and when pending question */}
-                                      {(isSubChatLoading || hasUnseen || hasPendingPlan) &&
+                                      {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) &&
                                         !isMultiSelectMode && !hasPendingQuestion && (
                                           <div
                                             className={cn(
@@ -1663,14 +1725,16 @@ export function AgentsSubChatsSidebar({
                                                 : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
                                             )}
                                           >
-                                            {/* Priority: loader > amber dot (pending plan) > blue dot (unseen) */}
+                                            {/* Priority: loader > amber (pending plan) > green (committed) > blue (unseen) */}
                                             {isSubChatLoading ? (
                                               <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
                                             ) : hasPendingPlan ? (
                                               <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            ) : (
-                                              <LoadingDot isLoading={false} className="w-2.5 h-2.5 text-muted-foreground" />
-                                            )}
+                                            ) : isCommitted ? (
+                                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                            ) : hasUnseen ? (
+                                              <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
+                                            ) : null}
                                           </div>
                                         )}
                                     </div>

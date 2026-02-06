@@ -79,7 +79,8 @@ const useRenameRemoteChat = () => ({
   mutateAsync: async (_data: { chatId: string; name: string }) => {}
 })
 import { ArchivePopover } from "../agents/ui/archive-popover"
-import { ChevronDown, Mail, MessageCircle } from "lucide-react"
+import { ChevronDown, Mail, Search } from "lucide-react"
+import { globalSearchOpenAtom } from "../../components/dialogs/global-search-dialog"
 import { ProjectModeIcon } from "../agents/components/project-mode-selector"
 // [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
 // import { remoteTrpc } from "../../lib/remote-trpc"
@@ -181,6 +182,7 @@ import { GroupedChatList } from "./components/grouped-chat-list"
 import { GroupingToggle } from "./components/grouping-toggle"
 import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "./components/tag-selector-submenu"
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
+import { MoveToWorkspaceDialog } from "../../components/dialogs/move-to-workspace-dialog"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -476,7 +478,7 @@ const AgentChatItem = React.memo(function AgentChatItem({
   chatName,
   chatBranch,
   chatUpdatedAt,
-  chatProjectId: _chatProjectId,
+  chatProjectId,
   chatTagId,
   globalIndex,
   isSelected,
@@ -521,6 +523,8 @@ const AgentChatItem = React.memo(function AgentChatItem({
   nameRefCallback,
   formatTime,
   isJustCreated,
+  isPlayground,
+  onMoveToWorkspace,
 }: {
   chatId: string
   chatName: string | null
@@ -571,6 +575,8 @@ const AgentChatItem = React.memo(function AgentChatItem({
   nameRefCallback: (chatId: string, el: HTMLSpanElement | null) => void
   formatTime: (dateStr: string) => string
   isJustCreated: boolean
+  isPlayground: boolean
+  onMoveToWorkspace: (chatId: string, projectId: string, projectName: string) => void
 }) {
   const { t } = useTranslation('sidebar')
   // Resolved hotkey for context menu
@@ -875,6 +881,12 @@ const AgentChatItem = React.memo(function AgentChatItem({
                 onManageTags={handleManageTags}
               />
             )}
+            {/* Move to workspace - only for playground chats */}
+            {isPlayground && !isRemote && (
+              <ContextMenuItem onClick={() => onMoveToWorkspace(chatId, chatProjectId, chatName || '')}>
+                {t('moveToWorkspace.title', { ns: 'common' })}
+              </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => onArchive(chatId)} className="justify-between">
               {t('workspaces.archive')}
@@ -968,7 +980,7 @@ interface ChatListSectionProps {
   isMobileFullscreen: boolean
   isDesktop: boolean
   pinnedChatIds: Set<string>
-  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null; mode?: string | null }>
+  projectsMap: Map<string, { gitOwner?: string | null; gitProvider?: string | null; gitRepo?: string | null; name?: string | null; mode?: string | null; isPlayground?: boolean | null }>
   workspaceFileStats: Map<string, { fileCount: number; additions: number; deletions: number; totalTokens: number }>
   filteredChats: Array<{ id: string }>
   canShowPinOption: boolean
@@ -993,6 +1005,7 @@ interface ChatListSectionProps {
   nameRefCallback: (chatId: string, el: HTMLSpanElement | null) => void
   formatTime: (dateStr: string) => string
   justCreatedIds: Set<string>
+  onMoveToWorkspace: (chatId: string, projectId: string, projectName: string) => void
 }
 
 // Memoized Chat List Section component
@@ -1036,6 +1049,7 @@ const ChatListSection = React.memo(function ChatListSection({
   nameRefCallback,
   formatTime,
   justCreatedIds,
+  onMoveToWorkspace,
 }: ChatListSectionProps) {
   // IMPORTANT: Hooks must be called BEFORE any early returns (Rules of Hooks)
   // Pre-compute global indices map to avoid O(n²) findIndex in map()
@@ -1075,14 +1089,15 @@ const ChatListSection = React.memo(function ChatListSection({
 
           // For remote chats, get repo info from meta; for local, from projectsMap
           const project = chat.projectId ? projectsMap.get(chat.projectId) : null
+          const isPlayground = !!project?.isPlayground
           const repoName = chat.isRemote
             ? chat.meta?.repository
-            : (project?.gitRepo || project?.name)
+            : isPlayground ? null : (project?.gitRepo || project?.name)
           const displayText = chat.branch
             ? repoName
               ? `${repoName} • ${chat.branch}`
               : chat.branch
-            : repoName || (chat.isRemote ? "Remote project" : "Local project")
+            : repoName || (chat.isRemote ? "Remote project" : isPlayground ? "Chat" : "Local project")
 
           const isChecked = selectedChatIds.has(chat.id)
           // For remote chats, use remoteStats; for local, use workspaceFileStats
@@ -1122,7 +1137,7 @@ const ChatListSection = React.memo(function ChatListSection({
               displayText={displayText}
               gitOwner={project?.gitOwner ?? gitOwner}
               gitProvider={project?.gitProvider ?? gitProvider}
-              projectMode={project?.mode}
+              projectMode={isPlayground ? "chat" : project?.mode}
               stats={stats ?? undefined}
               selectedChatIdsSize={selectedChatIds.size}
               canShowPinOption={canShowPinOption}
@@ -1150,6 +1165,8 @@ const ChatListSection = React.memo(function ChatListSection({
               nameRefCallback={nameRefCallback}
               formatTime={formatTime}
               isJustCreated={isJustCreated}
+              isPlayground={!!project?.isPlayground}
+              onMoveToWorkspace={onMoveToWorkspace}
             />
           )
         })}
@@ -1274,6 +1291,30 @@ const HomeButton = memo(function HomeButton() {
   )
 })
 
+// Isolated Search Button - matches Home button style
+const SearchButton = memo(function SearchButton() {
+  const { t } = useTranslation('sidebar')
+  const setGlobalSearchOpen = useSetAtom(globalSearchOpenAtom)
+
+  const handleClick = useCallback(() => {
+    setGlobalSearchOpen(true)
+  }, [setGlobalSearchOpen])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+    >
+      <Search className="h-4 w-4" />
+      <span className="flex-1 text-left">{t('workspaces.search')}</span>
+      <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground/60">
+        <span className="text-xs">⌘</span>K
+      </kbd>
+    </button>
+  )
+})
+
 // Isolated Inbox Button - full-width navigation link matching web layout
 const InboxButton = memo(function InboxButton() {
   const { t } = useTranslation('sidebar')
@@ -1323,52 +1364,6 @@ const InboxButton = memo(function InboxButton() {
           {inboxUnreadCount > 99 ? "99+" : inboxUnreadCount}
         </span>
       )}
-    </button>
-  )
-})
-
-// Playground Chats Button - click to enter chat mode with playground
-const ChatsButton = memo(function ChatsButton({
-  count,
-  onClick,
-  onNewChat,
-  isActive,
-}: {
-  count: number
-  onClick: () => void
-  onNewChat: () => void
-  isActive: boolean
-}) {
-  const { t } = useTranslation('sidebar')
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2.5 w-full pl-2 pr-2 py-1.5 rounded-md text-sm transition-colors duration-150",
-        isActive
-          ? "bg-foreground/5 text-foreground"
-          : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-      )}
-    >
-      <MessageCircle className="h-4 w-4" />
-      <span className="text-left">{t('chats.title')}</span>
-      {count > 0 && (
-        <span className="text-xs text-muted-foreground">
-          ({count})
-        </span>
-      )}
-      <span className="flex-1" />
-      <span
-        role="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onNewChat()
-        }}
-        className="p-1 rounded-md hover:bg-foreground/10 transition-colors duration-150"
-      >
-        <PlusIcon className="h-4 w-4" />
-      </span>
     </button>
   )
 })
@@ -1976,6 +1971,14 @@ export function AgentsSidebar({
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [importingChatId, setImportingChatId] = useState<string | null>(null)
 
+  // Move to workspace dialog state
+  const [moveToWorkspaceDialogOpen, setMoveToWorkspaceDialogOpen] = useState(false)
+  const [movingChat, setMovingChat] = useState<{
+    chatId: string
+    projectId: string
+    projectName: string
+  } | null>(null)
+
   // Track initial mount to skip footer animation on load
   const hasFooterAnimated = useRef(false)
 
@@ -2033,62 +2036,8 @@ export function AgentsSidebar({
     }
   }, [])
 
-  // Fetch all local chats (no project filter, excludes playground chats)
-  const { data: localChats } = trpc.chats.list.useQuery({ includePlayground: false })
-
-  // Fetch playground subchats (for chat mode - these are subchats under the single playground chat)
-  const { data: playgroundSubChats } = trpc.chats.listPlayground.useQuery()
-
-  // Mutation to get or create playground project
-  const getOrCreatePlaygroundMutation = trpc.projects.getOrCreatePlayground.useMutation()
-
-  // Mutation to get or create the single playground chat
-  const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
-
-  // Handle clicking the Chats button - enter chat mode with playground project
-  const handleChatsClick = useCallback(async () => {
-    try {
-      // 1. Get or create playground project
-      const playground = await getOrCreatePlaygroundMutation.mutateAsync()
-
-      // 2. Get or create the single playground chat
-      const playgroundChat = await getOrCreatePlaygroundChatMutation.mutateAsync()
-
-      // 3. Set to chat mode and select playground project
-      setCurrentProjectMode("chat")
-      setSelectedProject({
-        id: playground.id,
-        name: playground.name,
-        path: playground.path,
-        mode: "chat",
-        isPlayground: true,
-      })
-
-      // 4. Select the playground chat and open subchat sidebar
-      setSelectedChatId(playgroundChat.id)
-      setSubChatsSidebarMode("sidebar")  // Open subchat sidebar
-      setShowNewChatForm(false)
-      setDesktopView(null)  // Clear any special view (settings, etc.) to allow sidebar to show
-      setSelectedDraftId(null)
-    } catch (error) {
-      console.error("Failed to enter chat mode:", error)
-    }
-  }, [getOrCreatePlaygroundMutation, getOrCreatePlaygroundChatMutation, setCurrentProjectMode, setSelectedProject, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setSubChatsSidebarMode, setDesktopView])
-
-  // Check if currently in chat mode with playground selected
-  // Only active when no special desktop view (home, inbox, automations, settings, etc.)
-  const isChatsActive = currentProjectMode === "chat" && selectedProject?.isPlayground === true && desktopView === null
-
-  // Handle creating a new chat - navigate to new chat form with chat mode selected
-  const handleNewChat = useCallback(() => {
-    trackClickNewChat("new chat")
-    triggerHaptic("light")
-    setCurrentProjectMode("chat")
-    setSelectedChatId(null)
-    setSelectedDraftId(null)
-    setShowNewChatForm(true)
-    setDesktopView(null)
-  }, [triggerHaptic, setCurrentProjectMode, setSelectedChatId, setSelectedDraftId, setShowNewChatForm, setDesktopView])
+  // Fetch all local chats (no project filter, includes playground chats for type grouping)
+  const { data: localChats } = trpc.chats.list.useQuery({ includePlayground: true })
 
   // Handle creating a new workspace - navigate to new chat form with cowork mode selected
   const handleNewWorkspace = useCallback(() => {
@@ -2243,8 +2192,8 @@ export function AgentsSidebar({
     { refetchInterval: 5000, enabled: allOpenSubChatIds.length > 0, placeholderData: (prev) => prev }
   )
 
-  // Fetch all projects for git info
-  const { data: projects } = trpc.projects.list.useQuery()
+  // Fetch all projects for git info (includes playground projects for type grouping)
+  const { data: projects } = trpc.projects.list.useQuery({ includePlayground: true })
 
   // Auto-import hook for "Open Locally" functionality
   const { getMatchingProjects, autoImport, isImporting: _isImporting } = useAutoImport()
@@ -3082,6 +3031,21 @@ export function AgentsSidebar({
     setImportingChatId(null)
   }, [])
 
+  // Handle move playground to workspace
+  const handleMoveToWorkspace = useCallback(
+    (chatId: string, projectId: string, projectName: string) => {
+      setMovingChat({ chatId, projectId, projectName })
+      setMoveToWorkspaceDialogOpen(true)
+    },
+    []
+  )
+
+  // Close move to workspace dialog
+  const handleCloseMoveToWorkspaceDialog = useCallback(() => {
+    setMoveToWorkspaceDialogOpen(false)
+    setMovingChat(null)
+  }, [])
+
   // Get the remote chat for import dialog
   const importingRemoteChat = useMemo(() => {
     if (!importingChatId || !remoteChats) return null
@@ -3180,14 +3144,15 @@ export function AgentsSidebar({
         const isFocused = focusedChatIndex === globalIndex && focusedChatIndex >= 0
 
         const project = chat.projectId ? projectsMap.get(chat.projectId) : null
+        const isPlayground = !!project?.isPlayground
         const repoName = chat.isRemote
           ? chat.meta?.repository
-          : (project?.gitRepo || project?.name)
+          : isPlayground ? null : (project?.gitRepo || project?.name)
         const displayText = chat.branch
           ? repoName
             ? `${repoName} • ${chat.branch}`
             : chat.branch
-          : repoName || (chat.isRemote ? "Remote project" : "Local project")
+          : repoName || (chat.isRemote ? "Remote project" : isPlayground ? "Chat" : "Local project")
 
         const isChecked = selectedChatIds.has(chat.id)
         const stats = chat.isRemote ? chat.remoteStats : workspaceFileStats.get(chat.id)
@@ -3225,7 +3190,7 @@ export function AgentsSidebar({
             displayText={displayText}
             gitOwner={project?.gitOwner ?? gitOwner}
             gitProvider={project?.gitProvider ?? gitProvider}
-            projectMode={project?.mode}
+            projectMode={isPlayground ? "chat" : project?.mode}
             stats={stats ?? undefined}
             selectedChatIdsSize={selectedChatIds.size}
             canShowPinOption={canShowPinOption}
@@ -3253,6 +3218,8 @@ export function AgentsSidebar({
             nameRefCallback={nameRefCallback}
             formatTime={formatTime}
             isJustCreated={isJustCreated}
+            isPlayground={!!project?.isPlayground}
+            onMoveToWorkspace={handleMoveToWorkspace}
           />
         )
       })
@@ -3297,6 +3264,7 @@ export function AgentsSidebar({
       archiveRemoteChatsBatchMutation.isPending,
       nameRefCallback,
       formatTime,
+      handleMoveToWorkspace,
     ],
   )
 
@@ -3351,31 +3319,7 @@ export function AgentsSidebar({
     return () => resizeObserver.disconnect()
   }, [filteredChats])
 
-  // Direct listener for Cmd+K to focus search input
-  useEffect(() => {
-    const handleSearchHotkey = (e: KeyboardEvent) => {
-      // Check for Cmd+K or Ctrl+K (only for search functionality)
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.code === "KeyK" &&
-        !e.shiftKey &&
-        !e.altKey
-      ) {
-        e.preventDefault()
-        e.stopPropagation()
-
-        // Focus search input
-        searchInputRef.current?.focus()
-        searchInputRef.current?.select()
-      }
-    }
-
-    window.addEventListener("keydown", handleSearchHotkey, true)
-
-    return () => {
-      window.removeEventListener("keydown", handleSearchHotkey, true)
-    }
-  }, [])
+  // Cmd+K is now handled by GlobalSearchDialog
 
   // Multi-select hotkeys
   // X to toggle selection of hovered or focused chat
@@ -3538,80 +3482,10 @@ export function AgentsSidebar({
         closeButtonRef={closeButtonRef}
       />
 
-      {/* Search and New Workspace */}
-      <div className="px-2 pb-3 shrink-0">
-        <div className="space-y-2">
-          {/* Search Input */}
-          <div className="relative">
-            <Input
-              ref={searchInputRef}
-              placeholder={t('workspaces.search')}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault()
-                  searchInputRef.current?.blur()
-                  setFocusedChatIndex(-1) // Reset focus
-                  return
-                }
-
-                if (e.key === "ArrowDown") {
-                  e.preventDefault()
-                  setFocusedChatIndex((prev) => {
-                    // If no focus yet, start from first item
-                    if (prev === -1) return 0
-                    // Otherwise move down
-                    return prev < filteredChats.length - 1 ? prev + 1 : prev
-                  })
-                  return
-                }
-
-                if (e.key === "ArrowUp") {
-                  e.preventDefault()
-                  setFocusedChatIndex((prev) => {
-                    // If no focus yet, start from last item
-                    if (prev === -1) return filteredChats.length - 1
-                    // Otherwise move up
-                    return prev > 0 ? prev - 1 : prev
-                  })
-                  return
-                }
-
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  // Only open if something is focused (not -1)
-                  if (focusedChatIndex >= 0) {
-                    const focusedChat = filteredChats[focusedChatIndex]
-                    if (focusedChat) {
-                      handleChatClick(focusedChat.id)
-                      searchInputRef.current?.blur()
-                      setFocusedChatIndex(-1) // Reset focus after selection
-                    }
-                  }
-                  return
-                }
-              }}
-              className={cn(
-                "w-full rounded-lg text-sm bg-muted border border-input placeholder:text-muted-foreground/40",
-                isMobileFullscreen ? "h-10" : "h-7",
-              )}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Links - Home, Chats, Inbox & Automations */}
+      {/* Navigation Links - Search, Home, Inbox, Automations */}
       <div className="px-2 pb-3 shrink-0 space-y-0.5 -mx-1">
+        <SearchButton />
         <HomeButton />
-        {playgroundSubChats && playgroundSubChats.length > 0 && (
-          <ChatsButton
-            count={playgroundSubChats.length}
-            onClick={handleChatsClick}
-            onNewChat={handleNewChat}
-            isActive={isChatsActive}
-          />
-        )}
         <InboxButton />
         <AutomationsButton />
       </div>
@@ -3667,24 +3541,71 @@ export function AgentsSidebar({
           )}
 
           {/* Workspaces Section */}
-          {filteredChats.length > 0 ? (
-            <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
-              {/* Workspaces header with + button */}
-              <div className={cn(
-                "flex items-center justify-between h-6 mb-1",
-                isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-2",
-              )}>
-                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  {t('workspaces.title')}
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleNewWorkspace}
-                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
-                >
-                  <PlusIcon className="h-4 w-4" />
-                </button>
-              </div>
+          <div className={cn("mb-4", isMultiSelectMode ? "px-0" : "-mx-1")}>
+            {/* Local Workspace Filter - always visible */}
+            <div className={cn(
+              "mb-2",
+              isMultiSelectMode ? "px-3" : "px-2",
+            )}>
+              <Input
+                ref={searchInputRef}
+                placeholder={t('workspaces.filterPlaceholder', 'Filter workspaces...')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault()
+                    searchInputRef.current?.blur()
+                    setFocusedChatIndex(-1)
+                    return
+                  }
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault()
+                    setFocusedChatIndex((prev) => prev === -1 ? 0 : Math.min(prev + 1, filteredChats.length - 1))
+                    return
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault()
+                    setFocusedChatIndex((prev) => prev === -1 ? filteredChats.length - 1 : Math.max(prev - 1, 0))
+                    return
+                  }
+                  if (e.key === "Enter" && focusedChatIndex >= 0) {
+                    e.preventDefault()
+                    const focusedChat = filteredChats[focusedChatIndex]
+                    if (focusedChat) {
+                      handleChatClick(focusedChat.id)
+                      searchInputRef.current?.blur()
+                      setFocusedChatIndex(-1)
+                    }
+                  }
+                }}
+                className={cn(
+                  "w-full rounded-lg text-sm bg-muted border border-input placeholder:text-muted-foreground/40",
+                  isMobileFullscreen ? "h-10" : "h-7",
+                )}
+              />
+            </div>
+
+            {/* Workspaces header with + button */}
+            <div className={cn(
+              "flex items-center justify-between h-6 mb-1",
+              isMultiSelectMode ? "pl-3 pr-2" : "pl-2 pr-2",
+            )}>
+              <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                {t('workspaces.title')}
+              </h3>
+              <button
+                type="button"
+                onClick={handleNewWorkspace}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/10 transition-colors duration-150"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Workspace list or empty state */}
+            {filteredChats.length > 0 ? (
+              <>
               {/* Pinned section */}
               <ChatListSection
                 title={t('workspaces.pinned')}
@@ -3726,6 +3647,7 @@ export function AgentsSidebar({
                 nameRefCallback={nameRefCallback}
                 formatTime={formatTime}
                 justCreatedIds={justCreatedIds}
+                onMoveToWorkspace={handleMoveToWorkspace}
               />
 
               {/* Unpinned section - grouped or flat */}
@@ -3777,10 +3699,17 @@ export function AgentsSidebar({
                   nameRefCallback={nameRefCallback}
                   formatTime={formatTime}
                   justCreatedIds={justCreatedIds}
+                  onMoveToWorkspace={handleMoveToWorkspace}
                 />
               )}
-            </div>
-          ) : null}
+              </>
+            ) : (
+              /* Empty state when filter has no results */
+              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                {t('workspaces.noResults', 'No matching workspaces')}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Top gradient fade (appears when scrolled down) */}
@@ -3944,6 +3873,19 @@ export function AgentsSidebar({
 
       {/* Manage Tags Dialog */}
       <ManageTagsDialog />
+
+      {/* Move to Workspace Dialog */}
+      {movingChat && (
+        <MoveToWorkspaceDialog
+          open={moveToWorkspaceDialogOpen}
+          onOpenChange={handleCloseMoveToWorkspaceDialog}
+          projectId={movingChat.projectId}
+          projectName={movingChat.projectName}
+          onSuccess={() => {
+            // Optionally navigate or refresh after successful move
+          }}
+        />
+      )}
     </>
   )
 }

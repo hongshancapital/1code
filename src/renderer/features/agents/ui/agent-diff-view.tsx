@@ -2238,9 +2238,11 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const file = deferredFileDiffs[virtualRow.index]!
+                // Use index-suffixed key to ensure uniqueness even if file.key has duplicates
+                const uniqueKey = `${file.key}::${virtualRow.index}`
                 return (
                   <div
-                    key={file.key}
+                    key={uniqueKey}
                     data-index={virtualRow.index}
                     ref={virtualizer.measureElement}
                     style={{

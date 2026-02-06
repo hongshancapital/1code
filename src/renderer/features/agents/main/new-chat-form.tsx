@@ -241,40 +241,9 @@ export function NewChatForm({
     }
   }, [validatedProject?.mode, setCurrentProjectMode])
 
-  // Auto-initialize playground when in chat mode without a project
-  // This runs on mount and when mode changes to chat
-  const getOrCreatePlaygroundMutation = trpc.projects.getOrCreatePlayground.useMutation()
-  const hasInitializedPlayground = useRef(false)
-
-  useEffect(() => {
-    // Only auto-init if:
-    // 1. In chat mode
-    // 2. No project selected
-    // 3. Haven't already initialized
-    // 4. Not currently loading projects
-    if (
-      currentProjectMode === "chat" &&
-      !selectedProject &&
-      !hasInitializedPlayground.current &&
-      !isLoadingProjects
-    ) {
-      hasInitializedPlayground.current = true
-      getOrCreatePlaygroundMutation.mutateAsync().then((playground) => {
-        if (playground) {
-          setSelectedProject({
-            id: playground.id,
-            name: playground.name,
-            path: playground.path,
-            mode: "chat",
-            isPlayground: true,
-          })
-        }
-      }).catch((error) => {
-        console.error("Failed to initialize playground:", error)
-        hasInitializedPlayground.current = false // Allow retry
-      })
-    }
-  }, [currentProjectMode, selectedProject, isLoadingProjects, getOrCreatePlaygroundMutation, setSelectedProject])
+  // Note: No auto-init for chat mode needed anymore.
+  // In the new independent playground system, each chat creates its own playground directory.
+  // The playground is created when the user sends their first message via createPlaygroundChat.
 
   // File reference from file tree panel
   const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
@@ -916,8 +885,9 @@ export function NewChatForm({
   const apiUtils = api.useUtils()
   const createChatMutation = trpc.chats.create.useMutation()
 
-  // Get or create playground chat mutation (for Chat mode)
-  const getOrCreatePlaygroundChatMutation = trpc.chats.getOrCreatePlaygroundChat.useMutation()
+  // Create independent playground chat mutation (for Chat mode)
+  // Each chat gets its own directory in ~/.hong/.playground/{id}/
+  const createPlaygroundChatMutation = trpc.chats.createPlaygroundChat.useMutation()
 
   // Create subchat mutation (for Chat mode - creates subchat under existing playground chat)
   // Note: We use mutateAsync in handleSend, so onSuccess/onError are handled there
@@ -972,24 +942,11 @@ export function NewChatForm({
   const updateModeMutation = trpc.projects.updateMode.useMutation()
 
   const handleModeChange = useCallback(async (newMode: "chat" | "cowork" | "coding") => {
-    // If switching to chat mode, auto-select playground
+    // If switching to chat mode, just set the mode - no need to pre-create playground
+    // The playground is created when user sends their first message
     if (newMode === "chat") {
-      try {
-        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
-        if (playground) {
-          setSelectedProject({
-            id: playground.id,
-            name: playground.name,
-            path: playground.path,
-            mode: "chat",
-            isPlayground: true,
-          })
-          setCurrentProjectMode("chat")
-        }
-      } catch (error) {
-        console.error("Failed to switch to chat mode:", error)
-        toast.error("Failed to switch to chat mode")
-      }
+      setSelectedProject(null) // Clear any selected project
+      setCurrentProjectMode("chat")
       return
     }
 
@@ -1025,7 +982,7 @@ export function NewChatForm({
       console.error("Failed to update project mode:", error)
       toast.error("Failed to update project mode")
     }
-  }, [validatedProject, updateModeMutation, setSelectedProject, getOrCreatePlaygroundMutation, setCurrentProjectMode])
+  }, [validatedProject, updateModeMutation, setSelectedProject, setCurrentProjectMode])
 
   const trpcUtils = trpc.useUtils()
 
@@ -1043,29 +1000,10 @@ export function NewChatForm({
       return
     }
 
-    // For Chat mode, ensure playground is initialized
-    let projectToUse = selectedProject
-    if (currentProjectMode === "chat" && !selectedProject) {
-      try {
-        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
-        if (playground) {
-          projectToUse = {
-            id: playground.id,
-            name: playground.name,
-            path: playground.path,
-            mode: "chat",
-            isPlayground: true,
-          }
-          setSelectedProject(projectToUse)
-        }
-      } catch (error) {
-        console.error("Failed to initialize playground:", error)
-        toast.error("Failed to initialize chat mode")
-        return
-      }
-    }
-
-    if (!projectToUse) {
+    // For Chat mode, we don't need a pre-selected project
+    // The playground is created on-demand when the message is sent (see "Chat mode" section below)
+    // For other modes, we need a validated project selected
+    if (currentProjectMode !== "chat" && !validatedProject) {
       return
     }
 
@@ -1169,18 +1107,15 @@ export function NewChatForm({
       }
     }
 
-    // Chat mode: create subchat under existing playground chat
+    // Chat mode: create independent playground chat with its own directory
     if (currentProjectMode === "chat") {
       try {
-        // Get or create the single playground chat
-        const playgroundChat = await getOrCreatePlaygroundChatMutation.mutateAsync()
-
-        // Create a new subchat with the message
-        const newSubChat = await createSubChatMutation.mutateAsync({
-          chatId: playgroundChat.id,
+        // Create a new independent playground chat
+        // Each chat gets its own directory in ~/.hong/.playground/{id}/
+        const data = await createPlaygroundChatMutation.mutateAsync({
           name: message.trim().slice(0, 50),
-          mode: agentMode,
           initialMessageParts: parts.length > 0 ? parts : undefined,
+          mode: agentMode,
         })
 
         // Clear editor, images, files, pasted texts, file contents cache
@@ -1191,57 +1126,40 @@ export function NewChatForm({
         fileContentsRef.current.clear()
         clearCurrentDraft()
 
-        // Select the playground chat (this triggers ChatView to render)
-        setSelectedChatId(playgroundChat.id)
+        // Invalidate sidebar list and projects (since createPlaygroundChat creates a new project)
+        utils.chats.list.invalidate()
+        utils.chats.listPlaygroundChats.invalidate()
+        utils.projects.list.invalidate()
+
+        // CRITICAL: Prefetch the subchat messages BEFORE setting selectedChatId
+        if (data.subChats?.[0]?.id) {
+          await utils.chats.getSubChatMessages.fetch({ id: data.subChats[0].id })
+        }
+
+        // Select the new chat
+        setSelectedChatId(data.id)
         setSelectedChatIsRemote(false)
         setChatSourceMode("local")
         // Clear home view to show the chat
         setDesktopView(null)
 
-        // Ensure playground project is set so ChatsButton shows as active
-        const playground = await getOrCreatePlaygroundMutation.mutateAsync()
-        if (playground) {
+        // Set selected project to the new playground project
+        if (data.project) {
           setSelectedProject({
-            id: playground.id,
-            name: playground.name,
-            path: playground.path,
-            mode: "chat",
+            id: data.project.id,
+            name: data.project.name,
+            path: data.project.path,
+            mode: "cowork",
             isPlayground: true,
           })
         }
 
-        // Invalidate sidebar list
-        utils.chats.listPlayground.invalidate()
-
-        // CRITICAL: Prefetch the subchat messages BEFORE setting activeSubChatId
-        // This ensures getOrCreateChat() will have messages data when it creates the Chat object
-        // Without this, Chat is created with empty messages and auto-generate never triggers
-        await utils.chats.getSubChatMessages.fetch({ id: newSubChat.id })
-
-        // Also refetch the chat data to ensure agentSubChats has the new subchat
-        await apiUtils.agents.getAgentChat.fetch({ chatId: playgroundChat.id })
-
-        // Now set up the subchat store - at this point the query cache is already updated
-        const store = useAgentSubChatStore.getState()
-        // Ensure the chat is set correctly
-        if (store.chatId !== playgroundChat.id) {
-          store.setChatId(playgroundChat.id)
-        }
-        // Add to all subchats list (for sidebar display)
-        store.addToAllSubChats({
-          id: newSubChat.id,
-          name: newSubChat.name,
-          mode: newSubChat.mode as "plan" | "agent",
-          created_at: newSubChat.createdAt?.toISOString() ?? new Date().toISOString(),
-          updated_at: newSubChat.updatedAt?.toISOString() ?? new Date().toISOString(),
-        })
-        store.addToOpenSubChats(newSubChat.id)
-        // Set active subchat LAST - this triggers ChatView to create the Chat object
-        // By this point, the messages query cache contains the new subchat's messages
-        store.setActiveSubChat(newSubChat.id)
-
         // Track as just created for typewriter effect
-        setJustCreatedIds((prev) => new Set([...prev, newSubChat.id]))
+        const ids = [data.id]
+        if (data.subChats?.[0]?.id) {
+          ids.push(data.subChats[0].id)
+        }
+        setJustCreatedIds((prev) => new Set([...prev, ...ids]))
       } catch (error) {
         console.error("Failed to create chat:", error)
         toast.error("Failed to create chat")
@@ -1282,7 +1200,7 @@ export function NewChatForm({
     // Create chat with selected project, branch, and initial message (cowork/coding modes)
     try {
       const data = await createChatMutation.mutateAsync({
-        projectId: projectToUse.id,
+        projectId: validatedProject!.id,
         name: message.trim().slice(0, 50), // Use first 50 chars as chat name
         initialMessageParts: parts.length > 0 ? parts : undefined,
         baseBranch:
@@ -1331,11 +1249,10 @@ export function NewChatForm({
       toast.error(error instanceof Error ? error.message : "Failed to create chat")
     }
   }, [
-    selectedProject,
-    validatedProject?.path,
+    validatedProject,
     createChatMutation,
     createSubChatMutation,
-    getOrCreatePlaygroundChatMutation,
+    createPlaygroundChatMutation,
     pullBranchMutation,
     hasContent,
     selectedBranch,
@@ -1349,7 +1266,6 @@ export function NewChatForm({
     agentMode,
     trpcUtils,
     currentProjectMode,
-    getOrCreatePlaygroundMutation,
     setSelectedProject,
     setSelectedChatId,
     setSelectedChatIsRemote,

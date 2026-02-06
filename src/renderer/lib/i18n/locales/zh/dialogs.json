@@ -28,5 +28,23 @@
     "confirm": "确认",
     "delete": "删除",
     "discard": "丢弃"
+  },
+  "globalSearch": {
+    "placeholder": "搜索记忆、消息等...",
+    "typeToSearch": "输入关键词搜索记忆",
+    "pressToClose": "按",
+    "toClose": "关闭",
+    "noResultsFor": "未找到「{{query}}」相关结果",
+    "groups": {
+      "observation": "记忆",
+      "prompt": "你的消息",
+      "session": "会话"
+    },
+    "navigatedTo": "已跳转到「{{name}}」",
+    "untitled": "无标题",
+    "noSession": "此记忆没有关联的会话",
+    "notFound": "未找到关联的对话",
+    "navigationError": "跳转失败",
+    "restoredFromArchive": "已从归档中恢复"
   }
 }

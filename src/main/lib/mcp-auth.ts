@@ -196,16 +196,23 @@ export async function startMcpOAuth(
   serverName: string,
   projectPath: string
 ): Promise<{ success: boolean; error?: string }> {
+  safeLog(`[MCP OAuth] Starting OAuth for server: ${serverName}, projectPath: ${projectPath}`);
+
   // 1. Read server config from ~/.claude.json
   const config = await readClaudeConfig();
   let serverConfig = getMcpServerConfig(config, projectPath, serverName);
+  safeLog(`[MCP OAuth] Server config from claude.json: ${serverConfig?.url ? 'found' : 'not found'}`);
 
   // Fallback: check plugin MCP servers if not found in ~/.claude.json
   if (!serverConfig?.url) {
+    safeLog(`[MCP OAuth] Looking for server in plugins...`);
     const pluginMcpConfigs = await discoverPluginMcpServers();
+    safeLog(`[MCP OAuth] Found ${pluginMcpConfigs.length} plugin configs`);
     for (const pluginConfig of pluginMcpConfigs) {
+      safeLog(`[MCP OAuth] Checking plugin: ${pluginConfig.pluginSource}, servers: ${Object.keys(pluginConfig.mcpServers).join(', ')}`);
       if (pluginConfig.mcpServers[serverName]) {
         serverConfig = pluginConfig.mcpServers[serverName];
+        safeLog(`[MCP OAuth] Found server in plugin! URL: ${serverConfig?.url}`);
         // Save plugin server config to ~/.claude.json so token storage works
         await updateClaudeConfigAtomic((cfg) => {
           return updateMcpServerConfig(cfg, GLOBAL_MCP_PATH, serverName, {
@@ -214,33 +221,45 @@ export async function startMcpOAuth(
             authType: 'oauth',
           });
         });
+        safeLog(`[MCP OAuth] Saved server config to ~/.claude.json`);
         break;
       }
     }
   }
 
   if (!serverConfig?.url) {
+    safeError(`[MCP OAuth] Server URL not found for: ${serverName}`);
     return { success: false, error: `MCP server "${serverName}" URL not configured` };
   }
+  safeLog(`[MCP OAuth] Server URL: ${serverConfig.url}`);
 
   // 2. Use CraftOAuth for OAuth logic
   const redirectUri = getMcpOAuthRedirectUri();
+  safeLog(`[MCP OAuth] Using redirect URI: ${redirectUri}`);
+  const mcpBaseUrl = getMcpBaseUrl(serverConfig.url);
+  safeLog(`[MCP OAuth] MCP base URL: ${mcpBaseUrl}`);
   const oauth = new CraftOAuth(
-    { mcpBaseUrl: getMcpBaseUrl(serverConfig.url), redirectUri },
+    { mcpBaseUrl, redirectUri },
     { onStatus: (msg) => safeLog(`[MCP OAuth] ${msg}`), onError: (err) => safeError(`[MCP OAuth] ${err}`) }
   );
 
   // 3. Start OAuth flow (fetches metadata from .well-known, then gets auth URL)
   let authFlowResult;
   try {
+    safeLog(`[MCP OAuth] Starting auth flow...`);
     authFlowResult = await oauth.startAuthFlow();
+    safeLog(`[MCP OAuth] Auth flow started successfully, clientId: ${authFlowResult.clientId}`);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     safeError(`[MCP OAuth] Failed to start auth flow: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      safeError(`[MCP OAuth] Stack: ${error.stack}`);
+    }
     return { success: false, error: msg };
   }
 
   const { authUrl, state, codeVerifier, tokenEndpoint, clientId, clientSecret } = authFlowResult;
+  safeLog(`[MCP OAuth] Auth URL generated, state: ${state.slice(0, 8)}...`);
 
   // 4. Store pending flow and wait for callback
   return new Promise((resolve) => {
@@ -270,12 +289,17 @@ export async function startMcpOAuth(
  * Handle OAuth callback from deeplink
  */
 export async function handleMcpOAuthCallback(code: string, state: string): Promise<void> {
+  safeLog(`[MCP OAuth Callback] Received callback with state: ${state.slice(0, 8)}...`);
+  safeLog(`[MCP OAuth Callback] Pending flows count: ${pendingOAuthFlows.size}`);
+
   const pending = pendingOAuthFlows.get(state);
   if (!pending) {
-    safeWarn(`[MCP OAuth] No pending flow for state: ${state.slice(0, 8)}...`);
+    safeWarn(`[MCP OAuth Callback] No pending flow for state: ${state.slice(0, 8)}...`);
+    safeWarn(`[MCP OAuth Callback] Available states: ${Array.from(pendingOAuthFlows.keys()).map(s => s.slice(0, 8)).join(', ')}`);
     return;
   }
 
+  safeLog(`[MCP OAuth Callback] Found pending flow for server: ${pending.serverName}`);
   clearTimeout(pending.timeoutId);
   pendingOAuthFlows.delete(state);
 
@@ -283,15 +307,17 @@ export async function handleMcpOAuthCallback(code: string, state: string): Promi
     // 1. Get server URL for CraftOAuth
     const config = await readClaudeConfig();
     const serverUrl = getMcpServerConfig(config, pending.projectPath, pending.serverName)?.url;
+    safeLog(`[MCP OAuth Callback] Server URL from config: ${serverUrl || 'not found'}`);
 
     if (!serverUrl) {
       throw new Error(`Server URL not found for ${pending.serverName}`);
     }
 
     // 2. Use CraftOAuth to exchange code for tokens
+    safeLog(`[MCP OAuth Callback] Exchanging code for tokens...`);
     const oauth = new CraftOAuth(
       { mcpBaseUrl: getMcpBaseUrl(serverUrl), redirectUri: pending.redirectUri },
-      { onStatus: () => {}, onError: () => {} }
+      { onStatus: (msg) => safeLog(`[MCP OAuth Callback] ${msg}`), onError: (err) => safeError(`[MCP OAuth Callback] ${err}`) }
     );
 
     const tokens = await oauth.completeAuthFlow(
@@ -301,9 +327,12 @@ export async function handleMcpOAuthCallback(code: string, state: string): Promi
       pending.clientId,
       pending.clientSecret
     );
+    safeLog(`[MCP OAuth Callback] Tokens received successfully`);
 
     // 3. Save to ~/.claude.json
+    safeLog(`[MCP OAuth Callback] Saving tokens to ~/.claude.json...`);
     await saveTokensToClaudeJson(pending.serverName, pending.projectPath, tokens, pending.clientId);
+    safeLog(`[MCP OAuth Callback] Tokens saved`);
 
     // 4. Notify renderer (tools will be fetched on demand via tRPC)
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -317,9 +346,14 @@ export async function handleMcpOAuthCallback(code: string, state: string): Promi
     // 5. Focus the main window after OAuth callback
     bringToFront();
 
+    safeLog(`[MCP OAuth Callback] OAuth completed successfully for ${pending.serverName}`);
     pending.resolve({ success: true });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    safeError(`[MCP OAuth Callback] Failed: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      safeError(`[MCP OAuth Callback] Stack: ${error.stack}`);
+    }
     pending.resolve({ success: false, error: msg });
   }
 }

@@ -255,6 +255,13 @@ contextBridge.exposeInMainWorld("desktopApi", {
     return () => ipcRenderer.removeListener("git:status-changed", handler)
   },
 
+  // Git commit success events (from claude.ts Bash output detection)
+  onGitCommitSuccess: (callback: (data: { subChatId: string; commitHash: string; branchInfo: string }) => void) => {
+    const handler = (_event: unknown, data: { subChatId: string; commitHash: string; branchInfo: string }) => callback(data)
+    ipcRenderer.on("git-commit-success", handler)
+    return () => ipcRenderer.removeListener("git-commit-success", handler)
+  },
+
   // Subscribe to git watcher for a worktree (from renderer)
   subscribeToGitWatcher: (worktreePath: string) => ipcRenderer.invoke("git:subscribe-watcher", worktreePath),
   unsubscribeFromGitWatcher: (worktreePath: string) => ipcRenderer.invoke("git:unsubscribe-watcher", worktreePath),
@@ -403,6 +410,8 @@ export interface DesktopApi {
   onFileChanged: (callback: (data: { filePath: string; type: string; subChatId: string }) => void) => () => void
   // Git status changes (from file watcher)
   onGitStatusChanged: (callback: (data: { worktreePath: string; changes: Array<{ path: string; type: "add" | "change" | "unlink" }> }) => void) => () => void
+  // Git commit success (from claude.ts Bash output detection)
+  onGitCommitSuccess: (callback: (data: { subChatId: string; commitHash: string; branchInfo: string }) => void) => () => void
   subscribeToGitWatcher: (worktreePath: string) => Promise<void>
   unsubscribeFromGitWatcher: (worktreePath: string) => Promise<void>
   // VS Code theme scanning

@@ -28,5 +28,23 @@
     "confirm": "Confirm",
     "delete": "Delete",
     "discard": "Discard"
+  },
+  "globalSearch": {
+    "placeholder": "Search memories, messages, and more...",
+    "typeToSearch": "Type to search your memories",
+    "pressToClose": "Press",
+    "toClose": "to close",
+    "noResultsFor": "No results found for \"{{query}}\"",
+    "groups": {
+      "observation": "Memories",
+      "prompt": "Your Messages",
+      "session": "Sessions"
+    },
+    "navigatedTo": "Navigated to \"{{name}}\"",
+    "untitled": "Untitled",
+    "noSession": "No session associated with this memory",
+    "notFound": "Could not find the associated conversation",
+    "navigationError": "Failed to navigate to result",
+    "restoredFromArchive": "Restored from archive"
   }
 }

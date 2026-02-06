@@ -61,5 +61,20 @@
       "title": "Oops! Something went wrong",
       "message": "We encountered an unexpected error. Don't worry, refreshing the page usually fixes it."
     }
+  },
+  "common": {
+    "cancel": "Cancel"
+  },
+  "moveToWorkspace": {
+    "title": "Convert to Project",
+    "description": "Save this chat to a location of your choice for easy organization.",
+    "projectName": "Folder Name",
+    "projectNamePlaceholder": "Enter folder name",
+    "targetFolder": "Location",
+    "selectFolder": "Choose location...",
+    "move": "Confirm",
+    "moving": "Processing...",
+    "success": "Successfully converted to project",
+    "error": "Failed to convert"
   }
 }

@@ -1,5 +1,6 @@
-import { Component, type ReactNode } from "react"
+import { Component, type ReactNode, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Copy, Check } from "lucide-react"
 import { Button } from "./button"
 import i18n from "../../lib/i18n"
 
@@ -26,6 +27,62 @@ const FALLBACK_TEXTS = {
       "We encountered an unexpected error. Don't worry, refreshing the page usually fixes it.",
     button: "Reload Page",
   },
+}
+
+/**
+ * 错误详情组件（开发模式）
+ */
+function ErrorDetails({
+  error,
+  getSafeText,
+}: {
+  error: Error
+  getSafeText: (key: string, fallback: string) => string
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const errorText = error.stack || error.message
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(errorText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy error:", err)
+    }
+  }
+
+  return (
+    <details className="mt-4 text-xs text-muted-foreground max-w-2xl w-full">
+      <summary className="cursor-pointer hover:text-foreground transition-colors">
+        错误详情 (开发模式)
+      </summary>
+      <div className="mt-2 relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-2 right-2 h-7 px-2 text-xs"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 mr-1" />
+              {getSafeText("actions.copied", "Copied")}
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3 mr-1" />
+              {getSafeText("actions.copy", "Copy")}
+            </>
+          )}
+        </Button>
+        <pre className="p-3 pr-20 bg-muted rounded overflow-auto max-h-60 text-left whitespace-pre-wrap break-all">
+          {errorText}
+        </pre>
+      </div>
+    </details>
+  )
 }
 
 /**
@@ -79,14 +136,10 @@ function ErrorFallbackUI({
 
       {/* 开发模式：显示错误详情 */}
       {import.meta.env.DEV && error && (
-        <details className="mt-4 text-xs text-muted-foreground max-w-2xl w-full">
-          <summary className="cursor-pointer hover:text-foreground transition-colors">
-            错误详情 (开发模式)
-          </summary>
-          <pre className="mt-2 p-3 bg-muted rounded overflow-auto max-h-60 text-left whitespace-pre-wrap break-all">
-            {error.stack || error.message}
-          </pre>
-        </details>
+        <ErrorDetails
+          error={error}
+          getSafeText={getSafeText}
+        />
       )}
     </div>
   )

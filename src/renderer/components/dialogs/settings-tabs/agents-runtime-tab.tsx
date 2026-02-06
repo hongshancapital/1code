@@ -11,6 +11,8 @@ import {
   Copy,
   CheckCircle,
   XCircle,
+  Package,
+  AlertCircle,
 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
@@ -278,6 +280,176 @@ function getPlatformDisplayName(platform: NodeJS.Platform): string {
   }
 }
 
+// ============================================================================
+// Package Manager Section Component
+// ============================================================================
+
+function PackageManagerSection() {
+  const { t } = useTranslation('settings')
+  const [isInstalling, setIsInstalling] = useState(false)
+
+  // Get package manager info
+  const {
+    data: pmData,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = trpc.runner.getDetectedPackageManager.useQuery()
+
+  // Get tools data for package manager details
+  const { data: toolsData } = trpc.runner.detectTools.useQuery()
+
+  // Install package manager mutation
+  const installMutation = trpc.runner.installPackageManager.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`${result.packageManager} installed successfully`)
+        refetch()
+      } else {
+        toast.error(`Failed to install package manager: ${result.error}`)
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to install package manager: ${error.message}`)
+    },
+    onSettled: () => {
+      setIsInstalling(false)
+    },
+  })
+
+  const handleInstall = useCallback(() => {
+    setIsInstalling(true)
+    installMutation.mutate()
+  }, [installMutation])
+
+  // Get package manager tools from detected tools
+  const pmTools = toolsData?.tools?.filter((t) => t.category === "package_manager")
+  const installedPM = pmTools?.find((t) => t.installed)
+
+  const platformName = pmData?.platform
+    ? getPlatformDisplayName(pmData.platform as NodeJS.Platform)
+    : ""
+
+  // Get platform-specific package manager name
+  const getPMName = () => {
+    if (!pmData) return "Package Manager"
+    if (pmData.platform === "darwin") return "Homebrew"
+    if (pmData.platform === "win32") return "Windows Package Manager"
+    return installedPM?.displayName || "Package Manager"
+  }
+
+  return (
+    <RuntimeSection
+      id="package-manager"
+      icon={<Package className="h-5 w-5" />}
+      title={t('runtime.packageManager.title')}
+      description={`${t('runtime.packageManager.description')}${platformName ? ` (${platformName})` : ""}`}
+      defaultOpen={true}
+    >
+      <div className="flex flex-col gap-4">
+        {/* Header with refresh */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {t('runtime.packageManager.hint')}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => refetch()}
+            disabled={isLoading || isRefetching}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
+            />
+            <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
+          </Button>
+        </div>
+
+        {/* Package Manager status */}
+        <div className="bg-background rounded-lg border border-border">
+          <div className="p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">{t('runtime.packageManager.detecting')}</span>
+              </div>
+            ) : installedPM ? (
+              <div className="flex items-center justify-between py-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                    <span className="text-sm font-medium">{installedPM.displayName}</span>
+                    {installedPM.version && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
+                        v{installedPM.version}
+                      </span>
+                    )}
+                  </div>
+                  {installedPM.path && (
+                    <span className="text-[10px] text-muted-foreground/60 truncate max-w-[280px]">
+                      {installedPM.path}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : pmData?.needsInstall ? (
+              <div className="flex items-center justify-between py-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">{getPMName()}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {t('runtime.commonTools.notInstalled')}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {t('runtime.packageManager.installNote')}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={handleInstall}
+                  disabled={isInstalling}
+                >
+                  {isInstalling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  {t('runtime.commonTools.install')}
+                </Button>
+              </div>
+            ) : pmData?.platform === "linux" ? (
+              <div className="flex items-center justify-between py-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 text-yellow-500" />
+                    <span className="text-sm font-medium">Linux Package Manager</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    No supported package manager detected (apt, dnf, yum, pacman, zypper)
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                {t('runtime.packageManager.noTools')}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </RuntimeSection>
+  )
+}
+
+// ============================================================================
+// Common Tools Section Component
+// ============================================================================
+
 function CommonToolsSection() {
   const { t } = useTranslation('settings')
   const [installingTool, setInstallingTool] = useState<string | null>(null)
@@ -522,6 +694,234 @@ function PythonSection() {
 }
 
 // ============================================================================
+// Go Section Component
+// ============================================================================
+
+function GoSection() {
+  const { t } = useTranslation('settings')
+  const [installingTool, setInstallingTool] = useState<string | null>(null)
+
+  // Get Go tools from the same query
+  const {
+    data: toolsData,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = trpc.runner.detectTools.useQuery()
+
+  // Install tool mutation
+  const installMutation = trpc.runner.installTool.useMutation({
+    onSuccess: (result, { toolName }) => {
+      if (result.success) {
+        toast.success(`${toolName} installed successfully`)
+        refetch()
+      } else {
+        toast.error(`Failed to install ${toolName}: ${result.error}`)
+      }
+    },
+    onError: (error, { toolName }) => {
+      toast.error(`Failed to install ${toolName}: ${error.message}`)
+    },
+    onSettled: () => {
+      setInstallingTool(null)
+    },
+  })
+
+  const handleInstall = useCallback(
+    (toolName: string, command: string) => {
+      setInstallingTool(toolName)
+      installMutation.mutate({ toolName, command })
+    },
+    [installMutation]
+  )
+
+  // Filter to show go category tools
+  const goTools = toolsData?.tools?.filter((t) => t.category === "go_runtime")
+
+  return (
+    <RuntimeSection
+      id="go"
+      icon={
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+          <path d="M1.811 10.231c-.047 0-.058-.023-.035-.059l.246-.315c.023-.035.081-.058.128-.058h4.172c.046 0 .058.035.035.07l-.199.303c-.023.036-.082.07-.117.07zM.047 11.306c-.047 0-.059-.023-.035-.058l.245-.316c.023-.035.082-.058.129-.058h5.328c.047 0 .07.035.058.07l-.093.28c-.012.047-.058.07-.105.07zm2.828 1.075c-.047 0-.059-.035-.035-.07l.163-.292c.023-.035.07-.07.117-.07h2.337c.047 0 .07.035.07.082l-.023.28c0 .047-.047.082-.082.082zm12.129-2.36c-.736.187-1.239.327-1.963.514-.176.046-.187.058-.339-.117-.176-.199-.304-.327-.548-.444-.737-.362-1.45-.257-2.115.175-.795.514-1.204 1.274-1.192 2.22.011.935.654 1.706 1.577 1.835.795.105 1.46-.175 1.987-.77.105-.13.199-.27.328-.456H10.18c-.245 0-.304-.152-.222-.35.152-.362.432-.97.596-1.274a.315.315 0 01.292-.187h4.253c-.023.316-.023.631-.07.947a4.983 4.983 0 01-.958 2.29c-.841 1.11-1.94 1.8-3.33 1.986-1.145.152-2.209-.07-3.143-.77-.865-.655-1.356-1.52-1.484-2.595-.152-1.274.222-2.419.993-3.424.83-1.086 1.928-1.776 3.272-2.02 1.098-.2 2.15-.07 3.096.571.62.41 1.063.947 1.356 1.602.058.082.023.117-.07.14z" />
+        </svg>
+      }
+      title={t('runtime.go.title')}
+      description={t('runtime.go.description')}
+      defaultOpen={false}
+    >
+      <div className="space-y-4">
+        {/* Header with refresh */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {t('runtime.go.hint')}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => refetch()}
+            disabled={isLoading || isRefetching}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
+            />
+            <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
+          </Button>
+        </div>
+
+        {/* Tools list */}
+        <div className="bg-background rounded-lg border border-border">
+          <div className="p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">{t('runtime.go.detecting')}</span>
+              </div>
+            ) : goTools && goTools.length > 0 ? (
+              goTools.map((tool) => (
+                <ToolRow
+                  key={tool.name}
+                  name={tool.displayName}
+                  installed={tool.installed}
+                  version={tool.version}
+                  path={tool.path}
+                  installCommand={tool.installCommand}
+                  description={tool.description}
+                  isInstalling={installingTool === tool.name}
+                  onInstall={() =>
+                    tool.installCommand &&
+                    handleInstall(tool.name, tool.installCommand)
+                  }
+                />
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                {t('runtime.go.noTools')}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </RuntimeSection>
+  )
+}
+
+// ============================================================================
+// Rust Section Component
+// ============================================================================
+
+function RustSection() {
+  const { t } = useTranslation('settings')
+  const [installingTool, setInstallingTool] = useState<string | null>(null)
+
+  // Get Rust tools from the same query
+  const {
+    data: toolsData,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = trpc.runner.detectTools.useQuery()
+
+  // Install tool mutation
+  const installMutation = trpc.runner.installTool.useMutation({
+    onSuccess: (result, { toolName }) => {
+      if (result.success) {
+        toast.success(`${toolName} installed successfully`)
+        refetch()
+      } else {
+        toast.error(`Failed to install ${toolName}: ${result.error}`)
+      }
+    },
+    onError: (error, { toolName }) => {
+      toast.error(`Failed to install ${toolName}: ${error.message}`)
+    },
+    onSettled: () => {
+      setInstallingTool(null)
+    },
+  })
+
+  const handleInstall = useCallback(
+    (toolName: string, command: string) => {
+      setInstallingTool(toolName)
+      installMutation.mutate({ toolName, command })
+    },
+    [installMutation]
+  )
+
+  // Filter to show rust category tools
+  const rustTools = toolsData?.tools?.filter((t) => t.category === "rust_runtime")
+
+  return (
+    <RuntimeSection
+      id="rust"
+      icon={
+        <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+          <path d="M23.687 11.709l-.995-.616a13.559 13.559 0 00-.028-.29l.855-.79a.249.249 0 00-.106-.42l-1.103-.303a10.245 10.245 0 00-.084-.283l.68-.943a.249.249 0 00-.168-.393l-1.137-.124a12.15 12.15 0 00-.136-.27l.476-1.072a.249.249 0 00-.226-.351l-1.143.06a7.847 7.847 0 00-.183-.248l.254-1.168a.249.249 0 00-.278-.294l-1.118.238a9.778 9.778 0 00-.224-.219l.02-1.22a.249.249 0 00-.32-.229l-1.063.41a8.94 8.94 0 00-.26-.183l-.216-1.168a.249.249 0 00-.356-.153l-.98.567a9.582 9.582 0 00-.291-.14l-.443-1.085a.249.249 0 00-.381-.094l-.869.708a8.869 8.869 0 00-.313-.09l-.654-.97a.249.249 0 00-.395-.027l-.731.831a9.95 9.95 0 00-.326-.034l-.848-.826a.249.249 0 00-.396.044l-.571.932a9.27 9.27 0 00-.33.024l-1.017-.658a.249.249 0 00-.385.121l-.394 1.005a9.402 9.402 0 00-.325.08l-1.156-.469a.249.249 0 00-.361.19l-.199 1.048a8.746 8.746 0 00-.311.132l-1.262-.264a.249.249 0 00-.325.247l.004 1.058a8.17 8.17 0 00-.29.18l-1.332-.048a.249.249 0 00-.28.297l.202 1.036a8.464 8.464 0 00-.26.222l-1.362.174a.249.249 0 00-.225.335l.394.983a9.162 9.162 0 00-.222.259l-1.351.394a.249.249 0 00-.164.36l.575.899a10.963 10.963 0 00-.175.29l-1.298.605a.249.249 0 00-.096.374l.74.782a9.026 9.026 0 00-.122.313l-1.203.8a.249.249 0 00-.026.38l.885.639a9.812 9.812 0 00-.063.325l-1.071.976a.249.249 0 00.045.375l1.004.47a8.284 8.284 0 000 .327l-1.003.469a.249.249 0 00-.046.376l1.072.976c.017.11.038.218.062.325l-.885.639a.249.249 0 00.025.38l1.203.8c.037.105.078.21.122.313l-.74.783a.249.249 0 00.097.373l1.297.605c.055.097.113.194.175.29l-.575.898a.249.249 0 00.164.361l1.351.395c.072.087.146.173.222.258l-.394.983a.249.249 0 00.225.336l1.363.173c.084.075.17.15.259.222l-.201 1.036a.249.249 0 00.279.297l1.332-.048c.095.062.191.122.29.18l-.004 1.058a.249.249 0 00.325.247l1.262-.264c.102.046.206.09.31.132l.2 1.048a.249.249 0 00.36.19l1.156-.47c.107.029.215.055.325.08l.394 1.006a.249.249 0 00.385.12l1.017-.657c.109.01.219.018.33.024l.57.932a.249.249 0 00.397.044l.848-.826c.108 0 .217-.02.326-.034l.731.831a.249.249 0 00.395-.027l.655-.97c.104-.027.209-.057.313-.09l.868.708a.249.249 0 00.382-.094l.442-1.085c.097-.045.194-.091.291-.14l.98.567a.249.249 0 00.356-.153l.216-1.168c.088-.058.174-.12.26-.183l1.063.41a.249.249 0 00.319-.228l-.02-1.221c.076-.071.151-.145.224-.219l1.118.238a.249.249 0 00.278-.294l-.254-1.167c.063-.081.124-.164.183-.248l1.144.06a.249.249 0 00.226-.352l-.476-1.072c.048-.088.093-.179.136-.27l1.138-.123a.249.249 0 00.168-.393l-.68-.943c.03-.094.058-.188.084-.283l1.103-.303a.249.249 0 00.106-.42l-.855-.79c.013-.096.022-.193.028-.29l.995-.616a.249.249 0 000-.424z" />
+        </svg>
+      }
+      title={t('runtime.rust.title')}
+      description={t('runtime.rust.description')}
+      defaultOpen={false}
+    >
+      <div className="space-y-4">
+        {/* Header with refresh */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            {t('runtime.rust.hint')}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => refetch()}
+            disabled={isLoading || isRefetching}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
+            />
+            <span className="text-xs">{t('runtime.commonTools.refresh')}</span>
+          </Button>
+        </div>
+
+        {/* Tools list */}
+        <div className="bg-background rounded-lg border border-border">
+          <div className="p-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">{t('runtime.rust.detecting')}</span>
+              </div>
+            ) : rustTools && rustTools.length > 0 ? (
+              rustTools.map((tool) => (
+                <ToolRow
+                  key={tool.name}
+                  name={tool.displayName}
+                  installed={tool.installed}
+                  version={tool.version}
+                  path={tool.path}
+                  installCommand={tool.installCommand}
+                  description={tool.description}
+                  isInstalling={installingTool === tool.name}
+                  onInstall={() =>
+                    tool.installCommand &&
+                    handleInstall(tool.name, tool.installCommand)
+                  }
+                />
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-4">
+                {t('runtime.rust.noTools')}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </RuntimeSection>
+  )
+}
+
+// ============================================================================
 // Node.js Icon Component
 // ============================================================================
 
@@ -618,7 +1018,10 @@ export function AgentsRuntimeTab() {
 
       {/* Runtime Sections */}
       <div className="flex flex-col gap-3">
-        {/* Common Tools Section - First */}
+        {/* Package Manager Section - First (required for other tools) */}
+        <PackageManagerSection />
+
+        {/* Common Tools Section */}
         <CommonToolsSection />
 
         {/* Node.js / JavaScript Section */}
@@ -770,40 +1173,145 @@ export function AgentsRuntimeTab() {
         {/* Python Section */}
         <PythonSection />
 
-        {/* Go Section - Coming Soon */}
-        <RuntimeSection
-          id="go"
-          icon={
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-              <path d="M1.811 10.231c-.047 0-.058-.023-.035-.059l.246-.315c.023-.035.081-.058.128-.058h4.172c.046 0 .058.035.035.07l-.199.303c-.023.036-.082.07-.117.07zM.047 11.306c-.047 0-.059-.023-.035-.058l.245-.316c.023-.035.082-.058.129-.058h5.328c.047 0 .07.035.058.07l-.093.28c-.012.047-.058.07-.105.07zm2.828 1.075c-.047 0-.059-.035-.035-.07l.163-.292c.023-.035.07-.07.117-.07h2.337c.047 0 .07.035.07.082l-.023.28c0 .047-.047.082-.082.082zm12.129-2.36c-.736.187-1.239.327-1.963.514-.176.046-.187.058-.339-.117-.176-.199-.304-.327-.548-.444-.737-.362-1.45-.257-2.115.175-.795.514-1.204 1.274-1.192 2.22.011.935.654 1.706 1.577 1.835.795.105 1.46-.175 1.987-.77.105-.13.199-.27.328-.456H10.18c-.245 0-.304-.152-.222-.35.152-.362.432-.97.596-1.274a.315.315 0 01.292-.187h4.253c-.023.316-.023.631-.07.947a4.983 4.983 0 01-.958 2.29c-.841 1.11-1.94 1.8-3.33 1.986-1.145.152-2.209-.07-3.143-.77-.865-.655-1.356-1.52-1.484-2.595-.152-1.274.222-2.419.993-3.424.83-1.086 1.928-1.776 3.272-2.02 1.098-.2 2.15-.07 3.096.571.62.41 1.063.947 1.356 1.602.058.082.023.117-.07.14z" />
-            </svg>
-          }
-          title={t('runtime.go.title')}
-          description={t('runtime.go.description')}
-          disabled={true}
-        >
-          <div className="text-sm text-muted-foreground">
-            {t('runtime.go.comingSoon')}
-          </div>
-        </RuntimeSection>
+        {/* Go Section */}
+        <GoSection />
 
-        {/* Rust Section - Coming Soon */}
-        <RuntimeSection
-          id="rust"
-          icon={
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-              <path d="M23.687 11.709l-.995-.616a13.559 13.559 0 00-.028-.29l.855-.79a.249.249 0 00-.106-.42l-1.103-.303a10.245 10.245 0 00-.084-.283l.68-.943a.249.249 0 00-.168-.393l-1.137-.124a12.15 12.15 0 00-.136-.27l.476-1.072a.249.249 0 00-.226-.351l-1.143.06a7.847 7.847 0 00-.183-.248l.254-1.168a.249.249 0 00-.278-.294l-1.118.238a9.778 9.778 0 00-.224-.219l.02-1.22a.249.249 0 00-.32-.229l-1.063.41a8.94 8.94 0 00-.26-.183l-.216-1.168a.249.249 0 00-.356-.153l-.98.567a9.582 9.582 0 00-.291-.14l-.443-1.085a.249.249 0 00-.381-.094l-.869.708a8.869 8.869 0 00-.313-.09l-.654-.97a.249.249 0 00-.395-.027l-.731.831a9.95 9.95 0 00-.326-.034l-.848-.826a.249.249 0 00-.396.044l-.571.932a9.27 9.27 0 00-.33.024l-1.017-.658a.249.249 0 00-.385.121l-.394 1.005a9.402 9.402 0 00-.325.08l-1.156-.469a.249.249 0 00-.361.19l-.199 1.048a8.746 8.746 0 00-.311.132l-1.262-.264a.249.249 0 00-.325.247l.004 1.058a8.17 8.17 0 00-.29.18l-1.332-.048a.249.249 0 00-.28.297l.202 1.036a8.464 8.464 0 00-.26.222l-1.362.174a.249.249 0 00-.225.335l.394.983a9.162 9.162 0 00-.222.259l-1.351.394a.249.249 0 00-.164.36l.575.899a10.963 10.963 0 00-.175.29l-1.298.605a.249.249 0 00-.096.374l.74.782a9.026 9.026 0 00-.122.313l-1.203.8a.249.249 0 00-.026.38l.885.639a9.812 9.812 0 00-.063.325l-1.071.976a.249.249 0 00.045.375l1.004.47a8.284 8.284 0 000 .327l-1.003.469a.249.249 0 00-.046.376l1.072.976c.017.11.038.218.062.325l-.885.639a.249.249 0 00.025.38l1.203.8c.037.105.078.21.122.313l-.74.783a.249.249 0 00.097.373l1.297.605c.055.097.113.194.175.29l-.575.898a.249.249 0 00.164.361l1.351.395c.072.087.146.173.222.258l-.394.983a.249.249 0 00.225.336l1.363.173c.084.075.17.15.259.222l-.201 1.036a.249.249 0 00.279.297l1.332-.048c.095.062.191.122.29.18l-.004 1.058a.249.249 0 00.325.247l1.262-.264c.102.046.206.09.31.132l.2 1.048a.249.249 0 00.36.19l1.156-.47c.107.029.215.055.325.08l.394 1.006a.249.249 0 00.385.12l1.017-.657c.109.01.219.018.33.024l.57.932a.249.249 0 00.397.044l.848-.826c.108 0 .217-.02.326-.034l.731.831a.249.249 0 00.395-.027l.655-.97c.104-.027.209-.057.313-.09l.868.708a.249.249 0 00.382-.094l.442-1.085c.097-.045.194-.091.291-.14l.98.567a.249.249 0 00.356-.153l.216-1.168c.088-.058.174-.12.26-.183l1.063.41a.249.249 0 00.319-.228l-.02-1.221c.076-.071.151-.145.224-.219l1.118.238a.249.249 0 00.278-.294l-.254-1.167c.063-.081.124-.164.183-.248l1.144.06a.249.249 0 00.226-.352l-.476-1.072c.048-.088.093-.179.136-.27l1.138-.123a.249.249 0 00.168-.393l-.68-.943c.03-.094.058-.188.084-.283l1.103-.303a.249.249 0 00.106-.42l-.855-.79c.013-.096.022-.193.028-.29l.995-.616a.249.249 0 000-.424z" />
-            </svg>
-          }
-          title={t('runtime.rust.title')}
-          description={t('runtime.rust.description')}
-          disabled={true}
-        >
-          <div className="text-sm text-muted-foreground">
-            {t('runtime.rust.comingSoon')}
-          </div>
-        </RuntimeSection>
+        {/* Rust Section */}
+        <RustSection />
+
+        {/* Windows Installation Logs (Debug) */}
+        {window.desktopApi.platform === "win32" ? <WindowsInstallLogs /> : null}
       </div>
     </div>
+  )
+}
+
+// ============================================================================
+// Windows Installation Logs Component (for debugging)
+// ============================================================================
+
+function WindowsInstallLogs() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const { data: fetchedLogs, refetch } = trpc.runner.getInstallLogs.useQuery(undefined, {
+    enabled: false, // Don't auto-fetch, only when user requests
+  })
+
+  const clearLogsMutation = trpc.runner.clearInstallLogs.useMutation({
+    onSuccess: () => {
+      setLogs([])
+      toast.success("日志已清除")
+    },
+  })
+
+  const handleFetch = useCallback(() => {
+    refetch().then((result) => {
+      if (result.data) {
+        setLogs(result.data)
+      }
+    })
+  }, [refetch])
+
+  const handleClear = useCallback(() => {
+    clearLogsMutation.mutate()
+  }, [clearLogsMutation])
+
+  return (
+    <RuntimeSection
+      title="Windows 安装日志 (调试)"
+      icon={Terminal}
+      description="查看 Windows 包管理器安装过程的详细日志"
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Button onClick={handleFetch} size="sm" variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            刷新日志
+          </Button>
+          <Button
+            onClick={handleClear}
+            size="sm"
+            variant="outline"
+            disabled={clearLogsMutation.isPending}
+          >
+            <X className="w-4 h-4 mr-2" />
+            清除日志
+          </Button>
+          <Button
+            onClick={() => setIsExpanded(!isExpanded)}
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+          >
+            {isExpanded ? "收起" : "展开"}
+          </Button>
+        </div>
+
+        {logs.length === 0 && (
+          <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded">
+            暂无日志。点击「刷新日志」查看最新的安装日志。
+          </div>
+        )}
+
+        {logs.length > 0 && (
+          <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+            {logs.map((log, index) => (
+              <div
+                key={index}
+                className={`p-3 rounded text-xs font-mono border ${
+                  log.success
+                    ? "bg-green-500/5 border-green-500/20"
+                    : "bg-red-500/5 border-red-500/20"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    {log.success ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    )}
+                    <span className="font-semibold">{log.step}</span>
+                  </div>
+                  <span className="text-muted-foreground text-[10px] whitespace-nowrap">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {log.command && isExpanded && (
+                  <div className="mt-2 p-2 bg-background/50 rounded">
+                    <div className="text-[10px] text-muted-foreground mb-1">命令:</div>
+                    <div className="break-all">{log.command}</div>
+                  </div>
+                )}
+
+                {log.stdout && isExpanded && (
+                  <div className="mt-2 p-2 bg-background/50 rounded">
+                    <div className="text-[10px] text-muted-foreground mb-1">输出:</div>
+                    <div className="break-all whitespace-pre-wrap">{log.stdout}</div>
+                  </div>
+                )}
+
+                {log.stderr && (
+                  <div className="mt-2 p-2 bg-red-500/10 rounded">
+                    <div className="text-[10px] text-red-500 mb-1">错误:</div>
+                    <div className="break-all whitespace-pre-wrap text-red-500">
+                      {log.stderr}
+                    </div>
+                  </div>
+                )}
+
+                {log.error && (
+                  <div className="mt-2 text-red-500">
+                    错误类型: {log.error}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </RuntimeSection>
   )
 }

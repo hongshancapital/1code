@@ -1,7 +1,6 @@
 import { useAtom } from "jotai"
 import { Check, Copy, RefreshCw } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import {
   autoOfflineModeAtom,
@@ -11,21 +10,10 @@ import {
   historyEnabledAtom,
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
+  skillAwarenessEnabledAtom,
 } from "../../../lib/atoms"
 import { isFeatureAvailable } from "../../../lib/feature-flags"
 import { trpc } from "../../../lib/trpc"
-// [CLOUD DISABLED] Remote tRPC client - disabled until cloud backend is available
-// import { remoteTrpc } from "../../../lib/remote-trpc"
-
-// Stub type for disabled cloud feature
-interface DisabledRemoteTrpc {
-  agents: { getAgentsSubscription: { query: () => Promise<{ type: string }> } }
-}
-
-// Stub for disabled cloud feature
-const remoteTrpc: DisabledRemoteTrpc = {
-  agents: { getAgentsSubscription: { query: async () => ({ type: "free" }) } },
-}
 import { cn } from "../../../lib/utils"
 import { Button } from "../../ui/button"
 import { ExternalLinkIcon } from "../../ui/icons"
@@ -68,15 +56,10 @@ export function AgentsBetaTab() {
   const [automationsEnabled, setAutomationsEnabled] = useAtom(betaAutomationsEnabledAtom)
   const [enableTasks, setEnableTasks] = useAtom(enableTasksAtom)
   const [betaUpdatesEnabled, setBetaUpdatesEnabled] = useAtom(betaUpdatesEnabledAtom)
+  const [skillAwarenessEnabled, setSkillAwarenessEnabled] = useAtom(skillAwarenessEnabledAtom)
 
-  // Check subscription to gate automations behind paid plan
-  const { data: subscription } = useQuery({
-    queryKey: ["agents", "subscription"],
-    queryFn: () => remoteTrpc.agents.getAgentsSubscription.query(),
-  })
-  const isPaidPlan = subscription?.type !== "free" && !!subscription?.type
-  // Use feature flags to gate automations - in production, always disabled
-  const canEnableAutomations = isFeatureAvailable("automations") && (isPaidPlan || isFeatureAvailable("automations"))
+  // Automations is dev-only feature
+  const canEnableAutomations = isFeatureAvailable("automations")
   const [copied, setCopied] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "available" | "not-available" | "error">("idle")
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
@@ -183,7 +166,7 @@ export function AgentsBetaTab() {
             <span className="text-xs text-muted-foreground">
               {canEnableAutomations
                 ? t('beta.automations.description')
-                : t('beta.automations.requiresPaid')}
+                : t('beta.automations.devOnly')}
             </span>
           </div>
           <Switch
@@ -210,6 +193,22 @@ export function AgentsBetaTab() {
           <Switch
             checked={enableTasks}
             onCheckedChange={setEnableTasks}
+          />
+        </div>
+
+        {/* Skill Awareness Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t('beta.skillAwareness.title')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('beta.skillAwareness.description')}
+            </span>
+          </div>
+          <Switch
+            checked={skillAwarenessEnabled}
+            onCheckedChange={setSkillAwarenessEnabled}
           />
         </div>
       </div>

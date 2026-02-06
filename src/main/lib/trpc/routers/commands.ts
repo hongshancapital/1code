@@ -7,12 +7,21 @@ import matter from "gray-matter"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
 import { getEnabledPlugins } from "./claude-settings"
 
+/** Format plugin name: "review_by_blair" → "Review By Blair" */
+function formatPluginName(name: string): string {
+  return name
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 export interface FileCommand {
-  name: string
+  name: string // Command name (may include namespace prefix)
+  displayName: string // Original name without namespace prefix (for display)
   description: string
   argumentHint?: string
   source: "user" | "project" | "plugin"
-  pluginName?: string
+  pluginName?: string // Plugin source ID (e.g., "review_by_blair@hs-dev-marketplace")
+  pluginDisplayName?: string // Human-readable plugin name (e.g., "Review By Blair")
   path: string
 }
 
@@ -63,7 +72,9 @@ async function scanCommandsDirectory(
     // Check if directory exists
     try {
       await fs.access(dir)
+      console.log("[commands] Directory exists:", dir)
     } catch {
+      console.log("[commands] Directory does not exist:", dir)
       return commands
     }
 
@@ -94,8 +105,10 @@ async function scanCommandsDirectory(
           const parsed = parseCommandMd(content)
           const commandName = parsed.name || fallbackName
 
+          console.log("[commands] Found command:", commandName, "at", fullPath)
           commands.push({
             name: commandName,
+            displayName: commandName, // Will be overridden for plugin commands
             description: parsed.description || "",
             argumentHint: parsed.argumentHint,
             source,
@@ -129,6 +142,7 @@ export const commandsRouter = router({
     )
     .query(async ({ input }) => {
       const userCommandsDir = path.join(os.homedir(), ".claude", "commands")
+      console.log("[commands.list] Scanning user commands dir:", userCommandsDir)
       const userCommandsPromise = scanCommandsDirectory(userCommandsDir, "user")
 
       let projectCommandsPromise = Promise.resolve<FileCommand[]>([])
@@ -156,7 +170,15 @@ export const commandsRouter = router({
         const paths = getPluginComponentPaths(plugin)
         try {
           const commands = await scanCommandsDirectory(paths.commands, "plugin")
-          return commands.map((cmd) => ({ ...cmd, pluginName: plugin.source }))
+          // Add namespace prefix for plugin commands: "pluginName:commandName"
+          // This helps distinguish commands with the same name from different plugins
+          return commands.map((cmd) => ({
+            ...cmd,
+            displayName: cmd.name, // Keep original name for display
+            name: `${plugin.name}:${cmd.name}`, // Namespaced: "review_by_blair:review"
+            pluginName: plugin.source, // "review_by_blair@hs-dev-marketplace"
+            pluginDisplayName: formatPluginName(plugin.name), // "Review By Blair"
+          }))
         } catch {
           return []
         }
@@ -172,7 +194,9 @@ export const commandsRouter = router({
       const pluginCommands = pluginCommandsArrays.flat()
 
       // Project commands first (more specific), then user commands, then plugin commands
-      return [...projectCommands, ...userCommands, ...pluginCommands]
+      const result = [...projectCommands, ...userCommands, ...pluginCommands]
+      console.log("[commands.list] Found commands:", result.length, result.map(c => c.name))
+      return result
     }),
 
   /**

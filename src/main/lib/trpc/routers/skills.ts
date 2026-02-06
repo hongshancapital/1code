@@ -16,6 +16,7 @@ export interface SkillInterfaceConfig {
   icon_small?: string    // Relative path, e.g., "./assets/icon-small.svg"
   icon_large?: string
   default_prompt?: string
+  hidden?: boolean       // If true, skill is hidden from UI and cannot be enabled
 }
 
 // File info for skill contents
@@ -45,6 +46,7 @@ export interface FileSkill {
   iconLargePath?: string
   skillDir?: string        // Absolute path to skill directory (for file operations)
   contents?: SkillDirectory[]  // Sub-directory contents
+  hidden?: boolean         // If true, skill is hidden from UI and cannot be enabled
 }
 
 /**
@@ -223,6 +225,7 @@ async function copyDirectoryRecursive(src: string, dest: string): Promise<void> 
  * Sync builtin skills to user's ~/.claude/skills directory
  * This makes builtin skills available to the Claude SDK
  * Skills are prefixed with "builtin-" to avoid conflicts
+ * Hidden skills are removed from user directory if they exist
  */
 export async function syncBuiltinSkillsToUserDir(): Promise<void> {
   const builtinSkillsDir = getBuiltinSkillsPath()
@@ -253,6 +256,19 @@ export async function syncBuiltinSkillsToUserDir(): Promise<void> {
       // Check if SKILL.md exists in source
       const skillMdPath = path.join(sourceDir, "SKILL.md")
       await fs.access(skillMdPath)
+
+      // Check if skill is hidden via hong.yaml
+      const interfaceConfig = await parseHongYaml(sourceDir)
+      if (interfaceConfig?.hidden) {
+        // Hidden skill - remove from user directory if exists
+        try {
+          await fs.rm(targetDir, { recursive: true, force: true })
+          console.log(`[Skills] Removed hidden builtin skill: ${skillName}`)
+        } catch {
+          // Ignore if doesn't exist
+        }
+        continue
+      }
 
       // Remove existing target directory to ensure clean sync
       try {
@@ -425,6 +441,7 @@ async function scanSkillsDirectory(
           iconLargePath,
           skillDir,
           contents,
+          hidden: interfaceConfig?.hidden,
         })
       } catch {
         // Skill directory doesn't have SKILL.md or read failed - skip it
@@ -489,7 +506,9 @@ const listSkillsProcedure = publicProcedure
     const pluginSkills = pluginSkillsArrays.flat()
 
     // Priority: project > user > plugin > builtin (later sources can be overridden by earlier ones)
+    // Filter out hidden skills (they cannot be enabled and shouldn't appear in UI)
     return [...projectSkills, ...userSkills, ...pluginSkills, ...builtinSkills]
+      .filter((skill) => !skill.hidden)
   })
 
 // Procedure for listing enabled skills (filtered by enabledSkills)
@@ -524,7 +543,9 @@ const listEnabledProcedure = publicProcedure
     ])
 
     // Priority: project > user > builtin
+    // Filter out hidden skills first (they cannot be enabled)
     const allSkills = [...projectSkills, ...userSkills, ...builtinSkills]
+      .filter((skill) => !skill.hidden)
     const enabledSkills = mergedSettings.enabledSkills || {}
 
     // If no enabledSkills configured, return all skills (all enabled by default)

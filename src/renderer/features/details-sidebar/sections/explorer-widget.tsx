@@ -13,6 +13,7 @@ import {
 import { FileTreePanel } from "@/features/cowork/file-tree-panel"
 import { FilePreviewDialog } from "@/features/cowork/file-preview/file-preview-dialog"
 import { filePreviewPathAtom } from "@/features/cowork/atoms"
+import { ResizableWidgetCard } from "../components/resizable-widget-card"
 
 // ============================================================================
 // Types
@@ -20,6 +21,7 @@ import { filePreviewPathAtom } from "@/features/cowork/atoms"
 
 interface ExplorerWidgetProps {
   worktreePath?: string | null
+  subChatId: string | null
   onExpand?: () => void
   /** Called when a file is selected for preview */
   onFileSelect?: (filePath: string, line?: number) => void
@@ -35,6 +37,7 @@ interface ExplorerWidgetProps {
  */
 export const ExplorerWidget = memo(function ExplorerWidget({
   worktreePath,
+  subChatId,
   onExpand,
   onFileSelect,
 }: ExplorerWidgetProps) {
@@ -74,8 +77,8 @@ export const ExplorerWidget = memo(function ExplorerWidget({
   return (
     <>
       <div className="mx-2 mb-2">
-        {/* Fixed height container for proper flex layout and scrolling */}
-        <div className="rounded-lg border border-border/50 overflow-hidden flex flex-col" style={{ height: "350px" }}>
+        {/* Resizable container for proper flex layout and scrolling */}
+        <div className="rounded-lg border border-border/50 overflow-hidden flex flex-col">
           {/* Header */}
           <div className="flex items-center gap-2 px-2 h-8 select-none group bg-muted/30 shrink-0">
             <FolderTree className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -101,14 +104,19 @@ export const ExplorerWidget = memo(function ExplorerWidget({
             )}
           </div>
 
-          {/* FileTreePanel - compact mode, flex-1 for remaining space, min-h-0 allows shrinking */}
-          <div className="flex-1 min-h-0">
-            <FileTreePanel
-              projectPath={worktreePath}
-              onFileSelect={handleFileSelect}
-              showHeader={false}
-            />
-          </div>
+          {/* FileTreePanel - wrapped in ResizableWidgetCard for height adjustment */}
+          <ResizableWidgetCard
+            widgetId="explorer"
+            subChatId={subChatId || "default"}
+          >
+            <div className="h-full min-h-0">
+              <FileTreePanel
+                projectPath={worktreePath}
+                onFileSelect={handleFileSelect}
+                showHeader={false}
+              />
+            </div>
+          </ResizableWidgetCard>
         </div>
       </div>
 

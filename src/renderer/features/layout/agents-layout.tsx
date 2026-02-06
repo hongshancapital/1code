@@ -18,7 +18,7 @@ import {
   removeTrafficLightRequestAtom,
   TRAFFIC_LIGHT_PRIORITIES,
 } from "../../lib/atoms/traffic-light"
-import { selectedAgentChatIdAtom, selectedProjectAtom, selectedDraftIdAtom, showNewChatFormAtom, currentProjectModeAtom, enabledWidgetsAtom, desktopViewAtom, fileSearchDialogOpenAtom } from "../agents/atoms"
+import { selectedAgentChatIdAtom, selectedProjectAtom, selectedDraftIdAtom, showNewChatFormAtom, currentProjectModeAtom, enabledWidgetsAtom, desktopViewAtom, fileSearchDialogOpenAtom, subChatStatusStorageAtom, markSubChatCommitted } from "../agents/atoms"
 import { trpc } from "../../lib/trpc"
 import { useAgentsHotkeys } from "../agents/lib/agents-hotkeys-manager"
 import { toggleSearchAtom } from "../agents/search"
@@ -37,6 +37,7 @@ import { useArtifactsListener } from "../cowork/use-artifacts-listener"
 import { FilePreviewDialog } from "../cowork/file-preview"
 import { computeEnabledWidgets, parseFeatureConfig } from "../../../shared/feature-config"
 import { SettingsSidebar } from "../settings/settings-sidebar"
+import { GlobalSearchDialog } from "../../components/dialogs/global-search-dialog"
 
 // ============================================================================
 // Constants
@@ -201,6 +202,19 @@ export function AgentsLayout() {
 
     return () => unsubscribe()
   }, [])
+
+  // Listen for git commit success events to mark subchat as committed
+  const setSubChatStatus = useSetAtom(subChatStatusStorageAtom)
+  useEffect(() => {
+    if (!window.desktopApi?.onGitCommitSuccess) return
+
+    const unsubscribe = window.desktopApi.onGitCommitSuccess((data) => {
+      console.log("[Layout] Git commit success:", data)
+      markSubChatCommitted(setSubChatStatus, data.subChatId, data.commitHash, data.branchInfo)
+    })
+
+    return () => unsubscribe()
+  }, [setSubChatStatus])
 
   // Track if this is the initial load - skip auto-open on first load to respect saved state
   const isInitialLoadRef = useRef(true)
@@ -367,6 +381,8 @@ export function AgentsLayout() {
         <UpdateBanner />
         {/* Runtime Init Banner (right bottom) */}
         <RuntimeInitBanner />
+        {/* Global Search Dialog (Cmd+K) */}
+        <GlobalSearchDialog />
       </div>
     </TooltipProvider>
   )

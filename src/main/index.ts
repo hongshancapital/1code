@@ -36,6 +36,7 @@ import {
 import { cleanupGitWatchers } from "./lib/git/watcher"
 import { AutomationEngine } from "./lib/automation/engine"
 import { ensureInboxProject } from "./lib/automation/inbox-project"
+import { migrateOldPlaygroundSubChats } from "./lib/playground/migrate-playground"
 import { cancelAllPendingOAuth, handleMcpOAuthCallback } from "./lib/mcp-auth"
 import {
   createMainWindow,
@@ -848,6 +849,16 @@ if (gotTheLock) {
       console.log("[App] Database initialized")
     } catch (error) {
       console.error("[App] Failed to initialize database:", error)
+    }
+
+    // Migrate old playground format to new independent format
+    try {
+      const { migrated, skipped } = await migrateOldPlaygroundSubChats()
+      if (migrated > 0 || skipped > 0) {
+        console.log(`[App] Playground migration: ${migrated} migrated, ${skipped} skipped`)
+      }
+    } catch (error) {
+      console.error("[App] Playground migration failed:", error)
     }
 
     // Initialize AutomationEngine

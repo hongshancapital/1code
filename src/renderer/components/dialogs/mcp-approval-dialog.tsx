@@ -2,6 +2,7 @@
 
 import { useAtom } from "jotai"
 import { Shield } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,6 +21,7 @@ import {
 } from "../../lib/atoms"
 
 export function McpApprovalDialog() {
+  const { t } = useTranslation('toast')
   const [isOpen, setIsOpen] = useAtom(mcpApprovalDialogOpenAtom)
   const [pendingApprovals, setPendingApprovals] = useAtom(
     pendingMcpApprovalsAtom,
@@ -39,7 +41,7 @@ export function McpApprovalDialog() {
       await approveMutation.mutateAsync({
         identifier: currentApproval.identifier,
       })
-      toast.success("MCP server approved", {
+      toast.success(t("success.mcpServerApproved"), {
         description: currentApproval.serverName,
       })
     } catch (error) {
@@ -64,7 +66,7 @@ export function McpApprovalDialog() {
         pluginSource: currentApproval.pluginSource,
         serverNames: samePlugin.map((a) => a.serverName),
       })
-      toast.success("All MCP servers approved", {
+      toast.success(t("success.allMcpServersApproved"), {
         description: `${samePlugin.length} server(s) from ${currentApproval.pluginSource}`,
       })
     } catch (error) {

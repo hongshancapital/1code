@@ -32,6 +32,7 @@ export type WidgetId =
   | "explorer"
   | "background-tasks"
   | "mcp"
+  | "skills"
 
 /**
  * Stored in projects.featureConfig as JSON string
@@ -54,7 +55,7 @@ export interface FeatureDefault {
  * Widget feature defaults
  */
 export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
-  info: { label: "Workspace", defaultInCoding: true, defaultInCowork: false },
+  info: { label: "Workspace", defaultInCoding: true, defaultInCowork: true },
   todo: { label: "Tasks", defaultInCoding: true, defaultInCowork: true },
   plan: { label: "Plan", defaultInCoding: true, defaultInCowork: true },
   terminal: { label: "Terminal", defaultInCoding: false, defaultInCowork: false },
@@ -63,26 +64,29 @@ export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
   explorer: { label: "Explorer", defaultInCoding: true, defaultInCowork: true },
   "background-tasks": { label: "Background Tasks", defaultInCoding: true, defaultInCowork: false },
   mcp: { label: "MCP Servers", defaultInCoding: true, defaultInCowork: true },
+  skills: { label: "Skills", defaultInCoding: true, defaultInCowork: true },
 }
 
 /**
  * Git-related widgets that are NEVER available in chat/cowork mode.
  * This constraint cannot be overridden by user configuration.
+ * Note: "info" widget is NOT included here because it also shows
+ * non-git information (e.g., playground type, migration options).
  */
 export const GIT_RELATED_WIDGETS: Set<WidgetId> = new Set([
-  "info",     // Shows git branch info
   "terminal", // Can execute git commands
   "diff",     // Git diff viewer
 ])
 
 /**
  * Widgets disabled in chat mode (most widgets, as chat is purely conversational)
+ * Note: todo, plan, mcp, skills are available in chat mode
+ * Note: artifacts is enabled in chat mode to show generated files
  */
 export const CHAT_DISABLED_WIDGETS: Set<WidgetId> = new Set([
   "info",
   "terminal",
   "diff",
-  "artifacts",
   "explorer",
   "background-tasks",
 ])

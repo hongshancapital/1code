@@ -482,6 +482,7 @@ export const AgentEditTool = memo(function AgentEditTool({
       data-part-index={partIndex}
       data-part-type={toolPrefix}
       data-tool-file-path={displayPath}
+      data-tool-call-id={part.toolCallId}
       className="rounded-lg border border-border bg-muted/30 overflow-hidden mx-2"
     >
       {/* Header - clickable to expand, fixed height to prevent layout shift */}

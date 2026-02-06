@@ -192,6 +192,7 @@ export type SettingsTab =
   | "runtime"
   | "editor"
   | "skills"
+  | "commands"
   | "agents"
   | "mcp"
   | "plugins"
@@ -200,6 +201,7 @@ export type SettingsTab =
   | "debug"
   | "beta"
   | "keyboard"
+  | "memory"
   | `project-${string}` // Dynamic project tabs
 export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("preferences")
 // Derived atom: maps settings open/close to desktopView navigation
@@ -513,6 +515,15 @@ export const enableTasksAtom = atomWithStorage<boolean>(
 export const betaUpdatesEnabledAtom = atomWithStorage<boolean>(
   "preferences:beta-updates-enabled",
   false, // Default OFF - only stable releases
+  undefined,
+  { getOnInit: true },
+)
+
+// Beta: Skill Awareness (Prompt Injection)
+// When enabled (default), injects a prompt reminder for AI to consider available skills before planning/executing
+export const skillAwarenessEnabledAtom = atomWithStorage<boolean>(
+  "preferences:skill-awareness-enabled",
+  true, // Default ON
   undefined,
   { getOnInit: true },
 )
@@ -975,6 +986,9 @@ export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Simulated installation mode - when true, RuntimeInitBanner shows simulated state
+export const runtimeSimulatedModeAtom = atom<boolean>(false)
+
 // ============================================
 // GROUPING ATOMS (for workspace/subchat grouping)
 // ============================================
@@ -1014,6 +1028,34 @@ export interface UserPersonalization {
 export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
   "profile:user-personalization",
   { preferredName: "", personalPreferences: "" },
+  undefined,
+  { getOnInit: true },
+)
+
+// ============================================
+// MEMORY SETTINGS ATOMS
+// ============================================
+
+/**
+ * Memory recording toggle
+ * When enabled (default), memory observations are automatically captured
+ * When disabled, no memory data is recorded
+ */
+export const memoryRecordingEnabledAtom = atomWithStorage<boolean>(
+  "preferences:memory-recording-enabled",
+  true, // Default ON - memory is recorded
+  undefined,
+  { getOnInit: true },
+)
+
+/**
+ * Memory context injection toggle
+ * When enabled (default), memory context is injected into AI conversations
+ * When disabled, memory is still recorded but not used in conversations
+ */
+export const memoryEnabledAtom = atomWithStorage<boolean>(
+  "preferences:memory-enabled",
+  true, // Default ON - memory is injected into context
   undefined,
   { getOnInit: true },
 )

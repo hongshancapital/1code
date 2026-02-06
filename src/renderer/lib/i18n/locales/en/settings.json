@@ -162,7 +162,7 @@
       "contributions": "contributions",
       "requests": "requests",
       "tokens": "tokens",
-      "viewDetails": "View Details",
+      "viewDetails": "View Usage",
       "loading": "Loading usage statistics..."
     },
     "voice": {
@@ -230,6 +230,33 @@
       "saving": "Saving..."
     }
   },
+  "commands": {
+    "title": "Commands",
+    "searchPlaceholder": "Search commands...",
+    "loading": "Loading...",
+    "emptyState": "No commands found",
+    "emptyHint": "Commands are defined in ~/.claude/commands/ or plugin directories",
+    "noResults": "No results found",
+    "selectToView": "Select a command to view details",
+    "noCommandsFound": "No commands available",
+    "sections": {
+      "user": "User",
+      "project": "Project"
+    },
+    "badges": {
+      "user": "USER",
+      "project": "PROJECT",
+      "plugin": "PLUGIN"
+    },
+    "detail": {
+      "usage": "Usage",
+      "source": "Source",
+      "instructions": "Instructions",
+      "noInstructions": "No instructions",
+      "namespacedName": "Namespaced Name",
+      "namespacedHint": "Use the namespaced name to avoid conflicts with other commands"
+    }
+  },
   "mcp": {
     "title": "MCP Servers",
     "searchPlaceholder": "Search servers...",
@@ -242,6 +269,12 @@
     "requiresLogin": "Requires login",
     "tools": "tool",
     "tools_plural": "tools",
+    "disabled": "Disabled",
+    "enableServer": "Enable server",
+    "disableServer": "Disable server",
+    "serverEnabled": "{{name}} enabled",
+    "serverDisabled": "{{name}} disabled",
+    "noProjectSelected": "Select a project first",
     "status": {
       "connected": "Connected",
       "failed": "Failed",
@@ -261,8 +294,12 @@
       "args": "Args",
       "env": "Env",
       "error": "Error",
-      "toolsCount": "Tools ({{count}})"
+      "toolsCount": "Tools ({{count}})",
+      "edit": "Edit server",
+      "delete": "Delete server"
     },
+    "serverDeleted": "{{name}} deleted",
+    "deleteError": "Failed to delete server",
     "form": {
       "title": "New MCP Server",
       "nameLabel": "Name",
@@ -288,6 +325,15 @@
   "runtime": {
     "title": "Runtime Settings",
     "description": "Configure runtime environments for running and debugging scripts",
+    "packageManager": {
+      "title": "Package Manager",
+      "description": "System package manager for installing tools",
+      "hint": "Required for installing other development tools",
+      "detecting": "Detecting package manager...",
+      "noTools": "No package manager detected",
+      "installing": "Installing package manager...",
+      "installNote": "Package manager installation may take several minutes"
+    },
     "commonTools": {
       "title": "Common Tools",
       "description": "CLI tools that enhance Hóng functionality",
@@ -335,12 +381,16 @@
     "go": {
       "title": "Go",
       "description": "Go compiler and tools",
-      "comingSoon": "Go runtime configuration coming soon."
+      "hint": "Go runtime and build tools",
+      "detecting": "Detecting Go tools...",
+      "noTools": "No Go tools detected"
     },
     "rust": {
       "title": "Rust",
       "description": "Rust compiler and Cargo",
-      "comingSoon": "Rust runtime configuration coming soon."
+      "hint": "Rust compiler and package manager",
+      "detecting": "Detecting Rust tools...",
+      "noTools": "No Rust tools detected"
     },
     "pathRow": {
       "notFound": "Not found",
@@ -362,12 +412,16 @@
     },
     "automations": {
       "title": "Automations & Inbox",
-      "description": "Automate workflows with GitHub and Linear triggers, and manage inbox notifications.",
-      "requiresPaid": "Requires a paid plan. Upgrade to enable automations and inbox."
+      "description": "Local automation that proactively triggers AI to help you complete tasks. (Dev only)",
+      "devOnly": "This feature is under development and only available in dev mode."
     },
     "tasks": {
       "title": "Agent Tasks",
       "description": "Enable Task instead of legacy Todo system."
+    },
+    "skillAwareness": {
+      "title": "Skill Awareness",
+      "description": "Prompt AI to check for relevant skills before planning or executing tasks."
     },
     "offlineSettings": {
       "title": "Offline Mode Settings",
@@ -503,6 +557,10 @@
     "selectToView": "Select a plugin to view details",
     "noPluginsInstalled": "No plugins installed",
     "installMarketplaceHint": "Install plugins to ~/.claude/plugins/marketplaces/",
+    "viewMode": {
+      "installed": "Installed",
+      "marketplace": "Marketplace"
+    },
     "sections": {
       "enabled": "Enabled"
     },
@@ -524,6 +582,60 @@
       "disabled": "Plugin disabled",
       "authSuccess": "{{name}} authenticated",
       "authFailed": "Authentication failed"
+    }
+  },
+  "marketplace": {
+    "title": "Marketplace",
+    "searchPlaceholder": "Search plugins...",
+    "selectMarketplace": "Select marketplace",
+    "allMarketplaces": "All marketplaces",
+    "manage": "Manage marketplaces",
+    "noMarketplaces": "No marketplaces configured",
+    "addMarketplaceHint": "Add a marketplace to browse plugins",
+    "addMarketplace": "Add Marketplace",
+    "noPlugins": "No plugins found",
+    "selectToView": "Select a plugin to view details",
+    "noPluginsAvailable": "No plugins available",
+    "installed": "Installed",
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "sections": {
+      "installed": "Installed",
+      "available": "Available"
+    },
+    "detail": {
+      "version": "Version",
+      "marketplace": "Marketplace",
+      "homepage": "Homepage",
+      "tags": "Tags",
+      "installedVersion": "Installed Version"
+    },
+    "manage": {
+      "title": "Manage Marketplaces",
+      "description": "Add, update, or remove plugin marketplaces",
+      "addNew": "Add New Marketplace",
+      "configured": "Configured Marketplaces",
+      "noMarketplaces": "No marketplaces configured",
+      "lastUpdated": "Last updated",
+      "update": "Update",
+      "remove": "Remove",
+      "officialTitle": "Claude Official Marketplace",
+      "officialDescription": "Official plugins from Anthropic",
+      "addOfficial": "Add Official"
+    },
+    "toast": {
+      "installed": "Plugin installed",
+      "installFailed": "Failed to install plugin",
+      "uninstalled": "Plugin uninstalled",
+      "uninstallFailed": "Failed to uninstall plugin",
+      "added": "Marketplace added",
+      "addFailed": "Failed to add marketplace",
+      "updated": "Marketplace updated",
+      "updateFailed": "Failed to update marketplace",
+      "removed": "Marketplace removed",
+      "removeFailed": "Failed to remove marketplace",
+      "officialAdded": "Official marketplace added",
+      "officialFailed": "Failed to add official marketplace"
     }
   },
   "keyboard": {
@@ -652,6 +764,32 @@
       "offlineSimDisabledDesc": "Network detection restored to normal",
       "productionDbCopied": "Production database copied",
       "productionDbCopiedDesc": "Reloading with new data..."
+    },
+    "simulatedInstall": {
+      "title": "Simulated Runtime Installation",
+      "description": "Simulate the initial runtime detection and installation flow for testing and debugging purposes.",
+      "start": "Start Simulation",
+      "resetButton": "Reset",
+      "injectError": "Inject Error",
+      "started": "Simulated installation started",
+      "reset": "Simulation state reset",
+      "errors": {
+        "none": "None (normal flow)",
+        "detection": "Detection phase error",
+        "download": "Download phase error",
+        "install": "Install phase error",
+        "timeout": "Timeout error"
+      },
+      "steps": {
+        "initializing": "Initializing...",
+        "detecting": "Detecting system environment...",
+        "checking": "Checking existing tools...",
+        "downloading": "Downloading...",
+        "installing": "Installing...",
+        "verifying": "Verifying...",
+        "complete": "Installation complete",
+        "error": "Error occurred"
+      }
     }
   },
   "sidebar": {
@@ -668,6 +806,79 @@
     "mcpServers": "MCP Servers",
     "plugins": "Plugins",
     "debug": "Debug",
-    "runtime": "Runtime"
+    "runtime": "Runtime",
+    "editor": "Editor",
+    "commands": "Commands",
+    "memory": "Memory"
+  },
+  "memory": {
+    "title": "Memory",
+    "filteredByProject": "Filtered by project",
+    "allMemories": "All memories",
+    "refresh": "Refresh",
+    "refreshed": "Memory refreshed",
+    "recording": {
+      "title": "Record Memory",
+      "description": "Automatically capture observations during conversations",
+      "disabledHint": "No memory data will be recorded"
+    },
+    "enable": {
+      "title": "Enable Memory in Conversations",
+      "description": "Inject memory context into AI conversations for more personalized responses",
+      "disabledHint": "Memory will still be recorded, but won't be used in conversations"
+    },
+    "stats": {
+      "sessions": "Sessions",
+      "observations": "Observations",
+      "prompts": "Prompts",
+      "vectors": "Vectors"
+    },
+    "vectorStatus": {
+      "enabled": "Vector search enabled",
+      "initializing": "Vector search initializing..."
+    },
+    "timeline": {
+      "recentMemory": "Recent Memory",
+      "observations": "Observations",
+      "sessions": "Sessions",
+      "allTypes": "All Types"
+    },
+    "empty": {
+      "noMemories": "No memories yet",
+      "noMemoriesHint": "Memories are collected as you use the chat",
+      "noSessions": "No sessions yet",
+      "noSessionsHint": "Sessions are created when you chat with the AI"
+    },
+    "session": {
+      "defaultName": "Session {{id}}",
+      "observations": "{{count}} observations",
+      "prompts": "{{count}} prompts",
+      "items": "{{count}} items"
+    },
+    "observation": {
+      "untitled": "Untitled",
+      "detail": "Observation Detail",
+      "content": "Content",
+      "facts": "Facts",
+      "concepts": "Concepts",
+      "filesRead": "Files Read",
+      "filesModified": "Files Modified"
+    },
+    "delete": {
+      "deleteMemory": "Delete Memory",
+      "confirmDelete": "Delete this memory?",
+      "deleted": "Memory deleted"
+    },
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Clear all memory. This action cannot be undone.",
+      "clearing": "Clearing...",
+      "clearAll": "Clear All Memory",
+      "cleared": "All memory cleared",
+      "confirmTitle": "Are you sure?",
+      "confirmDescription": "This will permanently delete all {{observations}} observations, {{prompts}} prompts, and {{sessions}} sessions. This action cannot be undone.",
+      "cancel": "Cancel",
+      "deleteAll": "Delete All"
+    }
   }
 }

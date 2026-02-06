@@ -195,5 +195,25 @@
       "养精蓄锐，蓄势待发",
       "昨天给大脑放了个假"
     ]
+  },
+  "insights": {
+    "title": "使用洞察",
+    "daily": "日报",
+    "weekly": "周报",
+    "history": "历史报告",
+    "noReport": "暂无报告",
+    "willGenerateWhenReady": "当使用量达到阈值后将自动生成",
+    "generating": "正在回顾你的工作...",
+    "preparing": "正在准备数据...",
+    "totalTokens": "总 Tokens",
+    "apiCalls": "API 调用",
+    "cost": "费用",
+    "failed": "报告生成失败",
+    "statsOnly": "统计数据已就绪，AI 分析即将开始",
+    "expand": "AI 洞察",
+    "collapse": "收起",
+    "viewDetail": "查看详情",
+    "detailTitle": "工作回顾",
+    "noContent": "暂无详细内容"
   }
 }
