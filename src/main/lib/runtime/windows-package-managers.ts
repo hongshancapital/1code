@@ -602,7 +602,55 @@ try {
       // Don't return on failure, UI.Xaml is optional
     }
 
-    // Step 3: Install winget itself
+    // Step 3: Install WindowsAppRuntime dependency (required for winget 1.22+)
+    addLog({
+      step: "安装 winget - 检查 WindowsAppRuntime 依赖",
+      success: true,
+    })
+
+    const appRuntimeCommand = `
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+try {
+  # Check if any WindowsAppRuntime 1.x is already installed
+  $runtime = Get-AppxPackage -Name 'Microsoft.WindowsAppRuntime.*' -ErrorAction SilentlyContinue | Where-Object { $_.Version -ge '8000.0.0.0' }
+  if (-not $runtime) {
+    Write-Output 'Installing WindowsAppRuntime...'
+    # Download the latest stable Windows App Runtime installer from NuGet
+    $nugetUrl = 'https://www.nuget.org/api/v2/package/Microsoft.WindowsAppRuntime.MSIX/1.8'
+    $nugetPath = Join-Path $env:TEMP 'windowsappruntime.zip'
+    $extractPath = Join-Path $env:TEMP 'windowsappruntime'
+    Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
+    Expand-Archive -Path $nugetPath -DestinationPath $extractPath -Force
+
+    # Install all platform-specific MSIX packages
+    $msixFiles = Get-ChildItem -Path $extractPath -Recurse -Filter '*.msix' | Where-Object { $_.Name -match 'x64' -or $_.Name -match 'neutral' }
+    foreach ($msix in $msixFiles) {
+      Write-Output "Installing $($msix.Name)..."
+      Add-AppxPackage -Path $msix.FullName -ErrorAction SilentlyContinue
+    }
+
+    Remove-Item $nugetPath -Force -ErrorAction SilentlyContinue
+    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Output 'WindowsAppRuntime installed'
+  } else {
+    Write-Output "WindowsAppRuntime already installed: $($runtime.Version)"
+  }
+} catch {
+  # Not fatal - winget install will report the real dependency error
+  Write-Output "WindowsAppRuntime installation skipped: $_"
+}
+`.trim()
+
+    // WindowsAppRuntime is critical but we don't fail on it — winget install will
+    // give us the definitive error if the dependency is truly missing.
+    let appRuntimeResult = await execPowerShell(appRuntimeCommand, 180000, "安装 WindowsAppRuntime 依赖")
+    if (!appRuntimeResult.success) {
+      appRuntimeResult = await installWithElevation(appRuntimeCommand, "安装 WindowsAppRuntime 依赖 (elevated)", { powershell: true })
+      // Don't return on failure, let winget install try anyway
+    }
+
+    // Step 4: Install winget itself
     addLog({
       step: "安装 winget - 下载 winget",
       success: true,
@@ -624,9 +672,27 @@ try {
   # Also get the license file if available
   $license = $release.assets | Where-Object { $_.name -match '_License.*\\.xml$' } | Select-Object -First 1
 
+  # Get all dependency packages (WindowsAppRuntime, etc.)
+  $dependencies = $release.assets | Where-Object { $_.name -match '\\.msix$' -and $_.name -notmatch 'msixbundle' }
+
   $bundlePath = Join-Path $env:TEMP 'winget.msixbundle'
   Write-Output "Downloading winget from $($msixBundle.browser_download_url)..."
   Invoke-WebRequest -Uri $msixBundle.browser_download_url -OutFile $bundlePath
+
+  # Download and install dependencies from the release (if any)
+  $depPaths = @()
+  foreach ($dep in $dependencies) {
+    $depPath = Join-Path $env:TEMP $dep.name
+    Write-Output "Downloading dependency $($dep.name)..."
+    Invoke-WebRequest -Uri $dep.browser_download_url -OutFile $depPath
+    $depPaths += $depPath
+  }
+
+  # Install dependencies first
+  foreach ($depPath in $depPaths) {
+    Write-Output "Installing dependency $(Split-Path $depPath -Leaf)..."
+    Add-AppxPackage -Path $depPath -ErrorAction SilentlyContinue
+  }
 
   if ($license) {
     $licensePath = Join-Path $env:TEMP 'winget_license.xml'
@@ -650,6 +716,7 @@ try {
   }
 
   Remove-Item $bundlePath -Force -ErrorAction SilentlyContinue
+  foreach ($depPath in $depPaths) { Remove-Item $depPath -Force -ErrorAction SilentlyContinue }
   if ($licensePath) { Remove-Item $licensePath -Force -ErrorAction SilentlyContinue }
 
   Write-Output 'Winget installed successfully'
@@ -772,13 +839,13 @@ export class ChocolateyProvider implements WindowsPackageManager {
       success: true,
     })
 
-    const command = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
+    const installCommand = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
 
     // Try normal install first
-    let result = await execPowerShell(command, 600000, "安装 Chocolatey")
+    let result = await execPowerShell(installCommand, 600000, "安装 Chocolatey")
     if (!result.success) {
       // Failed — try with elevation (run as PowerShell script)
-      result = await installWithElevation(command, "安装 Chocolatey (elevated)", { powershell: true })
+      result = await installWithElevation(installCommand, "安装 Chocolatey (elevated)", { powershell: true })
     }
 
     // Regardless of exit code, refresh PATH and verify choco is actually usable.
@@ -789,6 +856,26 @@ export class ChocolateyProvider implements WindowsPackageManager {
     if (await this.isAvailable()) {
       addLog({ step: "安装 Chocolatey - 验证通过", success: true })
       return { stdout: result.stdout, stderr: result.stderr, success: true }
+    }
+
+    // Chocolatey install script may have bailed because it detected a broken/empty
+    // installation. Remove the broken marker and retry with a forced fresh install.
+    if (result.stdout && result.stdout.includes("existing Chocolatey installation was detected")) {
+      addLog({ step: "安装 Chocolatey - 检测到损坏安装，强制重装", success: true })
+
+      const forceCommand = `Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; $env:ChocolateyInstall = 'C:\\ProgramData\\chocolatey'; if (Test-Path $env:ChocolateyInstall) { Remove-Item $env:ChocolateyInstall -Recurse -Force -ErrorAction SilentlyContinue }; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))`
+
+      let retryResult = await execPowerShell(forceCommand, 600000, "安装 Chocolatey (强制重装)")
+      if (!retryResult.success) {
+        retryResult = await installWithElevation(forceCommand, "安装 Chocolatey (强制重装 elevated)", { powershell: true })
+      }
+
+      await refreshWindowsPath()
+
+      if (await this.isAvailable()) {
+        addLog({ step: "安装 Chocolatey - 强制重装验证通过", success: true })
+        return { stdout: retryResult.stdout, stderr: retryResult.stderr, success: true }
+      }
     }
 
     // Still not available — treat as failure
