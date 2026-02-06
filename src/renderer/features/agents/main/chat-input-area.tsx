@@ -1427,7 +1427,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                           <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="truncate">
                             {selectedModel?.name}{" "}
-                            <span className="text-muted-foreground">4.5</span>
+                            <span className="text-muted-foreground">{selectedModel?.version || "4.5"}</span>
                           </span>
                           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
@@ -1448,7 +1448,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                                 <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <span>
                                   {model.name}{" "}
-                                  <span className="text-muted-foreground">4.5</span>
+                                  <span className="text-muted-foreground">{model.version || "4.5"}</span>
                                 </span>
                               </div>
                               {isSelected && (

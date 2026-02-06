@@ -10,7 +10,6 @@ export {
   GITHUB_TRIGGER_OPTIONS,
   LINEAR_TRIGGER_OPTIONS,
   AUTOMATION_TABS,
-  CLAUDE_MODELS,
 } from "./constants"
 
 // Templates
@@ -29,5 +28,4 @@ export type {
   TriggerFilter,
   TriggerConfig,
   AutomationTemplate,
-  ClaudeModel,
 } from "./types"

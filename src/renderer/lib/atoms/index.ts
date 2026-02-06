@@ -1031,3 +1031,19 @@ export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
   undefined,
   { getOnInit: true },
 )
+
+// ============================================
+// MEMORY SETTINGS ATOMS
+// ============================================
+
+/**
+ * Memory context injection toggle
+ * When enabled (default), memory context is injected into AI conversations
+ * When disabled, memory is still recorded but not used in conversations
+ */
+export const memoryEnabledAtom = atomWithStorage<boolean>(
+  "preferences:memory-enabled",
+  true, // Default ON - memory is injected into context
+  undefined,
+  { getOnInit: true },
+)

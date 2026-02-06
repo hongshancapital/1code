@@ -32,12 +32,3 @@ export const AUTOMATION_TABS = [
   { value: "templates", label: "Templates" },
 ] as const
 
-// ==============================================================================
-// Model Options
-// ==============================================================================
-
-export const CLAUDE_MODELS = [
-  { id: "opus", name: "Opus" },
-  { id: "sonnet", name: "Sonnet" },
-  { id: "haiku", name: "Haiku" },
-] as const

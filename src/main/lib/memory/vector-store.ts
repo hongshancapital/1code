@@ -6,7 +6,8 @@
 import * as lancedb from "@lancedb/lancedb"
 import { app } from "electron"
 import path from "path"
-import { generateEmbedding, EMBEDDING_DIMENSION } from "./embeddings"
+import fs from "fs"
+import { generateEmbedding, EMBEDDING_DIMENSION, EMBEDDING_MODEL } from "./embeddings"
 
 // LanceDB connection and table
 let db: lancedb.Connection | null = null
@@ -43,11 +44,35 @@ function getDbPath(): string {
 /**
  * Initialize LanceDB connection and tables
  */
+/**
+ * Check if the embedding model has changed since last initialization.
+ * If changed, drop the existing table so vectors are re-indexed with the new model.
+ */
+function checkModelMigration(dbPath: string): boolean {
+  const metaPath = path.join(dbPath, ".embedding-model")
+
+  try {
+    if (fs.existsSync(metaPath)) {
+      const stored = fs.readFileSync(metaPath, "utf-8").trim()
+      if (stored === EMBEDDING_MODEL) return false // no change
+    }
+  } catch {
+    // file doesn't exist or unreadable — treat as needing migration
+  }
+
+  // Write current model name
+  fs.mkdirSync(dbPath, { recursive: true })
+  fs.writeFileSync(metaPath, EMBEDDING_MODEL, "utf-8")
+  return true
+}
+
 export async function initVectorStore(): Promise<void> {
   if (db) return
 
   const dbPath = getDbPath()
   console.log(`[VectorStore] Initializing at: ${dbPath}`)
+
+  const modelChanged = checkModelMigration(dbPath)
 
   try {
     db = await lancedb.connect(dbPath)
@@ -55,12 +80,17 @@ export async function initVectorStore(): Promise<void> {
     // Check if table exists
     const tableNames = await db.tableNames()
 
-    if (tableNames.includes("observations")) {
+    if (modelChanged && tableNames.includes("observations")) {
+      // Embedding model changed — old vectors are incompatible, drop table
+      console.log(`[VectorStore] Embedding model changed to ${EMBEDDING_MODEL}, dropping old vectors`)
+      await db.dropTable("observations")
+    }
+
+    if (!modelChanged && tableNames.includes("observations")) {
       observationsTable = await db.openTable("observations")
       console.log("[VectorStore] Opened existing observations table")
     } else {
       // Create table with initial empty data (LanceDB requires data to create table)
-      // We'll use a placeholder that will be overwritten
       // Note: Use empty string instead of null for projectId to avoid type inference issues
       console.log("[VectorStore] Creating new observations table")
       observationsTable = await db.createTable("observations", [
@@ -97,7 +127,8 @@ export async function addObservation(
   if (!observationsTable) throw new Error("Vector store not initialized")
 
   try {
-    const embedding = await generateEmbedding(text)
+    // E5 models require "passage: " prefix for documents being indexed
+    const embedding = await generateEmbedding(`passage: ${text}`)
 
     await observationsTable.add([
       {
@@ -194,7 +225,8 @@ export async function searchSimilar(
   const { projectId, limit = 20, type } = options
 
   try {
-    const queryEmbedding = await generateEmbedding(query)
+    // E5 models require "query: " prefix for search queries
+    const queryEmbedding = await generateEmbedding(`query: ${query}`)
 
     // Build the search query
     let searchQuery = observationsTable

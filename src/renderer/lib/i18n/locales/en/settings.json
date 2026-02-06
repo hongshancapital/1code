@@ -810,5 +810,70 @@
     "editor": "Editor",
     "commands": "Commands",
     "memory": "Memory"
+  },
+  "memory": {
+    "title": "Memory",
+    "filteredByProject": "Filtered by project",
+    "allMemories": "All memories",
+    "refresh": "Refresh",
+    "refreshed": "Memory refreshed",
+    "enable": {
+      "title": "Enable Memory in Conversations",
+      "description": "Inject memory context into AI conversations for more personalized responses",
+      "disabledHint": "Memory will still be recorded, but won't be used in conversations"
+    },
+    "stats": {
+      "sessions": "Sessions",
+      "observations": "Observations",
+      "prompts": "Prompts",
+      "vectors": "Vectors"
+    },
+    "vectorStatus": {
+      "enabled": "Vector search enabled",
+      "initializing": "Vector search initializing..."
+    },
+    "timeline": {
+      "recentMemory": "Recent Memory",
+      "observations": "Observations",
+      "sessions": "Sessions",
+      "allTypes": "All Types"
+    },
+    "empty": {
+      "noMemories": "No memories yet",
+      "noMemoriesHint": "Memories are collected as you use the chat",
+      "noSessions": "No sessions yet",
+      "noSessionsHint": "Sessions are created when you chat with the AI"
+    },
+    "session": {
+      "defaultName": "Session {{id}}",
+      "observations": "{{count}} observations",
+      "prompts": "{{count}} prompts",
+      "items": "{{count}} items"
+    },
+    "observation": {
+      "untitled": "Untitled",
+      "detail": "Observation Detail",
+      "content": "Content",
+      "facts": "Facts",
+      "concepts": "Concepts",
+      "filesRead": "Files Read",
+      "filesModified": "Files Modified"
+    },
+    "delete": {
+      "deleteMemory": "Delete Memory",
+      "confirmDelete": "Delete this memory?",
+      "deleted": "Memory deleted"
+    },
+    "dangerZone": {
+      "title": "Danger Zone",
+      "description": "Clear all memory. This action cannot be undone.",
+      "clearing": "Clearing...",
+      "clearAll": "Clear All Memory",
+      "cleared": "All memory cleared",
+      "confirmTitle": "Are you sure?",
+      "confirmDescription": "This will permanently delete all {{observations}} observations, {{prompts}} prompts, and {{sessions}} sessions. This action cannot be undone.",
+      "cancel": "Cancel",
+      "deleteAll": "Delete All"
+    }
   }
 }

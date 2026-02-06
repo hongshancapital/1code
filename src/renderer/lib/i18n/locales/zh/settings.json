@@ -810,5 +810,70 @@
     "editor": "编辑器",
     "commands": "命令",
     "memory": "记忆"
+  },
+  "memory": {
+    "title": "记忆",
+    "filteredByProject": "按项目筛选",
+    "allMemories": "全部记忆",
+    "refresh": "刷新",
+    "refreshed": "记忆已刷新",
+    "enable": {
+      "title": "在对话中启用记忆",
+      "description": "将记忆上下文注入 AI 对话以获得更个性化的回复",
+      "disabledHint": "记忆仍会被记录，但不会在对话中使用"
+    },
+    "stats": {
+      "sessions": "会话",
+      "observations": "观察",
+      "prompts": "提示",
+      "vectors": "向量"
+    },
+    "vectorStatus": {
+      "enabled": "向量搜索已启用",
+      "initializing": "向量搜索初始化中..."
+    },
+    "timeline": {
+      "recentMemory": "最近记忆",
+      "observations": "观察",
+      "sessions": "会话",
+      "allTypes": "全部类型"
+    },
+    "empty": {
+      "noMemories": "暂无记忆",
+      "noMemoriesHint": "记忆会在你使用聊天时自动收集",
+      "noSessions": "暂无会话",
+      "noSessionsHint": "会话会在你与 AI 聊天时自动创建"
+    },
+    "session": {
+      "defaultName": "会话 {{id}}",
+      "observations": "{{count}} 条观察",
+      "prompts": "{{count}} 条提示",
+      "items": "{{count}} 条记录"
+    },
+    "observation": {
+      "untitled": "未命名",
+      "detail": "观察详情",
+      "content": "内容",
+      "facts": "事实",
+      "concepts": "概念",
+      "filesRead": "读取的文件",
+      "filesModified": "修改的文件"
+    },
+    "delete": {
+      "deleteMemory": "删除记忆",
+      "confirmDelete": "确定删除这条记忆？",
+      "deleted": "记忆已删除"
+    },
+    "dangerZone": {
+      "title": "危险操作",
+      "description": "清空所有记忆，此操作不可撤销。",
+      "clearing": "清除中...",
+      "clearAll": "清空所有记忆",
+      "cleared": "所有记忆已清空",
+      "confirmTitle": "确定要执行吗？",
+      "confirmDescription": "这将永久删除全部 {{observations}} 条观察、{{prompts}} 条提示和 {{sessions}} 个会话。此操作不可撤销。",
+      "cancel": "取消",
+      "deleteAll": "全部删除"
+    }
   }
 }

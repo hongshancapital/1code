@@ -15,18 +15,100 @@ export {
 export { checkOfflineFallback } from "./offline-handler"
 export type { OfflineCheckResult, CustomClaudeConfig } from "./offline-handler"
 
-// 缓存 Claude Agent SDK query 函数
-let cachedClaudeQuery: ((options: any) => AsyncIterable<any>) | null = null
+// ============================================================================
+// Claude Engine (New Composable Architecture)
+// ============================================================================
 
-/**
- * 获取 Claude Agent SDK 的 query 函数
- * 使用缓存避免重复动态导入
- */
-export async function getClaudeQuery() {
-  if (cachedClaudeQuery) {
-    return cachedClaudeQuery
-  }
-  const sdk = await import("@anthropic-ai/claude-agent-sdk")
-  cachedClaudeQuery = sdk.query
-  return cachedClaudeQuery
-}
+// Engine types
+export type {
+  ConfigOverride,
+  ConfigContext,
+  LoadedConfig,
+  McpServerWithMeta,
+  SkillConfig,
+  AgentConfig,
+  UserProfile,
+  PromptStrategy,
+  SystemPromptConfig,
+  ToolPermissionDecision,
+  ToolContext,
+  ToolPermissionPolicy,
+  OutputChannel,
+  EngineRequest,
+  EngineEvent,
+} from "./engine-types"
+
+// Config loader
+export {
+  ClaudeConfigLoader,
+  getConfigLoader,
+  clearConfigCache,
+  workingMcpServers,
+  mcpCacheKey,
+} from "./config-loader"
+
+// Prompt builder
+export {
+  PromptBuilder,
+  getPromptBuilder,
+  initializePromptBuilder,
+  ChatPromptStrategy,
+  AutomationPromptStrategy,
+  InsightsPromptStrategy,
+  WorkerPromptStrategy,
+  type RuntimeEnvProvider,
+  type RuntimeTool,
+} from "./prompt-builder"
+
+// SDK query builder
+export {
+  SdkQueryBuilder,
+  createQueryBuilder,
+  type SdkQueryOptions,
+} from "./sdk-query-builder"
+
+// Policies
+export {
+  PLAN_MODE_BLOCKED_TOOLS,
+  CHAT_MODE_BLOCKED_TOOLS,
+  AUTOMATION_BLOCKED_TOOLS,
+  AllowAllPolicy,
+  PlanModePolicy,
+  ChatModePolicy,
+  AgentModePolicy,
+  OllamaPolicy,
+  AutomationPolicy,
+  CompositePolicy,
+  createPolicy,
+  createAutomationPolicy,
+} from "./policies"
+
+// Output channels
+export {
+  ConsoleChannel,
+  CallbackChannel,
+  BufferChannel,
+  CompositeChannel,
+  NullChannel,
+  createConsoleChannel,
+  createCallbackChannel,
+  createBufferChannel,
+  createCompositeChannel,
+  createNullChannel,
+} from "./output-channel"
+
+// Engine
+export {
+  ClaudeEngine,
+  createChatEngine,
+  createAutomationEngine,
+  createInsightsEngine,
+  createWorkerEngine,
+  createChatRequest,
+  createAutomationRequest,
+  createInsightsRequest,
+  createWorkerRequest,
+} from "./engine"
+
+// SDK loader (Claude Agent SDK dynamic import)
+export { getClaudeQuery, clearClaudeQueryCache } from "./sdk-loader"

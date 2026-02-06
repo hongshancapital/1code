@@ -20,6 +20,7 @@ import {
   litellmSelectedModelAtom,
   userPersonalizationAtom,
   skillAwarenessEnabledAtom,
+  memoryEnabledAtom,
 } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
@@ -209,12 +210,13 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     // Read extended thinking setting dynamically (so toggle applies to existing chats)
     const thinkingEnabled = appStore.get(extendedThinkingEnabledAtom)
     // Max thinking tokens for extended thinking mode
-    // SDK adds +1 internally, so 64000 becomes 64001 which exceeds Opus 4.5 limit
+    // SDK adds +1 internally, so 64000 becomes 64001 which exceeds Opus limit
     // Using 32000 to stay safely under the 64000 max output tokens limit
     const maxThinkingTokens = thinkingEnabled ? 32_000 : undefined
     const historyEnabled = appStore.get(historyEnabledAtom)
     const enableTasks = appStore.get(enableTasksAtom)
     const skillAwarenessEnabled = appStore.get(skillAwarenessEnabledAtom)
+    const memoryEnabled = appStore.get(memoryEnabledAtom)
 
     // Read model selection dynamically (so model changes apply to existing chats)
     const selectedModelId = appStore.get(lastSelectedModelIdAtom)
@@ -301,6 +303,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
 askUserQuestionTimeout,
             enableTasks,
             skillAwarenessEnabled,
+            memoryEnabled,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
