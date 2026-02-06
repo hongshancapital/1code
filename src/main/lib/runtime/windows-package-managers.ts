@@ -9,6 +9,51 @@ import { spawn } from "node:child_process"
 import type { ExecResult } from "./types"
 
 /**
+ * Installation log for debugging
+ */
+export interface InstallLog {
+  timestamp: string
+  step: string
+  command?: string
+  stdout?: string
+  stderr?: string
+  success: boolean
+  error?: string
+}
+
+const installLogs: InstallLog[] = []
+
+function addLog(log: Omit<InstallLog, "timestamp">) {
+  const entry: InstallLog = {
+    ...log,
+    timestamp: new Date().toISOString(),
+  }
+  installLogs.push(entry)
+
+  // 保留最近 100 条日志
+  if (installLogs.length > 100) {
+    installLogs.shift()
+  }
+
+  // 同时输出到 console 方便 debug
+  console.log(`[Windows PM] ${entry.step}`, {
+    command: entry.command,
+    success: entry.success,
+    error: entry.error,
+    stdout: entry.stdout?.substring(0, 200),
+    stderr: entry.stderr?.substring(0, 200),
+  })
+}
+
+export function getInstallLogs(): InstallLog[] {
+  return [...installLogs]
+}
+
+export function clearInstallLogs(): void {
+  installLogs.length = 0
+}
+
+/**
  * Windows Package Manager Provider Interface
  */
 export interface WindowsPackageManager {
@@ -44,9 +89,22 @@ export interface InstallOptions {
 }
 
 /**
- * Execute PowerShell command
+ * Execute PowerShell command with logging
  */
-async function execPowerShell(command: string, timeoutMs = 600000): Promise<ExecResult> {
+async function execPowerShell(
+  command: string,
+  timeoutMs = 600000,
+  logStep?: string
+): Promise<ExecResult> {
+  // 记录开始执行
+  if (logStep) {
+    addLog({
+      step: `${logStep} - 开始执行`,
+      command,
+      success: true,
+    })
+  }
+
   return new Promise((resolve) => {
     const child = spawn("powershell.exe", [
       "-NoProfile",
@@ -75,12 +133,25 @@ async function execPowerShell(command: string, timeoutMs = 600000): Promise<Exec
 
     const timer = setTimeout(() => {
       cleanup()
-      resolve({
+      const result = {
         stdout: "",
         stderr: "Timeout",
         success: false,
-        error: "timeout",
-      })
+        error: "timeout" as const,
+      }
+
+      if (logStep) {
+        addLog({
+          step: `${logStep} - 超时`,
+          command,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          success: false,
+          error: "timeout",
+        })
+      }
+
+      resolve(result)
     }, timeoutMs)
 
     child.stdout?.on("data", (data) => {
@@ -95,12 +166,26 @@ async function execPowerShell(command: string, timeoutMs = 600000): Promise<Exec
       if (!resolved) {
         resolved = true
         clearTimeout(timer)
-        resolve({
+
+        const result = {
           stdout: stdout.trim(),
           stderr: stderr.trim(),
           success: code === 0,
-          error: code !== 0 ? "execution_failed" : undefined,
-        })
+          error: code !== 0 ? ("execution_failed" as const) : undefined,
+        }
+
+        if (logStep) {
+          addLog({
+            step: `${logStep} - ${code === 0 ? '成功' : '失败'}`,
+            command,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            success: result.success,
+            error: result.error,
+          })
+        }
+
+        resolve(result)
       }
     })
 
@@ -108,12 +193,26 @@ async function execPowerShell(command: string, timeoutMs = 600000): Promise<Exec
       if (!resolved) {
         resolved = true
         clearTimeout(timer)
-        resolve({
+
+        const result = {
           stdout: "",
           stderr: err.message,
           success: false,
-          error: "not_found",
-        })
+          error: "not_found" as const,
+        }
+
+        if (logStep) {
+          addLog({
+            step: `${logStep} - 执行错误`,
+            command,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            success: false,
+            error: "not_found",
+          })
+        }
+
+        resolve(result)
       }
     })
   })
@@ -128,11 +227,15 @@ export class WingetProvider implements WindowsPackageManager {
   priority = 100
 
   async isAvailable(): Promise<boolean> {
-    const result = await execPowerShell("winget --version", 5000)
+    const result = await execPowerShell("winget --version", 5000, "检测 winget")
     return result.success
   }
 
   async install(): Promise<ExecResult> {
+    addLog({
+      step: "安装 winget - 准备下载",
+      success: true,
+    })
     // Download and install latest winget from GitHub
     const command = `
       $ProgressPreference = 'SilentlyContinue'
@@ -151,7 +254,7 @@ export class WingetProvider implements WindowsPackageManager {
         exit 1
       }
     `
-    return await execPowerShell(command)
+    return await execPowerShell(command, 600000, "安装 winget")
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -170,7 +273,7 @@ export class WingetProvider implements WindowsPackageManager {
     }
 
     const command = `winget install ${args.join(" ")}`
-    return await execPowerShell(command)
+    return await execPowerShell(command, 600000, `winget 安装 ${packageId}`)
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {
@@ -201,17 +304,22 @@ export class ChocolateyProvider implements WindowsPackageManager {
   priority = 80
 
   async isAvailable(): Promise<boolean> {
-    const result = await execPowerShell("choco --version", 5000)
+    const result = await execPowerShell("choco --version", 5000, "检测 Chocolatey")
     return result.success
   }
 
   async install(): Promise<ExecResult> {
+    addLog({
+      step: "安装 Chocolatey - 准备下载",
+      success: true,
+    })
+
     const command = `
       Set-ExecutionPolicy Bypass -Scope Process -Force
       [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
       iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
     `
-    return await execPowerShell(command)
+    return await execPowerShell(command, 600000, "安装 Chocolatey")
   }
 
   async installTool(packageId: string, options: InstallOptions = {}): Promise<ExecResult> {
@@ -226,7 +334,7 @@ export class ChocolateyProvider implements WindowsPackageManager {
     }
 
     const command = `choco ${args.join(" ")}`
-    return await execPowerShell(command)
+    return await execPowerShell(command, 600000, `Chocolatey 安装 ${packageId}`)
   }
 
   getInstallCommand(packageId: string, options: InstallOptions = {}): string {
@@ -298,9 +406,20 @@ export class WindowsPackageManagerRegistry {
     packageId: string,
     options: InstallOptions = {}
   ): Promise<{ success: boolean; provider?: string; error?: string; output?: string }> {
+    addLog({
+      step: `尝试使用 ${providerName} 安装 ${packageId}`,
+      success: true,
+    })
+
     const provider = this.getProvider(providerName)
 
     if (!provider) {
+      addLog({
+        step: `包管理器 ${providerName} 未找到`,
+        success: false,
+        error: "not_found",
+      })
+
       return {
         success: false,
         error: `Package manager「${providerName}」not found`,
@@ -308,17 +427,39 @@ export class WindowsPackageManagerRegistry {
     }
 
     // Check if provider is available
+    addLog({
+      step: `检查 ${providerName} 是否可用`,
+      success: true,
+    })
+
     const isAvailable = await provider.isAvailable()
     if (!isAvailable) {
+      addLog({
+        step: `${providerName} 不可用`,
+        success: false,
+        error: "not_available",
+      })
+
       return {
         success: false,
         error: `Package manager「${providerName}」is not available`,
       }
     }
 
+    addLog({
+      step: `${providerName} 可用，开始安装 ${packageId}`,
+      success: true,
+    })
+
     try {
       const result = await provider.installTool(packageId, options)
       if (result.success) {
+        addLog({
+          step: `${providerName} 成功安装 ${packageId}`,
+          stdout: result.stdout,
+          success: true,
+        })
+
         return {
           success: true,
           provider: provider.name,
@@ -326,15 +467,31 @@ export class WindowsPackageManagerRegistry {
         }
       }
 
+      addLog({
+        step: `${providerName} 安装 ${packageId} 失败`,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        success: false,
+        error: result.error,
+      })
+
       return {
         success: false,
         error: result.stderr || "Installation failed",
         output: result.stdout,
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+
+      addLog({
+        step: `${providerName} 安装 ${packageId} 异常`,
+        success: false,
+        error: errorMsg,
+      })
+
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMsg,
       }
     }
   }

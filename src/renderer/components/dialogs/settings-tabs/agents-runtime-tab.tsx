@@ -1178,7 +1178,140 @@ export function AgentsRuntimeTab() {
 
         {/* Rust Section */}
         <RustSection />
+
+        {/* Windows Installation Logs (Debug) */}
+        {window.desktopApi.platform === "win32" && <WindowsInstallLogs />}
       </div>
     </div>
+  )
+}
+
+// ============================================================================
+// Windows Installation Logs Component (for debugging)
+// ============================================================================
+
+function WindowsInstallLogs() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const { data: fetchedLogs, refetch } = trpc.runner.getInstallLogs.useQuery(undefined, {
+    enabled: false, // Don't auto-fetch, only when user requests
+  })
+
+  const clearLogsMutation = trpc.runner.clearInstallLogs.useMutation({
+    onSuccess: () => {
+      setLogs([])
+      toast.success("日志已清除")
+    },
+  })
+
+  const handleFetch = useCallback(() => {
+    refetch().then((result) => {
+      if (result.data) {
+        setLogs(result.data)
+      }
+    })
+  }, [refetch])
+
+  const handleClear = useCallback(() => {
+    clearLogsMutation.mutate()
+  }, [clearLogsMutation])
+
+  return (
+    <RuntimeSection
+      title="Windows 安装日志 (调试)"
+      icon={Terminal}
+      description="查看 Windows 包管理器安装过程的详细日志"
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Button onClick={handleFetch} size="sm" variant="outline">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            刷新日志
+          </Button>
+          <Button
+            onClick={handleClear}
+            size="sm"
+            variant="outline"
+            disabled={clearLogsMutation.isPending}
+          >
+            <X className="w-4 h-4 mr-2" />
+            清除日志
+          </Button>
+          <Button
+            onClick={() => setIsExpanded(!isExpanded)}
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+          >
+            {isExpanded ? "收起" : "展开"}
+          </Button>
+        </div>
+
+        {logs.length === 0 && (
+          <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded">
+            暂无日志。点击「刷新日志」查看最新的安装日志。
+          </div>
+        )}
+
+        {logs.length > 0 && (
+          <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+            {logs.map((log, index) => (
+              <div
+                key={index}
+                className={`p-3 rounded text-xs font-mono border ${
+                  log.success
+                    ? "bg-green-500/5 border-green-500/20"
+                    : "bg-red-500/5 border-red-500/20"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2">
+                    {log.success ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    )}
+                    <span className="font-semibold">{log.step}</span>
+                  </div>
+                  <span className="text-muted-foreground text-[10px] whitespace-nowrap">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {log.command && isExpanded && (
+                  <div className="mt-2 p-2 bg-background/50 rounded">
+                    <div className="text-[10px] text-muted-foreground mb-1">命令:</div>
+                    <div className="break-all">{log.command}</div>
+                  </div>
+                )}
+
+                {log.stdout && isExpanded && (
+                  <div className="mt-2 p-2 bg-background/50 rounded">
+                    <div className="text-[10px] text-muted-foreground mb-1">输出:</div>
+                    <div className="break-all whitespace-pre-wrap">{log.stdout}</div>
+                  </div>
+                )}
+
+                {log.stderr && (
+                  <div className="mt-2 p-2 bg-red-500/10 rounded">
+                    <div className="text-[10px] text-red-500 mb-1">错误:</div>
+                    <div className="break-all whitespace-pre-wrap text-red-500">
+                      {log.stderr}
+                    </div>
+                  </div>
+                )}
+
+                {log.error && (
+                  <div className="mt-2 text-red-500">
+                    错误类型: {log.error}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </RuntimeSection>
   )
 }

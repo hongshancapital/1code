@@ -20,6 +20,9 @@ import {
 import {
   getWindowsPackageManagerRegistry,
   resetWindowsPackageManagerRegistry,
+  getInstallLogs,
+  clearInstallLogs,
+  type InstallLog,
 } from "../../runtime/windows-package-managers"
 
 // Import tool definitions to get Windows package IDs
@@ -539,6 +542,20 @@ export const runnerRouter = router({
       success: false,
       error: "Unsupported platform",
     }
+  }),
+
+  /**
+   * Get Windows package manager installation logs (for debugging)
+   */
+  getInstallLogs: publicProcedure.query((): InstallLog[] => {
+    return getInstallLogs()
+  }),
+
+  /**
+   * Clear Windows package manager installation logs
+   */
+  clearInstallLogs: publicProcedure.mutation((): void => {
+    clearInstallLogs()
   }),
 })
 
