@@ -13,7 +13,7 @@ import {
 import { trpc } from "../lib/trpc"
 
 const AUTO_DISMISS_DELAY = 3000 // 3 seconds
-const OVERALL_TIMEOUT = 60000 // 60 seconds overall timeout
+const OVERALL_TIMEOUT = 180000 // 180 seconds per-step timeout
 const PM_INSTALL_TIMEOUT = 600000 // 10 minutes for package manager installation (Homebrew is slow)
 const MAX_RETRIES = 3
 
@@ -174,16 +174,18 @@ export function RuntimeInitBanner() {
     return () => clearInterval(interval)
   }, [allSatisfied, toolsData, dismissed, setDismissed])
 
-  // Overall timeout - show manual config option after 60s
+  // Overall timeout - show manual config option after 60s of no progress
+  // Resets whenever installPhase or installingCategory changes (i.e. a new step begins)
   useEffect(() => {
     if (dismissed || allSatisfied) return
 
+    setOverallTimeout(false)
     const timer = setTimeout(() => {
       setOverallTimeout(true)
     }, OVERALL_TIMEOUT)
 
     return () => clearTimeout(timer)
-  }, [dismissed, allSatisfied])
+  }, [dismissed, allSatisfied, installPhase, installingCategory])
 
   // Phase 1: Check and install package manager if needed (macOS/Windows only)
   useEffect(() => {
