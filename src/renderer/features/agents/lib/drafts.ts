@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import type {
   UploadedImage,
   UploadedFile,
@@ -13,6 +13,83 @@ const MAX_DRAFT_STORAGE_BYTES = 4 * 1024 * 1024 // 4MB safe limit
 
 // Track blob URLs for cleanup (prevents memory leaks)
 const draftBlobUrls = new Map<string, string[]>()
+
+// ===== In-memory cache layer =====
+// Eliminates redundant JSON.parse on every loadGlobalDrafts() call.
+// NOTE: loadGlobalDrafts() returns the cached reference directly.
+// Callers that mutate the returned object and then call saveGlobalDrafts()
+// are working on the same reference — this is intentional and matches all
+// current call-sites (load → mutate → save).
+let _cachedDrafts: GlobalDraftsRaw | null = null
+let _pendingFlush: ReturnType<typeof setTimeout> | number | null = null
+let _isDirty = false
+let _cachedSize: number | null = null
+
+function ensureCache(): GlobalDraftsRaw {
+  if (_cachedDrafts === null) {
+    try {
+      const stored = localStorage.getItem(DRAFTS_STORAGE_KEY)
+      _cachedDrafts = stored ? JSON.parse(stored) : {}
+    } catch {
+      _cachedDrafts = {}
+    }
+  }
+  return _cachedDrafts!
+}
+
+function flushToStorage(): void {
+  _pendingFlush = null
+  if (!_isDirty || !_cachedDrafts) return
+  _isDirty = false
+  try {
+    const serialized = JSON.stringify(_cachedDrafts)
+    _cachedSize = serialized.length * 2
+    localStorage.setItem(DRAFTS_STORAGE_KEY, serialized)
+  } catch (e) {
+    console.warn("[drafts] Failed to flush to localStorage:", e)
+  }
+}
+
+function scheduleFlush(): void {
+  if (_pendingFlush !== null) return // already scheduled
+  if (typeof requestIdleCallback === "function") {
+    _pendingFlush = requestIdleCallback(() => flushToStorage(), { timeout: 1000 })
+  } else {
+    _pendingFlush = setTimeout(() => flushToStorage(), 100)
+  }
+}
+
+/** Force synchronous flush — call on beforeunload / component unmount */
+export function flushDraftsSync(): void {
+  if (_pendingFlush !== null) {
+    if (typeof cancelIdleCallback === "function" && typeof _pendingFlush === "number") {
+      cancelIdleCallback(_pendingFlush)
+    } else {
+      clearTimeout(_pendingFlush as ReturnType<typeof setTimeout>)
+    }
+    _pendingFlush = null
+  }
+  flushToStorage()
+}
+
+/** Get cached byte-size of all drafts (avoids repeated JSON.stringify) */
+export function getCachedDraftsSize(): number {
+  if (_cachedSize !== null) return _cachedSize
+  const drafts = ensureCache()
+  _cachedSize = JSON.stringify(drafts).length * 2
+  return _cachedSize
+}
+
+// Flush pending writes before page unload; invalidate cache on cross-tab changes
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => flushDraftsSync())
+  window.addEventListener("storage", (e) => {
+    if (e.key === DRAFTS_STORAGE_KEY) {
+      _cachedDrafts = null
+      _cachedSize = null
+    }
+  })
+}
 
 // Types for persisted attachments
 export interface DraftImage {
@@ -92,26 +169,20 @@ export function emitDraftsChanged(): void {
   window.dispatchEvent(new CustomEvent(DRAFTS_CHANGE_EVENT))
 }
 
-// Load all drafts from localStorage
+// Load all drafts (returns in-memory cache; O(1) after first call)
 export function loadGlobalDrafts(): GlobalDraftsRaw {
   if (typeof window === "undefined") return {}
-  try {
-    const stored = localStorage.getItem(DRAFTS_STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
-  } catch {
-    return {}
-  }
+  return ensureCache()
 }
 
-// Save all drafts to localStorage
+// Save all drafts (updates cache synchronously, flushes to localStorage asynchronously)
 export function saveGlobalDrafts(drafts: GlobalDraftsRaw): void {
   if (typeof window === "undefined") return
-  try {
-    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts))
-    emitDraftsChanged()
-  } catch {
-    // Ignore localStorage errors
-  }
+  _cachedDrafts = drafts
+  _isDirty = true
+  _cachedSize = null // invalidate size cache
+  emitDraftsChanged()
+  scheduleFlush()
 }
 
 // Generate a new draft ID
@@ -245,6 +316,7 @@ export function buildDraftsCache(): Record<string, string> {
  */
 export function useNewChatDrafts(): NewChatDraft[] {
   const [drafts, setDrafts] = useState<NewChatDraft[]>(() => getNewChatDrafts())
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const handleChange = (e?: Event) => {
@@ -256,19 +328,24 @@ export function useNewChatDrafts(): NewChatDraft[] {
         }
       }
 
-      const newDrafts = getNewChatDrafts()
-      // Only update state if drafts actually changed (compare by content)
-      setDrafts((prev) => {
-        if (prev.length !== newDrafts.length) return newDrafts
-        const prevIds = prev.map((d) => d.id).sort().join(",")
-        const newIds = newDrafts.map((d) => d.id).sort().join(",")
-        if (prevIds !== newIds) return newDrafts
-        // Also compare text content
-        const prevTexts = prev.map((d) => `${d.id}:${d.text}`).sort().join("|")
-        const newTexts = newDrafts.map((d) => `${d.id}:${d.text}`).sort().join("|")
-        if (prevTexts !== newTexts) return newDrafts
-        return prev // No change, return previous reference
-      })
+      // Debounce: sidebar doesn't need to reflect every keystroke
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null
+        const newDrafts = getNewChatDrafts()
+        // Only update state if drafts actually changed (compare by content)
+        setDrafts((prev) => {
+          if (prev.length !== newDrafts.length) return newDrafts
+          const prevIds = prev.map((d) => d.id).sort().join(",")
+          const newIds = newDrafts.map((d) => d.id).sort().join(",")
+          if (prevIds !== newIds) return newDrafts
+          // Also compare text content
+          const prevTexts = prev.map((d) => `${d.id}:${d.text}`).sort().join("|")
+          const newTexts = newDrafts.map((d) => `${d.id}:${d.text}`).sort().join("|")
+          if (prevTexts !== newTexts) return newDrafts
+          return prev // No change, return previous reference
+        })
+      }, 300)
     }
 
     // Listen for custom event (same-tab changes)
@@ -279,6 +356,7 @@ export function useNewChatDrafts(): NewChatDraft[] {
     return () => {
       window.removeEventListener(DRAFTS_CHANGE_EVENT, handleChange)
       window.removeEventListener("storage", handleChange)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 
@@ -294,11 +372,17 @@ export function useSubChatDraftsCache(): Record<string, string> {
     if (typeof window === "undefined") return {}
     return buildDraftsCache()
   })
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const handleChange = () => {
-      const newCache = buildDraftsCache()
-      setDraftsCache(newCache)
+      // Debounce: sidebar doesn't need to reflect every keystroke
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null
+        const newCache = buildDraftsCache()
+        setDraftsCache(newCache)
+      }, 300)
     }
 
     // Listen for custom event (same-tab changes)
@@ -309,6 +393,7 @@ export function useSubChatDraftsCache(): Record<string, string> {
     return () => {
       window.removeEventListener(DRAFTS_CHANGE_EVENT, handleChange)
       window.removeEventListener("storage", handleChange)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [])
 
@@ -343,13 +428,13 @@ export function estimateDraftSize(
 }
 
 /**
- * Check if adding a draft would exceed storage limits
+ * Check if adding a draft would exceed storage limits.
+ * Uses getCachedDraftsSize() to avoid redundant JSON.stringify of the full drafts object.
  */
 function wouldExceedStorageLimit(
-  existingDrafts: GlobalDraftsRaw,
   newDraft: DraftContent | NewChatDraft
 ): boolean {
-  const existingSize = JSON.stringify(existingDrafts).length * 2
+  const existingSize = getCachedDraftsSize()
   const newSize = estimateDraftSize(newDraft)
   return existingSize + newSize > MAX_DRAFT_STORAGE_BYTES
 }
@@ -665,7 +750,7 @@ export async function saveSubChatDraftWithAttachments(
   }
 
   // Check storage limits before saving
-  if (wouldExceedStorageLimit(globalDrafts, draft)) {
+  if (wouldExceedStorageLimit(draft)) {
     console.warn(
       "[drafts] Storage limit would be exceeded, skipping attachment persistence"
     )

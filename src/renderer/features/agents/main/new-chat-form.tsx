@@ -116,6 +116,8 @@ import {
   generateDraftId,
   deleteNewChatDraft,
   markDraftVisible,
+  saveNewChatDraft,
+  flushDraftsSync,
 } from "../lib/drafts"
 import { CLAUDE_MODELS } from "../lib/models"
 import { useTranslation } from "react-i18next"
@@ -797,6 +799,8 @@ export function NewChatForm({
 
   // Track last saved text to avoid unnecessary updates
   const lastSavedTextRef = useRef<string>("")
+  // Debounce timer for draft persistence (avoids localStorage write on every keystroke)
+  const debouncedSaveDraftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Track previous draft ID to detect when switching away from a draft
   const prevSelectedDraftIdRef = useRef<string | null>(null)
@@ -847,11 +851,22 @@ export function NewChatForm({
     }
   }, [selectedDraftId, handleRefreshBranches, validatedProject?.path])
 
-  // Mark draft as visible when component unmounts (user navigates away)
-  // This ensures the draft only appears in the sidebar after leaving the form
+  // On unmount: flush any pending debounced save, then mark draft visible
   useEffect(() => {
     return () => {
-      // On unmount, mark current draft as visible so it appears in sidebar
+      // Flush pending debounced save so text isn't lost
+      if (debouncedSaveDraftTimerRef.current) {
+        clearTimeout(debouncedSaveDraftTimerRef.current)
+        debouncedSaveDraftTimerRef.current = null
+        // Synchronously persist the latest text
+        const text = lastSavedTextRef.current
+        if (text.trim() && currentDraftIdRef.current) {
+          saveNewChatDraft(currentDraftIdRef.current, text)
+        }
+      }
+      // Flush async storage write immediately
+      flushDraftsSync()
+      // Mark current draft as visible so it appears in sidebar
       if (currentDraftIdRef.current) {
         markDraftVisible(currentDraftIdRef.current)
       }
@@ -1309,7 +1324,8 @@ export function NewChatForm({
     setShowingToolsList(false)
   }, [])
 
-  // Save draft to localStorage when content changes
+  // Save draft to localStorage when content changes (debounced to avoid
+  // JSON.stringify + localStorage.setItem on every keystroke)
   const handleContentChange = useCallback(
     (hasContent: boolean) => {
       setHasContent(hasContent)
@@ -1321,39 +1337,52 @@ export function NewChatForm({
       }
       lastSavedTextRef.current = text
 
-      const globalDrafts = loadGlobalDrafts()
-
-      if (text.trim() && validatedProject) {
-        // If no current draft ID, create a new one
-        if (!currentDraftIdRef.current) {
-          currentDraftIdRef.current = generateDraftId()
-        }
-
-        const key = currentDraftIdRef.current
-        globalDrafts[key] = {
-          text,
-          updatedAt: Date.now(),
-          project: {
-            id: validatedProject.id,
-            name: validatedProject.name,
-            path: validatedProject.path,
-            gitOwner: validatedProject.gitOwner,
-            gitRepo: validatedProject.gitRepo,
-            gitProvider: validatedProject.gitProvider,
-          },
-        }
-        saveGlobalDrafts(globalDrafts)
-      } else if (currentDraftIdRef.current) {
-        // Text is empty - delete the current draft
-        deleteNewChatDraft(currentDraftIdRef.current)
-        currentDraftIdRef.current = null
+      // Cancel previous pending save
+      if (debouncedSaveDraftTimerRef.current) {
+        clearTimeout(debouncedSaveDraftTimerRef.current)
       }
+
+      // Debounce the actual persistence (300ms)
+      debouncedSaveDraftTimerRef.current = setTimeout(() => {
+        debouncedSaveDraftTimerRef.current = null
+        const currentText = lastSavedTextRef.current
+
+        if (currentText.trim() && validatedProject) {
+          if (!currentDraftIdRef.current) {
+            currentDraftIdRef.current = generateDraftId()
+          }
+
+          const globalDrafts = loadGlobalDrafts()
+          globalDrafts[currentDraftIdRef.current] = {
+            text: currentText,
+            updatedAt: Date.now(),
+            project: {
+              id: validatedProject.id,
+              name: validatedProject.name,
+              path: validatedProject.path,
+              gitOwner: validatedProject.gitOwner,
+              gitRepo: validatedProject.gitRepo,
+              gitProvider: validatedProject.gitProvider,
+            },
+          }
+          saveGlobalDrafts(globalDrafts)
+        } else if (currentDraftIdRef.current) {
+          // Text is empty - delete the current draft
+          deleteNewChatDraft(currentDraftIdRef.current)
+          currentDraftIdRef.current = null
+        }
+      }, 300)
     },
     [validatedProject],
   )
 
   // Clear current draft when chat is created
   const clearCurrentDraft = useCallback(() => {
+    // Cancel any pending debounced save first
+    if (debouncedSaveDraftTimerRef.current) {
+      clearTimeout(debouncedSaveDraftTimerRef.current)
+      debouncedSaveDraftTimerRef.current = null
+    }
     if (!currentDraftIdRef.current) return
 
     deleteNewChatDraft(currentDraftIdRef.current)
