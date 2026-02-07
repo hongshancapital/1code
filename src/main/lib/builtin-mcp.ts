@@ -10,8 +10,8 @@ import { type AuthManager, getAzureAuthHeaders } from "../auth-manager"
 import { getEnv, getApiOrigin } from "./env"
 import { BROWSER_USER_AGENT } from "./constants"
 
-// API base URL from validated environment
-function getApiBaseUrl(): string {
+// API base URL from validated environment (returns undefined in no-auth mode)
+function getApiBaseUrl(): string | undefined {
   return getEnv().MAIN_VITE_API_URL
 }
 
@@ -50,7 +50,12 @@ export async function getBuiltinMcpConfig(
   }
 
   const apiUrl = getApiBaseUrl()
-  const origin = getApiOrigin()
+  if (!apiUrl) {
+    console.log("[Builtin MCP] API URL not configured, skipping built-in MCP")
+    return null
+  }
+
+  const origin = getApiOrigin() || apiUrl
 
   return {
     url: `${apiUrl}/v1/api/mcp`,

@@ -17,16 +17,21 @@ declare module "react" {
 // Extend Vite's ImportMetaEnv with our custom env vars
 declare global {
   interface ImportMetaEnv {
-    // Main process - Required (MAIN_VITE_ prefix)
-    readonly MAIN_VITE_OKTA_ISSUER: string
-    readonly MAIN_VITE_OKTA_CLIENT_ID: string
+    // Main process - Auth configuration (optional - for graceful degradation to no-auth mode)
+    readonly MAIN_VITE_OKTA_ISSUER?: string
+    readonly MAIN_VITE_OKTA_CLIENT_ID?: string
     // Note: OKTA_CALLBACK is auto-generated based on dev/production mode (port 3300/3000)
-    readonly MAIN_VITE_API_URL: string
-    readonly MAIN_VITE_API_ORIGIN: string
+    readonly MAIN_VITE_API_URL?: string
+    readonly MAIN_VITE_API_ORIGIN?: string
 
-    // Main process - Optional
+    // Main process - Optional features
     readonly MAIN_VITE_SENTRY_DSN?: string
     readonly MAIN_VITE_OPENAI_API_KEY?: string
+
+    // Main process - Azure AD (optional, for Windows domain users)
+    readonly MAIN_VITE_AZURE_TENANT_ID?: string
+    readonly MAIN_VITE_AZURE_CLIENT_ID?: string
+    readonly MAIN_VITE_AZURE_LOGIN_URL?: string
 
     // Renderer process - Optional (VITE_ prefix)
     readonly VITE_FEEDBACK_URL?: string

@@ -86,7 +86,8 @@ if (isEmbeddedInTinker) {
 }
 
 // URL configuration (exported for use in other modules)
-export function getBaseUrl(): string {
+// Returns undefined in no-auth mode
+export function getBaseUrl(): string | undefined {
   return getEnv().MAIN_VITE_API_URL
 }
 
@@ -866,17 +867,22 @@ if (gotTheLock) {
     // Set up callback to update cookie when token is refreshed
     authManager.setOnTokenRefresh(async (authData) => {
       console.log("[Auth] Token refreshed, updating cookie...")
+      const baseUrl = getBaseUrl()
+      if (!baseUrl) {
+        console.log("[Auth] API URL not configured, skipping cookie update")
+        return
+      }
       const ses = session.fromPartition("persist:main")
       try {
         await ses.cookies.set({
-          url: getBaseUrl(),
+          url: baseUrl,
           name: "x-desktop-token",
           value: authData.token,
           expirationDate: Math.floor(
             new Date(authData.expiresAt).getTime() / 1000,
           ),
           httpOnly: false,
-          secure: getBaseUrl().startsWith("https"),
+          secure: baseUrl.startsWith("https"),
           sameSite: "lax" as const,
         })
         console.log("[Auth] Desktop token cookie updated after refresh")

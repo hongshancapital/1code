@@ -7,11 +7,12 @@ import {
   getCurrentProvider,
   getProvider,
   getEffectiveAuthProvider,
+  isAuthRequired,
 } from "./lib/auth"
 import { startOktaServer, stopOktaServer, type AuthCallbackHandlers } from "./lib/auth-callback-server"
 
-// API base URL from validated environment
-function getApiBaseUrl(): string {
+// API base URL from validated environment (returns undefined in no-auth mode)
+function getApiBaseUrl(): string | undefined {
   return getEnv().MAIN_VITE_API_URL
 }
 
@@ -39,6 +40,7 @@ interface ApiResponse<T> {
 /**
  * Generic API fetch with auth token
  * Handles base URL, authorization header, and error handling
+ * Returns error if API is not configured (no-auth mode)
  */
 async function fetchApi<T = unknown>(
   path: string,
@@ -50,11 +52,15 @@ async function fetchApi<T = unknown>(
   }
 ): Promise<ApiResponse<T>> {
   const apiBaseUrl = getApiBaseUrl()
+  if (!apiBaseUrl) {
+    console.warn("[API] API URL not configured - running in no-auth mode")
+    return { ok: false, status: 0, data: null, error: "API not configured" }
+  }
   const url = `${apiBaseUrl}${path}`
   const method = options?.method || "GET"
 
   // Build headers - include browser-like headers to pass CloudFront WAF
-  const origin = getApiOrigin()
+  const origin = getApiOrigin() || apiBaseUrl
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/json, text/plain, */*",
@@ -207,11 +213,18 @@ export class AuthManager {
   /**
    * Start OAuth PKCE flow by opening browser
    * Automatically selects Okta or Azure AD based on Windows domain
+   * Throws error if running in no-auth mode
    */
   startAuthFlow(_mainWindow: BrowserWindow | null): void {
     try {
       // Get the appropriate auth provider
       const provider = getCurrentProvider()
+
+      if (!provider) {
+        console.warn("[Auth] No auth provider configured - running in no-auth mode")
+        throw new Error("Authentication is not configured. Running in no-auth mode.")
+      }
+
       console.log(`[Auth] Starting ${provider.name} PKCE flow...`)
 
       // Start Okta callback server before auth flow (for Okta/Azure providers)
@@ -255,6 +268,10 @@ export class AuthManager {
 
     // Get the provider that was used to start this auth flow
     const provider = getProvider(this.pkceState.provider)
+
+    if (!provider) {
+      throw new Error("Auth provider not available for token exchange.")
+    }
 
     console.log(`[Auth] Exchanging authorization code using ${provider.name}...`)
 
@@ -332,6 +349,11 @@ export class AuthManager {
     // Get the provider that was used for this session
     const providerType = this.store.getProvider()
     const provider = getProvider(providerType)
+
+    if (!provider) {
+      console.warn("[Auth] No auth provider available for refresh")
+      return false
+    }
 
     console.log(`[Auth] Refreshing token using ${provider.name}...`)
 

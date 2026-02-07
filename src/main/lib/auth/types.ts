@@ -8,8 +8,11 @@ import { BrowserWindow } from "electron"
 
 /**
  * Supported authentication providers
+ * - "okta": Okta OAuth (default)
+ * - "azure": Azure AD (for Windows domain users)
+ * - "none": No authentication required (fallback when no provider is configured)
  */
-export type AuthProviderType = "okta" | "azure"
+export type AuthProviderType = "okta" | "azure" | "none"
 
 /**
  * User information from authentication

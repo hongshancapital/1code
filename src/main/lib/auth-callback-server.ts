@@ -42,7 +42,7 @@ const FAVICON_SVG = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"
 </svg>`
 const FAVICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(FAVICON_SVG)}`
 
-function getBaseUrl(): string {
+function getBaseUrl(): string | undefined {
   return getEnv().MAIN_VITE_API_URL
 }
 
@@ -81,25 +81,28 @@ export async function handleAuthCode(
     }
 
     // Set desktop token cookie using persist:main partition
-    const ses = session.fromPartition("persist:main")
-    try {
-      // First remove any existing cookie to avoid HttpOnly conflict
-      await ses.cookies.remove(getBaseUrl(), "x-desktop-token")
-      await ses.cookies.set({
-        url: getBaseUrl(),
-        name: "x-desktop-token",
-        value: authData.token,
-        expirationDate: Math.floor(
-          new Date(authData.expiresAt).getTime() / 1000,
-        ),
-        httpOnly: false,
-        secure: getBaseUrl().startsWith("https"),
-        sameSite: "lax" as const,
-      })
-      console.log("[Auth] Desktop token cookie set")
-    } catch (cookieError) {
-      // Cookie setting is optional - auth data is already saved to disk
-      console.warn("[Auth] Cookie set failed (non-critical):", cookieError)
+    const baseUrl = getBaseUrl()
+    if (baseUrl) {
+      const ses = session.fromPartition("persist:main")
+      try {
+        // First remove any existing cookie to avoid HttpOnly conflict
+        await ses.cookies.remove(baseUrl, "x-desktop-token")
+        await ses.cookies.set({
+          url: baseUrl,
+          name: "x-desktop-token",
+          value: authData.token,
+          expirationDate: Math.floor(
+            new Date(authData.expiresAt).getTime() / 1000,
+          ),
+          httpOnly: false,
+          secure: baseUrl.startsWith("https"),
+          sameSite: "lax" as const,
+        })
+        console.log("[Auth] Desktop token cookie set")
+      } catch (cookieError) {
+        // Cookie setting is optional - auth data is already saved to disk
+        console.warn("[Auth] Cookie set failed (non-critical):", cookieError)
+      }
     }
 
     // Notify caller to handle window updates

@@ -11,14 +11,19 @@ import { getEnv } from "../env"
 import { OKTA_CALLBACK_PORT } from "../../constants"
 
 /**
- * Get Okta configuration from environment
+ * Get Okta configuration from environment.
+ * Throws error if Okta is not configured (caller should check isOktaConfigured() first).
  */
-function getOktaConfig() {
+function getOktaConfig(): { issuer: string; clientId: string } {
   const env = getEnv()
-  return {
-    issuer: env.MAIN_VITE_OKTA_ISSUER,
-    clientId: env.MAIN_VITE_OKTA_CLIENT_ID,
+  const issuer = env.MAIN_VITE_OKTA_ISSUER
+  const clientId = env.MAIN_VITE_OKTA_CLIENT_ID
+
+  if (!issuer || !clientId) {
+    throw new Error("Okta configuration missing. Ensure MAIN_VITE_OKTA_ISSUER and MAIN_VITE_OKTA_CLIENT_ID are set.")
   }
+
+  return { issuer, clientId }
 }
 
 /**
