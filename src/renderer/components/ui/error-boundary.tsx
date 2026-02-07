@@ -32,6 +32,27 @@ export class ViewerErrorBoundary extends Component<
       error,
       errorInfo,
     )
+
+    // 上报到 Sentry
+    import("@sentry/electron/renderer")
+      .then((Sentry) => {
+        Sentry.captureException(error, {
+          tags: {
+            errorCategory: "ui-viewer-crash",
+            errorBoundary: "viewer",
+            viewerType: this.props.viewerType || "unknown",
+          },
+          extra: {
+            componentStack: errorInfo.componentStack,
+            errorMessage: error.message,
+            errorStack: error.stack,
+          },
+          level: "error",
+        })
+      })
+      .catch(() => {
+        // Sentry 未加载（如开发模式），忽略
+      })
   }
 
   handleReset = () => {
