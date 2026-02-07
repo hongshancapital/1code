@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useTranslation } from "react-i18next"
-import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu, Sparkles } from "lucide-react"
+import { ArrowUpRight, TerminalSquare, Box, ListTodo, Package, FolderTree, Cpu, Sparkles, Activity } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +40,7 @@ import { ExplorerWidget } from "./sections/explorer-widget"
 import { BackgroundTasksWidget } from "./sections/background-tasks-widget"
 import { McpWidget } from "./sections/mcp-widget"
 import { SkillsWidget } from "./sections/skills-widget"
+import { UsageWidget } from "./sections/usage-widget"
 import type { ParsedDiffFile } from "./types"
 import type { AgentMode } from "../agents/atoms"
 import {
@@ -220,6 +221,8 @@ export function DetailsSidebar({
   // Get icon for widget
   const getWidgetIcon = useCallback((widgetId: WidgetId) => {
     switch (widgetId) {
+      case "usage":
+        return Activity
       case "info":
         return Box
       case "todo":
@@ -378,6 +381,11 @@ export function DetailsSidebar({
             if (!isWidgetVisible(widgetId)) return null
 
             switch (widgetId) {
+              case "usage":
+                return (
+                  <UsageWidget key="usage" />
+                )
+
               case "info":
                 return (
                   <WidgetCard key="info" widgetId="info" title={t("details.widgets.workspace")}>

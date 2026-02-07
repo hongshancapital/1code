@@ -141,7 +141,8 @@
       "explorer": "文件浏览器",
       "backgroundTasks": "后台任务",
       "mcpServers": "MCP 服务器",
-      "skills": "技能"
+      "skills": "技能",
+      "usage": "用量"
     },
     "workspace": {
       "noInfo": "暂无工作区信息",
@@ -209,6 +210,17 @@
       "builtin": "内置",
       "enable": "启用 MCP 服务器",
       "disable": "禁用 MCP 服务器"
+    },
+    "usageWidget": {
+      "resetsIn": "{{time}} 后重置",
+      "soon": "即将",
+      "used": "已使用 {{percent}}%",
+      "resetsAt": "重置于 {{time}}（{{relative}}）",
+      "refresh": "刷新",
+      "retryAfterError": "点击重试",
+      "fiveHour": "5时",
+      "sevenDay": "7天",
+      "sonnet": "S"
     },
     "skillsWidget": {
       "noSkills": "配置技能",

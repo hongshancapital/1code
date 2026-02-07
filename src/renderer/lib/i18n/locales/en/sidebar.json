@@ -141,7 +141,8 @@
       "explorer": "Explorer",
       "backgroundTasks": "Background Tasks",
       "mcpServers": "MCP Servers",
-      "skills": "Skills"
+      "skills": "Skills",
+      "usage": "Usage"
     },
     "workspace": {
       "noInfo": "No workspace info available",
@@ -209,6 +210,17 @@
       "builtin": "Built-in",
       "enable": "Enable MCP server",
       "disable": "Disable MCP server"
+    },
+    "usageWidget": {
+      "resetsIn": "resets in {{time}}",
+      "soon": "soon",
+      "used": "{{percent}}% used",
+      "resetsAt": "Resets {{time}} ({{relative}})",
+      "refresh": "Refresh",
+      "retryAfterError": "Click to retry",
+      "fiveHour": "5h",
+      "sevenDay": "7d",
+      "sonnet": "S"
     },
     "skillsWidget": {
       "noSkills": "Configure skills",

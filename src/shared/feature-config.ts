@@ -23,6 +23,7 @@ export const PLAYGROUND_PROJECT_NAME = "Chat Playground"
 export const PLAYGROUND_RELATIVE_PATH = `${PLAYGROUND_PARENT_DIR}/${PLAYGROUND_DIR_NAME}`
 
 export type WidgetId =
+  | "usage"
   | "info"
   | "todo"
   | "plan"
@@ -55,6 +56,7 @@ export interface FeatureDefault {
  * Widget feature defaults
  */
 export const WIDGET_DEFAULTS: Record<WidgetId, FeatureDefault> = {
+  usage: { label: "Usage", defaultInCoding: true, defaultInCowork: true },
   info: { label: "Workspace", defaultInCoding: true, defaultInCowork: true },
   todo: { label: "Tasks", defaultInCoding: true, defaultInCowork: true },
   plan: { label: "Plan", defaultInCoding: true, defaultInCowork: true },

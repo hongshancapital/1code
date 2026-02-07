@@ -2,7 +2,7 @@ import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
-import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu, Sparkles } from "lucide-react"
+import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu, Sparkles, Activity } from "lucide-react"
 import { OriginalMCPIcon } from "../../../components/ui/icons"
 import {
   type WidgetId,
@@ -35,6 +35,8 @@ export interface WidgetConfig {
 }
 
 export const WIDGET_REGISTRY: WidgetConfig[] = [
+  // Usage widget (subscription usage, always first)
+  { id: "usage", label: WIDGET_DEFAULTS.usage.label, icon: Activity, canExpand: false },
   // Coding mode widgets (Git workflow focused)
   { id: "info", label: WIDGET_DEFAULTS.info.label, icon: Box, canExpand: false },
   { id: "todo", label: WIDGET_DEFAULTS.todo.label, icon: ListTodo, canExpand: false },
@@ -87,32 +89,64 @@ const widgetVisibilityStorageAtom = atomWithStorage<Record<string, WidgetId[]>>(
   { getOnInit: true },
 )
 
+// Track known widgets per workspace - widgets that have been seen (either on or off)
+// This allows us to distinguish between:
+// 1. User turned off a widget intentionally → don't re-enable
+// 2. New widget was added to the system → auto-enable if it's a default
+const knownWidgetsStorageAtom = atomWithStorage<Record<string, WidgetId[]>>(
+  "overview:knownWidgets",
+  {},
+  undefined,
+  { getOnInit: true },
+)
+
 export const widgetVisibilityAtomFamily = atomFamily((workspaceId: string) =>
   atom(
     (get) => {
       const stored = get(widgetVisibilityStorageAtom)[workspaceId]
+      const knownWidgets = get(knownWidgetsStorageAtom)[workspaceId] ?? []
+
       if (!stored) {
         // No stored preference - use defaults
         return [...new Set(DEFAULT_VISIBLE_WIDGETS)].filter((id) =>
           WIDGET_REGISTRY.some((w) => w.id === id)
         )
       }
-      // Merge in any newly registered widgets that are in defaults but missing from stored list
-      // This ensures new widgets (e.g. mcp, skills) appear for existing workspaces
-      const missingDefaults = DEFAULT_VISIBLE_WIDGETS.filter(
-        (id) => !stored.includes(id)
+
+      // Only add new widgets that:
+      // 1. Are in defaults (should be visible by default)
+      // 2. Are NOT in knownWidgets (user hasn't seen them before)
+      // This prevents re-enabling widgets that user intentionally turned off
+      const trulyNewWidgets = DEFAULT_VISIBLE_WIDGETS.filter(
+        (id) => !stored.includes(id) && !knownWidgets.includes(id)
       )
-      const merged = [...stored, ...missingDefaults]
+      const merged = [...stored, ...trulyNewWidgets]
       return [...new Set(merged)].filter((id) =>
         WIDGET_REGISTRY.some((w) => w.id === id)
       )
     },
     (get, set, visibleWidgets: WidgetId[]) => {
-      const current = get(widgetVisibilityStorageAtom)
+      const currentVisibility = get(widgetVisibilityStorageAtom)
+      const currentKnown = get(knownWidgetsStorageAtom)
+
+      // Get all known widgets for this workspace
+      const existingKnown = currentKnown[workspaceId] ?? []
+
+      // Update known widgets: all widgets in the registry should be marked as known
+      // once user has interacted with the visibility settings
+      const allWidgetIds = WIDGET_REGISTRY.map((w) => w.id)
+      const newKnown = [...new Set([...existingKnown, ...allWidgetIds])]
+
       // Deduplicate on write
       set(widgetVisibilityStorageAtom, {
-        ...current,
+        ...currentVisibility,
         [workspaceId]: [...new Set(visibleWidgets)],
+      })
+
+      // Update known widgets
+      set(knownWidgetsStorageAtom, {
+        ...currentKnown,
+        [workspaceId]: newKnown,
       })
     },
   ),

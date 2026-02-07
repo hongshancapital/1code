@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useAtom, useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
-import { GripVertical, Box, TerminalSquare, ListTodo, Package, FolderTree } from "lucide-react"
+import { GripVertical, Box, TerminalSquare, ListTodo, Package, FolderTree, Activity } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -21,6 +21,7 @@ import {
 } from "./atoms"
 import { enabledWidgetsAtom, currentProjectModeAtom } from "../agents/atoms"
 import { isWidgetConfigurable } from "../../../shared/feature-config"
+import { trpc } from "@/lib/trpc"
 
 interface WidgetSettingsPopupProps {
   workspaceId: string
@@ -31,6 +32,8 @@ interface WidgetSettingsPopupProps {
 // Get the correct icon for each widget (matching details-sidebar.tsx)
 function getWidgetIcon(widgetId: WidgetId) {
   switch (widgetId) {
+    case "usage":
+      return Activity
     case "info":
       return Box
     case "todo":
@@ -54,6 +57,7 @@ function getWidgetIcon(widgetId: WidgetId) {
 
 // Widget ID to translation key mapping
 const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
+  usage: "usage",
   info: "workspace",
   todo: "tasks",
   plan: "plan",
@@ -72,6 +76,10 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
   // Get enabled widgets from project feature config
   const enabledWidgets = useAtomValue(enabledWidgetsAtom)
   const projectMode = useAtomValue(currentProjectModeAtom)
+
+  // Check if Anthropic account is configured (for usage widget visibility)
+  const { data: activeAccount } = trpc.anthropicAccounts.getActive.useQuery()
+  const hasAnthropicAccount = !!activeAccount
 
   const visibilityAtom = useMemo(
     () => widgetVisibilityAtomFamily(workspaceId),
@@ -177,11 +185,13 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
       .filter((w) => {
         // Hide terminal for remote chats
         if (isRemoteChat && w.id === "terminal") return false
+        // Hide usage widget if no Anthropic account configured
+        if (w.id === "usage" && !hasAnthropicAccount) return false
         // Only show enabled and configurable widgets
         return enabledWidgets.has(w.id) && isWidgetConfigurable(w.id, projectMode)
       })
       .sort((a, b) => widgetOrder.indexOf(a.id) - widgetOrder.indexOf(b.id))
-  }, [widgetOrder, enabledWidgets, projectMode, isRemoteChat])
+  }, [widgetOrder, enabledWidgets, projectMode, isRemoteChat, hasAnthropicAccount])
 
   return (
     <Popover>
@@ -233,8 +243,6 @@ export function WidgetSettingsPopup({ workspaceId, isRemoteChat = false }: Widge
                 />
                 <Checkbox
                   checked={isVisible}
-                  onCheckedChange={() => toggleWidget(widget.id)}
-                  onClick={(e) => e.stopPropagation()}
                   className="h-4 w-4 pointer-events-none"
                 />
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />

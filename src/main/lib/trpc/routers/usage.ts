@@ -1,7 +1,20 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm"
+import { safeStorage } from "electron"
 import { z } from "zod"
-import { getDatabase, modelUsage, projects, chats, subChats } from "../../db"
+import { getDatabase, modelUsage, projects, chats, subChats, anthropicAccounts, anthropicSettings } from "../../db"
 import { publicProcedure, router } from "../index"
+
+/**
+ * Decrypt token using Electron's safeStorage
+ * (Mirrors the logic in anthropic-accounts.ts)
+ */
+function decryptToken(encrypted: string): string {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return Buffer.from(encrypted, "base64").toString("utf-8")
+  }
+  const buffer = Buffer.from(encrypted, "base64")
+  return safeStorage.decryptString(buffer)
+}
 
 // Date range schema for filtering
 const dateRangeSchema = z.object({
@@ -408,4 +421,61 @@ export const usageRouter = router({
         .offset(input.offset)
         .all()
     }),
+
+  /**
+   * Get Anthropic subscription usage (rate limits) via OAuth API
+   * Returns five_hour, seven_day, seven_day_sonnet limits with reset times
+   */
+  getAnthropicUsage: publicProcedure.query(async () => {
+    const db = getDatabase()
+
+    // Get active account
+    const settings = db
+      .select()
+      .from(anthropicSettings)
+      .where(eq(anthropicSettings.id, "singleton"))
+      .get()
+
+    if (!settings?.activeAccountId) {
+      return { error: "no_active_account", data: null }
+    }
+
+    const account = db
+      .select()
+      .from(anthropicAccounts)
+      .where(eq(anthropicAccounts.id, settings.activeAccountId))
+      .get()
+
+    if (!account) {
+      return { error: "account_not_found", data: null }
+    }
+
+    let token: string
+    try {
+      token = decryptToken(account.oauthToken)
+    } catch {
+      return { error: "decrypt_failed", data: null }
+    }
+
+    // Call Anthropic Usage API
+    try {
+      const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "anthropic-beta": "oauth-2025-04-20",
+        },
+      })
+
+      if (!response.ok) {
+        return { error: `api_error_${response.status}`, data: null }
+      }
+
+      const data = await response.json()
+      return { error: null, data }
+    } catch (err) {
+      console.error("[Usage] Anthropic usage API error:", err)
+      return { error: "network_error", data: null }
+    }
+  }),
 })
