@@ -11,6 +11,7 @@ import { claudeSettingsRouter } from "./claude-settings"
 import { anthropicAccountsRouter } from "./anthropic-accounts"
 import { ollamaRouter } from "./ollama"
 import { litellmRouter } from "./litellm"
+import { providersRouter } from "./providers"
 import { terminalRouter } from "./terminal"
 import { externalRouter } from "./external"
 import { filesRouter } from "./files"
@@ -53,6 +54,8 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     anthropicAccounts: anthropicAccountsRouter,
     ollama: ollamaRouter,
     litellm: litellmRouter,
+    // Unified model provider management (replaces litellm for new code)
+    providers: providersRouter,
     terminal: terminalRouter,
     external: externalRouter,
     files: filesRouter,

@@ -42,6 +42,7 @@ import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
 import { memoryHooks } from "../../memory"
 import { createBrowserMcpServer, browserManager } from "../../browser"
+import { createImageGenMcpServer } from "../../mcp/image-gen-server"
 
 /**
  * Type for Claude SDK streaming messages
@@ -1112,6 +1113,13 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
         skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
         memoryEnabled: z.boolean().optional(), // Enable memory context injection (default true)
         memoryRecordingEnabled: z.boolean().optional(), // Enable memory recording (default true)
+        imageConfig: z
+          .object({
+            baseUrl: z.string(),
+            apiKey: z.string(),
+            model: z.string(),
+          })
+          .optional(), // Image generation API config (enables image-gen MCP tools)
       }),
     )
     .subscription(({ input }) => {
@@ -1134,7 +1142,7 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
         let lastChunkType = ""
         // Shared sessionId for cleanup to save on abort
         let currentSessionId: string | null = null
-        console.log(`[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode}`)
+        console.log(`[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`)
 
         // Track if observable is still active (not unsubscribed)
         let isObservableActive = true
@@ -1614,6 +1622,29 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   browser: browserMcp,
                 }
                 console.log("[Browser MCP] Added browser MCP server")
+              }
+
+              // Add image generation MCP server if image config is provided
+              console.log("[Image Gen MCP] imageConfig:", input.imageConfig ? `provider=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "not set")
+              if (input.imageConfig) {
+                try {
+                  const imageGenMcp = await createImageGenMcpServer({
+                    cwd: input.cwd,
+                    subChatId: input.subChatId,
+                    apiConfig: {
+                      baseUrl: input.imageConfig.baseUrl,
+                      apiKey: input.imageConfig.apiKey,
+                      model: input.imageConfig.model,
+                    },
+                  })
+                  mcpServersFiltered = {
+                    ...mcpServersFiltered,
+                    "image-gen": imageGenMcp,
+                  }
+                  console.log("[Image Gen MCP] Added image generation MCP server, all MCP keys:", mcpServersFiltered ? Object.keys(mcpServersFiltered) : "none")
+                } catch (err) {
+                  console.error("[Image Gen MCP] Failed to create server:", err)
+                }
               }
             }
 

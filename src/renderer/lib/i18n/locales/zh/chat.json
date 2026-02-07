@@ -16,7 +16,13 @@
     "noModelSelected": "未选择模型",
     "noModelConfigured": "未配置模型",
     "selectModel": "选择模型",
-    "recommended": "推荐"
+    "recommended": "推荐",
+    "sessionOverride": "当前会话已覆盖",
+    "resetToDefault": "重置",
+    "manageProviders": "管理模型提供方...",
+    "loading": "加载模型中...",
+    "noModels": "暂无可用模型",
+    "default": "默认"
   },
   "thinking": {
     "active": "深度思考",

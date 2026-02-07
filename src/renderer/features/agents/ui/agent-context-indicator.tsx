@@ -101,10 +101,13 @@ export const AgentContextIndicator = memo(function AgentContextIndicator({
   isCompacting,
   disabled,
 }: AgentContextIndicatorProps) {
-  const totalTokens = tokenData.totalInputTokens + tokenData.totalOutputTokens
+  // Context usage estimate: last API call's input tokens = current conversation context size
+  // Adding output tokens gives the approximate context for the next request
+  // (since this turn's output becomes next turn's input)
+  const contextUsed = tokenData.totalInputTokens + tokenData.totalOutputTokens
   const contextWindow = CONTEXT_WINDOWS[modelId]
-  const percentUsed = Math.min(100, (totalTokens / contextWindow) * 100)
-  const isEmpty = totalTokens === 0
+  const percentUsed = Math.min(100, (contextUsed / contextWindow) * 100)
+  const isEmpty = contextUsed === 0
 
   const canCompact = onCompact && !disabled && !isCompacting && !isEmpty
 
@@ -140,7 +143,7 @@ export const AgentContextIndicator = memo(function AgentContextIndicator({
                 </span>
                 <span className="text-muted-foreground mx-1">·</span>
                 <span className="text-muted-foreground">
-                  {formatTokens(totalTokens)} / {formatTokens(contextWindow)} context
+                  {formatTokens(contextUsed)} / {formatTokens(contextWindow)} context
                 </span>
               </p>
               {canCompact && (

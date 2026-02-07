@@ -7,31 +7,26 @@ import {
   askUserQuestionTimeoutAtom,
   autoOfflineModeAtom,
   type CustomClaudeConfig,
-  customClaudeConfigAtom,
   disabledMcpServersAtom,
   enableTasksAtom,
   extendedThinkingEnabledAtom,
   historyEnabledAtom,
-  normalizeCustomClaudeConfig,
   selectedOllamaModelAtom,
   sessionInfoAtom,
   showOfflineModeFeaturesAtom,
-  overrideModelModeAtom,
-  litellmSelectedModelAtom,
   userPersonalizationAtom,
   skillAwarenessEnabledAtom,
   betaMemoryEnabledAtom,
   memoryEnabledAtom,
   memoryRecordingEnabledAtom,
 } from "../../../lib/atoms"
+import { effectiveLlmSelectionAtom, imageProviderIdAtom, imageModelIdAtom, enabledModelsPerProviderAtom } from "../../../lib/atoms/model-config"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
 import {
   askUserQuestionResultsAtom,
   compactingSubChatsAtom,
   expiredUserQuestionsAtom,
-  lastSelectedModelIdAtom,
-  MODEL_ID_MAP,
   pendingAuthRetryMessageAtom,
   pendingUserQuestionsAtom,
 } from "../atoms"
@@ -222,31 +217,39 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const memoryEnabled = betaMemoryEnabled ? appStore.get(memoryEnabledAtom) : false
     const memoryRecordingEnabled = betaMemoryEnabled ? appStore.get(memoryRecordingEnabledAtom) : false
 
-    // Read model selection dynamically (so model changes apply to existing chats)
-    const selectedModelId = appStore.get(lastSelectedModelIdAtom)
-    const modelString = MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"]
-
-    // Get override mode and LiteLLM model selection
-    const overrideMode = appStore.get(overrideModelModeAtom)
-    const litellmSelectedModel = appStore.get(litellmSelectedModelAtom)
-
-    // Build custom config based on override mode
+    // Read model selection dynamically via unified provider system
+    // effectiveLlmSelectionAtom considers session override > global default > anthropic fallback
+    const effectiveSelection = appStore.get(effectiveLlmSelectionAtom)
+    let modelString: string | undefined
     let customConfig: CustomClaudeConfig | undefined
-    if (overrideMode === "litellm" && litellmSelectedModel) {
-      // LiteLLM mode: config will be populated by backend from env
-      customConfig = {
-        model: litellmSelectedModel,
-        token: "", // Backend will use env
-        baseUrl: "", // Backend will use env
+
+    // Validate: only use model if it's in the enabled models list for that provider
+    const enabledModelsMap = appStore.get(enabledModelsPerProviderAtom)
+    const enabledModelsForProvider = enabledModelsMap[effectiveSelection.providerId] || []
+    const validatedModelId = effectiveSelection.modelId && enabledModelsForProvider.includes(effectiveSelection.modelId)
+      ? effectiveSelection.modelId
+      : null
+
+    // For non-Anthropic providers, fetch config (model, token, baseUrl) via tRPC
+    if (effectiveSelection.providerId && effectiveSelection.providerId !== "anthropic" && validatedModelId) {
+      try {
+        const providerConfig = await trpcClient.providers.getConfig.query({
+          providerId: effectiveSelection.providerId,
+          modelId: validatedModelId,
+        })
+        if (providerConfig) {
+          customConfig = {
+            model: providerConfig.model,
+            token: providerConfig.token,
+            baseUrl: providerConfig.baseUrl,
+          }
+        }
+      } catch (err) {
+        console.error("[SD] Failed to get provider config:", err)
       }
-    } else if (overrideMode === "custom") {
-      // Custom mode: use manual config
-      const storedCustomConfig = appStore.get(
-        customClaudeConfigAtom,
-      ) as CustomClaudeConfig
-      customConfig = normalizeCustomClaudeConfig(storedCustomConfig)
     } else {
-      customConfig = undefined
+      // Anthropic OAuth - no customConfig needed, just pass model if specified
+      modelString = validatedModelId || undefined
     }
 
     // Get selected Ollama model for offline mode
@@ -274,6 +277,33 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const disabledServersMap = appStore.get(disabledMcpServersAtom)
     const projectPath = this.config.projectPath || this.config.cwd
     const disabledMcpServers = disabledServersMap[projectPath] || []
+
+    // Get image generation config (if image provider is set)
+    let imageConfig: { baseUrl: string; apiKey: string; model: string } | undefined
+    const imageProviderId = appStore.get(imageProviderIdAtom)
+    const imageModelId = appStore.get(imageModelIdAtom)
+    console.log(`[SD] Image atoms: providerId=${JSON.stringify(imageProviderId)} modelId=${JSON.stringify(imageModelId)}`)
+    if (imageProviderId && imageModelId) {
+      try {
+        // getImageConfig returns credentials for any provider type (including anthropic)
+        const imgProviderConfig = await trpcClient.providers.getImageConfig.query({
+          providerId: imageProviderId,
+          modelId: imageModelId,
+        })
+        console.log(`[SD] Image getImageConfig result:`, imgProviderConfig ? `baseUrl=${imgProviderConfig.baseUrl} model=${imgProviderConfig.model} hasToken=${!!imgProviderConfig.token}` : "null")
+        if (imgProviderConfig) {
+          imageConfig = {
+            baseUrl: imgProviderConfig.baseUrl,
+            apiKey: imgProviderConfig.token,
+            model: imgProviderConfig.model,
+          }
+        }
+      } catch (err) {
+        console.error("[SD] *** Failed to get image provider config ***:", err)
+      }
+    } else {
+      console.log("[SD] Image config skipped: imageProviderId or imageModelId is null")
+    }
 
     // Get user personalization for AI recognition
     const personalization = appStore.get(userPersonalizationAtom)
@@ -312,6 +342,7 @@ askUserQuestionTimeout,
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
+            ...(imageConfig && { imageConfig }),
           },
           {
             // Cast chunk to our extended type - the server sends custom chunk types
@@ -458,13 +489,14 @@ askUserQuestionTimeout,
               // Clear pending questions ONLY when agent has moved on
               // Don't clear on tool-input-* chunks (still building the question input)
               // Clear when we get tool-output-* (answer received) or text-delta (agent moved on)
+              const chunkType = chunk.type || ""
               const shouldClearOnChunk =
-                chunk.type !== "ask-user-question" &&
-                chunk.type !== "ask-user-question-timeout" &&
-                chunk.type !== "ask-user-question-result" &&
-                !chunk.type.startsWith("tool-input") && // Don't clear while input is being built
-                chunk.type !== "start" &&
-                chunk.type !== "start-step"
+                chunkType !== "ask-user-question" &&
+                chunkType !== "ask-user-question-timeout" &&
+                chunkType !== "ask-user-question-result" &&
+                !chunkType.startsWith("tool-input") && // Don't clear while input is being built
+                chunkType !== "start" &&
+                chunkType !== "start-step"
 
               if (shouldClearOnChunk) {
                 const currentMap = appStore.get(pendingUserQuestionsAtom)

@@ -11,6 +11,7 @@ import {
 } from "../../../components/ui/tooltip"
 import { sessionInfoAtom, type MCPServer } from "../../../lib/atoms"
 import { getToolStatus } from "./agent-tool-registry"
+import { AgentImageItem } from "./agent-image-item"
 
 interface AgentMcpToolCallProps {
   /** Full tool type, e.g. "tool-mcp__time-mcp__current_time" */
@@ -94,6 +95,49 @@ function ServerIcon({ server }: { server: MCPServer | undefined }) {
   return <OriginalMCPIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 }
 
+/**
+ * Extract image data from MCP tool output.
+ * MCP image format: { type: "image", source: { type: "base64", media_type: "image/png", data: "..." } }
+ * or: { type: "image", data: "...", mimeType: "image/png" }
+ */
+function extractOutputImages(part: any): Array<{ id: string; filename: string; url: string }> {
+  if (part.state !== "output-available") return []
+
+  const output = part.output
+  if (!output) return []
+
+  // Output can be an array or a single object
+  const items = Array.isArray(output) ? output : [output]
+  const images: Array<{ id: string; filename: string; url: string }> = []
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item?.type !== "image") continue
+
+    let dataUrl: string | null = null
+
+    // Format 1: { source: { type: "base64", media_type: "image/png", data: "..." } }
+    if (item.source?.type === "base64" && item.source.data) {
+      const mediaType = item.source.media_type || "image/png"
+      dataUrl = `data:${mediaType};base64,${item.source.data}`
+    }
+    // Format 2: { data: "...", mimeType: "image/png" } (from our MCP server)
+    else if (item.data && item.mimeType) {
+      dataUrl = `data:${item.mimeType};base64,${item.data}`
+    }
+
+    if (dataUrl) {
+      images.push({
+        id: `${part.toolCallId}-img-${i}`,
+        filename: `generated-image-${i + 1}.png`,
+        url: dataUrl,
+      })
+    }
+  }
+
+  return images
+}
+
 export const AgentMcpToolCall = memo(
   function AgentMcpToolCall({ toolType, part, chatStatus }: AgentMcpToolCallProps) {
     const sessionInfo = useAtomValue(sessionInfoAtom)
@@ -118,46 +162,67 @@ export const AgentMcpToolCall = memo(
     const displayToolName = formatToolName(toolName)
     const title = isPending ? `${displayToolName}...` : displayToolName
 
-    return (
-      <div className="flex items-start gap-1.5 py-0.5 rounded-md px-2" data-tool-call-id={part.toolCallId}>
-        {/* MCP Server Icon */}
-        <div className="shrink-0 flex text-muted-foreground items-center pt-px">
-          <ServerIcon server={server} />
-        </div>
+    // Extract images from MCP tool output
+    const outputImages = extractOutputImages(part)
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-          <div className="text-xs text-muted-foreground flex items-center gap-1.5 min-w-0">
-            <span className="font-medium whitespace-nowrap shrink-0">
-              {isPending ? (
-                <TextShimmer
-                  as="span"
-                  duration={1.2}
-                  className="inline-flex items-center text-xs leading-none h-4 m-0"
+    return (
+      <div className="space-y-2" data-tool-call-id={part.toolCallId}>
+        <div className="flex items-start gap-1.5 py-0.5 rounded-md px-2">
+          {/* MCP Server Icon */}
+          <div className="shrink-0 flex text-muted-foreground items-center pt-px">
+            <ServerIcon server={server} />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5 min-w-0">
+              <span className="font-medium whitespace-nowrap shrink-0">
+                {isPending ? (
+                  <TextShimmer
+                    as="span"
+                    duration={1.2}
+                    className="inline-flex items-center text-xs leading-none h-4 m-0"
+                  >
+                    {title}
+                  </TextShimmer>
+                ) : (
+                  title
+                )}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground/60 font-normal truncate min-w-0">
+                    {serverName}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="px-2 py-1.5 max-w-none flex items-center justify-center"
                 >
-                  {title}
-                </TextShimmer>
-              ) : (
-                title
-              )}
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground/60 font-normal truncate min-w-0">
-                  {serverName}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                className="px-2 py-1.5 max-w-none flex items-center justify-center"
-              >
-                <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap leading-none">
-                  {toolType.replace("tool-", "")}
-                </span>
-              </TooltipContent>
-            </Tooltip>
+                  <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap leading-none">
+                    {toolType.replace("tool-", "")}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </div>
+
+        {/* Render output images */}
+        {outputImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-2">
+            {outputImages.map((img, idx) => (
+              <AgentImageItem
+                key={img.id}
+                id={img.id}
+                filename={img.filename}
+                url={img.url}
+                allImages={outputImages}
+                imageIndex={idx}
+              />
+            ))}
+          </div>
+        )}
       </div>
     )
   },

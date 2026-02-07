@@ -121,6 +121,7 @@ import {
 } from "../lib/drafts"
 import { CLAUDE_MODELS } from "../lib/models"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "../../../lib/router"
 
 // Hook to get available models (including offline models if Ollama is available and debug enabled)
 function useAvailableModels() {
@@ -184,6 +185,7 @@ export function NewChatForm({
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
+  const { navigateToChat } = useNavigate()
   const [selectedDraftId, setSelectedDraftId] = useAtom(selectedDraftIdAtom)
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
 
@@ -1148,28 +1150,13 @@ export function NewChatForm({
         utils.chats.listPlaygroundChats.invalidate()
         utils.projects.list.invalidate()
 
-        // CRITICAL: Prefetch the subchat messages BEFORE setting selectedChatId
+        // CRITICAL: Prefetch the subchat messages BEFORE navigating
         if (data.subChats?.[0]?.id) {
           await utils.chats.getSubChatMessages.fetch({ id: data.subChats[0].id })
         }
 
-        // Select the new chat
-        setSelectedChatId(data.id)
-        setSelectedChatIsRemote(false)
-        setChatSourceMode("local")
-        // Clear home view to show the chat
-        setDesktopView(null)
-
-        // Set selected project to the new playground project
-        if (data.project) {
-          setSelectedProject({
-            id: data.project.id,
-            name: data.project.name,
-            path: data.project.path,
-            mode: "cowork",
-            isPlayground: true,
-          })
-        }
+        // Navigate to the new chat (sets chatId, project, view, source mode, etc.)
+        navigateToChat(data.id)
 
         // Track as just created for typewriter effect
         const ids = [data.id]
@@ -1243,19 +1230,15 @@ export function NewChatForm({
       setBranchNameError(null)
       utils.chats.list.invalidate()
 
-      // CRITICAL: Prefetch the subchat messages BEFORE setting selectedChatId
+      // CRITICAL: Prefetch the subchat messages BEFORE navigating
       // This ensures getOrCreateChat() will have messages data when it creates the Chat object
       // Without this, Chat is created with empty messages and auto-generate never triggers
       if (data.subChats?.[0]?.id) {
         await utils.chats.getSubChatMessages.fetch({ id: data.subChats[0].id })
       }
 
-      setSelectedChatId(data.id)
-      // New chats are always local
-      setSelectedChatIsRemote(false)
-      setChatSourceMode("local")
-      // Clear home view to show the chat
-      setDesktopView(null)
+      // Navigate to the new chat (sets chatId, project, view, source mode, etc.)
+      navigateToChat(data.id)
       // Track this chat and its first subchat as just created for typewriter effect
       const ids = [data.id]
       if (data.subChats?.[0]?.id) {
@@ -1284,10 +1267,7 @@ export function NewChatForm({
     trpcUtils,
     currentProjectMode,
     setSelectedProject,
-    setSelectedChatId,
-    setSelectedChatIsRemote,
-    setChatSourceMode,
-    setDesktopView,
+    navigateToChat,
     setJustCreatedIds,
     utils,
     // Note: clearImages, clearFiles, clearPastedTexts, clearCurrentDraft are stable refs from hooks

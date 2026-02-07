@@ -65,7 +65,9 @@ import {
   isDesktopAtom, isFullscreenAtom,
   normalizeCustomClaudeConfig,
   selectedOllamaModelAtom,
-  soundNotificationsEnabledAtom
+  soundNotificationsEnabledAtom,
+  summaryProviderIdAtom,
+  summaryModelIdAtom,
 } from "../../../lib/atoms"
 import {
   setTrafficLightRequestAtom,
@@ -2115,41 +2117,35 @@ const ChatViewInner = memo(function ChatViewInner({
   // This prevents ChatInputArea from re-rendering on every streaming chunk
   // After compaction, only count tokens from messages after the compact boundary
   const messageTokenData = useMemo(() => {
-    let totalInputTokens = 0
-    let totalOutputTokens = 0
     let totalCostUsd = 0
 
-    // Find the most recent compact boundary (from end to start)
-    let startIndex = 0
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-      if (msg.role === "assistant" && msg.parts) {
-        const hasCompactBoundary = msg.parts.some(
-          (p: any) => p.type === "system-Compact" && p.state === "output-available"
-        )
-        if (hasCompactBoundary) {
-          // Start counting from the message after the compact boundary
-          startIndex = i + 1
-          break
-        }
-      }
-    }
-
-    // Only count tokens from messages after the compact boundary
-    for (let i = startIndex; i < messages.length; i++) {
-      const msg = messages[i]
+    // Sum cost across all messages
+    for (const msg of messages) {
       if (msg.metadata) {
-        totalInputTokens += msg.metadata.inputTokens || 0
-        totalOutputTokens += msg.metadata.outputTokens || 0
         totalCostUsd += msg.metadata.totalCostUsd || 0
       }
     }
 
+    // Context usage = the last API call's input + output tokens
+    // Each API call's inputTokens already includes the full conversation history,
+    // so the last call's inputTokens represents the current context size.
+    // Adding outputTokens gives the total context window usage.
+    let lastInputTokens = 0
+    let lastOutputTokens = 0
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.metadata && (msg.metadata.inputTokens || msg.metadata.outputTokens)) {
+        lastInputTokens = msg.metadata.inputTokens || 0
+        lastOutputTokens = msg.metadata.outputTokens || 0
+        break
+      }
+    }
+
     return {
-      totalInputTokens,
-      totalOutputTokens,
+      totalInputTokens: lastInputTokens,
+      totalOutputTokens: lastOutputTokens,
       totalCostUsd,
-      messageCount: messages.length - startIndex,
+      messageCount: messages.length,
     }
   }, [messages])
 
@@ -5564,22 +5560,25 @@ Make sure to preserve all functionality from both branches when resolving confli
       }
     }
 
-    // 修复：验证 localStorage 中的 activeSubChatId 是否存在于数据库中
-    // 当两个应用共享数据库但 localStorage 分开时，可能出现 activeSubChatId 指向不存在的 subchat
+    // Validate localStorage state against DB
     const currentActive = freshState.activeSubChatId
     const isActiveIdValid = currentActive && dbSubChatIds.has(currentActive)
 
-    // 只保留数据库中存在的 open tabs
+    // Only keep open tabs that exist in DB
     const validOpenIds = currentOpenIds.filter(id => dbSubChatIds.has(id))
 
-    if (validOpenIds.length === 0 && dbSubChats.length > 0) {
-      // 没有有效的 open tabs，但数据库有 subchat，打开第一个
-      console.log('[init] No valid open tabs, opening first subchat from DB')
-      freshState.setOpenSubChats([dbSubChats[0].id])
-      freshState.setActiveSubChat(dbSubChats[0].id)
-    } else if (validOpenIds.length > 0) {
-      // 有有效的 open tabs
-      // 更新 openSubChatIds 为只包含有效 ID 的列表
+    // Helper: find the most recently updated subchat from a list
+    const findLatest = (list: SubChatMeta[]) => {
+      if (list.length === 0) return null
+      return list.reduce((latest, sc) => {
+        const latestTime = latest.updated_at || latest.created_at || ""
+        const scTime = sc.updated_at || sc.created_at || ""
+        return scTime > latestTime ? sc : latest
+      })
+    }
+
+    if (validOpenIds.length > 0) {
+      // Have valid open tabs
       if (validOpenIds.length !== currentOpenIds.length) {
         console.log('[init] Filtering invalid open tabs', {
           before: currentOpenIds.length,
@@ -5588,17 +5587,31 @@ Make sure to preserve all functionality from both branches when resolving confli
         freshState.setOpenSubChats(validOpenIds)
       }
 
-      // 验证 activeSubChatId 是否有效
+      // Validate activeSubChatId
       if (!isActiveIdValid || !validOpenIds.includes(currentActive!)) {
-        console.log('[init] Invalid activeSubChatId, switching to first valid', {
+        // Pick the most recently updated among valid open tabs
+        const openSubChats = validOpenIds
+          .map(id => dbSubChats.find(sc => sc.id === id))
+          .filter(Boolean) as SubChatMeta[]
+        const latest = findLatest(openSubChats)
+        const targetId = latest?.id || validOpenIds[0]
+        console.log('[init] Invalid activeSubChatId, switching to latest valid', {
           currentActive,
-          isActiveIdValid,
-          firstValid: validOpenIds[0],
+          targetId,
         })
-        freshState.setActiveSubChat(validOpenIds[0])
+        freshState.setActiveSubChat(targetId)
       }
-    } else if (dbSubChats.length === 0) {
-      // 数据库也没有 subchat，清空状态
+    } else if (dbSubChats.length > 0) {
+      // No valid open tabs, but DB has subchats — open the most recent one
+      const latest = findLatest(dbSubChats)!
+      console.log('[init] No valid open tabs, opening latest subchat from DB', {
+        id: latest.id,
+        updated_at: latest.updated_at,
+      })
+      freshState.setOpenSubChats([latest.id])
+      freshState.setActiveSubChat(latest.id)
+    } else {
+      // DB has no subchats — clear state (UI will show new chat input)
       console.log('[init] No subchats in DB, clearing state')
       freshState.setOpenSubChats([])
       freshState.setActiveSubChat(null)
@@ -6348,7 +6361,12 @@ Make sure to preserve all functionality from both branches when resolving confli
         userMessage,
         isFirstSubChat: isFirst,
         generateName: async (msg) => {
-          return generateSubChatNameMutation.mutateAsync({ userMessage: msg })
+          const sp = appStore.get(summaryProviderIdAtom)
+          const sm = appStore.get(summaryModelIdAtom)
+          return generateSubChatNameMutation.mutateAsync({
+            userMessage: msg,
+            ...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
+          })
         },
         renameSubChat: async (input) => {
           await renameSubChatMutation.mutateAsync(input)

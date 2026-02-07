@@ -5,7 +5,6 @@ import {
   desktopViewAtom,
   agentsSidebarOpenAtom,
   agentsMobileViewModeAtom,
-  selectedAgentChatIdAtom,
 } from "../agents/atoms"
 import { betaAutomationsEnabledAtom, isDesktopAtom, isFullscreenAtom } from "../../lib/atoms"
 import { trpc } from "../../lib/trpc"
@@ -18,6 +17,7 @@ import { useTranslation } from "react-i18next"
 import { useTypingGreeting } from "./use-greeting"
 import { NewChatForm } from "../agents/main/new-chat-form"
 import { AgentsHeaderControls } from "../agents/ui/agents-header-controls"
+import { useNavigate } from "../../lib/router"
 
 // Format relative time helper (returns key and count for translation)
 function getRelativeTimeKey(date: Date): { key: string; count?: number; fallback?: string } {
@@ -45,7 +45,7 @@ export function HomeView() {
   }, [t])
 
   const setDesktopView = useSetAtom(desktopViewAtom)
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const { navigateToChat } = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
   const setMobileViewMode = useSetAtom(agentsMobileViewModeAtom)
   const isMobile = useIsMobile()
@@ -112,9 +112,8 @@ export function HomeView() {
   }, [setDesktopView])
 
   const handleOpenChat = useCallback((chatId: string) => {
-    setSelectedChatId(chatId)
-    setDesktopView(null)
-  }, [setSelectedChatId, setDesktopView])
+    navigateToChat(chatId)
+  }, [navigateToChat])
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">

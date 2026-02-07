@@ -1,9 +1,7 @@
 import { useCallback } from "react"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { useSetAtom } from "jotai"
-import { selectedAgentChatIdAtom } from "../atoms"
-import { chatSourceModeAtom } from "../../../lib/atoms"
+import { useNavigate } from "../../../lib/router"
 import type { RemoteChat } from "../../../lib/remote-api"
 
 interface Project {
@@ -15,15 +13,13 @@ interface Project {
 }
 
 export function useAutoImport() {
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
-  const setChatSourceMode = useSetAtom(chatSourceModeAtom)
+  const { navigateToChat } = useNavigate()
   const utils = trpc.useUtils()
 
   const importMutation = trpc.sandboxImport.importSandboxChat.useMutation({
     onSuccess: (result) => {
       toast.success("Opened locally")
-      setChatSourceMode("local")
-      setSelectedChatId(result.chatId)
+      navigateToChat(result.chatId)
       utils.chats.list.invalidate()
     },
     onError: (error) => {

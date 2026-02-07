@@ -130,6 +130,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
 
   setChatId: (chatId) => {
     if (!chatId) {
+      console.log('[sub-chat-store] setChatId(null)', new Error().stack?.split('\n').slice(1, 4).join('\n'))
       set({
         chatId: null,
         activeSubChatId: null,
@@ -140,12 +141,21 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
       return
     }
 
+    // Skip if chatId is already set — avoids resetting allSubChats and
+    // overwriting activeSubChatId/openSubChatIds that were already
+    // initialized by the active-chat init effect.
+    if (get().chatId === chatId) {
+      console.log('[sub-chat-store] setChatId SKIP (same)', chatId)
+      return
+    }
+
     // Load open/active/pinned IDs from localStorage
     // allSubChats will be populated from DB + placeholders in init effect
     const openSubChatIds = loadFromLS<string[]>(chatId, "open", [])
     const activeSubChatId = loadFromLS<string | null>(chatId, "active", null)
     const pinnedSubChatIds = loadFromLS<string[]>(chatId, "pinned", [])
 
+    console.log('[sub-chat-store] setChatId', { chatId, activeSubChatId, openSubChatIds })
     set({ chatId, openSubChatIds, activeSubChatId, pinnedSubChatIds, allSubChats: [] })
   },
 
@@ -198,7 +208,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     const newPinnedIds = pinnedSubChatIds.includes(subChatId)
       ? pinnedSubChatIds.filter((id) => id !== subChatId)
       : [...pinnedSubChatIds, subChatId]
-    
+
     set({ pinnedSubChatIds: newPinnedIds })
     if (chatId) saveToLS(chatId, "pinned", newPinnedIds)
   },

@@ -262,7 +262,16 @@ export const OFFLINE_PROFILE: ModelProfile = {
   },
 }
 
-// Override model mode: "litellm" uses env-configured LiteLLM proxy, "custom" uses manual config
+// ============================================
+// DEPRECATED MODEL ATOMS - Use model-config.ts instead
+// These atoms are kept for backwards compatibility during migration
+// They will be removed in a future version
+// ============================================
+
+/**
+ * @deprecated Use activeLlmProviderIdAtom from model-config.ts instead
+ * Override model mode: "litellm" uses env-configured LiteLLM proxy, "custom" uses manual config
+ */
 export type OverrideModelMode = "litellm" | "custom" | null
 export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
   "agents:override-model-mode",
@@ -271,16 +280,21 @@ export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
   { getOnInit: true },
 )
 
-// LiteLLM selected model (when using internal LiteLLM proxy from env)
-// Default is empty - will be populated from backend's defaultModel when first queried
+/**
+ * @deprecated Use activeLlmModelIdAtom from model-config.ts instead
+ * LiteLLM selected model (when using internal LiteLLM proxy from env)
+ */
 export const litellmSelectedModelAtom = atomWithStorage<string>(
   "agents:litellm-selected-model",
-  "", // Empty - will be set from backend's intelligent default selection
+  "",
   undefined,
   { getOnInit: true },
 )
 
-// Legacy single config (deprecated, kept for backwards compatibility)
+/**
+ * @deprecated Use providers.addCustom() tRPC mutation instead
+ * Legacy single config for custom API endpoints
+ */
 export const customClaudeConfigAtom = atomWithStorage<CustomClaudeConfig>(
   "agents:claude-custom-config",
   {
@@ -300,15 +314,21 @@ export const openaiApiKeyAtom = atomWithStorage<string>(
   { getOnInit: true },
 )
 
-// New: Model profiles storage
+/**
+ * @deprecated Use providers system instead
+ * Model profiles storage
+ */
 export const modelProfilesAtom = atomWithStorage<ModelProfile[]>(
   "agents:model-profiles",
-  [OFFLINE_PROFILE], // Start with offline profile
+  [OFFLINE_PROFILE],
   undefined,
   { getOnInit: true },
 )
 
-// Active profile ID (null = use Claude Code default)
+/**
+ * @deprecated Use activeLlmProviderIdAtom from model-config.ts instead
+ * Active profile ID (null = use Claude Code default)
+ */
 export const activeProfileIdAtom = atomWithStorage<string | null>(
   "agents:active-profile-id",
   null,
@@ -1092,3 +1112,48 @@ export const betaBrowserEnabledAtom = atom(
   (get) => isFeatureAvailable("browser") ? get(_betaBrowserEnabledStorageAtom) : false,
   (_get, set, value: boolean) => set(_betaBrowserEnabledStorageAtom, value)
 )
+
+// ============================================
+// UNIFIED MODEL CONFIG (New Provider + Model system)
+// ============================================
+
+export {
+  // Types
+  type ProviderType,
+  type ProviderInfo,
+  type ModelInfo,
+  type ModelSelection,
+  // Provider atoms (unified, no category separation)
+  activeProviderIdAtom,
+  activeModelIdAtom,
+  // Multi-provider enable/disable
+  enabledProviderIdsAtom,
+  isProviderEnabledFamily,
+  toggleProviderEnabledAtom,
+  // Legacy aliases
+  activeLlmProviderIdAtom,
+  activeLlmModelIdAtom,
+  // Session override for chat-time switching
+  sessionModelOverrideAtom,
+  effectiveLlmSelectionAtom,
+  // Models cache
+  providerModelsAtom,
+  providerModelsFamily,
+  updateProviderModelsAtom,
+  // Per-provider enabled models (multi-select)
+  enabledModelsPerProviderAtom,
+  toggleModelEnabledAtom,
+  // Image model
+  imageProviderIdAtom,
+  imageModelIdAtom,
+  // Summary model (name generation, commit messages)
+  summaryProviderIdAtom,
+  summaryModelIdAtom,
+  // Derived
+  availableModelsAtom,
+  // Migration
+  migrateOldModelConfig,
+  isMigrationDone,
+  getPendingCustomMigration,
+  clearPendingCustomMigration,
+} from "./model-config"

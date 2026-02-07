@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react"
 import { useSetAtom } from "jotai"
-import { currentRouteAtom, scrollTargetAtom } from "./atoms"
+import { currentRouteAtom, navigatingProjectSyncAtom, scrollTargetAtom } from "./atoms"
 import type { NavigationRoute } from "./types"
 import { SCROLL_TO_BOTTOM } from "./types"
 import {
@@ -28,6 +28,7 @@ export function useNavigate() {
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setSelectedProject = useSetAtom(selectedProjectAtom)
+  const setNavigatingProjectSync = useSetAtom(navigatingProjectSyncAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
   const { addToOpenSubChats, setActiveSubChat, setChatId } =
@@ -69,12 +70,17 @@ export function useNavigate() {
       }
 
       // 3. Resolve project from chat data and sync selectedProject
+      // Set flag so the sidebar's "reset chatId on project change" effect knows
+      // this project change is caused by navigation, not by user switching projects.
+      console.log('[navigate] setNavigatingProjectSync(true)')
+      setNavigatingProjectSync(true)
       try {
         const chatData = await utils.chats.get.fetch({ id: route.chatId })
         // Bail if a newer navigation has started while we were awaiting
         if (navigationVersionRef.current !== version) return
         if (chatData?.project) {
           const p = chatData.project
+          console.log('[navigate] setSelectedProject', { projectId: p.id, projectName: p.name })
           setSelectedProject({
             id: p.id,
             name: p.name,
@@ -90,6 +96,14 @@ export function useNavigate() {
         }
       } catch (e) {
         console.warn("[MemoryRouter] Failed to resolve project for chat:", route.chatId, e)
+      } finally {
+        // Reset flag after a macrotask so React has time to commit the project
+        // state update and fire the sidebar effect (which reads this flag)
+        // before we clear it.
+        setTimeout(() => {
+          console.log('[navigate] setNavigatingProjectSync(false) [setTimeout]')
+          setNavigatingProjectSync(false)
+        }, 0)
       }
 
       // 5. Open and activate subChat tab if specified
@@ -128,6 +142,7 @@ export function useNavigate() {
       setChatId,
       utils.chats.get,
       setSelectedProject,
+      setNavigatingProjectSync,
       addToOpenSubChats,
       setActiveSubChat,
       setScrollTarget,

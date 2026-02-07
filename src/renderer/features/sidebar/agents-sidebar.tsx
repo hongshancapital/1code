@@ -183,7 +183,7 @@ import { GroupingToggle } from "./components/grouping-toggle"
 import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "./components/tag-selector-submenu"
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 import { MoveToWorkspaceDialog } from "../../components/dialogs/move-to-workspace-dialog"
-import { useNavigate } from "../../lib/router"
+import { useNavigate, navigatingProjectSyncAtom } from "../../lib/router"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -1943,6 +1943,7 @@ export function AgentsSidebar({
 
   // Memory router for navigating with project context sync
   const { navigateToChat } = useNavigate()
+  const isNavigatingProjectSync = useAtomValue(navigatingProjectSyncAtom)
 
   // Multiple drafts state - uses event-based sync instead of polling
   const drafts = useNewChatDrafts()
@@ -2231,8 +2232,8 @@ export function AgentsSidebar({
     onSuccess: (_, variables) => {
       utils.chats.list.invalidate()
       utils.chats.listArchived.invalidate()
-      // Select the restored chat
-      setSelectedChatId(variables.id)
+      // Navigate to the restored chat
+      navigateToChat(variables.id)
     },
   })
 
@@ -2277,7 +2278,7 @@ export function AgentsSidebar({
           // Find next workspace in list (after current index)
           const nextChat = agentChats?.find((c, i) => i > currentIndex && c.id !== variables.id)
           if (nextChat) {
-            setSelectedChatId(nextChat.id)
+            navigateToChat(nextChat.id)
           } else {
             // No next workspace, go to new workspace view
             setSelectedChatId(null)
@@ -2287,7 +2288,7 @@ export function AgentsSidebar({
           const isPreviousAvailable = previousChatId &&
             agentChats?.some((c) => c.id === previousChatId && c.id !== variables.id)
           if (isPreviousAvailable) {
-            setSelectedChatId(previousChatId)
+            navigateToChat(previousChatId)
           } else {
             setSelectedChatId(null)
           }
@@ -2382,11 +2383,20 @@ export function AgentsSidebar({
     },
   })
 
-  // Reset selected chat when project changes (but not on initial load)
+  // Reset selected chat when project changes (but not on initial load, and not
+  // when the project change was triggered by navigateToChat clicking a chat item).
   const prevProjectIdRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     // Skip on initial mount (prevProjectIdRef is undefined)
     if (prevProjectIdRef.current === undefined) {
+      prevProjectIdRef.current = selectedProject?.id ?? null
+      return
+    }
+    // Skip if the project change was caused by navigateToChat resolving the
+    // chat's project — in that case we don't want to clear the chatId that
+    // was just set by the same navigation.
+    if (isNavigatingProjectSync) {
+      console.log('[sidebar] project-change effect: SKIP (navigating)', { prev: prevProjectIdRef.current, next: selectedProject?.id })
       prevProjectIdRef.current = selectedProject?.id ?? null
       return
     }
@@ -2396,10 +2406,11 @@ export function AgentsSidebar({
       prevProjectIdRef.current !== selectedProject?.id &&
       selectedChatId
     ) {
+      console.log('[sidebar] project-change effect: RESETTING chatId to null', { prev: prevProjectIdRef.current, next: selectedProject?.id, selectedChatId })
       setSelectedChatId(null)
     }
     prevProjectIdRef.current = selectedProject?.id ?? null
-  }, [selectedProject?.id]) // Don't include selectedChatId in deps to avoid loops
+  }, [selectedProject?.id, isNavigatingProjectSync]) // Don't include selectedChatId in deps to avoid loops
 
   // Load pinned IDs from localStorage when project changes
   useEffect(() => {
@@ -2602,7 +2613,7 @@ export function AgentsSidebar({
           remainingChats.some((c) => c.id === previousChatId)
 
         if (isPreviousAvailable) {
-          setSelectedChatId(previousChatId)
+          navigateToChat(previousChatId)
         } else {
           setSelectedChatId(null)
         }
@@ -2766,7 +2777,8 @@ export function AgentsSidebar({
     const statsMap = new Map<string, { fileCount: number; additions: number; deletions: number; totalTokens: number }>()
 
     // For local mode, use stats from DB query
-    if (fileStatsData) {
+    // Add type guard to ensure fileStatsData is an array
+    if (fileStatsData && Array.isArray(fileStatsData)) {
       for (const stat of fileStatsData) {
         statsMap.set(stat.chatId, {
           fileCount: stat.fileCount,
@@ -2784,7 +2796,7 @@ export function AgentsSidebar({
   // NOTE: Must be defined before renderGroupChats which depends on it
   const workspacePendingPlans = useMemo(() => {
     const chatIdsWithPendingPlans = new Set<string>()
-    if (pendingPlanApprovalsData) {
+    if (pendingPlanApprovalsData && Array.isArray(pendingPlanApprovalsData)) {
       for (const { chatId } of pendingPlanApprovalsData) {
         chatIdsWithPendingPlans.add(chatId)
       }

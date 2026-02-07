@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { useState } from "react";
 import { trpc } from "../../../../lib/trpc";
+import { appStore } from "../../../../lib/jotai-store";
+import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../../lib/atoms";
 import { cn } from "../../../../lib/utils";
 import { IconSpinner } from "../../../../components/ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -92,9 +94,12 @@ export function CommitInput({
 				setIsGenerating(true);
 				try {
 					// Pass selected file paths to generate message only for those files
+					const sp = appStore.get(summaryProviderIdAtom);
+					const sm = appStore.get(summaryModelIdAtom);
 					const result = await generateCommitMutation.mutateAsync({
 						chatId,
 						filePaths: selectedFilePaths,
+						...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
 					});
 					console.log("[CommitInput] AI generated message:", result.message);
 					commitMessage = result.message;

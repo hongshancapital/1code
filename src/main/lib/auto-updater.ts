@@ -286,7 +286,12 @@ export async function checkForUpdates(force = false) {
   }
 
   lastCheckTime = now
-  return autoUpdater.checkForUpdates()
+  try {
+    return await autoUpdater.checkForUpdates()
+  } catch (error) {
+    log.error("[AutoUpdater] Check failed:", (error as Error).message)
+    return null
+  }
 }
 
 /**

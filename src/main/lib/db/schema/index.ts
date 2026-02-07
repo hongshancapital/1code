@@ -521,6 +521,72 @@ export const userPromptsRelations = relations(userPrompts, ({ one }) => ({
   }),
 }))
 
+// ============ MODEL PROVIDERS (Custom API providers for LLM/Image) ============
+// Stores custom API provider configurations
+// Note: "anthropic" and "litellm" are virtual providers (not stored in DB)
+export const modelProviders = sqliteTable(
+  "model_providers",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    // Provider type: currently only "custom" is stored in DB
+    // "anthropic" and "litellm" are virtual providers
+    type: text("type").notNull().default("custom"),
+    // Category: "llm" for chat/agent models, "image" for image generation
+    // LLM and Image providers are managed separately
+    category: text("category").notNull().default("llm"),
+    // Display name for the provider
+    name: text("name").notNull(),
+    // API endpoint base URL (e.g., "https://api.example.com/v1")
+    baseUrl: text("base_url").notNull(),
+    // API key (encrypted with safeStorage)
+    apiKey: text("api_key").notNull(),
+    // Whether this provider is enabled
+    isEnabled: integer("is_enabled", { mode: "boolean" }).default(true),
+    // Timestamps
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("model_providers_category_idx").on(table.category),
+  ],
+)
+
+// ============ CACHED MODELS (from /models endpoint) ============
+// Caches model lists fetched from provider /models endpoints
+// Reduces API calls and provides offline model selection
+export const cachedModels = sqliteTable(
+  "cached_models",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    // Provider ID: "anthropic", "litellm", or custom provider ID
+    providerId: text("provider_id").notNull(),
+    // Original model ID from the provider (e.g., "claude-sonnet-4-20250514")
+    modelId: text("model_id").notNull(),
+    // Display name for the model
+    name: text("name").notNull(),
+    // Category: "llm" or "image"
+    category: text("category").notNull().default("llm"),
+    // Additional metadata as JSON (context window, max tokens, etc.)
+    metadata: text("metadata"),
+    // When this model was cached
+    cachedAt: integer("cached_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    index("cached_models_provider_idx").on(table.providerId),
+    index("cached_models_category_idx").on(table.category),
+  ],
+)
+
 // ============ TYPE EXPORTS ============
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
@@ -553,3 +619,7 @@ export type Observation = typeof observations.$inferSelect
 export type NewObservation = typeof observations.$inferInsert
 export type UserPrompt = typeof userPrompts.$inferSelect
 export type NewUserPrompt = typeof userPrompts.$inferInsert
+export type ModelProvider = typeof modelProviders.$inferSelect
+export type NewModelProvider = typeof modelProviders.$inferInsert
+export type CachedModel = typeof cachedModels.$inferSelect
+export type NewCachedModel = typeof cachedModels.$inferInsert

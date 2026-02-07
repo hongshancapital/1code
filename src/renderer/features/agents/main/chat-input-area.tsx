@@ -38,17 +38,21 @@ import {
 import {
   agentsSettingsDialogActiveTabAtom,
   agentsSettingsDialogOpenAtom,
-  customClaudeConfigAtom,
   extendedThinkingEnabledAtom,
-  normalizeCustomClaudeConfig,
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
-  overrideModelModeAtom,
-  litellmSelectedModelAtom,
 } from "../../../lib/atoms"
+import {
+  sessionModelOverrideAtom,
+  effectiveLlmSelectionAtom,
+  enabledProviderIdsAtom,
+  enabledModelsPerProviderAtom,
+  type ModelInfo,
+  type ProviderInfo,
+} from "../../../lib/atoms/model-config"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { agentsChatFullWidthAtom, lastSelectedModelIdAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
+import { agentsChatFullWidthAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
 import { pendingFileReferenceAtom } from "../../cowork/atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { AgentsSlashCommand, type SlashCommandOption } from "../commands"
@@ -123,6 +127,73 @@ function useAvailableModels() {
     isOffline,
     hasOllama: false,
   }
+}
+
+// Provider + Model section component for the dropdown
+// Only shows models that have been enabled in Settings
+function ProviderModelSection({
+  provider,
+  enabledModelIds,
+  isCurrentProvider,
+  currentModelId,
+  onSelectModel,
+}: {
+  provider: ProviderInfo
+  enabledModelIds: string[]
+  isCurrentProvider: boolean
+  currentModelId: string | null
+  onSelectModel: (modelId: string) => void
+}) {
+  const { t } = useTranslation("chat")
+  const { data: modelsData, isLoading } = trpc.providers.getModels.useQuery(
+    { providerId: provider.id },
+  )
+  const allModels = modelsData?.models || []
+  // Filter to only show enabled models
+  const models = enabledModelIds.length > 0
+    ? allModels.filter((m) => enabledModelIds.includes(m.id))
+    : []
+
+  if (!isLoading && models.length === 0) return null
+
+  return (
+    <div className="py-1">
+      {/* Provider header */}
+      <div className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <span>{provider.name}</span>
+        {provider.type === "litellm" && (
+          <span className="text-[10px] bg-muted px-1 rounded">LiteLLM</span>
+        )}
+        {provider.type === "custom" && (
+          <span className="text-[10px] bg-muted px-1 rounded">Custom</span>
+        )}
+      </div>
+
+      {/* Models list */}
+      {isLoading ? (
+        <div className="px-2 py-1 text-xs text-muted-foreground">{t("model.loading")}</div>
+      ) : (
+        models.map((model: ModelInfo) => {
+          const isSelected = isCurrentProvider && currentModelId === model.id
+          return (
+            <DropdownMenuItem
+              key={model.id}
+              onClick={() => onSelectModel(model.id)}
+              className="gap-2 justify-between pl-4"
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{model.name}</span>
+              </div>
+              {isSelected && (
+                <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </DropdownMenuItem>
+          )
+        })
+      )}
+    </div>
+  )
 }
 
 export interface ChatInputAreaProps {
@@ -409,30 +480,39 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   // Model dropdown state
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false)
-  const [lastSelectedModelId, setLastSelectedModelId] = useAtom(lastSelectedModelIdAtom)
   const [selectedOllamaModel, setSelectedOllamaModel] = useAtom(selectedOllamaModelAtom)
   const availableModels = useAvailableModels()
   const isChatFullWidth = useAtomValue(agentsChatFullWidthAtom)
-  const [selectedModel, setSelectedModel] = useState(
-    () => availableModels.models.find((m) => m.id === lastSelectedModelId) || availableModels.models[0],
+
+  // Unified model config - session override and effective selection
+  const [sessionOverride, setSessionOverride] = useAtom(sessionModelOverrideAtom)
+  const effectiveSelection = useAtomValue(effectiveLlmSelectionAtom)
+
+  // Fetch available providers, filter by enabled state
+  const { data: providersData } = trpc.providers.list.useQuery()
+  const enabledProviderIds = useAtomValue(enabledProviderIdsAtom)
+  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
+  const providers = (providersData || []).filter((p: ProviderInfo) => enabledProviderIds.includes(p.id))
+
+  // Fetch models for the effective provider
+  const { data: modelsData } = trpc.providers.getModels.useQuery(
+    { providerId: effectiveSelection.providerId },
+    { enabled: Boolean(effectiveSelection.providerId) },
   )
+  const providerModels = modelsData?.models || []
 
-  // Sync selectedModel when atom value changes (e.g., after localStorage hydration)
-  useEffect(() => {
-    const model = availableModels.models.find((m) => m.id === lastSelectedModelId)
-    if (model && model.id !== selectedModel.id) {
-      setSelectedModel(model)
-    }
-  }, [lastSelectedModelId])
+  // Get current provider info — validate provider still exists in enabled list
+  const currentProvider = providers.find((p: ProviderInfo) => p.id === effectiveSelection.providerId)
+  const currentProviderName = currentProvider?.name || "Anthropic"
 
-  const customClaudeConfig = useAtomValue(customClaudeConfigAtom)
-  const normalizedCustomClaudeConfig =
-    normalizeCustomClaudeConfig(customClaudeConfig)
-  const hasCustomClaudeConfig = Boolean(normalizedCustomClaudeConfig)
+  // Get enabled models for this provider
+  const currentProviderEnabledModels = enabledModelsPerProvider[effectiveSelection.providerId] || []
 
-  // Override model mode (LiteLLM or Custom)
-  const overrideMode = useAtomValue(overrideModelModeAtom)
-  const litellmSelectedModel = useAtomValue(litellmSelectedModelAtom)
+  // Validate model: must be in provider's enabled models list (not stale localStorage value)
+  const rawModelId = effectiveSelection.modelId || null
+  const currentModelId = rawModelId && currentProviderEnabledModels.includes(rawModelId) ? rawModelId : null
+  const currentModel = currentModelId ? providerModels.find((m: ModelInfo) => m.id === currentModelId) : null
+  const currentModelName = currentModel?.name || (currentModelId ? currentModelId : t("model.selectModel"))
 
   // Determine current Ollama model (selected or recommended)
   const currentOllamaModel = selectedOllamaModel || availableModels.recommendedModel || availableModels.ollamaModels[0]
@@ -547,15 +627,13 @@ export const ChatInputArea = memo(function ChatInputArea({
       if (e.metaKey && e.key === "/") {
         e.preventDefault()
         e.stopPropagation()
-        if (!hasCustomClaudeConfig) {
-          setIsModelDropdownOpen(true)
-        }
+        setIsModelDropdownOpen(true)
       }
     }
 
     window.addEventListener("keydown", handleKeyDown, true)
     return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [hasCustomClaudeConfig])
+  }, [])
 
   // Voice input handlers
   const handleVoiceMouseDown = useCallback(async () => {
@@ -1330,7 +1408,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                       )}
                   </DropdownMenu>
 
-                  {/* Model selector - shows Ollama models when offline, Claude models when online */}
+                  {/* Model selector - shows Ollama models when offline, Provider+Model when online */}
                   {availableModels.isOffline && availableModels.hasOllama ? (
                     // Offline mode: show Ollama model selector
                     <DropdownMenu
@@ -1376,46 +1454,8 @@ export const ChatInputArea = memo(function ChatInputArea({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  ) : overrideMode === "litellm" ? (
-                    // LiteLLM mode: show LiteLLM indicator with tooltip
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
-                          onClick={() => {
-                            setSettingsTab("models")
-                            setSettingsOpen(true)
-                          }}
-                        >
-                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{t("model.litellm")}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p className="text-xs">{litellmSelectedModel || t("model.noModelSelected")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : overrideMode === "custom" && hasCustomClaudeConfig ? (
-                    // Custom mode: show Custom indicator with tooltip
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70"
-                          onClick={() => {
-                            setSettingsTab("models")
-                            setSettingsOpen(true)
-                          }}
-                        >
-                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{t("model.custom")}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p className="text-xs">{normalizedCustomClaudeConfig?.model || t("model.noModelConfigured")}</p>
-                      </TooltipContent>
-                    </Tooltip>
                   ) : (
-                    // Default: show Claude model selector
+                    // Online mode: Unified Provider + Model selector
                     <DropdownMenu
                       open={isModelDropdownOpen}
                       onOpenChange={setIsModelDropdownOpen}
@@ -1425,39 +1465,61 @@ export const ChatInputArea = memo(function ChatInputArea({
                           className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                         >
                           <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {selectedModel?.name}{" "}
-                            <span className="text-muted-foreground">{selectedModel?.version || "4.5"}</span>
+                          <span className="truncate max-w-[150px]">
+                            {currentProviderName !== "Anthropic" ? (
+                              <>
+                                <span className="text-muted-foreground">{currentProviderName}:</span> {currentModelName}
+                              </>
+                            ) : (
+                              currentModelName
+                            )}
+                            {sessionOverride && (
+                              <span className="text-yellow-500 ml-1">•</span>
+                            )}
                           </span>
                           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-[200px]">
-                        {availableModels.models.map((model) => {
-                          const isSelected = selectedModel?.id === model.id
-                          return (
-                            <DropdownMenuItem
-                              key={model.id}
-                              onClick={() => {
-                                setSelectedModel(model)
-                                setLastSelectedModelId(model.id)
-                              }}
-                              className="gap-2 justify-between"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                <span>
-                                  {model.name}{" "}
-                                  <span className="text-muted-foreground">{model.version || "4.5"}</span>
-                                </span>
-                              </div>
-                              {isSelected && (
-                                <CheckIcon className="h-3.5 w-3.5 shrink-0" />
-                              )}
-                            </DropdownMenuItem>
-                          )
-                        })}
+                      <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
+                        {/* Session override indicator */}
+                        {sessionOverride && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs text-yellow-600 dark:text-yellow-400 flex items-center justify-between">
+                              <span>{t("model.sessionOverride")}</span>
+                              <button
+                                className="text-xs text-muted-foreground hover:text-foreground underline"
+                                onClick={() => {
+                                  setSessionOverride(null)
+                                  setIsModelDropdownOpen(false)
+                                }}
+                              >
+                                {t("model.resetToDefault")}
+                              </button>
+                            </div>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+
+                        {/* Provider sections */}
+                        {providers.map((provider: ProviderInfo) => (
+                          <ProviderModelSection
+                            key={provider.id}
+                            provider={provider}
+                            enabledModelIds={enabledModelsPerProvider[provider.id] || []}
+                            isCurrentProvider={provider.id === effectiveSelection.providerId}
+                            currentModelId={currentModelId}
+                            onSelectModel={(modelId) => {
+                              setSessionOverride({
+                                providerId: provider.id,
+                                modelId,
+                              })
+                              setIsModelDropdownOpen(false)
+                            }}
+                          />
+                        ))}
+
                         <DropdownMenuSeparator />
+                        {/* Extended thinking toggle */}
                         <div
                           className="flex items-center justify-between px-1.5 py-1.5 mx-1"
                           onClick={(e) => e.stopPropagation()}
@@ -1472,6 +1534,19 @@ export const ChatInputArea = memo(function ChatInputArea({
                             className="scale-75"
                           />
                         </div>
+
+                        <DropdownMenuSeparator />
+                        {/* Settings link */}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSettingsTab("models")
+                            setSettingsOpen(true)
+                            setIsModelDropdownOpen(false)
+                          }}
+                          className="text-muted-foreground"
+                        >
+                          <span className="text-xs">{t("model.manageProviders")}</span>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

@@ -146,6 +146,17 @@ export function initDatabase() {
     }
   }
 
+  // Ensure has_pending_plan column exists on sub_chats table
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN has_pending_plan INTEGER DEFAULT 0`)
+    console.log("[DB] Added has_pending_plan column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] has_pending_plan column check:", error.message)
+    }
+  }
+
   // Ensure insights table exists (for usage analysis reports)
   try {
     sqlite.exec(`
@@ -362,6 +373,41 @@ export function initDatabase() {
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] Memory tables check:", error.message)
+  }
+
+  // Ensure model_providers and cached_models tables exist (for unified provider management)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS model_providers (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'custom',
+        category TEXT NOT NULL DEFAULT 'llm',
+        name TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        api_key TEXT NOT NULL,
+        is_enabled INTEGER DEFAULT 1,
+        created_at INTEGER,
+        updated_at INTEGER
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_providers_category_idx ON model_providers(category)`)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS cached_models (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'llm',
+        metadata TEXT,
+        cached_at INTEGER
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS cached_models_provider_idx ON cached_models(provider_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS cached_models_category_idx ON cached_models(category)`)
+    console.log("[DB] Model providers tables ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Model providers tables check:", error.message)
   }
 
   // Ensure automations tables exist (for automation engine)

@@ -176,6 +176,8 @@ export const chatGitRouter = router({
     .input(z.object({
       chatId: z.string(),
       filePaths: z.array(z.string()).optional(),
+      summaryProviderId: z.string().optional(),
+      summaryModelId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const db = getDatabase()
@@ -221,7 +223,35 @@ export const chatGitRouter = router({
       // Build filtered diff text for API (only selected files)
       const filteredDiff = files.map(f => f.diffText).join('\n')
 
-      // Call web API to generate commit message
+      // 1. Try configured summary AI provider
+      if (input.summaryProviderId && input.summaryModelId) {
+        try {
+          const { callSummaryAI } = await import("./summary-ai")
+          const diffContext = [
+            `Files changed: ${files.length}`,
+            `Additions: ${files.reduce((sum, f) => sum + f.additions, 0)}`,
+            `Deletions: ${files.reduce((sum, f) => sum + f.deletions, 0)}`,
+            `\nDiff:\n${filteredDiff.slice(0, 8000)}`,
+          ].join("\n")
+
+          const msg = await callSummaryAI(
+            input.summaryProviderId,
+            input.summaryModelId,
+            "Generate a concise git commit message following conventional commits style " +
+            "(feat:, fix:, chore:, docs:, refactor:, etc.). " +
+            "Return ONLY the commit message (single line), nothing else. No quotes.",
+            diffContext,
+          )
+          if (msg) {
+            console.log("[generateCommitMessage] Summary AI generated:", msg)
+            return { message: msg }
+          }
+        } catch (error) {
+          console.warn("[generateCommitMessage] Summary AI failed, falling back:", (error as Error).message)
+        }
+      }
+
+      // 2. Fall back to hongshan.com API
       try {
         const deviceInfo = getDeviceInfo()
         // Use localhost in dev, production otherwise

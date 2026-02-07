@@ -140,7 +140,7 @@ export function AgentsContent() {
   const { user } = useUser()
   const { signOut } = useClerk()
   const isAdmin = useIsAdmin()
-  const { navigateTo } = useNavigate()
+  const { navigateTo, navigateToChat } = useNavigate()
 
   // Listen for deep link navigation events from main process (hong://navigate/...)
   useEffect(() => {
@@ -261,7 +261,7 @@ export function AgentsContent() {
 
     const chatIdFromUrl = searchParams.get("chat")
     if (chatIdFromUrl) {
-      setSelectedChatId(chatIdFromUrl)
+      navigateToChat(chatIdFromUrl)
     }
   }, [searchParams, setSelectedChatId])
 
@@ -480,10 +480,7 @@ export function AgentsContent() {
 
             // If no chat selected, select first one
             if (!selectedChatId) {
-              setSelectedChatId(sortedChats[0].id)
-              // agentChats are local chats only, so always set isRemote to false
-              setSelectedChatIsRemote(false)
-              setChatSourceMode("local")
+              navigateToChat(sortedChats[0].id)
               return
             }
 
@@ -493,9 +490,7 @@ export function AgentsContent() {
             )
 
             if (currentIndex === -1) {
-              setSelectedChatId(sortedChats[0].id)
-              setSelectedChatIsRemote(false)
-              setChatSourceMode("local")
+              navigateToChat(sortedChats[0].id)
               return
             }
 
@@ -513,9 +508,7 @@ export function AgentsContent() {
               }
             }
 
-            setSelectedChatId(sortedChats[nextIndex].id)
-            setSelectedChatIsRemote(false)
-            setChatSourceMode("local")
+            navigateToChat(sortedChats[nextIndex].id)
           }
           return
         }
@@ -526,10 +519,7 @@ export function AgentsContent() {
             frozenRecentChatsRef.current?.[quickSwitchSelectedIndex]
 
           if (selectedChat) {
-            setSelectedChatId(selectedChat.id)
-            // agentChats are local chats only
-            setSelectedChatIsRemote(false)
-            setChatSourceMode("local")
+            navigateToChat(selectedChat.id)
           }
 
           setQuickSwitchOpen(false)

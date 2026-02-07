@@ -473,26 +473,42 @@ export const subChatsRouter = router({
     }),
 
   /**
-   * Generate a name for a sub-chat using AI (calls web API)
-   * Always uses production API since it's a lightweight call
+   * Generate a name for a sub-chat using AI
+   * Priority: configured summary AI → hongshan.com API → local fallback
    */
   generateSubChatName: publicProcedure
-    .input(z.object({ userMessage: z.string() }))
+    .input(z.object({
+      userMessage: z.string(),
+      summaryProviderId: z.string().optional(),
+      summaryModelId: z.string().optional(),
+    }))
     .mutation(async ({ input }) => {
+      // 1. Try configured summary AI provider
+      if (input.summaryProviderId && input.summaryModelId) {
+        try {
+          const { callSummaryAI } = await import("./summary-ai")
+          const name = await callSummaryAI(
+            input.summaryProviderId,
+            input.summaryModelId,
+            "Generate a short, descriptive name for a chat conversation based on the user's first message. " +
+            "The name should be concise (max 25 characters), in the same language as the message. " +
+            "Return ONLY the name, nothing else. No quotes, no punctuation at the end.",
+            input.userMessage,
+          )
+          if (name) {
+            console.log("[generateSubChatName] Summary AI generated:", name)
+            return { name }
+          }
+        } catch (error) {
+          console.warn("[generateSubChatName] Summary AI failed, falling back:", (error as Error).message)
+        }
+      }
+
+      // 2. Fall back to hongshan.com API
       try {
         const { getDeviceInfo } = await import("../../device-id")
         const deviceInfo = getDeviceInfo()
-        // Always use production API for name generation
         const apiUrl = "https://cowork.hongshan.com"
-
-        console.log(
-          "[generateSubChatName] Calling API with device ID:",
-          deviceInfo.deviceId.slice(0, 8) + "...",
-        )
-        console.log(
-          "[generateSubChatName] URL:",
-          `${apiUrl}/api/agents/sub-chat/generate-name`,
-        )
 
         const response = await fetch(
           `${apiUrl}/api/agents/sub-chat/generate-name`,
@@ -508,23 +524,14 @@ export const subChatsRouter = router({
           },
         )
 
-        console.log("[generateSubChatName] Response status:", response.status)
-
         if (!response.ok) {
-          const errorText = await response.text()
-          console.error(
-            "[generateSubChatName] API error:",
-            response.status,
-            errorText,
-          )
           return { name: getFallbackName(input.userMessage) }
         }
 
         const data = await response.json()
-        console.log("[generateSubChatName] Generated name:", data.name)
         return { name: data.name || getFallbackName(input.userMessage) }
       } catch (error) {
-        console.error("[generateSubChatName] Error:", error)
+        console.warn("[generateSubChatName] API fallback failed:", (error as Error).message)
         return { name: getFallbackName(input.userMessage) }
       }
     }),

@@ -32,9 +32,9 @@ import { toast } from "sonner"
 import { COMMAND_PROMPTS } from "../../../features/agents/commands"
 import {
   agentsSettingsDialogOpenAtom,
-  selectedAgentChatIdAtom,
   selectedProjectAtom,
 } from "../../../lib/atoms"
+import { useNavigate } from "../../../lib/router"
 import { cn } from "../../../lib/utils"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { settingsProjectsSidebarWidthAtom } from "../../../features/agents/atoms"
@@ -153,12 +153,12 @@ function ProjectGeneralTab({ projectId }: { projectId: string }) {
 
   // For "Fill with AI" - create chat and close settings
   const setSettingsDialogOpen = useSetAtom(agentsSettingsDialogOpenAtom)
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const { navigateToChat } = useNavigate()
   const setSelectedProject = useSetAtom(selectedProjectAtom)
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
       setSettingsDialogOpen(false)
-      setSelectedChatId(data.id)
+      navigateToChat(data.id)
     },
   })
 

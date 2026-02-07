@@ -9,3 +9,11 @@ export const currentRouteAtom = atom<NavigationRoute | null>(null)
  * Separated from currentRouteAtom because scroll is a side-effect, not state.
  */
 export const scrollTargetAtom = atom<ScrollTarget | null>(null)
+
+/**
+ * Flag set by navigateTo() before it async-resolves the project from chat data.
+ * When true, the sidebar's "reset chatId on project change" effect should skip,
+ * because the project change was triggered by chat navigation (not by the user
+ * manually switching projects via the project selector).
+ */
+export const navigatingProjectSyncAtom = atom(false)

@@ -97,6 +97,7 @@ import { useHotkeys } from "react-hotkeys-hook"
 import { useSubChatDraftsCache, getSubChatDraftKey } from "../agents/lib/drafts"
 import { Checkbox } from "../../components/ui/checkbox"
 import { TypewriterText } from "../../components/ui/typewriter-text"
+import { useNavigate } from "../../lib/router"
 
 // Isolated Search History Popover for sidebar - prevents parent re-renders when popover opens/closes
 interface SidebarSearchHistoryPopoverProps {
@@ -268,6 +269,7 @@ export function AgentsSubChatsSidebar({
   }, [subChatFilesFromStream, subChatStatsData])
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
+  const { navigateToChat } = useNavigate()
 
   // Fetch agent chats for navigation after archive
   const { data: agentChats } = api.agents.getAgentChats.useQuery(
@@ -304,7 +306,7 @@ export function AgentsSubChatsSidebar({
           agentChats?.some((c) => c.id === previousChatId)
 
         if (isPreviousAvailable) {
-          setSelectedChatId(previousChatId)
+          navigateToChat(previousChatId)
         } else {
           setSelectedChatId(null)
         }

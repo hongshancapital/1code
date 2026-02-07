@@ -6,12 +6,10 @@ import { createPortal } from "react-dom"
 import { Button } from "../../../components/ui/button"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { useSetAtom } from "jotai"
-import { selectedAgentChatIdAtom } from "../atoms"
-import { chatSourceModeAtom } from "../../../lib/atoms"
 import type { RemoteChat } from "../../../lib/remote-api"
 import { Folder, Download, Check } from "lucide-react"
 import { agentChatStore } from "../stores/agent-chat-store"
+import { useNavigate } from "../../../lib/router"
 
 interface Project {
   id: string
@@ -42,8 +40,7 @@ export function OpenLocallyDialog({
 }: OpenLocallyDialogProps) {
   const [mounted, setMounted] = useState(false)
   const openAtRef = useRef<number>(0)
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
-  const setChatSourceMode = useSetAtom(chatSourceModeAtom)
+  const { navigateToChat } = useNavigate()
   const utils = trpc.useUtils()
 
   // For multiple projects view
@@ -66,9 +63,8 @@ export function OpenLocallyDialog({
       // 3. Prefetch: Wait for chat data to be in cache before switching
       await utils.chats.get.fetch({ id: result.chatId })
 
-      // 4. Now safe to switch - data is ready
-      setChatSourceMode("local")
-      setSelectedChatId(result.chatId)
+      // 4. Navigate to the imported chat (resolves project, sets source mode, etc.)
+      navigateToChat(result.chatId)
       onClose()
     },
     onError: (error) => {
@@ -92,9 +88,8 @@ export function OpenLocallyDialog({
       // 3. Prefetch: Wait for chat data to be in cache before switching
       await utils.chats.get.fetch({ id: result.chatId })
 
-      // 4. Now safe to switch - data is ready
-      setChatSourceMode("local")
-      setSelectedChatId(result.chatId)
+      // 4. Navigate to the cloned chat (resolves project, sets source mode, etc.)
+      navigateToChat(result.chatId)
       onClose()
     },
     onError: (error) => {

@@ -271,11 +271,12 @@ export function AgentsLayout() {
     }
   }, [setSelectedProject, setSelectedChatId, setAnthropicOnboardingCompleted])
 
-  // Initialize sub-chats when chat is selected
+  // Clear sub-chat store when no chat is selected.
+  // Initialization for non-null chatId is handled by navigateToChat() and
+  // active-chat.tsx's init effect — we only need cleanup here.
   useEffect(() => {
-    if (selectedChatId) {
-      setChatId(selectedChatId)
-    } else {
+    if (!selectedChatId) {
+      console.log('[agents-layout] selectedChatId is null, clearing sub-chat store')
       setChatId(null)
     }
   }, [selectedChatId, setChatId])

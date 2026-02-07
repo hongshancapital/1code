@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { trpc } from "../../../../lib/trpc";
+import { appStore } from "../../../../lib/jotai-store";
+import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../../lib/atoms";
 
 interface CommitActionInput {
 	message?: string;
@@ -57,9 +59,12 @@ export function useCommitActions({
 			if (!commitMessage && chatId) {
 				setIsGenerating(true);
 				try {
+					const sp = appStore.get(summaryProviderIdAtom);
+					const sm = appStore.get(summaryModelIdAtom);
 					const result = await generateCommitMutation.mutateAsync({
 						chatId,
 						filePaths,
+						...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
 					});
 					commitMessage = result.message;
 					onMessageGenerated?.(result.message);

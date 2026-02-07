@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useSetAtom } from "jotai"
 import { trpc } from "../../../lib/trpc"
+import { useNavigate } from "../../../lib/router"
 import { Button } from "../../ui/button"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
@@ -16,7 +17,6 @@ import { toast } from "sonner"
 import { COMMAND_PROMPTS } from "../../../features/agents/commands"
 import {
   agentsSettingsDialogOpenAtom,
-  selectedAgentChatIdAtom,
 } from "../../../lib/atoms"
 
 function useIsNarrowScreen(): boolean {
@@ -64,11 +64,11 @@ export function AgentsWorktreesTab() {
 
   // For "Fill with AI" - create chat and close settings
   const setSettingsDialogOpen = useSetAtom(agentsSettingsDialogOpenAtom)
-  const setSelectedChatId = useSetAtom(selectedAgentChatIdAtom)
+  const { navigateToChat } = useNavigate()
   const createChatMutation = trpc.chats.create.useMutation({
     onSuccess: (data) => {
       setSettingsDialogOpen(false)
-      setSelectedChatId(data.id)
+      navigateToChat(data.id)
     },
   })
 

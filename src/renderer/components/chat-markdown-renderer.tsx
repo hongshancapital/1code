@@ -1,12 +1,19 @@
 import { cn } from "../lib/utils"
 import { memo, useState, useCallback, useEffect, useMemo } from "react"
+import { createPortal } from "react-dom"
 import { Streamdown, parseMarkdownIntoBlocks } from "streamdown"
 import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
-import { Copy, Check } from "lucide-react"
+import { Copy, Check, X, Download } from "lucide-react"
 import { useCodeTheme } from "../lib/hooks/use-code-theme"
 import { highlightCode } from "../lib/themes/shiki-theme-loader"
 import { MermaidBlock } from "./mermaid-block"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "./ui/context-menu"
 
 // Function to strip emojis from text (only common emojis, preserving markdown symbols)
 export function stripEmojis(text: string): string {
@@ -133,6 +140,149 @@ function CodeBlock({
         <code dangerouslySetInnerHTML={{ __html: htmlContent }} />
       </pre>
     </div>
+  )
+}
+
+/**
+ * Inline image component for markdown.
+ * Supports file:// and data: protocol URLs.
+ * Click to view fullscreen with context menu for copy/save.
+ */
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [hasError, setHasError] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+
+  // Only allow safe protocols
+  const isSafe =
+    src &&
+    (src.startsWith("file://") ||
+      src.startsWith("data:") ||
+      src.startsWith("/") ||
+      src.startsWith("atom://"))
+
+  // Convert absolute paths to file:// URLs for Electron
+  const resolvedSrc = useMemo(() => {
+    if (!src) return ""
+    if (src.startsWith("/") && !src.startsWith("//")) return `file://${src}`
+    return src
+  }, [src])
+
+  const handleCopyImage = useCallback(async () => {
+    try {
+      if (!resolvedSrc) return
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = reject
+        img.src = resolvedSrc
+      })
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext("2d")
+      ctx?.drawImage(img, 0, 0)
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("Failed to create blob"))),
+          "image/png",
+        )
+      })
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ])
+    } catch (err) {
+      console.error("[MarkdownImage] Failed to copy image:", err)
+    }
+  }, [resolvedSrc])
+
+  const handleSaveImage = useCallback(async () => {
+    try {
+      if (!resolvedSrc) return
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = reject
+        img.src = resolvedSrc
+      })
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext("2d")
+      ctx?.drawImage(img, 0, 0)
+      const dataUrl = canvas.toDataURL("image/png")
+      const base64Data = dataUrl.split(",")[1] || ""
+      const filename = alt || "image.png"
+      await window.desktopApi?.saveFile({
+        base64Data,
+        filename,
+        filters: [
+          { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      })
+    } catch (err) {
+      console.error("[MarkdownImage] Failed to save image:", err)
+    }
+  }, [resolvedSrc, alt])
+
+  if (!isSafe || hasError) {
+    // Show alt text as fallback for non-safe URLs or broken images
+    return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
+  }
+
+  return (
+    <>
+      <img
+        src={resolvedSrc}
+        alt={alt || ""}
+        className="max-w-full max-h-96 rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
+        onError={() => setHasError(true)}
+        onClick={() => setIsFullscreen(true)}
+      />
+      {isFullscreen &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+            onClick={() => {
+              if (!isContextMenuOpen) setIsFullscreen(false)
+            }}
+          >
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white z-10"
+              type="button"
+            >
+              <X className="size-6" />
+            </button>
+            <ContextMenu onOpenChange={setIsContextMenuOpen}>
+              <ContextMenuTrigger asChild>
+                <img
+                  src={resolvedSrc}
+                  alt={alt || ""}
+                  className="max-w-[90vw] max-h-[85vh] object-contain"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={handleCopyImage}>
+                  <Copy className="size-4 mr-2" />
+                  Copy Image
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleSaveImage}>
+                  <Download className="size-4 mr-2" />
+                  Save Image
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
 
@@ -416,6 +566,7 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
           {children}
         </td>
       ),
+      img: ({ src, alt }: any) => <MarkdownImage src={src} alt={alt} />,
       pre: ({ children }: any) => <>{children}</>,
       code: createCodeComponent(codeTheme, size, styles, isStreaming),
     }),
@@ -682,6 +833,7 @@ const MemoizedMarkdownBlock = memo(
             {children}
           </td>
         ),
+        img: ({ src, alt }: any) => <MarkdownImage src={src} alt={alt} />,
         pre: ({ children }: any) => <>{children}</>,
         code: createCodeComponent(codeTheme, size, styles),
       }),

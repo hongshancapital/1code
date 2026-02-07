@@ -16,7 +16,13 @@
     "noModelSelected": "No model selected",
     "noModelConfigured": "No model configured",
     "selectModel": "Select model",
-    "recommended": "recommended"
+    "recommended": "recommended",
+    "sessionOverride": "Session override active",
+    "resetToDefault": "Reset",
+    "manageProviders": "Manage providers...",
+    "loading": "Loading models...",
+    "noModels": "No models available",
+    "default": "default"
   },
   "thinking": {
     "active": "Thinking",

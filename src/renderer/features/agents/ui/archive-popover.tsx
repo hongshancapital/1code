@@ -433,14 +433,12 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
           })
         } else {
           localRestoreMutation.mutate({ id: chat.id })
-          setSelectedChatId(chat.id)
-          setSelectedChatIsRemote(false)
-          setChatSourceMode("local")
+          navigateToChat(chat.id)
         }
         setOpen(false)
       }
     }
-  }, [filteredChats, selectedIndex, localRestoreMutation, remoteRestoreMutation, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setOpen])
+  }, [filteredChats, selectedIndex, localRestoreMutation, remoteRestoreMutation, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setOpen, navigateToChat])
 
   // Reset selected index and clear refs when search changes
   useEffect(() => {
