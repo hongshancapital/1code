@@ -164,7 +164,7 @@ import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
 import { useAutoImport } from "../hooks/use-auto-import"
 import { useAutoScroll } from "../hooks/useAutoScroll"
-import { useScrollToTarget } from "../../../lib/router"
+import { useScrollToTarget, scrollTargetAtom, SCROLL_TO_BOTTOM } from "../../../lib/router"
 import { useChangedFilesTracking } from "../hooks/use-changed-files-tracking"
 import { useDesktopNotifications } from "../hooks/use-desktop-notifications"
 import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
@@ -198,7 +198,7 @@ import {
 } from "../search"
 import { agentChatStore } from "../stores/agent-chat-store"
 import { EMPTY_QUEUE, useMessageQueueStore } from "../stores/message-queue-store"
-import { clearSubChatCaches, isRollingBackAtom, rollbackHandlerAtom, syncMessagesWithStatusAtom, type MessagePart, type Message, type MessageMetadata } from "../stores/message-store"
+import { clearSubChatCaches, isRollingBackAtom, rollbackHandlerAtom, syncMessagesWithStatusAtom, resetGlobalMessageState, currentSubChatIdAtom, messageIdsAtom, type MessagePart, type Message, type MessageMetadata } from "../stores/message-store"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
 import {
   useAgentSubChatStore,
@@ -1458,7 +1458,12 @@ const ChatViewInner = memo(function ChatViewInner({
   } = useAutoScroll(isActive)
 
   // Memory router: scroll to target message when navigated via useNavigate
-  useScrollToTarget(chatContainerRef, subChatId, isActive)
+  // onScrollInitialized callback enables auto-scroll after routing-triggered scroll completes
+  // Note: useScrollToTarget is called below after useChat to access messages.length
+  const handleScrollInitialized = useCallback(() => {
+    shouldAutoScrollRef.current = true
+    isInitializingScrollRef.current = false
+  }, [])
 
   const editorRef = useRef<AgentsMentionsEditorHandle>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1764,6 +1769,11 @@ const ChatViewInner = memo(function ChatViewInner({
   stopRef.current = stop
 
   const isStreaming = status === "streaming" || status === "submitted"
+
+  // Memory router: scroll to target message when navigated via useNavigate
+  // messagesLoaded ensures we wait for messages before scrolling to specific messageId
+  const messagesLoaded = messages.length > 0
+  useScrollToTarget(chatContainerRef, subChatId, isActive, handleScrollInitialized, messagesLoaded)
 
   // Ref for isStreaming to use in callbacks/effects that need fresh value
   const isStreamingRef = useRef(isStreaming)
@@ -2748,60 +2758,59 @@ const ChatViewInner = memo(function ChatViewInner({
     subChatId,
   ])
 
-  // Ref to track if initial scroll has been set for this sub-chat
-  const scrollInitializedRef = useRef(false)
-
   // Track if this tab has been initialized (for keep-alive)
   const hasInitializedRef = useRef(false)
-  // Track previous isActive state to detect activation
-  const wasActiveRef = useRef(isActive)
+  // Track previous subChatId to detect subchat changes
+  const prevSubChatIdForScrollRef = useRef<string | null>(null)
 
-  // Initialize scroll position on mount (only once per tab with keep-alive)
-  // Strategy: wait for content to stabilize, then scroll to bottom ONCE
-  // No jumping around - just wait and scroll when ready
+  // Set scroll target to bottom when subchat becomes active without an existing scroll target
+  // This handles cases where user clicks on a chat/workspace directly (not through navigateToSubChat)
+  const setScrollTarget = useSetAtom(scrollTargetAtom)
   useEffect(() => {
-    // Detect when tab becomes active (switching to this chat)
-    const justBecameActive = !wasActiveRef.current && isActive
-    wasActiveRef.current = isActive
+    if (!isActive) return
+    // Skip if subChatId hasn't changed
+    if (prevSubChatIdForScrollRef.current === subChatId) return
+    prevSubChatIdForScrollRef.current = subChatId
 
+    // Check if there's already a pending scroll target
+    const currentTarget = appStore.get(scrollTargetAtom)
+    if (currentTarget && !currentTarget.consumed) {
+      // Already have a scroll target (from routing), let it handle the scroll
+      return
+    }
+
+    // No scroll target - set one to scroll to bottom
+    // This triggers useScrollToTarget which will scroll to bottom and call handleScrollInitialized
+    setScrollTarget({
+      messageId: SCROLL_TO_BOTTOM,
+      consumed: false,
+    })
+  }, [isActive, subChatId, setScrollTarget])
+
+  // MutationObserver for async content (images, code blocks loading after initial render)
+  // Initial scroll is now handled by routing via useScrollToTarget,
+  // but we still need MutationObserver to keep scrolling when content loads dynamically
+  useEffect(() => {
     // Skip if not active (keep-alive: hidden tabs don't need scroll init)
     if (!isActive) return
 
     const container = chatContainerRef.current
     if (!container) return
 
-    // Reset initialization when tab becomes active (user switched to this chat)
-    if (justBecameActive) {
-      hasInitializedRef.current = false
+    // Mark scroll as initializing - will be set to false by useScrollToTarget callback
+    // Only do this on first mount, not on every re-render
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true
+      isInitializingScrollRef.current = true
     }
-
-    // With keep-alive, only initialize once per tab mount (or when becoming active)
-    if (hasInitializedRef.current) return
-    hasInitializedRef.current = true
-
-    // Reset on sub-chat change
-    scrollInitializedRef.current = false
-    isInitializingScrollRef.current = true
-
-    // Use a small delay to ensure content is loaded, then scroll to bottom
-    // First scroll immediately
-    container.scrollTop = container.scrollHeight
-    shouldAutoScrollRef.current = true
-
-    // Then scroll again after a delay to catch any late-loading content
-    const timeoutId = setTimeout(() => {
-      container.scrollTop = container.scrollHeight
-
-      // Mark as initialized
-      scrollInitializedRef.current = true
-      isInitializingScrollRef.current = false
-    }, 150)
 
     // MutationObserver for async content (images, code blocks loading after initial render)
     const observer = new MutationObserver((mutations) => {
       // Skip if not active (keep-alive: don't scroll hidden tabs)
       if (!isActive) return
       if (!shouldAutoScrollRef.current) return
+      // Skip during initialization - let routing handle initial scroll
+      if (isInitializingScrollRef.current) return
 
       // Check if content was added
       const hasAddedContent = mutations.some(
@@ -2822,7 +2831,6 @@ const ChatViewInner = memo(function ChatViewInner({
     observer.observe(container, { childList: true, subtree: true })
 
     return () => {
-      clearTimeout(timeoutId)
       observer.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2844,8 +2852,8 @@ const ChatViewInner = memo(function ChatViewInner({
   useEffect(() => {
     // Skip if not active (keep-alive: don't scroll hidden tabs)
     if (!isActive) return
-    // Skip if scroll not yet initialized
-    if (!scrollInitializedRef.current) return
+    // Skip if scroll not yet initialized (routing-triggered scroll still pending)
+    if (isInitializingScrollRef.current) return
 
     // Auto-scroll during streaming if user hasn't scrolled up
     if (shouldAutoScrollRef.current && status === "streaming") {
@@ -4461,17 +4469,6 @@ export function ChatView({
     }
   )
 
-  // DEBUG: 追踪消息加载状态
-  useEffect(() => {
-    console.log('[DEBUG] 消息加载状态', {
-      activeSubChatId: activeSubChatId?.slice(-8),
-      chatSourceMode,
-      isLoadingMessages,
-      hasMessagesData: !!subChatMessagesData,
-      messagesLength: subChatMessagesData?.messages?.length,
-      messagesPreview: subChatMessagesData?.messages?.substring(0, 100),
-    })
-  }, [activeSubChatId, chatSourceMode, isLoadingMessages, subChatMessagesData])
 
   const { data: remoteAgentChat, isLoading: _isRemoteLoading } = useRemoteChat(
     chatSourceMode === "sandbox" ? chatId : null,
@@ -5368,7 +5365,17 @@ Make sure to preserve all functionality from both branches when resolving confli
 
     // Only initialize if chatId changed
     if (isNewChat) {
+      // 清除旧 workspace 的 Chat 缓存，防止旧的空 Chat 对象被复用
+      // 这修复了切换 workspace 后消息不显示的问题
+      const oldOpenIds = store.openSubChatIds
+      for (const oldId of oldOpenIds) {
+        agentChatStore.delete(oldId)
+      }
+
       store.setChatId(chatId)
+      // 重置全局消息状态，防止旧的 currentSubChatIdAtom 导致 IsolatedMessagesSection 跳过渲染
+      appStore.set(currentSubChatIdAtom, "default")
+      appStore.set(messageIdsAtom, [])
     }
 
     // Re-get fresh state after setChatId may have loaded from localStorage
@@ -5435,19 +5442,44 @@ Make sure to preserve all functionality from both branches when resolving confli
       }
     }
 
-    // All open tabs are now valid (we created placeholders for non-DB ones)
-    const validOpenIds = currentOpenIds
+    // 修复：验证 localStorage 中的 activeSubChatId 是否存在于数据库中
+    // 当两个应用共享数据库但 localStorage 分开时，可能出现 activeSubChatId 指向不存在的 subchat
+    const currentActive = freshState.activeSubChatId
+    const isActiveIdValid = currentActive && dbSubChatIds.has(currentActive)
 
-    if (validOpenIds.length === 0 && allSubChats.length > 0) {
-      // No valid open tabs, open the first sub-chat
-      freshState.addToOpenSubChats(allSubChats[0].id)
-      freshState.setActiveSubChat(allSubChats[0].id)
+    // 只保留数据库中存在的 open tabs
+    const validOpenIds = currentOpenIds.filter(id => dbSubChatIds.has(id))
+
+    if (validOpenIds.length === 0 && dbSubChats.length > 0) {
+      // 没有有效的 open tabs，但数据库有 subchat，打开第一个
+      console.log('[init] No valid open tabs, opening first subchat from DB')
+      freshState.setOpenSubChats([dbSubChats[0].id])
+      freshState.setActiveSubChat(dbSubChats[0].id)
     } else if (validOpenIds.length > 0) {
-      // Validate active tab is in open tabs
-      const currentActive = freshState.activeSubChatId
-      if (!currentActive || !validOpenIds.includes(currentActive)) {
+      // 有有效的 open tabs
+      // 更新 openSubChatIds 为只包含有效 ID 的列表
+      if (validOpenIds.length !== currentOpenIds.length) {
+        console.log('[init] Filtering invalid open tabs', {
+          before: currentOpenIds.length,
+          after: validOpenIds.length,
+        })
+        freshState.setOpenSubChats(validOpenIds)
+      }
+
+      // 验证 activeSubChatId 是否有效
+      if (!isActiveIdValid || !validOpenIds.includes(currentActive!)) {
+        console.log('[init] Invalid activeSubChatId, switching to first valid', {
+          currentActive,
+          isActiveIdValid,
+          firstValid: validOpenIds[0],
+        })
         freshState.setActiveSubChat(validOpenIds[0])
       }
+    } else if (dbSubChats.length === 0) {
+      // 数据库也没有 subchat，清空状态
+      console.log('[init] No subchats in DB, clearing state')
+      freshState.setOpenSubChats([])
+      freshState.setActiveSubChat(null)
     }
   }, [agentChat, chatId])
 
@@ -6574,10 +6606,11 @@ Make sure to preserve all functionality from both branches when resolving confli
               {/* Chat tabs container */}
               <div className="relative flex-1 min-h-0">
                 {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
-                {/* Also wait for messages to load for local chats (lazy loading optimization) */}
-                {/* NOTE: Removed activeSubChatExistsInWorkspace check to fix race condition where messages */}
-                {/* aren't loaded yet but the gate passes, causing empty Chat objects to be cached */}
-                {(isLocalChatLoading || (chatSourceMode === "local" && isLoadingMessages)) ? (
+                {/* 修复：区分"正在加载"和"加载完成但无数据"
+                    - isLoadingMessages: 查询正在执行
+                    - subChatMessagesData: 查询结果（可能为 null 如果 subchat 不存在）
+                    当查询完成后（无论结果如何），都应该允许渲染，不能卡在 loading */}
+                {(isLocalChatLoading || (chatSourceMode === "local" && isLoadingMessages && subChatMessagesData === undefined)) ? (
                   <div className="flex items-center justify-center h-full">
                     <IconSpinner className="h-6 w-6 animate-spin" />
                   </div>

@@ -2,6 +2,7 @@ import { useCallback, useRef } from "react"
 import { useSetAtom } from "jotai"
 import { currentRouteAtom, scrollTargetAtom } from "./atoms"
 import type { NavigationRoute } from "./types"
+import { SCROLL_TO_BOTTOM } from "./types"
 import {
   selectedAgentChatIdAtom,
   selectedChatIsRemoteAtom,
@@ -12,6 +13,7 @@ import {
 import { chatSourceModeAtom } from "../atoms"
 import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
 import { trpc } from "../trpc"
+import { agentChatStore } from "../../features/agents/stores/agent-chat-store"
 
 /**
  * Core navigation hook for the memory router.
@@ -28,7 +30,7 @@ export function useNavigate() {
   const setSelectedProject = useSetAtom(selectedProjectAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
-  const { addToOpenSubChats, setActiveSubChat } =
+  const { addToOpenSubChats, setActiveSubChat, setChatId } =
     useAgentSubChatStore()
   const utils = trpc.useUtils()
 
@@ -48,9 +50,23 @@ export function useNavigate() {
       setSelectedChatIsRemote(false)
       setChatSourceMode("local")
 
-      // NOTE: Do NOT call setChatId here — it clears allSubChats which causes
-      // a race condition with active-chat.tsx's useEffect that populates it.
-      // The useEffect in active-chat.tsx will call setChatId when agentChat loads.
+      // 2.5. Update Zustand store's chatId BEFORE calling addToOpenSubChats/setActiveSubChat
+      // This ensures localStorage is saved with the correct chatId key.
+      // Previously, we avoided calling setChatId here to prevent race conditions with
+      // active-chat.tsx's useEffect, but that caused addToOpenSubChats/setActiveSubChat
+      // to save to the wrong localStorage key (old chatId).
+      //
+      // The fix is to call setChatId here, and active-chat.tsx's useEffect will detect
+      // that chatId is already correct (isNewChat = false) and skip redundant initialization.
+      const store = useAgentSubChatStore.getState()
+      if (store.chatId !== route.chatId) {
+        // Clear old Chat objects from cache before switching
+        const oldOpenIds = store.openSubChatIds
+        for (const oldId of oldOpenIds) {
+          agentChatStore.delete(oldId)
+        }
+        setChatId(route.chatId)
+      }
 
       // 3. Resolve project from chat data and sync selectedProject
       try {
@@ -82,11 +98,20 @@ export function useNavigate() {
         setActiveSubChat(route.subChatId)
       }
 
-      // 6. Set scroll target if messageId specified
+      // 6. Set scroll target
+      // - If messageId specified: scroll to that message after loading
+      // - If subChatId specified (no messageId): scroll to bottom of chat
+      // This unifies all scroll behavior through routing
       if (route.messageId) {
         setScrollTarget({
           messageId: route.messageId,
           highlight: route.highlight,
+          consumed: false,
+        })
+      } else if (route.subChatId) {
+        // No specific message - scroll to bottom after content loads
+        setScrollTarget({
+          messageId: SCROLL_TO_BOTTOM,
           consumed: false,
         })
       }
@@ -100,6 +125,7 @@ export function useNavigate() {
       setSelectedChatId,
       setSelectedChatIsRemote,
       setChatSourceMode,
+      setChatId,
       utils.chats.get,
       setSelectedProject,
       addToOpenSubChats,

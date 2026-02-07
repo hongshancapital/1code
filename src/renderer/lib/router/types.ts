@@ -14,8 +14,12 @@ export interface NavigationRoute {
 }
 
 export interface ScrollTarget {
+  /** Message ID to scroll to, or "__BOTTOM__" to scroll to the end */
   messageId: string
   highlight?: string
   /** Set to true after the scroll action has been performed */
   consumed: boolean
 }
+
+/** Special value indicating scroll to bottom of chat */
+export const SCROLL_TO_BOTTOM = "__BOTTOM__"

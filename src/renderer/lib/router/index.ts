@@ -1,4 +1,5 @@
 export type { NavigationRoute, ScrollTarget } from "./types"
+export { SCROLL_TO_BOTTOM } from "./types"
 export { currentRouteAtom, scrollTargetAtom } from "./atoms"
 export { buildRoute, parseRoute, buildDeepLink } from "./route-utils"
 export { useNavigate } from "./use-navigate"
