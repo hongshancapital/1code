@@ -1256,6 +1256,10 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
       ? 1200
       : typeof window !== 'undefined' ? window.innerWidth : 1200
 
+  const handleOpenDiffSearch = useCallback(() => {
+    diffViewRef.current?.openSearch()
+  }, [])
+
   const diffViewContent = (
     <div
       ref={diffSidebarRef}
@@ -1302,6 +1306,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           reviewButtonSlot={reviewButtonSlot}
           hasPendingDiffChanges={hasPendingDiffChanges}
           onRefreshDiff={onRefreshDiff}
+          onOpenSearch={handleOpenDiffSearch}
         />
       ) : sandboxId ? (
         <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background shrink-0">

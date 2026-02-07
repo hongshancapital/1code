@@ -21,6 +21,7 @@ import {
 	TooltipTrigger,
 } from "../../../../components/ui/tooltip";
 import { IconCloseSidebarRight, IconFetch, IconForcePush, IconSpinner, IconReview, ExternalLinkIcon } from "../../../../components/ui/icons";
+import { Search } from "lucide-react";
 import { DiffViewModeSwitcher } from "./diff-view-mode-switcher";
 import { memo, useEffect, useRef, useState } from "react";
 import { HiArrowPath, HiChevronDown } from "react-icons/hi2";
@@ -109,6 +110,8 @@ interface DiffSidebarHeaderProps {
 	// Manual diff refresh - when files change while sidebar is open
 	hasPendingDiffChanges?: boolean;
 	onRefreshDiff?: () => void;
+	// Search functionality
+	onOpenSearch?: () => void;
 }
 
 function formatTimeSince(date: Date): string {
@@ -161,6 +164,7 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 	reviewButtonSlot,
 	hasPendingDiffChanges = false,
 	onRefreshDiff,
+	onOpenSearch,
 }: DiffSidebarHeaderProps) {
 	// Responsive breakpoints - progressive disclosure
 	const showViewModeToggle = sidebarWidth >= 450; // Show Split/Unified toggle
@@ -513,6 +517,23 @@ export const DiffSidebarHeader = memo(function DiffSidebarHeader({
 					WebkitAppRegion: "no-drag",
 				}}
 			>
+				{/* Search button */}
+				{onOpenSearch && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={onOpenSearch}
+								className="h-6 w-6 p-0 hover:bg-foreground/10"
+							>
+								<Search className="size-3.5 text-muted-foreground" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">Search in diff</TooltipContent>
+					</Tooltip>
+				)}
+
 				{/* Pending diff changes - Refresh button (GitHub-style amber) */}
 				{hasPendingDiffChanges && onRefreshDiff && (
 					<Tooltip>

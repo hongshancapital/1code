@@ -94,9 +94,15 @@ export const IsolatedMessagesSection = memo(function IsolatedMessagesSection({
   // Subscribe to user message IDs - but only use them if we're the active chat
   const userMsgIds = useAtomValue(userMessageIdsAtom)
 
+  // 修复：当切换 workspace 时，currentSubChatIdAtom 可能还是旧值
+  // 如果 subChatId 不匹配，且没有消息，说明可能是新的空 chat 或切换中的状态
+  // 此时应该允许渲染空内容，而不是返回 null（否则 UI 会卡住）
   if (currentSubChatId !== subChatId) {
-    // Data not synced yet - render nothing, we'll re-render when currentSubChatIdAtom updates
-    return null
+    // 如果有消息但 ID 不匹配，说明是旧数据，跳过渲染
+    if (userMsgIds.length > 0) {
+      return null
+    }
+    // 如果没有消息，可能是新 chat 或切换中，允许继续渲染空内容
   }
 
   return (

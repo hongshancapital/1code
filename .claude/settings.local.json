@@ -32,7 +32,8 @@
       "Bash(bash -c 'du -sh \"\"$HOME/Library/Application Support/hong-desktop/claude-sessions\"\"/* | sort -rh | head -10')",
       "Bash(bash -c 'ls -la \"\"$HOME/Library/Application Support/hong-desktop/data/\"\" | grep backup')",
       "Bash(bash -c:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(export PATH=\"$HOME/.bun/bin:$PATH\")"
     ]
   }
 }
