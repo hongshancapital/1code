@@ -1388,6 +1388,27 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             let prompt: string | AsyncIterable<any> = finalPrompt
 
             if (input.images && input.images.length > 0) {
+              // Save uploaded images to disk so MCP tools (e.g. edit_image) can access them by path
+              const uploadsDir = path.join(input.cwd, "uploads")
+              await fs.mkdir(uploadsDir, { recursive: true })
+              const savedImagePaths: string[] = []
+              for (const img of input.images) {
+                try {
+                  const extMap: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp" }
+                  const ext = extMap[img.mediaType] || ".png"
+                  const baseName = img.filename
+                    ? path.basename(img.filename, path.extname(img.filename)).replace(/[^a-zA-Z0-9._-]/g, "_")
+                    : String(Date.now())
+                  const filename = `upload_${baseName}${ext}`
+                  const filePath = path.join(uploadsDir, filename)
+                  await fs.writeFile(filePath, Buffer.from(img.base64Data, "base64"))
+                  savedImagePaths.push(filePath)
+                  console.log(`[claude] Saved uploaded image to: ${filePath}`)
+                } catch (err) {
+                  console.error(`[claude] Failed to save uploaded image:`, err)
+                }
+              }
+
               // Create message content array with images first, then text
               const messageContent: any[] = input.images.map((img) => ({
                 type: "image" as const,
@@ -1398,11 +1419,14 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 },
               }))
 
-              // Add text if present
-              if (finalPrompt.trim()) {
+              // Add text with saved image paths info so Claude can reference them in MCP tool calls
+              const imagePathsHint = savedImagePaths.length > 0
+                ? `\n\n[System: The uploaded image(s) have been saved to disk at: ${savedImagePaths.join(", ")}. Use these paths if you need to pass them to tools like edit_image.]`
+                : ""
+              if (finalPrompt.trim() || imagePathsHint) {
                 messageContent.push({
                   type: "text" as const,
-                  text: finalPrompt,
+                  text: (finalPrompt + imagePathsHint).trim(),
                 })
               }
 
