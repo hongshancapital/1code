@@ -1576,15 +1576,14 @@ const SidebarHeader = memo(function SidebarHeader({
                 onClick={handleLoginClick}
               >
                 <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+                  {/* Red dot indicating offline/not logged in */}
+                  <div className="relative flex-shrink-0 w-1.5 h-1.5">
+                    <div className="absolute inset-0 rounded-full bg-red-500/40" />
+                  </div>
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <div className="text-sm font-medium text-foreground truncate">
                       Hóng
                     </div>
-                  </div>
-                  {/* Red LED dot indicating offline/not logged in */}
-                  <div className="relative flex-shrink-0 w-2 h-2">
-                    <div className="absolute inset-0 rounded-full bg-red-500/30 blur-[2px]" />
-                    <div className="absolute inset-0 rounded-full bg-red-500/60" />
                   </div>
                 </div>
               </ButtonCustom>
