@@ -2890,19 +2890,21 @@ export function AgentsSidebar({
 
     if (isRemote) {
       // Remote chats bypass memory router
+      setDesktopView(null)
       setSelectedChatId(originalId)
       setSelectedChatIsRemote(true)
       setChatSourceMode("sandbox")
+      setShowNewChatForm(false)
     } else {
       // Local chats use memory router for project context sync
+      // navigateToChat handles: desktopView, chatId, project sync, showNewChatForm
       navigateToChat(originalId)
     }
-    setShowNewChatForm(false) // Clear new chat form state when selecting a workspace
     // On mobile, notify parent to switch to chat mode
     if (isMobileFullscreen && onChatSelect) {
       onChatSelect()
     }
-  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, navigateToChat, isMobileFullscreen, onChatSelect])
+  }, [filteredChats, selectedChatId, selectedChatIds, toggleChatSelection, setSelectedChatIds, setSelectedChatId, setSelectedChatIsRemote, setChatSourceMode, setShowNewChatForm, setDesktopView, navigateToChat, isMobileFullscreen, onChatSelect])
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent, chatId: string) => {
     e.stopPropagation()
