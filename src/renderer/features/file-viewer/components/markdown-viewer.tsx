@@ -3,7 +3,7 @@ import Editor from "@monaco-editor/react"
 import { useTheme } from "next-themes"
 import { useAtom } from "jotai"
 import { useAtomValue } from "jotai"
-import { Loader2, AlertCircle, Check, X } from "lucide-react"
+import { Loader2, AlertCircle, Check, X, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   IconCloseSidebarRight,
@@ -35,6 +35,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { EDITOR_ICONS } from "@/lib/editor-icons"
 import { fileViewerWordWrapAtom, fileViewerDisplayModeAtom } from "../../agents/atoms"
+import {
+  ContentSearchBar,
+  useContentSearchState,
+} from "@/components/content-search-bar"
 
 const FILE_VIEWER_MODES = [
   { value: "side-peek" as const, label: "Sidebar", Icon: IconSidePeek },
@@ -61,6 +65,10 @@ export function MarkdownViewer({
 
   const [showPreview, setShowPreview] = useState(true)
   const [wordWrap] = useAtom(fileViewerWordWrapAtom)
+
+  // Search state
+  const { isSearchOpen, openSearch, closeSearch } = useContentSearchState()
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const handleToggleView = useCallback(() => {
     setShowPreview((prev) => !prev)
@@ -179,18 +187,28 @@ export function MarkdownViewer({
         onToggleView={handleToggleView}
         onClose={onClose}
         content={content}
+        onOpenSearch={openSearch}
       />
       <div
-        className="flex-1 min-h-0 overflow-hidden allow-text-selection"
+        className="flex-1 min-h-0 overflow-hidden allow-text-selection relative"
         data-file-viewer-path={filePath}
       >
         {showPreview ? (
-          <div className="h-full overflow-auto p-6">
-            <ChatMarkdownRenderer
-              content={content}
-              size="md"
+          <>
+            {/* Search bar */}
+            <ContentSearchBar
+              isOpen={isSearchOpen}
+              onClose={closeSearch}
+              scrollContainerRef={contentRef}
+              className="absolute top-2 right-2 left-2 z-20 max-w-[300px] ml-auto"
             />
-          </div>
+            <div ref={contentRef} className="h-full overflow-auto p-6">
+              <ChatMarkdownRenderer
+                content={content}
+                size="md"
+              />
+            </div>
+          </>
         ) : (
           <Editor
             height="100%"
@@ -217,6 +235,7 @@ function Header({
   onToggleView,
   onClose,
   content,
+  onOpenSearch,
 }: {
   fileName: string
   filePath: string
@@ -224,6 +243,7 @@ function Header({
   onToggleView: () => void
   onClose: () => void
   content?: string
+  onOpenSearch?: () => void
 }) {
   const Icon = getFileIconByExtension(filePath)
   const [displayMode, setDisplayMode] = useAtom(fileViewerDisplayModeAtom)
@@ -292,6 +312,27 @@ function Header({
       </div>
       {/* Right side: Actions */}
       <div className="flex items-center gap-1 shrink-0">
+        {/* Search button - only show in preview mode */}
+        {showPreview && content && onOpenSearch && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onOpenSearch}
+                className="h-6 w-6 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground"
+                aria-label="Search"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" showArrow={false}>
+              Search
+              <Kbd>⌘F</Kbd>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
         {/* Open in editor */}
         <Tooltip delayDuration={500}>
           <TooltipTrigger asChild>

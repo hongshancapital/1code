@@ -6,12 +6,17 @@ import { IconSpinner } from "@/components/ui/icons"
 import { ChatMarkdownRenderer } from "@/components/chat-markdown-renderer"
 import { trpc } from "@/lib/trpc"
 import { planContentCacheAtomFamily } from "../atoms"
+import { ContentSearchBar } from "@/components/content-search-bar"
 
 interface PlanSectionProps {
   chatId: string
   planPath: string | null
   refetchTrigger?: number
   isExpanded?: boolean
+  /** Whether search is open */
+  isSearchOpen?: boolean
+  /** Callback to close search */
+  onSearchClose?: () => void
 }
 
 /**
@@ -24,6 +29,8 @@ export const PlanSection = memo(function PlanSection({
   planPath,
   refetchTrigger,
   isExpanded = false,
+  isSearchOpen = false,
+  onSearchClose,
 }: PlanSectionProps) {
   // Refs for scroll gradients (avoid re-renders)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -151,9 +158,19 @@ export const PlanSection = memo(function PlanSection({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Plan content with scroll gradients */}
-      <div className="relative">
+      <div className="relative flex-1 min-h-0">
+        {/* Search bar */}
+        {onSearchClose && (
+          <ContentSearchBar
+            isOpen={isSearchOpen}
+            onClose={onSearchClose}
+            scrollContainerRef={contentRef}
+            className="absolute top-1 right-1 left-1 z-20 max-w-[280px] ml-auto"
+          />
+        )}
+
         {/* Top scroll gradient - matches header bg (muted/30) */}
         <div
           ref={topGradientRef}
@@ -167,7 +184,7 @@ export const PlanSection = memo(function PlanSection({
 
         <div
           ref={contentRef}
-          className={`px-2 py-2 overflow-y-auto allow-text-selection ${isExpanded ? "" : "max-h-64"}`}
+          className={`px-2 py-2 overflow-y-auto allow-text-selection h-full ${isExpanded ? "" : "max-h-64"}`}
           data-plan-path={planPath}
         >
           <ChatMarkdownRenderer content={displayContent} size="sm" />

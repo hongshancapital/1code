@@ -4098,9 +4098,12 @@ export function ChatView({
   })
 
   // Track previous states to detect opens/closes
+  // Note: For plan sidebar, we track isPlanSidebarOpen separately from currentPlanPath
+  // to avoid race conditions when opening the sidebar before the plan path is set
   const prevSidebarStatesRef = useRef({
     details: isDetailsSidebarOpen,
-    plan: isPlanSidebarOpen && !!currentPlanPath,
+    planSidebarOpen: isPlanSidebarOpen,
+    planHasPath: !!currentPlanPath,
     terminal: isTerminalSidebarOpen,
   })
 
@@ -4112,8 +4115,11 @@ export function ChatView({
     // Detect state changes
     const detailsJustOpened = isDetailsSidebarOpen && !prev.details
     const detailsJustClosed = !isDetailsSidebarOpen && prev.details
-    const planJustOpened = isPlanOpen && !prev.plan
-    const planJustClosed = !isPlanOpen && prev.plan
+    // Plan "opened" = sidebar was just opened OR sidebar is open and path just became valid
+    const planJustOpened = (isPlanSidebarOpen && !prev.planSidebarOpen) ||
+                           (isPlanSidebarOpen && !!currentPlanPath && !prev.planHasPath)
+    // Plan "closed" = sidebar was just closed (ignore path changes while sidebar is open)
+    const planJustClosed = !isPlanSidebarOpen && prev.planSidebarOpen
     const terminalJustOpened = isTerminalSidebarOpen && !prev.terminal
     const terminalJustClosed = !isTerminalSidebarOpen && prev.terminal
 
@@ -4145,6 +4151,9 @@ export function ChatView({
     // Plan opened → close Details and remember
     else if (planJustOpened && isDetailsSidebarOpen) {
       auto.detailsClosedBy = "plan"
+      // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
+      // when it detects Details closing (which would cause a conflict)
+      auto.diffClosedByDetails = false
       setIsDetailsSidebarOpen(false)
     }
     // Plan closed → restore Details if we closed it
@@ -4155,6 +4164,9 @@ export function ChatView({
     // Terminal opened → close Details and remember (only in side-peek mode)
     else if (terminalJustOpened && isDetailsSidebarOpen && terminalConflictsWithDetails) {
       auto.detailsClosedBy = "terminal"
+      // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
+      // when it detects Details closing (which would cause a conflict)
+      auto.diffClosedByDetails = false
       setIsDetailsSidebarOpen(false)
     }
     // Terminal closed → restore Details if we closed it
@@ -4165,7 +4177,8 @@ export function ChatView({
 
     prevSidebarStatesRef.current = {
       details: isDetailsSidebarOpen,
-      plan: isPlanOpen,
+      planSidebarOpen: isPlanSidebarOpen,
+      planHasPath: !!currentPlanPath,
       terminal: isTerminalSidebarOpen,
     }
   }, [

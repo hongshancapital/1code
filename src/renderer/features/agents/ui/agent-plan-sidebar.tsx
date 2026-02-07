@@ -1,9 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useSetAtom } from "jotai"
+import { useAtomValue, useSetAtom } from "jotai"
+import { Search } from "lucide-react"
 import { Button } from "../../../components/ui/button"
 import { IconDoubleChevronRight, IconSpinner, PlanIcon, MarkdownIcon, CodeIcon } from "../../../components/ui/icons"
+import { ContentSearchBar, useContentSearchState } from "../../../components/content-search-bar"
 import { Kbd } from "../../../components/ui/kbd"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../components/ui/tooltip"
 import { ChatMarkdownRenderer } from "../../../components/chat-markdown-renderer"
@@ -14,7 +16,7 @@ import type { AgentMode } from "../atoms"
 import { ReviewButton } from "./review-button"
 import { CommentHighlightOverlay } from "./comment-highlight-overlay"
 import { useDocumentComments } from "../hooks/use-document-comments"
-import { commentInputStateAtom, type DocumentComment } from "../atoms/review-atoms"
+import { commentInputStateAtom, reviewCommentsAtomFamily, type DocumentComment } from "../atoms/review-atoms"
 
 interface AgentPlanSidebarProps {
   chatId: string
@@ -41,7 +43,15 @@ export function AgentPlanSidebar({
   onSubmitReview,
 }: AgentPlanSidebarProps) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const setCommentInputState = useSetAtom(commentInputStateAtom)
+
+  // Search state
+  const searchState = useContentSearchState()
+
+  // Get review comments count (scoped by subChatId)
+  const reviewComments = useAtomValue(reviewCommentsAtomFamily(subChatId))
+  const hasReviewComments = reviewComments.length > 0
 
   // View mode: rendered markdown or plaintext
   const [viewMode, setViewMode] = useState<"rendered" | "plaintext">("rendered")
@@ -112,6 +122,27 @@ export function AgentPlanSidebar({
           <span className="text-sm font-medium truncate">{planTitle}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {/* Search button */}
+          {planContent && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => searchState.openSearch()}
+                  className="h-6 w-6 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground"
+                  aria-label="Search"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" showArrow={false}>
+                Search
+                <Kbd className="ml-1.5">⌘F</Kbd>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {/* View mode toggle */}
           {planContent && (
             <Tooltip>
@@ -168,8 +199,8 @@ export function AgentPlanSidebar({
             />
           )}
 
-          {/* Approve Plan button - only show in plan mode */}
-          {mode === "plan" && onBuildPlan && (
+          {/* Approve Plan button - only show in plan mode when no review comments */}
+          {mode === "plan" && onBuildPlan && !hasReviewComments && (
             <Button
               size="sm"
               className="h-6 px-3 text-xs font-medium rounded-md transition-transform duration-150 active:scale-[0.97]"
@@ -183,7 +214,14 @@ export function AgentPlanSidebar({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
+        {/* Search bar - sticky */}
+        <ContentSearchBar
+          isOpen={searchState.isSearchOpen}
+          onClose={searchState.closeSearch}
+          scrollContainerRef={scrollContainerRef}
+          className="sticky top-2 mx-3 mb-2 z-10"
+        />
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full p-6 text-center">
             <IconSpinner className="h-8 w-8 text-muted-foreground mb-3" />

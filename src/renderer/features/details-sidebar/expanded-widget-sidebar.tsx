@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAtom } from "jotai"
 import { useTranslation } from "react-i18next"
 import { X } from "lucide-react"
@@ -22,6 +22,7 @@ import { InfoSection } from "./sections/info-section"
 import { PlanSection } from "./sections/plan-section"
 import { TerminalSection } from "./sections/terminal-section"
 import { DiffSection } from "./sections/diff-section"
+import { Search } from "lucide-react"
 
 interface ExpandedWidgetSidebarProps {
   /** Workspace/chat ID */
@@ -43,6 +44,7 @@ interface ExpandedWidgetSidebarProps {
 
 // Widget ID to translation key mapping
 const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
+  usage: "usage",
   info: "workspace",
   todo: "tasks",
   plan: "plan",
@@ -68,12 +70,20 @@ export function ExpandedWidgetSidebar({
 }: ExpandedWidgetSidebarProps) {
   const { t } = useTranslation("sidebar")
 
+  // Search state for plan section
+  const [isPlanSearchOpen, setIsPlanSearchOpen] = useState(false)
+
   // Per-workspace expanded widget state
   const expandedWidgetAtom = useMemo(
     () => expandedWidgetAtomFamily(chatId),
     [chatId],
   )
   const [expandedWidget, setExpandedWidget] = useAtom(expandedWidgetAtom)
+
+  // Reset search state when widget changes
+  useEffect(() => {
+    setIsPlanSearchOpen(false)
+  }, [expandedWidget])
 
   // Get widget config
   const widgetConfig = useMemo(
@@ -118,6 +128,8 @@ export function ExpandedWidgetSidebar({
             planPath={planPath}
             refetchTrigger={planRefetchTrigger}
             isExpanded
+            isSearchOpen={isPlanSearchOpen}
+            onSearchClose={() => setIsPlanSearchOpen(false)}
           />
         )
       case "terminal":
@@ -173,23 +185,45 @@ export function ExpandedWidgetSidebar({
               </>
             )}
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeSidebar}
-                className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-muted-foreground hover:text-foreground shrink-0 rounded-md"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {t("details.close")}
-              <Kbd>Esc</Kbd>
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            {/* Search button for plan widget */}
+            {expandedWidget === "plan" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsPlanSearchOpen(true)}
+                    className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-muted-foreground hover:text-foreground shrink-0 rounded-md"
+                    aria-label="Search"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {t("details.search")}
+                  <Kbd>⌘F</Kbd>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={closeSidebar}
+                  className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-muted-foreground hover:text-foreground shrink-0 rounded-md"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {t("details.close")}
+                <Kbd>Esc</Kbd>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         {/* Content */}

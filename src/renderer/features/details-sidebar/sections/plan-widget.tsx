@@ -10,6 +10,11 @@ import { ChatMarkdownRenderer } from "@/components/chat-markdown-renderer"
 import { trpc } from "@/lib/trpc"
 import { planContentCacheAtomFamily } from "../atoms"
 import type { AgentMode } from "../../agents/atoms"
+import { Search } from "lucide-react"
+import {
+  ContentSearchBar,
+  useContentSearchState,
+} from "@/components/content-search-bar"
 
 interface PlanWidgetProps {
   /** Chat ID for cache */
@@ -48,6 +53,9 @@ export const PlanWidget = memo(function PlanWidget({
 
   // Expanded/collapsed state
   const [isExpanded, setIsExpanded] = useState(false)
+
+  // Search state
+  const { isSearchOpen, openSearch, closeSearch } = useContentSearchState()
 
   // Refs for scroll gradients
   const contentRef = useRef<HTMLDivElement>(null)
@@ -171,6 +179,20 @@ export const PlanWidget = memo(function PlanWidget({
               </Button>
             )}
 
+            {/* Search button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                openSearch()
+              }}
+              className="h-5 w-5 p-0 hover:bg-foreground/10 text-muted-foreground hover:text-foreground rounded-md transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] shrink-0"
+              aria-label="Search"
+            >
+              <Search className="h-3 w-3" />
+            </Button>
+
             {/* Expand/Collapse button */}
             <Button
               variant="ghost"
@@ -213,11 +235,19 @@ export const PlanWidget = memo(function PlanWidget({
             </div>
           ) : (
             <div className="relative">
+              {/* Search bar */}
+              <ContentSearchBar
+                isOpen={isSearchOpen}
+                onClose={closeSearch}
+                scrollContainerRef={contentRef}
+                className="absolute top-1 right-1 left-1 z-20 max-w-[280px] ml-auto"
+              />
+
               <div
                 ref={contentRef}
                 className={cn(
-                  "px-2 py-2 allow-text-selection",
-                  isExpanded ? "" : "max-h-64 overflow-hidden"
+                  "px-2 py-2 allow-text-selection overflow-y-auto",
+                  isExpanded ? "" : "max-h-64"
                 )}
               >
                 <ChatMarkdownRenderer content={displayContent} size="sm" />
