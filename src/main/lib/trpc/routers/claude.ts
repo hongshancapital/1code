@@ -34,7 +34,7 @@ import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStat
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
-import { computePreviewStatsFromMessages } from "./chats"
+import { computePreviewStatsFromMessages } from "./chat-helpers"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
 import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"

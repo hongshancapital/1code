@@ -89,6 +89,9 @@ export const subChats = sqliteTable("sub_chats", {
   // Pre-computed stats for preview (avoids parsing large messages JSON)
   // Format: { inputs: Array<{ messageId, index, content, mode, fileCount, additions, deletions, totalTokens }> }
   statsJson: text("stats_json"),
+  // Pre-computed flag for pending plan approval (avoids parsing messages)
+  // True when mode="plan" AND messages contain completed ExitPlanMode tool
+  hasPendingPlan: integer("has_pending_plan", { mode: "boolean" }).default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),
