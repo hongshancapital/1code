@@ -16,6 +16,7 @@ import { AgentsPreferencesTab } from "../../components/dialogs/settings-tabs/age
 import { AgentsProfileTab } from "../../components/dialogs/settings-tabs/agents-profile-tab"
 import { AgentsProjectsTab } from "../../components/dialogs/settings-tabs/agents-project-worktree-tab"
 import { AgentsSkillsTab } from "../../components/dialogs/settings-tabs/agents-skills-tab"
+import { AgentsToolsTab } from "../../components/dialogs/settings-tabs/agents-tools-tab"
 import { AgentsCommandsTab } from "../../components/dialogs/settings-tabs/agents-commands-tab"
 import { AgentsPluginsTab } from "../../components/dialogs/settings-tabs/agents-plugins-tab"
 import { FilePreviewDialog } from "../cowork/file-preview/file-preview-dialog"
@@ -55,6 +56,8 @@ export function SettingsContent() {
         return <AgentsPreferencesTab />
       case "models":
         return <AgentsModelsTab />
+      case "tools":
+        return <AgentsToolsTab />
       case "skills":
         return <AgentsSkillsTab />
       case "commands":
@@ -81,7 +84,7 @@ export function SettingsContent() {
   }
 
   // Two-panel tabs need full width and height, no scroll wrapper
-  const isTwoPanelTab = activeTab === "mcp" || activeTab === "skills" || activeTab === "commands" || activeTab === "agents" || activeTab === "projects" || activeTab === "keyboard" || activeTab === "plugins"
+  const isTwoPanelTab = activeTab === "mcp" || activeTab === "tools" || activeTab === "skills" || activeTab === "commands" || activeTab === "agents" || activeTab === "projects" || activeTab === "keyboard" || activeTab === "plugins"
 
   if (isTwoPanelTab) {
     return (
