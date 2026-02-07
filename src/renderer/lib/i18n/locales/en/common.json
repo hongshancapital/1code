@@ -31,10 +31,10 @@
     "configuring": "Configuring model...",
     "ready": "Ready",
     "nameInput": {
-      "question": "What should Hóng call you?",
-      "subtitle": "A nickname or preferred name",
-      "placeholder": "Enter your name",
-      "letsGo": "Let's go",
+      "question": "One more step before we begin!",
+      "subtitle": "I'm Hóng. What should I call you?",
+      "placeholder": "What should I call you?",
+      "letsGo": "Let's Go",
       "skip": "Skip for now"
     },
     "words": {
@@ -54,6 +54,30 @@
       "assist": "Assist",
       "guide": "Guide",
       "grow": "Grow"
+    },
+    "env": {
+      "checking": "Checking environment...",
+      "checkingPM": "Package manager",
+      "installingPM": "Setting up package manager...",
+      "checkingGit": "Git",
+      "installingGit": "Installing Git...",
+      "ready": "Environment ready!",
+      "failed": "Git installation failed",
+      "failedDesc": "Don't worry, you can install it manually",
+      "retry": "Retry",
+      "downloadGit": "Download Git",
+      "recheck": "I've installed it, re-check",
+      "skip": "Skip for now",
+      "recommend": "Want to install some helpful tools?",
+      "recommendDesc": "Python and Node.js will help you work more effectively",
+      "installRecommended": "Install recommended",
+      "skipRecommended": "Skip, install later",
+      "installingRecommended": "Installing {{name}}...",
+      "mayTakeMinutes": "This may take a few minutes...",
+      "stepEnv": "Setup",
+      "stepRequired": "Required",
+      "stepRecommend": "Optional",
+      "stepName": "Introduction"
     }
   },
   "error": {

@@ -31,10 +31,10 @@
     "configuring": "正在配置模型...",
     "ready": "准备就绪",
     "nameInput": {
-      "question": "Hóng 应该如何称呼您？",
-      "subtitle": "一个昵称或首选称呼",
-      "placeholder": "输入您的名字",
-      "letsGo": "Let's go",
+      "question": "还差一步我们就可以见面了！",
+      "subtitle": "我叫 Hóng，我应该如何称呼你呢？",
+      "placeholder": "该如何称呼你？",
+      "letsGo": "开始使用",
       "skip": "暂时跳过"
     },
     "words": {
@@ -54,6 +54,30 @@
       "assist": "陪伴",
       "guide": "引导",
       "grow": "成长"
+    },
+    "env": {
+      "checking": "正在检查环境...",
+      "checkingPM": "包管理器",
+      "installingPM": "正在设置包管理器...",
+      "checkingGit": "Git",
+      "installingGit": "正在安装 Git...",
+      "ready": "环境就绪！",
+      "failed": "Git 安装失败",
+      "failedDesc": "别担心，你可以手动安装",
+      "retry": "重试",
+      "downloadGit": "下载 Git",
+      "recheck": "我已安装，重新检测",
+      "skip": "暂时跳过",
+      "recommend": "要安装一些实用工具吗？",
+      "recommendDesc": "Python 和 Node.js 能帮你更高效地开展工作",
+      "installRecommended": "安装推荐工具",
+      "skipRecommended": "跳过，稍后安装",
+      "installingRecommended": "正在安装 {{name}}...",
+      "mayTakeMinutes": "这可能需要几分钟...",
+      "stepEnv": "环境准备",
+      "stepRequired": "系统必要能力",
+      "stepRecommend": "系统可选能力",
+      "stepName": "认识一下"
     }
   },
   "error": {

@@ -51,6 +51,7 @@
         "apache-arrow": "21.1.0",
         "async-mutex": "^0.5.0",
         "better-sqlite3": "^12.6.2",
+        "canvas-confetti": "^1.9.4",
         "chokidar": "^5.0.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -107,6 +108,7 @@
         "@tailwindcss/postcss": "^4.1.18",
         "@tailwindcss/vite": "^4.1.18",
         "@types/better-sqlite3": "^7.6.13",
+        "@types/canvas-confetti": "^1.9.0",
         "@types/diff": "^8.0.0",
         "@types/node": "^20.17.50",
         "@types/node-cron": "^3.0.11",
@@ -393,7 +395,7 @@
 
     "@lancedb/lancedb": ["@lancedb/lancedb@0.24.1", "https://registry.yarnpkg.com/@lancedb/lancedb/-/lancedb-0.24.1.tgz", { "dependencies": { "reflect-metadata": "^0.2.2" }, "optionalDependencies": { "@lancedb/lancedb-linux-arm64-gnu": "0.24.1", "@lancedb/lancedb-linux-arm64-musl": "0.24.1", "@lancedb/lancedb-linux-x64-gnu": "0.24.1", "@lancedb/lancedb-linux-x64-musl": "0.24.1", "@lancedb/lancedb-win32-arm64-msvc": "0.24.1", "@lancedb/lancedb-win32-x64-msvc": "0.24.1" }, "peerDependencies": { "apache-arrow": ">=15.0.0 <=18.1.0" }, "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ] }, "sha512-uHQePFHlZMZg/lD4m/0dA01u47G309C8QCLxCVt6zlCRDjUtXUEpV09sMu+ujVfsYYI2SdBbAyDbbI9Mn6eK0w=="],
 
-    "@lancedb/lancedb-darwin-arm64": ["@lancedb/lancedb-darwin-arm64@0.24.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-QguwMu3jKEDqe2dtZtbCLNphZA/8hEsEjoS7eTgtx6utGTHIYNYWS6/LtYkNHGJKX6icmul7NzwMbO7cl48i0Q=="],
+    "@lancedb/lancedb-darwin-arm64": ["@lancedb/lancedb-darwin-arm64@0.24.1", "https://registry.yarnpkg.com/@lancedb/lancedb-darwin-arm64/-/lancedb-darwin-arm64-0.24.1.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-QguwMu3jKEDqe2dtZtbCLNphZA/8hEsEjoS7eTgtx6utGTHIYNYWS6/LtYkNHGJKX6icmul7NzwMbO7cl48i0Q=="],
 
     "@lancedb/lancedb-linux-arm64-gnu": ["@lancedb/lancedb-linux-arm64-gnu@0.24.1", "https://registry.yarnpkg.com/@lancedb/lancedb-linux-arm64-gnu/-/lancedb-linux-arm64-gnu-0.24.1.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-68T+PVou6NmmNlBpJBXrpa1ITM9Wu/LZ4o1kTi9Kn0TCulb/JhtAGhcmM0gFt4GUTsZQAO9kcDuWN8Mya9lQsw=="],
 
@@ -781,6 +783,8 @@
 
     "@types/cacheable-request": ["@types/cacheable-request@6.0.3", "https://registry.yarnpkg.com/@types/cacheable-request/-/cacheable-request-6.0.3.tgz", { "dependencies": { "@types/http-cache-semantics": "*", "@types/keyv": "^3.1.4", "@types/node": "*", "@types/responselike": "^1.0.0" } }, "sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw=="],
 
+    "@types/canvas-confetti": ["@types/canvas-confetti@1.9.0", "", {}, "sha512-aBGj/dULrimR1XDZLtG9JwxX1b4HPRF6CX9Yfwh3NvstZEm1ZL7RBnel4keCPSqs1ANRu1u2Aoz9R+VmtjYuTg=="],
+
     "@types/command-line-args": ["@types/command-line-args@5.2.3", "https://registry.yarnpkg.com/@types/command-line-args/-/command-line-args-5.2.3.tgz", {}, "sha512-uv0aG6R0Y8WHZLTamZwtfsDLVRnOa+n+n5rEvFWL5Na5gZ8V2Teab/duDPFzIIIhs9qizDpcavCusCLJZu62Kw=="],
 
     "@types/command-line-usage": ["@types/command-line-usage@5.0.4", "https://registry.yarnpkg.com/@types/command-line-usage/-/command-line-usage-5.0.4.tgz", {}, "sha512-BwR5KP3Es/CSht0xqBcUXS3qCAUVXwpRKsV2+arxeb65atasuXG9LykC9Ab10Cw3s2raH92ZqOeILaQbsB2ACg=="],
@@ -1078,6 +1082,8 @@
     "caniuse-db": ["caniuse-db@1.0.30001769", "https://registry.yarnpkg.com/caniuse-db/-/caniuse-db-1.0.30001769.tgz", {}, "sha512-YUJlOqWziYAdXSnL60FU2Won9HqW/IY77M8xgDFMRj5+StEnycCnlKvORrMPAevdyfYd8W6pjQ2XaEiMyDocWA=="],
 
     "caniuse-lite": ["caniuse-lite@1.0.30001765", "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001765.tgz", {}, "sha512-LWcNtSyZrakjECqmpP4qdg0MMGdN368D7X8XvvAqOcqMv0RxnlqVKZl2V6/mBR68oYMxOZPLw/gO7DuisMHUvQ=="],
+
+    "canvas-confetti": ["canvas-confetti@1.9.4", "https://registry.yarnpkg.com/canvas-confetti/-/canvas-confetti-1.9.4.tgz", {}, "sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw=="],
 
     "ccount": ["ccount@2.0.1", "https://registry.yarnpkg.com/ccount/-/ccount-2.0.1.tgz", {}, "sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg=="],
 

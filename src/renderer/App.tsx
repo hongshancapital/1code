@@ -283,6 +283,10 @@ function AppContent() {
       showNameInput={showNameInput}
       onNameInputComplete={() => setWelcomeNameInputCompleted(true)}
       onLoadingComplete={() => setLoadingSceneComplete(true)}
+      onEnvCheckComplete={() => {
+        // Environment check complete - could be used for analytics or logging
+        console.log('[App] Environment check complete')
+      }}
     />
   ) : null
 
