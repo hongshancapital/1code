@@ -352,11 +352,17 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
           href={href}
           onClick={(e) => {
             e.preventDefault()
-            if (href) {
+            if (!href) return
+            // Ctrl/Cmd + click → open in external browser
+            if (e.ctrlKey || e.metaKey) {
               window.desktopApi.openExternal(href)
+            } else {
+              // Normal click → open in internal browser
+              window.desktopApi.openInternalBrowser?.(href)
             }
           }}
           className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
+          title="Click to open in browser, Ctrl+Click for external browser"
           {...props}
         >
           {children}
@@ -612,11 +618,17 @@ const MemoizedMarkdownBlock = memo(
             href={href}
             onClick={(e) => {
               e.preventDefault()
-              if (href) {
+              if (!href) return
+              // Ctrl/Cmd + click → open in external browser
+              if (e.ctrlKey || e.metaKey) {
                 window.desktopApi.openExternal(href)
+              } else {
+                // Normal click → open in internal browser
+                window.desktopApi.openInternalBrowser?.(href)
               }
             }}
             className="text-blue-600 dark:text-blue-400 no-underline hover:underline hover:decoration-current underline-offset-2 decoration-1 transition-all duration-150 cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-blue-500/30 focus-visible:rounded-sm"
+            title="Click to open in browser, Ctrl+Click for external browser"
             {...props}
           >
             {children}
