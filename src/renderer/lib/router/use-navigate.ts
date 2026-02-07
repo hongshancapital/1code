@@ -7,6 +7,7 @@ import {
   selectedChatIsRemoteAtom,
   desktopViewAtom,
   selectedProjectAtom,
+  showNewChatFormAtom,
 } from "../../features/agents/atoms"
 import { chatSourceModeAtom } from "../atoms"
 import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
@@ -26,7 +27,8 @@ export function useNavigate() {
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setSelectedProject = useSetAtom(selectedProjectAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
-  const { setChatId, addToOpenSubChats, setActiveSubChat } =
+  const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
+  const { addToOpenSubChats, setActiveSubChat } =
     useAgentSubChatStore()
   const utils = trpc.useUtils()
 
@@ -37,18 +39,20 @@ export function useNavigate() {
     async (route: NavigationRoute) => {
       const version = ++navigationVersionRef.current
 
-      // 1. Switch to chat view (clear automations/settings/home)
+      // 1. Switch to chat view (clear automations/settings/home/new-chat-form)
       setDesktopView(null)
+      setShowNewChatForm(false)
 
       // 2. Set chat ID (triggers chat data loading)
       setSelectedChatId(route.chatId)
       setSelectedChatIsRemote(false)
       setChatSourceMode("local")
 
-      // 3. Sync Zustand sub-chat store
-      setChatId(route.chatId)
+      // NOTE: Do NOT call setChatId here — it clears allSubChats which causes
+      // a race condition with active-chat.tsx's useEffect that populates it.
+      // The useEffect in active-chat.tsx will call setChatId when agentChat loads.
 
-      // 4. Resolve project from chat data and sync selectedProject
+      // 3. Resolve project from chat data and sync selectedProject
       try {
         const chatData = await utils.chats.get.fetch({ id: route.chatId })
         // Bail if a newer navigation has started while we were awaiting
@@ -92,10 +96,10 @@ export function useNavigate() {
     },
     [
       setDesktopView,
+      setShowNewChatForm,
       setSelectedChatId,
       setSelectedChatIsRemote,
       setChatSourceMode,
-      setChatId,
       utils.chats.get,
       setSelectedProject,
       addToOpenSubChats,
