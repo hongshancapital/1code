@@ -137,15 +137,10 @@ export function DiffSearchBar({
       // Expand the file first
       onExpandFile(match.fileKey)
       // Delay scroll to allow React to update the DOM after expand
-      // This ensures virtualizer has recalculated sizes before scrolling
-      // Use multiple attempts to ensure scroll happens after virtualizer recalculates
+      // Use longer delay to ensure state updates and virtualizer recalculates
       setTimeout(() => {
         onScrollToFile(match.fileIndex)
-        // Second attempt after another frame for virtualizer to stabilize
-        requestAnimationFrame(() => {
-          onScrollToFile(match.fileIndex)
-        })
-      }, 100)
+      }, 150)
     },
     [onExpandFile, onScrollToFile]
   )
@@ -231,8 +226,10 @@ export function DiffSearchBar({
   const goToNext = useCallback(() => {
     if (matches.length === 0) return
     const newIndex = (currentIndex + 1) % matches.length
+    const match = matches[newIndex]
+    if (!match) return
     setCurrentIndex(newIndex)
-    navigateToMatch(matches[newIndex])
+    navigateToMatch(match)
     notifySearchState(inputValue.trim(), matches, newIndex)
   }, [matches, currentIndex, navigateToMatch, notifySearchState, inputValue])
 
@@ -240,8 +237,10 @@ export function DiffSearchBar({
   const goToPrev = useCallback(() => {
     if (matches.length === 0) return
     const newIndex = currentIndex === 0 ? matches.length - 1 : currentIndex - 1
+    const match = matches[newIndex]
+    if (!match) return
     setCurrentIndex(newIndex)
-    navigateToMatch(matches[newIndex])
+    navigateToMatch(match)
     notifySearchState(inputValue.trim(), matches, newIndex)
   }, [matches, currentIndex, navigateToMatch, notifySearchState, inputValue])
 

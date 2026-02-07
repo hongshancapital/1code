@@ -49,6 +49,7 @@ import {
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog"
 import { Button } from "../../../components/ui/button"
+import { DiffSearchBar, useDiffSearchState, applyDiffSearchHighlight, clearDiffSearchHighlight, type DiffSearchState } from "../../../components/diff-search-bar"
 import {
   IconSpinner,
   IconChatBubble,
@@ -334,6 +335,17 @@ const PIERRE_DIFFS_THEME_CSS = `
     --diffs-bg-deletion-hover-override: hsl(12, 30%, 23%) !important;
     --diffs-fg-number-override: hsl(var(--muted-foreground)) !important;
   }
+
+  /* CSS Custom Highlight API for diff search (Shadow DOM support) */
+  ::highlight(diff-search) {
+    background-color: rgb(250 204 21 / 0.35);
+    color: inherit;
+  }
+
+  ::highlight(diff-search-current) {
+    background-color: rgb(250 204 21 / 0.85);
+    color: hsl(0 0% 5%);
+  }
 `
 
 // Validate if a diff hunk has valid structure
@@ -514,6 +526,11 @@ interface FileDiffCardProps {
   onDeleteReviewComment?: (commentId: string) => void
   /** Whether to show the viewed checkbox (hide for sandboxes) */
   showViewed?: boolean
+  /** Search state for highlighting matches */
+  searchHighlight?: {
+    query: string
+    isCurrentMatch: boolean
+  }
 }
 
 // Custom comparator to prevent unnecessary re-renders
@@ -554,6 +571,9 @@ const fileDiffCardAreEqual = (
   if (prev.onDeleteContextComment !== next.onDeleteContextComment) return false
   if (prev.onDeleteReviewComment !== next.onDeleteReviewComment) return false
   if (prev.showViewed !== next.showViewed) return false
+  // Search highlight comparison
+  if (prev.searchHighlight?.query !== next.searchHighlight?.query) return false
+  if (prev.searchHighlight?.isCurrentMatch !== next.searchHighlight?.isCurrentMatch) return false
   return true
 }
 
@@ -579,6 +599,7 @@ const FileDiffCard = memo(function FileDiffCard({
   onDeleteContextComment,
   onDeleteReviewComment,
   showViewed = true,
+  searchHighlight,
 }: FileDiffCardProps) {
   const diffCardRef = useRef<HTMLDivElement>(null)
   const diffContentRef = useRef<HTMLDivElement>(null)
@@ -623,6 +644,23 @@ const FileDiffCard = memo(function FileDiffCard({
     })
     return () => cancelAnimationFrame(frame)
   }, [fileContent, file.diffText, file.oldPath, file.newPath])
+
+  // Apply search highlight when query changes and this card is the current match
+  useEffect(() => {
+    if (!searchHighlight?.query || !searchHighlight.isCurrentMatch) {
+      return
+    }
+
+    // Delay to ensure DOM is rendered after expand
+    const timeoutId = setTimeout(() => {
+      applyDiffSearchHighlight(diffContentRef.current, searchHighlight.query)
+    }, 100)
+
+    return () => {
+      clearTimeout(timeoutId)
+      clearDiffSearchHighlight()
+    }
+  }, [searchHighlight?.query, searchHighlight?.isCurrentMatch, isCollapsed])
 
   // tRPC mutations for file operations
   const openInFinderMutation = trpcClient.external.openInFinder.mutate
@@ -879,7 +917,12 @@ const FileDiffCard = memo(function FileDiffCard({
   return (
     <div
       ref={diffCardRef}
-      className="bg-background rounded-lg border border-border overflow-clip"
+      className={cn(
+        "bg-background rounded-lg border overflow-clip transition-colors duration-200",
+        searchHighlight?.isCurrentMatch
+          ? "border-primary ring-2 ring-primary/30"
+          : "border-border"
+      )}
       data-diff-file-path={file.newPath || file.oldPath}
     >
       {worktreePath ? (
@@ -1069,6 +1112,8 @@ export interface AgentDiffViewRef {
   getViewedCount: () => number
   markAllViewed: () => void
   markAllUnviewed: () => void
+  // Search
+  openSearch: () => void
 }
 
 export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
@@ -1258,6 +1303,9 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
     const focusedDiffFile = useAtomValue(agentsFocusedDiffFileAtom)
     const setFocusedDiffFile = useSetAtom(agentsFocusedDiffFileAtom)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+    // Search state
+    const searchState = useDiffSearchState()
 
     // Height for collapsed header (file name + stats)
     const COLLAPSED_HEIGHT = 44
@@ -1567,8 +1615,9 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
         getViewedCount,
         markAllViewed,
         markAllUnviewed,
+        openSearch: searchState.openSearch,
       }),
-      [expandAll, collapseAll, isAllCollapsed, isAllExpanded, getViewedCount, markAllViewed, markAllUnviewed],
+      [expandAll, collapseAll, isAllCollapsed, isAllExpanded, getViewedCount, markAllViewed, markAllUnviewed, searchState.openSearch],
     )
 
     // Notify parent when collapsed state changes
@@ -2204,6 +2253,36 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
           ref={scrollContainerRef}
           className="relative flex-1 overflow-auto p-2 select-text"
         >
+          {/* Search bar - sticky */}
+          <DiffSearchBar
+            isOpen={searchState.isSearchOpen}
+            onClose={searchState.closeSearch}
+            fileDiffs={deferredFileDiffs}
+            onScrollToFile={(fileIndex) => {
+              const container = scrollContainerRef.current
+              if (!container) return
+
+              // First, use virtualizer to ensure the element is rendered
+              virtualizer.scrollToIndex(fileIndex, { align: "start" })
+
+              // Then wait for React to render and use scrollIntoView for precision
+              setTimeout(() => {
+                const targetElement = container.querySelector(`[data-index="${fileIndex}"]`)
+                if (targetElement) {
+                  targetElement.scrollIntoView({ behavior: "auto", block: "start" })
+                }
+              }, 50)
+            }}
+            onExpandFile={(fileKey) => {
+              setCollapsedByFileKey((prev) => ({
+                ...prev,
+                [fileKey]: false,
+              }))
+            }}
+            onSearchStateChange={searchState.handleSearchStateChange}
+            className="sticky top-0 mx-1 mb-2 z-30"
+          />
+
           {/* Sticky cover to hide content scrolling above cards */}
           <div
             className="sticky top-0 left-0 right-0 h-0 z-20 pointer-events-none"
@@ -2276,6 +2355,14 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
                         onDeleteContextComment={handleDeleteContextComment}
                         onDeleteReviewComment={handleDeleteReviewComment}
                         showViewed={!!worktreePath}
+                        searchHighlight={
+                          searchState.searchState.query
+                            ? {
+                                query: searchState.searchState.query,
+                                isCurrentMatch: searchState.searchState.currentMatch?.fileKey === file.key,
+                              }
+                            : undefined
+                        }
                       />
                     </div>
                   </div>

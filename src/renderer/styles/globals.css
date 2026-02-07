@@ -175,6 +175,17 @@
   color: hsl(0 0% 5%);
 }
 
+/* CSS Custom Highlight API for diff search */
+::highlight(diff-search) {
+  background-color: rgb(250 204 21 / 0.35);
+  color: inherit;
+}
+
+::highlight(diff-search-current) {
+  background-color: rgb(250 204 21 / 0.85);
+  color: hsl(0 0% 5%);
+}
+
 /* Memory router - scroll-to-target highlight pulse */
 .router-highlight {
   animation: router-highlight-pulse 3s ease-out;
