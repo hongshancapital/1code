@@ -244,13 +244,14 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
     return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
   }
 
-  // During streaming, show lightweight placeholder to avoid repeated image loading
+  // During streaming, show lightweight inline placeholder to avoid repeated image loading
+  // Use <span> instead of <div> because markdown images are inside <p> tags
   if (isStreaming) {
     return (
-      <div className="flex items-center gap-2 my-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 w-fit">
-        <ImageIcon className="size-4 text-muted-foreground" />
+      <span className="inline-flex items-center gap-1.5 my-1 px-2 py-1 rounded bg-muted/50 border border-border/50 align-middle">
+        <ImageIcon className="size-3.5 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">{alt || "Image"}</span>
-      </div>
+      </span>
     )
   }
 

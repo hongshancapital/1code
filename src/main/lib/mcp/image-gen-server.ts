@@ -115,7 +115,7 @@ generate_image(prompt="A serene mountain landscape at sunset with a lake reflect
             .default(1)
             .describe("Number of images to generate"),
         },
-        async (args): Promise<{ content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> }> => {
+        async (args): Promise<{ content: Array<{ type: "text"; text: string }> }> => {
           const { prompt, size, quality, n } = args
 
           try {
@@ -164,7 +164,7 @@ generate_image(prompt="A serene mountain landscape at sunset with a lake reflect
             }
 
             const outputDir = ensureOutputDir(context.cwd)
-            const results: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
+            const results: Array<{ type: "text"; text: string }> = []
 
             for (let i = 0; i < images.length; i++) {
               const img = images[i]
@@ -172,23 +172,16 @@ generate_image(prompt="A serene mountain landscape at sunset with a lake reflect
               const filePath = path.join(outputDir, filename)
 
               if (img.b64_json) {
-                // Save base64 to file
+                // Save base64 to file (do NOT return base64 as content — it wastes context tokens)
                 const buffer = Buffer.from(img.b64_json, "base64")
                 fs.writeFileSync(filePath, buffer)
 
-                // Return image content for inline display
-                results.push({
-                  type: "image",
-                  data: img.b64_json,
-                  mimeType: "image/png",
-                })
-
                 results.push({
                   type: "text",
-                  text: `Image ${i + 1} saved to: ${filePath}\nTo display this image in your response, use markdown: ![${prompt.slice(0, 60)}](${filePath})${img.revised_prompt ? `\nRevised prompt: ${img.revised_prompt}` : ""}`,
+                  text: `Image ${i + 1} generated successfully and saved to: ${filePath}\nTo display this image in your response, use markdown: ![${prompt.slice(0, 60)}](${filePath})${img.revised_prompt ? `\nRevised prompt: ${img.revised_prompt}` : ""}`,
                 })
 
-                // Notify renderer about the new file (artifact tracking)
+                // Notify renderer about the new file (artifact tracking + UI image display)
                 BrowserWindow.getAllWindows().forEach((win) => {
                   win.webContents.send("file-changed", {
                     filePath,
@@ -246,7 +239,7 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
             .default("1024x1024")
             .describe("Output image dimensions"),
         },
-        async (args): Promise<{ content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> }> => {
+        async (args): Promise<{ content: Array<{ type: "text"; text: string }> }> => {
           const { prompt, image_path, size } = args
 
           // Validate source image exists
@@ -399,7 +392,7 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
             }
 
             const outputDir = ensureOutputDir(context.cwd)
-            const results: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = []
+            const results: Array<{ type: "text"; text: string }> = []
 
             for (let i = 0; i < images.length; i++) {
               const img = images[i]
@@ -409,12 +402,6 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
               if (img.b64_json) {
                 const buffer = Buffer.from(img.b64_json, "base64")
                 fs.writeFileSync(filePath, buffer)
-
-                results.push({
-                  type: "image",
-                  data: img.b64_json,
-                  mimeType: "image/png",
-                })
 
                 results.push({
                   type: "text",

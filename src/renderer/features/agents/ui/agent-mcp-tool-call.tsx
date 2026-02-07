@@ -96,9 +96,9 @@ function ServerIcon({ server }: { server: MCPServer | undefined }) {
 }
 
 /**
- * Extract image data from MCP tool output.
- * MCP image format: { type: "image", source: { type: "base64", media_type: "image/png", data: "..." } }
- * or: { type: "image", data: "...", mimeType: "image/png" }
+ * Extract image file paths from MCP tool output text.
+ * Looks for patterns like "saved to: /absolute/path/to/image.png" in text output items.
+ * Also supports legacy base64 image content for backward compatibility.
  */
 function extractOutputImages(part: any): Array<{ id: string; filename: string; url: string }> {
   if (part.state !== "output-available") return []
@@ -106,23 +106,34 @@ function extractOutputImages(part: any): Array<{ id: string; filename: string; u
   const output = part.output
   if (!output) return []
 
-  // Output can be an array or a single object
   const items = Array.isArray(output) ? output : [output]
   const images: Array<{ id: string; filename: string; url: string }> = []
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
+
+    // Extract file paths from text output (primary method — no base64 in context)
+    if (item?.type === "text" && typeof item.text === "string") {
+      const pathMatch = item.text.match(/saved to:\s*(\/[^\s\n]+\.(?:png|jpg|jpeg|gif|webp))/i)
+      if (pathMatch) {
+        const filePath = pathMatch[1]
+        const filename = filePath.split("/").pop() || "image.png"
+        images.push({
+          id: `${part.toolCallId}-img-${i}`,
+          filename,
+          url: `local-file://localhost${filePath}`,
+        })
+      }
+      continue
+    }
+
+    // Legacy: base64 image content (backward compatibility)
     if (item?.type !== "image") continue
 
     let dataUrl: string | null = null
-
-    // Format 1: { source: { type: "base64", media_type: "image/png", data: "..." } }
     if (item.source?.type === "base64" && item.source.data) {
-      const mediaType = item.source.media_type || "image/png"
-      dataUrl = `data:${mediaType};base64,${item.source.data}`
-    }
-    // Format 2: { data: "...", mimeType: "image/png" } (from our MCP server)
-    else if (item.data && item.mimeType) {
+      dataUrl = `data:${item.source.media_type || "image/png"};base64,${item.source.data}`
+    } else if (item.data && item.mimeType) {
       dataUrl = `data:${item.mimeType};base64,${item.data}`
     }
 
