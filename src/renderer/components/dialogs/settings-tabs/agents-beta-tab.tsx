@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import {
   autoOfflineModeAtom,
   betaAutomationsEnabledAtom,
+  betaBrowserEnabledAtom,
   betaMemoryEnabledAtom,
   betaUpdatesEnabledAtom,
   enableTasksAtom,
@@ -59,6 +60,7 @@ export function AgentsBetaTab() {
   const [betaUpdatesEnabled, setBetaUpdatesEnabled] = useAtom(betaUpdatesEnabledAtom)
   const [skillAwarenessEnabled, setSkillAwarenessEnabled] = useAtom(skillAwarenessEnabledAtom)
   const [betaMemoryEnabled, setBetaMemoryEnabled] = useAtom(betaMemoryEnabledAtom)
+  const [betaBrowserEnabled, setBetaBrowserEnabled] = useAtom(betaBrowserEnabledAtom)
 
   // Automations is dev-only feature
   const canEnableAutomations = isFeatureAvailable("automations")
@@ -227,6 +229,22 @@ export function AgentsBetaTab() {
           <Switch
             checked={betaMemoryEnabled}
             onCheckedChange={setBetaMemoryEnabled}
+          />
+        </div>
+
+        {/* Browser Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t('beta.browser.title')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('beta.browser.description')}
+            </span>
+          </div>
+          <Switch
+            checked={betaBrowserEnabled}
+            onCheckedChange={setBetaBrowserEnabled}
           />
         </div>
       </div>
