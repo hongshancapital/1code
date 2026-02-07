@@ -145,7 +145,9 @@ function CodeBlock({
 
 /**
  * Inline image component for markdown.
- * Supports file:// and data: protocol URLs.
+ * Supports local file paths and data: protocol URLs.
+ * Uses the local-file:// protocol registered in Electron main process
+ * (CSP allows local-file: for img-src).
  * Click to view fullscreen with context menu for copy/save.
  */
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
@@ -156,15 +158,21 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   // Only allow safe protocols
   const isSafe =
     src &&
-    (src.startsWith("file://") ||
+    (src.startsWith("local-file://") ||
+      src.startsWith("file://") ||
       src.startsWith("data:") ||
-      src.startsWith("/") ||
-      src.startsWith("atom://"))
+      src.startsWith("/"))
 
-  // Convert absolute paths to file:// URLs for Electron
+  // Convert paths to local-file:// protocol (CSP-allowed in this Electron app)
   const resolvedSrc = useMemo(() => {
     if (!src) return ""
-    if (src.startsWith("/") && !src.startsWith("//")) return `file://${src}`
+    // Absolute path → local-file://localhost/path
+    if (src.startsWith("/") && !src.startsWith("//")) return `local-file://localhost${src}`
+    // file:// → local-file://localhost/path
+    if (src.startsWith("file://")) {
+      const filePath = src.replace(/^file:\/\//, "")
+      return `local-file://localhost${filePath}`
+    }
     return src
   }, [src])
 
