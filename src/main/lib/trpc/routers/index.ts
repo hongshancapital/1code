@@ -28,6 +28,7 @@ import { automationsRouter } from "./automations"
 import { tagsRouter } from "./tags"
 import { insightsRouter } from "./insights"
 import { memoryRouter } from "./memory"
+import { browserRouter } from "./browser"
 import { BrowserWindow } from "electron"
 
 /**
@@ -71,6 +72,8 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     insights: insightsRouter,
     // Memory (session tracking, observations, search)
     memory: memoryRouter,
+    // Browser automation for AI agents
+    browser: browserRouter,
   })
 }
 

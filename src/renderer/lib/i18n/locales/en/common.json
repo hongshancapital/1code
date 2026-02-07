@@ -122,5 +122,73 @@
     "moving": "Processing...",
     "success": "Successfully converted to project",
     "error": "Failed to convert"
+  },
+  "browser": {
+    "history": {
+      "title": "Browse history",
+      "noHistory": "No browsing history",
+      "clearAll": "Clear all",
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "siteInfo": {
+      "title": "Site information",
+      "noSite": "No site",
+      "connectionSecure": "Connection is secure",
+      "connectionNotSecure": "Connection is not secure",
+      "noConnection": "No connection",
+      "viewCertificate": "View certificate",
+      "clearCache": "Clear cookies and cache"
+    },
+    "certificate": {
+      "title": "Certificate viewer: {{hostname}}",
+      "loading": "Loading certificate...",
+      "noCertificate": "No certificate available",
+      "fetchError": "Failed to get certificate",
+      "basicInfo": "General",
+      "details": "Details",
+      "subject": "Subject",
+      "issuer": "Issuer",
+      "validity": "Validity Period",
+      "commonName": "CN",
+      "organization": "O",
+      "organizationalUnit": "OU",
+      "validFrom": "Issued On",
+      "validTo": "Expires On",
+      "serialNumber": "Serial Number",
+      "fingerprint": "SHA-256 Fingerprint"
+    },
+    "toolbar": {
+      "back": "Go back",
+      "forward": "Go forward",
+      "reload": "Reload",
+      "stop": "Stop loading",
+      "openExternal": "Open in browser",
+      "screenshot": "Screenshot to chat",
+      "devTools": "DevTools",
+      "reactGrab": "Select element",
+      "reactGrabCancel": "Cancel element selection",
+      "terminal": "Terminal"
+    },
+    "devMode": {
+      "label": "Developer Mode",
+      "description": "Enable developer tools"
+    },
+    "console": {
+      "title": "Console",
+      "close": "Close console",
+      "clear": "Clear console",
+      "copy": "Copy logs",
+      "empty": "Console is empty"
+    },
+    "device": {
+      "title": "Device Emulation",
+      "responsive": "Responsive",
+      "mobile": "Mobile",
+      "tablet": "Tablet",
+      "desktop": "Desktop"
+    }
   }
 }

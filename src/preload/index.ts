@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld("desktopApi", {
   showNotification: (options: { title: string; body: string }) =>
     ipcRenderer.invoke("app:show-notification", options),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+  openInternalBrowser: (url: string) => ipcRenderer.send("browser:open-url", url),
   selectAudioFile: (): Promise<string | null> => ipcRenderer.invoke("dialog:select-audio-file"),
   saveFile: (options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] }) =>
     ipcRenderer.invoke("dialog:save-file", options) as Promise<{ success: boolean; filePath?: string }>,
@@ -275,12 +276,50 @@ contextBridge.exposeInMainWorld("desktopApi", {
   // VS Code theme scanning
   scanVSCodeThemes: () => ipcRenderer.invoke("vscode:scan-themes"),
   loadVSCodeTheme: (themePath: string) => ipcRenderer.invoke("vscode:load-theme", themePath),
+
+  // Browser automation (for AI agent browser control)
+  browserReady: (ready: boolean) => ipcRenderer.send("browser:ready", ready),
+  browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) =>
+    ipcRenderer.send("browser:result", { id, result }),
+  browserUrlChanged: (url: string) => ipcRenderer.send("browser:url-changed", url),
+  browserCursorPosition: (x: number, y: number) =>
+    ipcRenderer.send("browser:cursor-position", { x, y }),
+  browserGetCertificate: (url: string) => ipcRenderer.invoke("browser:get-certificate", url) as Promise<CertificateInfo | null>,
+  browserSetDeviceEmulation: (params: DeviceEmulationParams | null) =>
+    ipcRenderer.invoke("browser:set-device-emulation", params),
+  onBrowserExecute: (callback: (operation: { id: string; type: string; params: Record<string, unknown> }) => void) => {
+    const handler = (_event: unknown, operation: { id: string; type: string; params: Record<string, unknown> }) => callback(operation)
+    ipcRenderer.on("browser:execute", handler)
+    return () => ipcRenderer.removeListener("browser:execute", handler)
+  },
+  onBrowserNavigate: (callback: (url: string) => void) => {
+    const handler = (_event: unknown, url: string) => callback(url)
+    ipcRenderer.on("browser:navigate", handler)
+    return () => ipcRenderer.removeListener("browser:navigate", handler)
+  },
 })
 
 // Type definitions
 export interface UpdateInfo {
   version: string
   releaseDate?: string
+}
+
+export interface CertificateInfo {
+  subject: {
+    commonName: string
+    organization?: string
+    organizationalUnit?: string
+  }
+  issuer: {
+    commonName: string
+    organization?: string
+    organizationalUnit?: string
+  }
+  validFrom: string
+  validTo: string
+  fingerprint: string
+  serialNumber: string
 }
 
 export interface UpdateProgress {
@@ -291,6 +330,26 @@ export interface UpdateProgress {
 }
 
 export type EditorSource = "vscode" | "vscode-insiders" | "cursor" | "windsurf"
+
+/** Device emulation parameters for browser webview */
+export interface DeviceEmulationParams {
+  /** Screen width in CSS pixels */
+  screenWidth: number
+  /** Screen height in CSS pixels */
+  screenHeight: number
+  /** Viewport width in CSS pixels */
+  viewWidth: number
+  /** Viewport height in CSS pixels */
+  viewHeight: number
+  /** Device scale factor (DPR) */
+  deviceScaleFactor: number
+  /** Whether to emulate mobile device */
+  isMobile: boolean
+  /** Whether device supports touch events */
+  hasTouch: boolean
+  /** User agent string to use */
+  userAgent: string
+}
 
 export interface DiscoveredTheme {
   id: string
@@ -358,6 +417,7 @@ export interface DesktopApi {
   setBadgeIcon: (imageData: string | null) => Promise<void>
   showNotification: (options: { title: string; body: string }) => Promise<void>
   openExternal: (url: string) => Promise<void>
+  openInternalBrowser: (url: string) => void
   getApiBaseUrl: () => Promise<string>
   clipboardWrite: (text: string) => Promise<void>
   clipboardRead: () => Promise<string>
@@ -427,6 +487,15 @@ export interface DesktopApi {
   saveFile: (options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ success: boolean; filePath?: string }>
   // Memory router: deep link navigation
   onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => () => void
+  // Browser automation
+  browserReady: (ready: boolean) => void
+  browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) => void
+  browserUrlChanged: (url: string) => void
+  browserCursorPosition: (x: number, y: number) => void
+  browserGetCertificate: (url: string) => Promise<CertificateInfo | null>
+  browserSetDeviceEmulation: (params: DeviceEmulationParams | null) => Promise<void>
+  onBrowserExecute: (callback: (operation: { id: string; type: string; params: Record<string, unknown> }) => void) => () => void
+  onBrowserNavigate: (callback: (url: string) => void) => () => void
 }
 
 // Expose embedded flag for renderer process

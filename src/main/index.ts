@@ -45,7 +45,7 @@ import {
   getAllWindows,
 } from "./windows/main"
 import { windowManager } from "./windows/window-manager"
-
+import { BROWSER_USER_AGENT } from "./lib/constants"
 import { IS_DEV } from "./constants"
 
 // Deep link protocol (must match package.json build.protocols.schemes)
@@ -393,6 +393,11 @@ if (gotTheLock) {
     // Register protocol handler (must be after app is ready)
     initialRegistration = registerProtocol()
 
+    // Configure browser webview session with proper User-Agent
+    // This prevents sites like Google from blocking the embedded browser
+    const browserSes = session.fromPartition("persist:browser")
+    browserSes.setUserAgent(BROWSER_USER_AGENT)
+
     // Register local-file protocol for secure file access from renderer
     // IMPORTANT: Must register to the specific session used by BrowserWindow (persist:main)
     const ses = session.fromPartition("persist:main")
@@ -547,6 +552,22 @@ if (gotTheLock) {
       }
     })
     console.log("[local-file] Protocol handler registered with Range request support")
+
+    // Handle webview new-window events - convert popups to same-page navigation
+    // This intercepts target="_blank" links and window.open() calls in webviews
+    app.on("web-contents-created", (_event, contents) => {
+      // Only handle webview contents (type is "webview")
+      if (contents.getType() === "webview") {
+        contents.setWindowOpenHandler(({ url }) => {
+          // Navigate in the same webview instead of opening new window
+          // loadURL adds to history stack, allowing back/forward navigation
+          if (url) {
+            contents.loadURL(url)
+          }
+          return { action: "deny" }
+        })
+      }
+    })
 
     // Handle deep link on macOS (app already running)
     app.on("open-url", (event, url) => {
