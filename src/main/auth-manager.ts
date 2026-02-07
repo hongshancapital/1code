@@ -1,6 +1,7 @@
 import { AuthStore, AuthData, AuthUser, AuthProviderType } from "./auth-store"
 import { app, BrowserWindow } from "electron"
 import { getEnv, getApiOrigin } from "./lib/env"
+import { BROWSER_USER_AGENT } from "./lib/constants"
 import {
   PkceState,
   getCurrentProvider,
@@ -59,7 +60,7 @@ async function fetchApi<T = unknown>(
     Accept: "application/json, text/plain, */*",
     Origin: origin,
     Referer: `${origin}/`,
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "User-Agent": BROWSER_USER_AGENT,
     "sec-fetch-dest": "empty",
     "sec-fetch-mode": "cors",
     "sec-fetch-site": "same-site",
