@@ -30,6 +30,7 @@ import {
   PluginFilledIcon,
   SkillIconFilled,
   TerminalFilledIcon,
+  ToolsIconFilled,
 } from "../../components/ui/icons"
 import { Play, Brain, BrainCircuit } from "lucide-react"
 import { desktopViewAtom } from "../agents/atoms"
@@ -70,6 +71,13 @@ const EXTENSION_TAB_DEFS: TabDefinition[] = [
   { id: "agents", labelKey: "sidebar.customAgents", icon: CustomAgentIconFilled },
   { id: "plugins", labelKey: "sidebar.plugins", icon: PluginFilledIcon },
 ]
+
+// Tools tab (dev only)
+const TOOLS_TAB_DEF: TabDefinition = {
+  id: "tools" as SettingsTab,
+  labelKey: "sidebar.tools",
+  icon: ToolsIconFilled,
+}
 
 // Advanced/experimental tabs
 const ADVANCED_TAB_DEFS: TabDefinition[] = [
@@ -147,7 +155,16 @@ export function SettingsSidebar() {
   // Show debug tab if in development OR if devtools are unlocked
   const showDebugTab = isDevelopment || devToolsUnlocked
 
+  // Show tools tab only in development mode
+  const showToolsTab = isDevelopment
+
   const betaMemoryEnabled = useAtomValue(betaMemoryEnabledAtom)
+
+  // Extension tabs with conditional tools tab
+  const extensionTabs = useMemo(() => {
+    if (showToolsTab) return [...EXTENSION_TAB_DEFS, TOOLS_TAB_DEF]
+    return EXTENSION_TAB_DEFS
+  }, [showToolsTab])
 
   const advancedTabs = useMemo(() => {
     const tabs = betaMemoryEnabled
@@ -229,7 +246,7 @@ export function SettingsSidebar() {
 
         {/* Extension Tabs */}
         <div className="flex flex-col gap-1">
-          {EXTENSION_TAB_DEFS.map((tab) => (
+          {extensionTabs.map((tab) => (
             <TabButton
               key={tab.id}
               tab={tab}
