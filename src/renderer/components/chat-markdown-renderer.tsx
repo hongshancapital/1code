@@ -1,10 +1,10 @@
 import { cn } from "../lib/utils"
-import { memo, useState, useCallback, useEffect, useMemo, createContext, useContext } from "react"
+import { memo, useState, useCallback, useEffect, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { Streamdown, parseMarkdownIntoBlocks } from "streamdown"
 import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
-import { Copy, Check, X, Download, ImageIcon } from "lucide-react"
+import { Copy, Check, X, Download } from "lucide-react"
 import { useCodeTheme } from "../lib/hooks/use-code-theme"
 import { highlightCode } from "../lib/themes/shiki-theme-loader"
 import { MermaidBlock } from "./mermaid-block"
@@ -14,9 +14,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "./ui/context-menu"
-
-// Context for streaming state — allows MarkdownImage to defer loading during streaming
-const MarkdownStreamingContext = createContext(false)
 
 // Function to strip emojis from text (only common emojis, preserving markdown symbols)
 export function stripEmojis(text: string): string {
@@ -146,164 +143,166 @@ function CodeBlock({
   )
 }
 
+// Module-level cache: track image load status so remounts don't re-trigger loads
+const imageStatusCache = new Map<string, "loaded" | "error">()
+
 /**
- * Inline image component for markdown.
- * Supports local file paths and data: protocol URLs.
- * Uses the local-file:// protocol registered in Electron main process
- * (CSP allows local-file: for img-src).
- * Click to view fullscreen with context menu for copy/save.
+ * Resolve src to local-file:// protocol. Pure function, no hooks.
  */
-function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
-  const isStreaming = useContext(MarkdownStreamingContext)
-  const [hasError, setHasError] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+function resolveImageSrc(src: string): string {
+  if (src.startsWith("/") && !src.startsWith("//")) return `local-file://localhost${src}`
+  if (src.startsWith("file://")) return `local-file://localhost${src.replace(/^file:\/\//, "")}`
+  return src
+}
+
+/**
+ * Check if src is a safe protocol for rendering.
+ */
+function isImageSrcSafe(src: string): boolean {
+  return (
+    src.startsWith("local-file://") ||
+    src.startsWith("file://") ||
+    src.startsWith("data:") ||
+    src.startsWith("/")
+  )
+}
+
+/**
+ * Fullscreen image viewer with context menu. Lazy-mounted only on click.
+ */
+function ImageFullscreenViewer({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
-
-  // Only allow safe protocols
-  const isSafe =
-    src &&
-    (src.startsWith("local-file://") ||
-      src.startsWith("file://") ||
-      src.startsWith("data:") ||
-      src.startsWith("/"))
-
-  // Convert paths to local-file:// protocol (CSP-allowed in this Electron app)
-  const resolvedSrc = useMemo(() => {
-    if (!src) return ""
-    // Absolute path → local-file://localhost/path
-    if (src.startsWith("/") && !src.startsWith("//")) return `local-file://localhost${src}`
-    // file:// → local-file://localhost/path
-    if (src.startsWith("file://")) {
-      const filePath = src.replace(/^file:\/\//, "")
-      return `local-file://localhost${filePath}`
-    }
-    return src
-  }, [src])
 
   const handleCopyImage = useCallback(async () => {
     try {
-      if (!resolvedSrc) return
       const img = new Image()
       img.crossOrigin = "anonymous"
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve()
         img.onerror = reject
-        img.src = resolvedSrc
+        img.src = src
       })
       const canvas = document.createElement("canvas")
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")
-      ctx?.drawImage(img, 0, 0)
+      canvas.getContext("2d")?.drawImage(img, 0, 0)
       const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("Failed to create blob"))),
-          "image/png",
-        )
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("blob failed"))), "image/png")
       })
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": blob }),
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
     } catch (err) {
-      console.error("[MarkdownImage] Failed to copy image:", err)
+      console.error("[MarkdownImage] Copy failed:", err)
     }
-  }, [resolvedSrc])
+  }, [src])
 
   const handleSaveImage = useCallback(async () => {
     try {
-      if (!resolvedSrc) return
       const img = new Image()
       img.crossOrigin = "anonymous"
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve()
         img.onerror = reject
-        img.src = resolvedSrc
+        img.src = src
       })
       const canvas = document.createElement("canvas")
       canvas.width = img.naturalWidth
       canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")
-      ctx?.drawImage(img, 0, 0)
-      const dataUrl = canvas.toDataURL("image/png")
-      const base64Data = dataUrl.split(",")[1] || ""
-      const filename = alt || "image.png"
+      canvas.getContext("2d")?.drawImage(img, 0, 0)
+      const base64Data = canvas.toDataURL("image/png").split(",")[1] || ""
       await window.desktopApi?.saveFile({
         base64Data,
-        filename,
+        filename: alt || "image.png",
         filters: [
           { name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] },
           { name: "All Files", extensions: ["*"] },
         ],
       })
     } catch (err) {
-      console.error("[MarkdownImage] Failed to save image:", err)
+      console.error("[MarkdownImage] Save failed:", err)
     }
-  }, [resolvedSrc, alt])
+  }, [src, alt])
 
-  if (!isSafe || hasError) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose() }
+    }
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      onClick={() => { if (!isContextMenuOpen) onClose() }}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white z-10"
+        type="button"
+      >
+        <X className="size-6" />
+      </button>
+      <ContextMenu onOpenChange={setIsContextMenuOpen}>
+        <ContextMenuTrigger asChild>
+          <img src={src} alt={alt} className="max-w-[90vw] max-h-[85vh] object-contain" onClick={(e) => e.stopPropagation()} />
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={handleCopyImage}>
+            <Copy className="size-4 mr-2" />
+            Copy Image
+          </ContextMenuItem>
+          <ContextMenuItem onClick={handleSaveImage}>
+            <Download className="size-4 mr-2" />
+            Save Image
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </div>,
+    document.body,
+  )
+}
+
+/**
+ * Inline image component for markdown.
+ * Designed to be cheap to mount/unmount during streaming:
+ * - Uses module-level cache so remounts skip re-loading
+ * - Fullscreen viewer is lazy (only mounted on click)
+ * - Minimal hooks, no heavy state during streaming
+ */
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  if (!src || !isImageSrcSafe(src)) {
     return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
   }
 
-  // During streaming, show lightweight inline placeholder to avoid repeated image loading
-  // Use <span> instead of <div> because markdown images are inside <p> tags
-  if (isStreaming) {
-    return (
-      <span className="inline-flex items-center gap-1.5 my-1 px-2 py-1 rounded bg-muted/50 border border-border/50 align-middle">
-        <ImageIcon className="size-3.5 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">{alt || "Image"}</span>
-      </span>
-    )
+  const resolved = resolveImageSrc(src)
+  const cached = imageStatusCache.get(resolved)
+
+  // If previously failed, show alt text
+  if (cached === "error") {
+    return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
   }
 
   return (
     <>
       <img
-        src={resolvedSrc}
+        src={resolved}
         alt={alt || ""}
         className="max-w-full max-h-96 rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
-        onError={() => setHasError(true)}
+        onLoad={() => { imageStatusCache.set(resolved, "loaded") }}
+        onError={() => { imageStatusCache.set(resolved, "error") }}
         onClick={() => setIsFullscreen(true)}
       />
-      {isFullscreen &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
-            onClick={() => {
-              if (!isContextMenuOpen) setIsFullscreen(false)
-            }}
-          >
-            <button
-              onClick={() => setIsFullscreen(false)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors text-white z-10"
-              type="button"
-            >
-              <X className="size-6" />
-            </button>
-            <ContextMenu onOpenChange={setIsContextMenuOpen}>
-              <ContextMenuTrigger asChild>
-                <img
-                  src={resolvedSrc}
-                  alt={alt || ""}
-                  className="max-w-[90vw] max-h-[85vh] object-contain"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem onClick={handleCopyImage}>
-                  <Copy className="size-4 mr-2" />
-                  Copy Image
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleSaveImage}>
-                  <Download className="size-4 mr-2" />
-                  Save Image
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          </div>,
-          document.body,
-        )}
+      {isFullscreen && (
+        <ImageFullscreenViewer
+          src={resolved}
+          alt={alt || ""}
+          onClose={() => setIsFullscreen(false)}
+        />
+      )}
     </>
   )
 }
@@ -596,44 +595,42 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
   )
 
   return (
-    <MarkdownStreamingContext.Provider value={isStreaming}>
-      <div
-        className={cn(
-          "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
-          // Reset prose margins - we use our own compact Notion-like spacing
-          "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
-          "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
-          // Reset prose hr margins - we use our own
-          "prose-hr:my-0",
-          // Reset prose table margins - we use our own wrapper with margins
-          "prose-table:my-0",
-          // Fix for p inside li - make it inline so numbered list items don't break
-          "[&_li>p]:inline [&_li>p]:mb-0",
-          // Prevent horizontal overflow on mobile
-          "overflow-hidden wrap-break-word",
-          // Global spacing: elements before hr get extra bottom margin (for spacing above divider)
-          "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
-          // Global spacing: elements after hr get extra top margin
-          "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
-          // Global spacing: elements after code blocks get extra top margin
-          "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
-          // Global spacing: elements after tables get extra top margin
-          "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
-          className,
-        )}
+    <div
+      className={cn(
+        "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
+        // Reset prose margins - we use our own compact Notion-like spacing
+        "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
+        "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
+        // Reset prose hr margins - we use our own
+        "prose-hr:my-0",
+        // Reset prose table margins - we use our own wrapper with margins
+        "prose-table:my-0",
+        // Fix for p inside li - make it inline so numbered list items don't break
+        "[&_li>p]:inline [&_li>p]:mb-0",
+        // Prevent horizontal overflow on mobile
+        "overflow-hidden wrap-break-word",
+        // Global spacing: elements before hr get extra bottom margin (for spacing above divider)
+        "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
+        // Global spacing: elements after hr get extra top margin
+        "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
+        // Global spacing: elements after code blocks get extra top margin
+        "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
+        // Global spacing: elements after tables get extra top margin
+        "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
+        className,
+      )}
+    >
+      <Streamdown
+        mode="streaming"
+        components={components}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        isAnimating={isStreaming}
+        parseIncompleteMarkdown={isStreaming}
+        controls={false}
       >
-        <Streamdown
-          mode="streaming"
-          components={components}
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-          isAnimating={isStreaming}
-          parseIncompleteMarkdown={isStreaming}
-          controls={false}
-        >
-          {processedContent}
-        </Streamdown>
-      </div>
-    </MarkdownStreamingContext.Provider>
+        {processedContent}
+      </Streamdown>
+    </div>
   )
 })
 
@@ -883,7 +880,6 @@ const MemoizedMarkdownBlock = memo(
     return (
       prevProps.content === nextProps.content &&
       prevProps.size === nextProps.size &&
-      prevProps.className === nextProps.className &&
       prevProps.codeTheme === nextProps.codeTheme
     )
   },
@@ -919,34 +915,31 @@ export const MemoizedMarkdown = memo(
     )
 
     return (
-      <MarkdownStreamingContext.Provider value={isStreaming}>
-        <div
-          className={cn(
-            "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
-            "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
-            "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
-            "prose-hr:my-0",
-            "prose-table:my-0",
-            "[&_li>p]:inline [&_li>p]:mb-0",
-            "overflow-hidden wrap-break-word",
-            "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
-            "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
-            "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
-            "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
-            className,
-          )}
-        >
-          {blocks.map((block) => (
-            <MemoizedMarkdownBlock
-              key={`${id}-${block.key}`}
-              content={block.content}
-              size={size}
-              className={className}
-              codeTheme={codeTheme}
-            />
-          ))}
-        </div>
-      </MarkdownStreamingContext.Provider>
+      <div
+        className={cn(
+          "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
+          "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
+          "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
+          "prose-hr:my-0",
+          "prose-table:my-0",
+          "[&_li>p]:inline [&_li>p]:mb-0",
+          "overflow-hidden wrap-break-word",
+          "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
+          "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
+          "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
+          "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
+          className,
+        )}
+      >
+        {blocks.map((block) => (
+          <MemoizedMarkdownBlock
+            key={`${id}-${block.key}`}
+            content={block.content}
+            size={size}
+            codeTheme={codeTheme}
+          />
+        ))}
+      </div>
     )
   },
 )
