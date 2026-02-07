@@ -287,6 +287,7 @@ contextBridge.exposeInMainWorld("desktopApi", {
   browserGetCertificate: (url: string) => ipcRenderer.invoke("browser:get-certificate", url) as Promise<CertificateInfo | null>,
   browserSetDeviceEmulation: (params: DeviceEmulationParams | null) =>
     ipcRenderer.invoke("browser:set-device-emulation", params),
+  browserClearCache: () => ipcRenderer.invoke("browser:clear-cache") as Promise<boolean>,
   onBrowserExecute: (callback: (operation: { id: string; type: string; params: Record<string, unknown> }) => void) => {
     const handler = (_event: unknown, operation: { id: string; type: string; params: Record<string, unknown> }) => callback(operation)
     ipcRenderer.on("browser:execute", handler)
@@ -494,6 +495,7 @@ export interface DesktopApi {
   browserCursorPosition: (x: number, y: number) => void
   browserGetCertificate: (url: string) => Promise<CertificateInfo | null>
   browserSetDeviceEmulation: (params: DeviceEmulationParams | null) => Promise<void>
+  browserClearCache: () => Promise<boolean>
   onBrowserExecute: (callback: (operation: { id: string; type: string; params: Record<string, unknown> }) => void) => () => void
   onBrowserNavigate: (callback: (url: string) => void) => () => void
 }

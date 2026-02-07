@@ -167,32 +167,15 @@ export function BrowserToolbar({
     setSelectedAutocompleteIndex(-1)
   }, [isFocused, autocompleteSuggestions.length])
 
-  // Normalize URL for comparison (remove trailing slash, lowercase hostname)
-  const normalizeUrl = useCallback((urlStr: string): string => {
-    try {
-      const u = new URL(urlStr)
-      // Normalize: lowercase host, remove default ports, remove trailing slash
-      let normalized = `${u.protocol}//${u.host.toLowerCase()}${u.pathname}`
-      if (normalized.endsWith("/") && normalized !== `${u.protocol}//${u.host.toLowerCase()}/`) {
-        normalized = normalized.slice(0, -1)
-      }
-      // Keep search params and hash
-      normalized += u.search + u.hash
-      return normalized
-    } catch {
-      return urlStr.toLowerCase()
-    }
-  }, [])
-
   // Add to project history (deduplicates by normalized URL, updates timestamp)
   const addToProjectHistory = useCallback((entry: Omit<BrowserHistoryEntry, "visitedAt">) => {
     if (!entry.url || entry.url === "about:blank") return
 
-    const normalizedNewUrl = normalizeUrl(entry.url)
+    const normalizedNewUrl = normalizeUrlForHistory(entry.url)
 
     setHistory(prev => {
       // Find existing entry with same normalized URL
-      const existingIndex = prev.findIndex(h => normalizeUrl(h.url) === normalizedNewUrl)
+      const existingIndex = prev.findIndex(h => normalizeUrlForHistory(h.url) === normalizedNewUrl)
 
       if (existingIndex >= 0) {
         // Update existing entry: keep better title/favicon, update timestamp, move to top
@@ -214,7 +197,7 @@ export function BrowserToolbar({
       ].slice(0, 50) // Limit to 50 entries
       return newHistory
     })
-  }, [setHistory, normalizeUrl])
+  }, [setHistory])
 
   const handleKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
     // Handle autocomplete navigation
@@ -321,10 +304,6 @@ export function BrowserToolbar({
     if (hours < 24) return t("browser.history.hoursAgo", { count: hours })
     return t("browser.history.daysAgo", { count: days })
   }
-
-  // Expose addToProjectHistory for parent component
-  // This is called when navigation completes
-  ;(BrowserToolbar as any).addToProjectHistory = addToProjectHistory
 
   return (
     <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/30">

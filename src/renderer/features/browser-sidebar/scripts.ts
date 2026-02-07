@@ -404,6 +404,57 @@ export function getWebviewScript(): string {
     return { success: true };
   };
 
+  // Drag element to another element
+  window.__browserDrag = function(options) {
+    const { fromRef, fromSelector, toRef, toSelector } = options;
+
+    const fromEl = fromRef ? refMap.get(fromRef) : (fromSelector ? document.querySelector(fromSelector) : null);
+    const toEl = toRef ? refMap.get(toRef) : (toSelector ? document.querySelector(toSelector) : null);
+
+    if (!fromEl) return { success: false, error: 'Source element not found' };
+    if (!toEl) return { success: false, error: 'Target element not found' };
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+
+    const fromX = fromRect.x + fromRect.width / 2;
+    const fromY = fromRect.y + fromRect.height / 2;
+    const toX = toRect.x + toRect.width / 2;
+    const toY = toRect.y + toRect.height / 2;
+
+    // Simulate drag and drop sequence
+    fromEl.dispatchEvent(new MouseEvent('mousedown', { clientX: fromX, clientY: fromY, bubbles: true }));
+    fromEl.dispatchEvent(new DragEvent('dragstart', { clientX: fromX, clientY: fromY, bubbles: true }));
+    toEl.dispatchEvent(new DragEvent('dragenter', { clientX: toX, clientY: toY, bubbles: true }));
+    toEl.dispatchEvent(new DragEvent('dragover', { clientX: toX, clientY: toY, bubbles: true }));
+    toEl.dispatchEvent(new DragEvent('drop', { clientX: toX, clientY: toY, bubbles: true }));
+    fromEl.dispatchEvent(new DragEvent('dragend', { clientX: toX, clientY: toY, bubbles: true }));
+
+    return { success: true };
+  };
+
+  // Download image from element
+  window.__browserDownloadImage = function(ref, selector) {
+    const el = ref ? refMap.get(ref) : (selector ? document.querySelector(selector) : null);
+    if (!el) return { success: false, error: 'Element not found' };
+
+    // Get image source
+    let src = '';
+    if (el.tagName === 'IMG') {
+      src = el.src || el.getAttribute('src') || '';
+    } else {
+      // Try background-image
+      const bg = window.getComputedStyle(el).backgroundImage;
+      if (bg && bg !== 'none') {
+        src = bg.replace(/^url\\(['"]?/, '').replace(/['"]?\\)$/, '');
+      }
+    }
+
+    if (!src) return { success: false, error: 'No image source found' };
+
+    return { success: true, data: { src } };
+  };
+
   // Get text content
   window.__browserGetText = function(ref) {
     const el = refMap.get(ref);

@@ -101,6 +101,11 @@ export class BrowserManager extends EventEmitter {
     ipcMain.handle("browser:set-device-emulation", async (_, params: DeviceEmulationParams | null): Promise<void> => {
       await this.setDeviceEmulation(params)
     })
+
+    // Clear browser cache and storage data
+    ipcMain.handle("browser:clear-cache", async (): Promise<boolean> => {
+      return this.clearCache()
+    })
   }
 
   /**
@@ -153,6 +158,21 @@ export class BrowserManager extends EventEmitter {
       // Set user agent
       browserWebview.setUserAgent(params.userAgent)
       this.emit("deviceEmulationChanged", params)
+    }
+  }
+
+  /**
+   * Clear browser cache and storage data for the persist:browser partition
+   */
+  async clearCache(): Promise<boolean> {
+    try {
+      const browserSession = session.fromPartition("persist:browser")
+      await browserSession.clearCache()
+      await browserSession.clearStorageData()
+      return true
+    } catch (error) {
+      console.error("[BrowserManager] Failed to clear cache:", error)
+      return false
     }
   }
 
@@ -330,7 +350,7 @@ export class BrowserManager extends EventEmitter {
       case "fill":
         return `Filling ${params.ref || params.selector || "input"}`
       case "type":
-        return `Typing text`
+        return "Typing text"
       case "screenshot":
         return "Taking screenshot"
       case "snapshot":
@@ -341,6 +361,22 @@ export class BrowserManager extends EventEmitter {
         return `Pressing ${params.key}`
       case "wait":
         return "Waiting for element"
+      case "hover":
+        return `Hovering ${params.ref || params.selector || "element"}`
+      case "drag":
+        return "Dragging element"
+      case "select":
+        return `Selecting ${params.value}`
+      case "check":
+        return `${params.checked ? "Checking" : "Unchecking"} ${params.ref || "element"}`
+      case "evaluate":
+        return "Executing script"
+      case "emulate":
+        return "Applying emulation"
+      case "downloadImage":
+        return "Downloading image"
+      case "downloadFile":
+        return "Downloading file"
       default:
         return type
     }

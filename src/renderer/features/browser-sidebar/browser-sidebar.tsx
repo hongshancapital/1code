@@ -260,15 +260,33 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
         case "press": {
           const key = params.key as string
-          // Send key event to webview
-          webview.sendInputEvent({
-            type: "keyDown",
-            keyCode: key,
-          })
-          webview.sendInputEvent({
-            type: "keyUp",
-            keyCode: key,
-          })
+          // Parse modifier+key combinations (e.g., "Control+A", "Shift+Tab")
+          const parts = key.split("+")
+          const mainKey = parts.pop() || key
+          const modifiers = parts.map(m => m.toLowerCase())
+
+          const inputModifiers = {
+            shift: modifiers.includes("shift"),
+            control: modifiers.includes("control") || modifiers.includes("ctrl"),
+            alt: modifiers.includes("alt"),
+            meta: modifiers.includes("meta") || modifiers.includes("cmd") || modifiers.includes("command"),
+          }
+
+          // Send modifier key downs first
+          for (const mod of modifiers) {
+            const modKey = mod === "ctrl" ? "Control" : mod === "cmd" || mod === "command" ? "Meta" : mod.charAt(0).toUpperCase() + mod.slice(1)
+            webview.sendInputEvent({ type: "keyDown", keyCode: modKey, ...inputModifiers })
+          }
+
+          webview.sendInputEvent({ type: "keyDown", keyCode: mainKey, ...inputModifiers })
+          webview.sendInputEvent({ type: "keyUp", keyCode: mainKey, ...inputModifiers })
+
+          // Release modifiers in reverse
+          for (const mod of [...modifiers].reverse()) {
+            const modKey = mod === "ctrl" ? "Control" : mod === "cmd" || mod === "command" ? "Meta" : mod.charAt(0).toUpperCase() + mod.slice(1)
+            webview.sendInputEvent({ type: "keyUp", keyCode: modKey })
+          }
+
           return { success: true }
         }
 
@@ -309,6 +327,73 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             return result
           }
           return { success: false, error: "No ref provided" }
+        }
+
+        case "drag": {
+          const result = await webview.executeJavaScript(
+            `window.__browserDrag(${JSON.stringify({
+              fromRef: params.fromRef,
+              fromSelector: params.fromSelector,
+              toRef: params.toRef,
+              toSelector: params.toSelector,
+            })})`
+          )
+          return result
+        }
+
+        case "downloadImage": {
+          const imgRef = params.ref as string | undefined
+          const imgSelector = params.selector as string | undefined
+          // Get image source URL from webview
+          const imgResult = await webview.executeJavaScript(
+            `window.__browserDownloadImage(${imgRef ? `"${imgRef}"` : "null"}, ${imgSelector ? `"${imgSelector}"` : "null"})`
+          )
+          if (!imgResult.success) return imgResult
+          // Download via main process
+          const imgSrc = imgResult.data?.src
+          if (!imgSrc) return { success: false, error: "No image source found" }
+          return { success: true, data: { src: imgSrc, filePath: params.filePath } }
+        }
+
+        case "downloadFile": {
+          const fileUrl = params.url as string
+          const fileRef = params.ref as string | undefined
+          let downloadUrl = fileUrl
+          if (!downloadUrl && fileRef) {
+            // Get href from link element
+            const href = await webview.executeJavaScript(
+              `(function() { const el = window.__browserRefMap.get("${fileRef}"); return el ? (el.href || el.getAttribute("href")) : null; })()`
+            )
+            if (href) downloadUrl = href
+          }
+          if (!downloadUrl) return { success: false, error: "No URL to download" }
+          return { success: true, data: { url: downloadUrl, filePath: params.filePath } }
+        }
+
+        case "emulate": {
+          // Device emulation is handled via the device preset system
+          // The MCP tool can set viewport, userAgent, colorScheme, geolocation
+          const viewport = params.viewport as { width: number; height: number; isMobile?: boolean; hasTouch?: boolean; deviceScaleFactor?: number } | undefined
+          if (viewport) {
+            await window.desktopApi.browserSetDeviceEmulation({
+              screenWidth: viewport.width,
+              screenHeight: viewport.height,
+              viewWidth: viewport.width,
+              viewHeight: viewport.height,
+              deviceScaleFactor: viewport.deviceScaleFactor || 1,
+              isMobile: viewport.isMobile || false,
+              hasTouch: viewport.hasTouch || false,
+              userAgent: (params.userAgent as string) || "",
+            })
+          }
+          // Color scheme emulation via CSS media
+          const colorScheme = params.colorScheme as string | undefined
+          if (colorScheme && colorScheme !== "auto") {
+            await webview.executeJavaScript(
+              `document.documentElement.style.colorScheme = "${colorScheme}"`
+            )
+          }
+          return { success: true }
         }
 
         case "evaluate": {
@@ -713,24 +798,18 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     }
   }, [webviewReady, onScreenshot])
 
-  // Clear browser cache and cookies
+  // Clear browser cache and cookies via main process IPC
   const handleClearCache = useCallback(async () => {
-    const webview = webviewRef.current
-    if (!webview) return
-
     try {
-      // Clear storage data for the webview's session
-      const session = (webview as any).getWebContentsId
-        ? await (window as any).electron?.session?.fromPartition("persist:browser")
-        : null
-
-      if (session) {
-        await session.clearCache()
-        await session.clearStorageData()
+      const success = await window.desktopApi.browserClearCache()
+      if (!success) {
+        console.error("Failed to clear cache: main process returned false")
+        return
       }
 
       // Reload to apply changes
-      if (webviewReady && typeof webview.reload === "function") {
+      const webview = webviewRef.current
+      if (webview && webviewReady && typeof webview.reload === "function") {
         webview.reload()
       }
     } catch (error) {
@@ -879,7 +958,7 @@ function formatAction(type: string, params: Record<string, unknown>): string {
     case "click":
       return `Clicking ${params.ref || params.selector || "element"}`
     case "fill":
-      return `Filling ${params.ref || "input"}`
+      return `Filling ${params.ref || params.selector || "input"}`
     case "type":
       return "Typing text"
     case "screenshot":
@@ -891,7 +970,23 @@ function formatAction(type: string, params: Record<string, unknown>): string {
     case "press":
       return `Pressing ${params.key}`
     case "wait":
-      return "Waiting"
+      return "Waiting for element"
+    case "hover":
+      return `Hovering ${params.ref || params.selector || "element"}`
+    case "drag":
+      return "Dragging element"
+    case "select":
+      return `Selecting ${params.value}`
+    case "check":
+      return `${params.checked ? "Checking" : "Unchecking"} ${params.ref || "element"}`
+    case "evaluate":
+      return "Executing script"
+    case "emulate":
+      return "Applying emulation"
+    case "downloadImage":
+      return "Downloading image"
+    case "downloadFile":
+      return "Downloading file"
     default:
       return type
   }

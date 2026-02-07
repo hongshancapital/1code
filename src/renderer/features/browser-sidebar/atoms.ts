@@ -43,10 +43,10 @@ export const browserFaviconAtomFamily = atomFamily((_chatId: string) =>
   atom<string>("")
 )
 
-/** Browser ready state */
+/** Browser ready state - global singleton (only one webview instance exists at a time) */
 export const browserReadyAtom = atom(false)
 
-/** Browser operating state (AI is controlling) */
+/** Browser operating state (AI is controlling) - global singleton */
 export const browserOperatingAtom = atom(false)
 
 /** Current action being performed */
