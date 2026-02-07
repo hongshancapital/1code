@@ -14,11 +14,11 @@ export type SubChatGroupMode = "none" | "tag"
 
 /**
  * Whether workspace grouped view is enabled
- * Default: true (enabled), shows Workspaces vs Chats grouping
+ * Default: false (disabled)
  */
 export const workspaceGroupedViewAtom = atomWithStorage<boolean>(
   "agents:workspace-grouped-view",
-  true,
+  false,
   undefined,
   { getOnInit: true },
 )
