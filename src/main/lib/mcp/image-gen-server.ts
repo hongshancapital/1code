@@ -277,27 +277,13 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
             }
             const mimeType = mimeMap[ext] || "image/png"
 
-            // Try the OpenAI images/edits endpoint with multipart form data
-            const formData = new FormData()
-            const blob = new Blob([imageBuffer], { type: mimeType })
-            formData.append("image", blob, path.basename(image_path))
-            formData.append("prompt", prompt)
-            formData.append("model", apiConfig.model)
-            formData.append("size", size)
-            formData.append("response_format", "b64_json")
+            console.log(`[Image Gen MCP] edit_image: file=${image_path} size=${imageBuffer.length} bytes, model=${apiConfig.model}`)
 
-            let response = await fetch(`${baseUrl}/images/edits`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${apiConfig.apiKey}`,
-              },
-              body: formData,
-              signal: AbortSignal.timeout(120000),
-            })
+            let response: Response | null = null
 
-            // If /images/edits fails (not all providers support it), fall back to /images/generations with image reference
-            if (!response.ok && response.status === 404) {
-              // Fallback: use generations endpoint with the image encoded in prompt
+            // Strategy 1: Try /images/generations with image[] array (OpenAI gpt-image-1 style)
+            try {
+              console.log("[Image Gen MCP] edit_image: trying /images/generations with image array...")
               response = await fetch(`${baseUrl}/images/generations`, {
                 method: "POST",
                 headers: {
@@ -306,24 +292,92 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
                 },
                 body: JSON.stringify({
                   model: apiConfig.model,
-                  prompt: `Based on the provided reference image, ${prompt}`,
+                  prompt,
                   size,
                   n: 1,
                   response_format: "b64_json",
-                  // Some providers accept image as input in generations
-                  image: `data:${mimeType};base64,${imageBase64}`,
+                  image: [{
+                    type: "base64",
+                    media_type: mimeType,
+                    data: imageBase64,
+                  }],
                 }),
-                signal: AbortSignal.timeout(120000),
+                signal: AbortSignal.timeout(180000),
               })
+              console.log(`[Image Gen MCP] edit_image: /images/generations response: ${response.status}`)
+            } catch (err) {
+              console.warn("[Image Gen MCP] edit_image: /images/generations with image array failed:", err instanceof Error ? err.message : err)
+              response = null
             }
 
-            if (!response.ok) {
-              const errorText = await response.text().catch(() => "Unknown error")
+            // Strategy 2: Try /images/edits with multipart form data
+            if (!response || !response.ok) {
+              try {
+                console.log("[Image Gen MCP] edit_image: trying /images/edits with FormData...")
+                const formData = new FormData()
+                const blob = new Blob([imageBuffer], { type: mimeType })
+                formData.append("image", blob, path.basename(image_path))
+                formData.append("prompt", prompt)
+                formData.append("model", apiConfig.model)
+                formData.append("size", size)
+                formData.append("response_format", "b64_json")
+
+                response = await fetch(`${baseUrl}/images/edits`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${apiConfig.apiKey}`,
+                  },
+                  body: formData,
+                  signal: AbortSignal.timeout(180000),
+                })
+                console.log(`[Image Gen MCP] edit_image: /images/edits response: ${response.status}`)
+              } catch (err) {
+                console.warn("[Image Gen MCP] edit_image: /images/edits failed:", err instanceof Error ? err.message : err)
+                response = null
+              }
+            }
+
+            // Strategy 3: Fall back to /images/generations with data URI in prompt context
+            if (!response || !response.ok) {
+              try {
+                console.log("[Image Gen MCP] edit_image: trying /images/generations with data URI fallback...")
+                response = await fetch(`${baseUrl}/images/generations`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiConfig.apiKey}`,
+                  },
+                  body: JSON.stringify({
+                    model: apiConfig.model,
+                    prompt: `Based on the provided reference image, ${prompt}`,
+                    size,
+                    n: 1,
+                    response_format: "b64_json",
+                    image: `data:${mimeType};base64,${imageBase64}`,
+                  }),
+                  signal: AbortSignal.timeout(180000),
+                })
+                console.log(`[Image Gen MCP] edit_image: data URI fallback response: ${response.status}`)
+              } catch (err) {
+                console.warn("[Image Gen MCP] edit_image: data URI fallback failed:", err instanceof Error ? err.message : err)
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: `Image edit error: All API strategies failed. Last error: ${err instanceof Error ? err.message : "Unknown error"}\nThis may be due to the image provider not supporting image editing.`,
+                    },
+                  ],
+                }
+              }
+            }
+
+            if (!response || !response.ok) {
+              const errorText = response ? await response.text().catch(() => "Unknown error") : "No response received"
               return {
                 content: [
                   {
                     type: "text",
-                    text: `Image edit failed: ${response.status} ${response.statusText}\n${errorText}`,
+                    text: `Image edit failed: ${response ? `${response.status} ${response.statusText}` : "No response"}\n${errorText}`,
                   },
                 ],
               }

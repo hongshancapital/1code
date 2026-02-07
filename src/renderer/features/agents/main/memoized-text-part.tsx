@@ -101,7 +101,8 @@ const MemoizedTextPartInner = memo(function MemoizedTextPartInner({
   partIndex,
   isFinalText,
   visibleStepsCount,
-}: Omit<MemoizedTextPartProps, "isStreaming">) {
+  isStreaming = false,
+}: MemoizedTextPartProps) {
   if (!text?.trim()) return null
 
   return (
@@ -119,7 +120,7 @@ const MemoizedTextPartInner = memo(function MemoizedTextPartInner({
           Response
         </div>
       )}
-      <MemoizedMarkdown content={text} id={`${messageId}-${partIndex}`} size="sm" />
+      <MemoizedMarkdown content={text} id={`${messageId}-${partIndex}`} size="sm" isStreaming={isStreaming} />
     </div>
   )
 }, (prev, next) => {
@@ -128,7 +129,8 @@ const MemoizedTextPartInner = memo(function MemoizedTextPartInner({
     prev.messageId === next.messageId &&
     prev.partIndex === next.partIndex &&
     prev.isFinalText === next.isFinalText &&
-    prev.visibleStepsCount === next.visibleStepsCount
+    prev.visibleStepsCount === next.visibleStepsCount &&
+    prev.isStreaming === next.isStreaming
   )
 })
 
@@ -183,6 +185,7 @@ export const MemoizedTextPart = memo(function MemoizedTextPart({
         partIndex={partIndex}
         isFinalText={isFinalText}
         visibleStepsCount={visibleStepsCount}
+        isStreaming={isStreaming}
       />
     </div>
   )

@@ -1,10 +1,10 @@
 import { cn } from "../lib/utils"
-import { memo, useState, useCallback, useEffect, useMemo } from "react"
+import { memo, useState, useCallback, useEffect, useMemo, createContext, useContext } from "react"
 import { createPortal } from "react-dom"
 import { Streamdown, parseMarkdownIntoBlocks } from "streamdown"
 import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
-import { Copy, Check, X, Download } from "lucide-react"
+import { Copy, Check, X, Download, ImageIcon } from "lucide-react"
 import { useCodeTheme } from "../lib/hooks/use-code-theme"
 import { highlightCode } from "../lib/themes/shiki-theme-loader"
 import { MermaidBlock } from "./mermaid-block"
@@ -14,6 +14,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "./ui/context-menu"
+
+// Context for streaming state — allows MarkdownImage to defer loading during streaming
+const MarkdownStreamingContext = createContext(false)
 
 // Function to strip emojis from text (only common emojis, preserving markdown symbols)
 export function stripEmojis(text: string): string {
@@ -151,6 +154,7 @@ function CodeBlock({
  * Click to view fullscreen with context menu for copy/save.
  */
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const isStreaming = useContext(MarkdownStreamingContext)
   const [hasError, setHasError] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
@@ -237,8 +241,17 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   }, [resolvedSrc, alt])
 
   if (!isSafe || hasError) {
-    // Show alt text as fallback for non-safe URLs or broken images
     return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
+  }
+
+  // During streaming, show lightweight placeholder to avoid repeated image loading
+  if (isStreaming) {
+    return (
+      <div className="flex items-center gap-2 my-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 w-fit">
+        <ImageIcon className="size-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">{alt || "Image"}</span>
+      </div>
+    )
   }
 
   return (
@@ -582,42 +595,44 @@ export const ChatMarkdownRenderer = memo(function ChatMarkdownRenderer({
   )
 
   return (
-    <div
-      className={cn(
-        "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
-        // Reset prose margins - we use our own compact Notion-like spacing
-        "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
-        "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
-        // Reset prose hr margins - we use our own
-        "prose-hr:my-0",
-        // Reset prose table margins - we use our own wrapper with margins
-        "prose-table:my-0",
-        // Fix for p inside li - make it inline so numbered list items don't break
-        "[&_li>p]:inline [&_li>p]:mb-0",
-        // Prevent horizontal overflow on mobile
-        "overflow-hidden wrap-break-word",
-        // Global spacing: elements before hr get extra bottom margin (for spacing above divider)
-        "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
-        // Global spacing: elements after hr get extra top margin
-        "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
-        // Global spacing: elements after code blocks get extra top margin
-        "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
-        // Global spacing: elements after tables get extra top margin
-        "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
-        className,
-      )}
-    >
-      <Streamdown
-        mode="streaming"
-        components={components}
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        isAnimating={isStreaming}
-        parseIncompleteMarkdown={isStreaming}
-        controls={false}
+    <MarkdownStreamingContext.Provider value={isStreaming}>
+      <div
+        className={cn(
+          "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
+          // Reset prose margins - we use our own compact Notion-like spacing
+          "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
+          "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
+          // Reset prose hr margins - we use our own
+          "prose-hr:my-0",
+          // Reset prose table margins - we use our own wrapper with margins
+          "prose-table:my-0",
+          // Fix for p inside li - make it inline so numbered list items don't break
+          "[&_li>p]:inline [&_li>p]:mb-0",
+          // Prevent horizontal overflow on mobile
+          "overflow-hidden wrap-break-word",
+          // Global spacing: elements before hr get extra bottom margin (for spacing above divider)
+          "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
+          // Global spacing: elements after hr get extra top margin
+          "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
+          // Global spacing: elements after code blocks get extra top margin
+          "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
+          // Global spacing: elements after tables get extra top margin
+          "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
+          className,
+        )}
       >
-        {processedContent}
-      </Streamdown>
-    </div>
+        <Streamdown
+          mode="streaming"
+          components={components}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          isAnimating={isStreaming}
+          parseIncompleteMarkdown={isStreaming}
+          controls={false}
+        >
+          {processedContent}
+        </Streamdown>
+      </div>
+    </MarkdownStreamingContext.Provider>
   )
 })
 
@@ -882,11 +897,13 @@ export const MemoizedMarkdown = memo(
     id,
     size = "sm",
     className,
+    isStreaming = false,
   }: {
     content: string
     id: string
     size?: MarkdownSize
     className?: string
+    isStreaming?: boolean
   }) {
     const codeTheme = useCodeTheme()
 
@@ -901,32 +918,34 @@ export const MemoizedMarkdown = memo(
     )
 
     return (
-      <div
-        className={cn(
-          "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
-          "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
-          "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
-          "prose-hr:my-0",
-          "prose-table:my-0",
-          "[&_li>p]:inline [&_li>p]:mb-0",
-          "overflow-hidden wrap-break-word",
-          "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
-          "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
-          "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
-          "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
-          className,
-        )}
-      >
-        {blocks.map((block) => (
-          <MemoizedMarkdownBlock
-            key={`${id}-${block.key}`}
-            content={block.content}
-            size={size}
-            className={className}
-            codeTheme={codeTheme}
-          />
-        ))}
-      </div>
+      <MarkdownStreamingContext.Provider value={isStreaming}>
+        <div
+          className={cn(
+            "prose prose-sm max-w-none dark:prose-invert prose-code:before:content-none prose-code:after:content-none",
+            "prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0",
+            "prose-ul:pl-0 prose-ol:pl-0 prose-li:pl-0",
+            "prose-hr:my-0",
+            "prose-table:my-0",
+            "[&_li>p]:inline [&_li>p]:mb-0",
+            "overflow-hidden wrap-break-word",
+            "[&_p:has(+hr)]:mb-6 [&_ul:has(+hr)]:mb-6 [&_ol:has(+hr)]:mb-6 [&_div:has(+hr)]:mb-6 [&_table:has(+hr)]:mb-6 [&_h1:has(+hr)]:mb-6 [&_h2:has(+hr)]:mb-6 [&_h3:has(+hr)]:mb-6 [&_blockquote:has(+hr)]:mb-6",
+            "[&_hr+p]:mt-4 [&_hr+ul]:mt-4 [&_hr+ol]:mt-4",
+            "[&_div+p]:mt-2 [&_div+ul]:mt-2 [&_div+ol]:mt-2",
+            "[&_table+p]:mt-4 [&_table+ul]:mt-4 [&_table+ol]:mt-4",
+            className,
+          )}
+        >
+          {blocks.map((block) => (
+            <MemoizedMarkdownBlock
+              key={`${id}-${block.key}`}
+              content={block.content}
+              size={size}
+              className={className}
+              codeTheme={codeTheme}
+            />
+          ))}
+        </div>
+      </MarkdownStreamingContext.Provider>
     )
   },
 )
