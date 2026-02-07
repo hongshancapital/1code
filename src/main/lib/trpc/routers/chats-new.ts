@@ -20,8 +20,13 @@ import {
 import { gitCache } from "../../git/cache"
 import { terminalManager } from "../../terminal/manager"
 import { publicProcedure, router } from "../index"
+import { subChatsRouter } from "./sub-chats"
+import { chatStatsRouter } from "./chat-stats"
+import { chatGitRouter } from "./chat-git"
+import { chatExportRouter } from "./chat-export"
 
-export const chatsRouter = router({
+// Core Chat CRUD router
+const chatsCoreRouter = router({
   /**
    * List all non-archived chats (optionally filter by project)
    * By default excludes playground chats - use includePlayground: true to include them
@@ -861,4 +866,17 @@ export const chatsRouter = router({
 
       return db.delete(chats).where(eq(chats.id, input.id)).returning().get()
     }),
+})
+
+/**
+ * Merged chatsRouter for backward compatibility
+ * Combines chatsCoreRouter with sub-routers to maintain the same API surface
+ * Frontend can continue using trpc.chats.* for all procedures
+ */
+export const chatsRouter = router({
+  ...chatsCoreRouter._def.procedures,
+  ...subChatsRouter._def.procedures,
+  ...chatStatsRouter._def.procedures,
+  ...chatGitRouter._def.procedures,
+  ...chatExportRouter._def.procedures,
 })
