@@ -30,9 +30,8 @@ import {
   PluginFilledIcon,
   SkillIconFilled,
   TerminalFilledIcon,
-  ToolsIconFilled,
 } from "../../components/ui/icons"
-import { Play, Brain, BrainCircuit } from "lucide-react"
+import { Play, Brain, BrainCircuit, Wrench } from "lucide-react"
 import { desktopViewAtom } from "../agents/atoms"
 
 // Check if we're in development mode
@@ -76,7 +75,7 @@ const EXTENSION_TAB_DEFS: TabDefinition[] = [
 const TOOLS_TAB_DEF: TabDefinition = {
   id: "tools" as SettingsTab,
   labelKey: "sidebar.tools",
-  icon: ToolsIconFilled,
+  icon: Wrench,
 }
 
 // Advanced/experimental tabs
