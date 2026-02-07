@@ -843,6 +843,16 @@ export const agentsPlanSidebarWidthAtom = atomWithStorage<number>(
   { getOnInit: true },
 )
 
+// Browser sidebar state atoms
+
+// Browser sidebar width (global, persisted)
+export const agentsBrowserSidebarWidthAtom = atomWithStorage<number>(
+  "agents-browser-sidebar-width",
+  480,
+  undefined,
+  { getOnInit: true },
+)
+
 // Plan sidebar open state storage - stores per chatId (persisted)
 // Uses window-scoped storage so each window can have independent plan sidebar states
 const planSidebarOpenStorageAtom = atomWithWindowStorage<Record<string, boolean>>(
@@ -1060,6 +1070,7 @@ export const activeSidebarNavAtom = atomWithStorage<SidebarNavItem>(
 // Desktop view mode - takes priority over chat-based rendering
 // "home" = default home dashboard view
 // null = chat-based rendering (chat/new-chat)
+// Note: "browser" was removed - browser is now a sidebar panel like Plan View
 export type DesktopView = "automations" | "automations-detail" | "inbox" | "settings" | "home" | null
 
 // Initial desktop view: always start with null (chat view / new chat form)
@@ -1111,6 +1122,7 @@ export const inboxMobileViewModeAtom = atom<InboxMobileViewMode>("list")
 // Settings inner sidebar widths (for MCP, Skills, Agents two-panel layouts)
 // Non-persisted — resets to default on re-render
 export const settingsMcpSidebarWidthAtom = atom(240)
+export const settingsToolsSidebarWidthAtom = atom(240)
 export const settingsSkillsSidebarWidthAtom = atom(240)
 export const settingsCommandsSidebarWidthAtom = atom(240)
 export const settingsAgentsSidebarWidthAtom = atom(240)

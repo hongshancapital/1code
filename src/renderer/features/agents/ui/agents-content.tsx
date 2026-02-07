@@ -19,7 +19,7 @@ import {
   agentsSidebarOpenAtom,
   agentsSubChatsSidebarModeAtom,
   agentsSubChatsSidebarWidthAtom,
-currentProjectModeAtom,
+  currentProjectModeAtom,
   desktopViewAtom,
 } from "../atoms"
 import {
@@ -30,6 +30,7 @@ import {
   subChatsQuickSwitchSelectedIndexAtom,
   ctrlTabTargetAtom,
   betaAutomationsEnabledAtom,
+  betaBrowserEnabledAtom,
   chatSourceModeAtom,
 } from "../../../lib/atoms"
 import { NewChatForm } from "../main/new-chat-form"
@@ -56,24 +57,35 @@ import { ResizableSidebar } from "../../../components/ui/resizable-sidebar"
 // import { useClerk, useUser } from "@clerk/nextjs"
 // import { useCombinedAuth } from "@/lib/hooks/use-combined-auth"
 const useCombinedAuth = () => ({ userId: null }) // Desktop mock
-// Button and AlignJustify removed - not currently used
-// import { Button } from "../../../components/ui/button"
-// import { AlignJustify } from "lucide-react"
+import { Button } from "../../../components/ui/button"
+import { Globe } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip"
 import { AgentsQuickSwitchDialog } from "../components/agents-quick-switch-dialog"
 import { SubChatsQuickSwitchDialog } from "../components/subchats-quick-switch-dialog"
 import { SubChatCollapsedIndicator } from "./sub-chat-collapsed-indicator"
 import { SettingsContent } from "../../settings/settings-content"
+import { cn } from "../../../lib/utils"
+import {
+  browserActiveAtomFamily,
+  browserVisibleAtomFamily,
+  browserLoadingAtomFamily,
+} from "../../browser-sidebar"
 // Desktop mock
 const useIsAdmin = () => false
 
 // Main Component
 export function AgentsContent() {
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
-  const desktopView = useAtomValue(desktopViewAtom)
+  const [desktopView, setDesktopView] = useAtom(desktopViewAtom)
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const chatSourceMode = useAtomValue(chatSourceModeAtom)
   const betaAutomationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
+  const betaBrowserEnabled = useAtomValue(betaBrowserEnabledAtom)
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
   const [, setPreviewSidebarOpen] = useAtom(
@@ -89,6 +101,24 @@ export function AgentsContent() {
     [selectedChatId],
   )
   const setTerminalSidebarOpen = useSetAtom(terminalSidebarAtom)
+
+  // Browser sidebar state (per-chat)
+  const browserActiveAtom = useMemo(
+    () => browserActiveAtomFamily(selectedChatId || ""),
+    [selectedChatId],
+  )
+  const browserVisibleAtom = useMemo(
+    () => browserVisibleAtomFamily(selectedChatId || ""),
+    [selectedChatId],
+  )
+  const browserLoadingAtom = useMemo(
+    () => browserLoadingAtomFamily(selectedChatId || ""),
+    [selectedChatId],
+  )
+  const browserActive = useAtomValue(browserActiveAtom)
+  const [browserVisible, setBrowserVisible] = useAtom(browserVisibleAtom)
+  const browserLoading = useAtomValue(browserLoadingAtom)
+  const setBrowserActive = useSetAtom(browserActiveAtom)
 
   // Project mode - cowork mode hides terminal
   const projectMode = useAtomValue(currentProjectModeAtom)
@@ -929,6 +959,9 @@ export function AgentsContent() {
   }
 
   // Desktop layout
+  // Note: Browser is now a sidebar panel in active-chat.tsx (like Plan Sidebar)
+  // The exclusive browser layout has been removed
+
   return (
     <>
       <div className="flex h-full">
@@ -997,6 +1030,40 @@ export function AgentsContent() {
                         }, 100)
                       }}
                     />
+                  ) : null
+                }
+                rightHeaderSlot={
+                  betaBrowserEnabled && !browserVisible ? (
+                    <Tooltip delayDuration={500}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setBrowserVisible(true)
+                            setBrowserActive(true)
+                          }}
+                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
+                          aria-label="Open browser"
+                        >
+                          <div className="relative">
+                            <Globe className="h-4 w-4" />
+                            {/* Active indicator dot - shows when browser has been used */}
+                            {browserActive && (
+                              <span
+                                className={cn(
+                                  "absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-primary",
+                                  browserLoading && "animate-pulse"
+                                )}
+                              />
+                            )}
+                          </div>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        Open browser
+                      </TooltipContent>
+                    </Tooltip>
                   ) : null
                 }
               />

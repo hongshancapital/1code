@@ -1,6 +1,10 @@
 import { router } from "../index"
 import { projectsRouter } from "./projects"
-import { chatsRouter } from "./chats"
+import { chatsRouter } from "./chats-new"
+import { subChatsRouter } from "./sub-chats"
+import { chatStatsRouter } from "./chat-stats"
+import { chatGitRouter } from "./chat-git"
+import { chatExportRouter } from "./chat-export"
 import { claudeRouter } from "./claude"
 import { claudeCodeRouter } from "./claude-code"
 import { claudeSettingsRouter } from "./claude-settings"
@@ -28,6 +32,7 @@ import { automationsRouter } from "./automations"
 import { tagsRouter } from "./tags"
 import { insightsRouter } from "./insights"
 import { memoryRouter } from "./memory"
+import { browserRouter } from "./browser"
 import { BrowserWindow } from "electron"
 
 /**
@@ -38,6 +43,10 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
   return router({
     projects: projectsRouter,
     chats: chatsRouter,
+    subChats: subChatsRouter,
+    chatStats: chatStatsRouter,
+    chatGit: chatGitRouter,
+    chatExport: chatExportRouter,
     claude: claudeRouter,
     claudeCode: claudeCodeRouter,
     claudeSettings: claudeSettingsRouter,
@@ -71,6 +80,8 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     insights: insightsRouter,
     // Memory (session tracking, observations, search)
     memory: memoryRouter,
+    // Browser automation for AI agents
+    browser: browserRouter,
   })
 }
 

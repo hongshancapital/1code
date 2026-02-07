@@ -56,6 +56,12 @@ declare global {
   var __unlockDevTools: (() => void) | undefined
 }
 
+// Type declaration for react-grab raw import
+declare module "react-grab/dist/index.global.js?raw" {
+  const content: string
+  export default content
+}
+
 // Type declarations for pptx-preview
 declare module "pptx-preview" {
   interface PptxPreviewerOptions {

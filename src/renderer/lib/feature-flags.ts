@@ -39,6 +39,13 @@ export const FEATURE_FLAGS = {
     beta: true,
     description: "Use local Ollama models when offline",
   },
+  /** Browser 浏览器功能 */
+  browser: {
+    name: "Browser",
+    devOnly: false,  // 生产环境可用
+    beta: true,      // beta 功能
+    description: "Built-in browser for AI-driven web automation",
+  },
   // 未来可以在此添加更多功能...
 } as const satisfies Record<string, FeatureFlag>
 

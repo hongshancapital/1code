@@ -46,6 +46,9 @@ export {
   // Chat area full width mode
   agentsChatFullWidthAtom,
 
+  // Browser sidebar atoms
+  agentsBrowserSidebarWidthAtom,
+
   // Archive atoms
   archivePopoverOpenAtom,
   archiveSearchQueryAtom,
@@ -191,6 +194,7 @@ export type SettingsTab =
   | "models"
   | "runtime"
   | "editor"
+  | "tools"
   | "skills"
   | "commands"
   | "agents"
@@ -1062,4 +1066,29 @@ export const memoryEnabledAtom = atomWithStorage<boolean>(
   true, // Default ON - memory is injected into context
   undefined,
   { getOnInit: true },
+)
+
+// ============================================
+// BROWSER SETTINGS ATOMS
+// ============================================
+
+/**
+ * Beta: Enable Browser feature
+ * When disabled (default), all browser functionality is hidden:
+ * - Browser sidebar/panel hidden
+ * - Browser toggle button hidden
+ * Note: This feature is dev-only - in production, it's always disabled regardless of storage value
+ */
+// Internal storage atom
+const _betaBrowserEnabledStorageAtom = atomWithStorage<boolean>(
+  "preferences:beta-browser-enabled",
+  false, // Default OFF - beta feature
+  undefined,
+  { getOnInit: true },
+)
+
+// Public atom - enforces dev-only restriction
+export const betaBrowserEnabledAtom = atom(
+  (get) => isFeatureAvailable("browser") ? get(_betaBrowserEnabledStorageAtom) : false,
+  (_get, set, value: boolean) => set(_betaBrowserEnabledStorageAtom, value)
 )

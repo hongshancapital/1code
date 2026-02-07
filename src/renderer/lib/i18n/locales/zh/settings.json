@@ -427,6 +427,10 @@
       "title": "记忆与搜索",
       "description": "在对话过程中记录观察数据，并支持对项目历史的语义搜索。"
     },
+    "browser": {
+      "title": "浏览器",
+      "description": "内置浏览器，用于 AI 驱动的网页自动化和测试。"
+    },
     "offlineSettings": {
       "title": "离线模式设置",
       "ollamaStatus": "Ollama 状态",
@@ -811,11 +815,184 @@
     "customAgents": "自定义 Agent",
     "mcpServers": "MCP 服务器",
     "plugins": "插件",
+    "tools": "内部工具",
     "debug": "调试",
     "runtime": "运行时",
     "editor": "编辑器",
     "commands": "命令",
     "memory": "记忆"
+  },
+  "tools": {
+    "title": "内部工具",
+    "searchPlaceholder": "搜索工具...",
+    "noToolsFound": "未找到工具",
+    "selectTool": "选择一个工具查看详情",
+    "category": {
+      "claudeSdk": "Claude SDK",
+      "custom": "Custom",
+      "browserMcp": "Browser",
+      "artifactMcp": "Artifact"
+    },
+    "read": {
+      "description": "从文件系统读取文件内容",
+      "details": "## Read 工具\n\n从本地文件系统读取文件，支持多种文件类型。\n\n### 功能\n- 读取文本文件并显示行号\n- 读取图片（PNG、JPG 等）- 可视化呈现\n- 读取 PDF 文件，支持页面范围选择\n- 读取 Jupyter notebook（.ipynb）及所有单元格输出\n- 支持大文件的偏移和限制参数\n\n### 参数\n- `file_path`（必需）：文件的绝对路径\n- `offset`：开始读取的行号\n- `limit`：要读取的行数\n- `pages`：PDF 文件的页面范围（例如 \"1-5\"）\n\n### 注意事项\n- 行号从 1 开始\n- 超过 2000 字符的行会被截断\n- 对于超过 10 页的 PDF，请使用 `pages` 参数"
+    },
+    "write": {
+      "description": "将内容写入文件系统中的文件",
+      "details": "## Write 工具\n\n在本地文件系统上写入或覆盖文件。\n\n### 功能\n- 创建新文件\n- 覆盖现有文件\n- 适用于任何文本格式的文件\n\n### 参数\n- `file_path`（必需）：文件的绝对路径\n- `content`（必需）：要写入的内容\n\n### 注意事项\n- 会在无警告的情况下覆盖现有文件\n- 如果文件已存在，需要先读取\n- 如果父目录不存在会自动创建"
+    },
+    "edit": {
+      "description": "在文件中执行精确的字符串替换",
+      "details": "## Edit 工具\n\n在文件中执行精确的字符串替换。\n\n### 功能\n- 替换文件中的特定文本\n- 保留精确的缩进\n- 使用 `replace_all` 替换所有出现的内容\n\n### 参数\n- `file_path`（必需）：文件的绝对路径\n- `old_string`（必需）：要替换的文本\n- `new_string`（必需）：替换后的文本\n- `replace_all`：替换所有出现的内容（默认：false）\n\n### 注意事项\n- 如果 `old_string` 不唯一，编辑将失败\n- 编辑前必须先读取文件\n- 保留文件编码和换行符"
+    },
+    "bash": {
+      "description": "执行 shell 命令，支持超时设置",
+      "details": "## Bash 工具\n\n执行 bash 命令，支持可选的超时设置。\n\n### 功能\n- 运行任何 shell 命令\n- 工作目录在命令之间保持\n- 支持后台执行\n- 可配置超时时间（最长 10 分钟）\n\n### 参数\n- `command`（必需）：要执行的命令\n- `timeout`：超时时间（毫秒，默认：120000）\n- `run_in_background`：在后台运行命令\n\n### 注意事项\n- shell 状态（环境变量等）不会保持\n- 输出在 30000 字符处截断\n- 用于 git、npm、docker 等 CLI 工具"
+    },
+    "glob": {
+      "description": "在代码库中快速匹配文件模式",
+      "details": "## Glob 工具\n\n通过名称模式快速匹配文件。\n\n### 功能\n- 使用 glob 模式匹配文件\n- 适用于任何大小的代码库\n- 返回按修改时间排序的文件\n\n### 参数\n- `pattern`（必需）：glob 模式（例如 \"**/*.ts\"）\n- `path`：要搜索的目录（默认：当前工作目录）\n\n### 示例\n- `**/*.tsx` - 所有 TypeScript React 文件\n- `src/**/*.ts` - src 目录中的 TypeScript 文件\n- `*.json` - 当前目录中的 JSON 文件"
+    },
+    "grep": {
+      "description": "使用正则表达式搜索文件内容",
+      "details": "## Grep 工具\n\n使用 ripgrep 驱动的正则表达式搜索文件内容。\n\n### 功能\n- 完整的正则语法支持\n- 按文件类型或 glob 模式过滤\n- 多种输出模式：内容、文件、计数\n- 匹配前后的上下文行\n\n### 参数\n- `pattern`（必需）：要搜索的正则模式\n- `path`：要搜索的目录（默认：当前工作目录）\n- `glob`：按 glob 模式过滤文件\n- `type`：按文件类型过滤（js、py 等）\n- `output_mode`：\"content\"、\"files_with_matches\"、\"count\"\n\n### 注意事项\n- 使用 ripgrep 语法（不是 grep）\n- 使用 `multiline: true` 支持多行匹配"
+    },
+    "webFetch": {
+      "description": "从 URL 获取并分析内容",
+      "details": "## WebFetch 工具\n\n从 URL 获取内容并使用 AI 处理。\n\n### 功能\n- 获取任何公开 URL\n- 将 HTML 转换为 markdown\n- 使用自定义提示处理内容\n- 15 分钟缓存重复请求\n\n### 参数\n- `url`（必需）：要获取的 URL\n- `prompt`（必需）：要从内容中提取的信息\n\n### 限制\n- 无法访问需要认证的 URL\n- HTTP URL 会升级为 HTTPS\n- 内容过大时可能会被摘要"
+    },
+    "webSearch": {
+      "description": "搜索网络获取最新信息",
+      "details": "## WebSearch 工具\n\n搜索网络获取当前信息。\n\n### 功能\n- 实时网络搜索\n- 域名过滤（包含/排除）\n- 获取知识截止日期之后的最新信息\n\n### 参数\n- `query`（必需）：搜索查询\n- `allowed_domains`：只包含这些域名\n- `blocked_domains`：排除这些域名\n\n### 注意事项\n- 结果包含 markdown 格式的链接\n- 需要在回复中包含来源"
+    },
+    "notebookEdit": {
+      "description": "编辑 Jupyter notebook 单元格",
+      "details": "## NotebookEdit 工具\n\n编辑 Jupyter notebook（.ipynb 文件）中的单元格。\n\n### 功能\n- 替换单元格内容\n- 插入新单元格\n- 删除单元格\n- 支持代码和 markdown 单元格\n\n### 参数\n- `notebook_path`（必需）：notebook 的绝对路径\n- `new_source`（必需）：新的单元格内容\n- `cell_id`：要编辑的单元格 ID\n- `cell_type`：\"code\" 或 \"markdown\"\n- `edit_mode`：\"replace\"、\"insert\" 或 \"delete\""
+    },
+    "task": {
+      "description": "启动专门的子 Agent 处理复杂任务",
+      "details": "## Task 工具\n\n启动专门的子 Agent 处理复杂任务。\n\n### Agent 类型\n- **Bash**：命令执行专家\n- **Explore**：快速代码库探索\n- **Plan**：架构和实现规划\n- **general-purpose**：多步骤任务处理\n\n### 参数\n- `prompt`（必需）：任务描述\n- `subagent_type`（必需）：要使用的 Agent 类型\n- `description`（必需）：简短的 3-5 字描述\n- `run_in_background`：异步运行\n- `resume`：继续之前的 Agent 会话\n\n### 注意事项\n- Agent 可以访问工具的子集\n- 可以并行运行多个 Agent\n- 后台 Agent 会写入输出文件"
+    },
+    "askUser": {
+      "description": "在执行过程中向用户提问",
+      "details": "## AskUserQuestion 工具\n\n向用户提问以收集信息或澄清需求。\n\n### 使用场景\n- 收集用户偏好\n- 澄清模糊的指令\n- 获取实现选择的决定\n- 提供方向选择\n\n### 参数\n- `questions`（必需）：1-4 个问题的数组\n  - `question`：问题文本\n  - `header`：简短标签（最多 12 字符）\n  - `options`：2-4 个带标签和描述的选项\n  - `multiSelect`：允许多选\n\n### 注意事项\n- 用户始终可以选择「其他」进行自定义输入\n- 将推荐选项放在第一位并标注「(推荐)」"
+    },
+    "taskCreate": {
+      "description": "创建结构化任务列表以跟踪进度",
+      "details": "## TaskCreate 工具\n\n为复杂的编码会话创建结构化任务列表。\n\n### 使用场景\n- 复杂的多步骤任务（3 步以上）\n- 计划模式任务跟踪\n- 多个用户任务\n- 非简单操作\n\n### 参数\n- `subject`（必需）：简短的任务标题（祈使句形式）\n- `description`（必需）：详细的任务描述\n- `activeForm`：进行中时显示的现在进行时形式\n\n### 注意事项\n- 任务创建时状态为 \"pending\"\n- 使用 TaskUpdate 设置依赖关系\n- 单个简单任务不需要使用此工具"
+    },
+    "taskUpdate": {
+      "description": "更新任务状态、详情和依赖关系",
+      "details": "## TaskUpdate 工具\n\n更新任务列表中的现有任务。\n\n### 使用场景\n- 将任务标记为完成\n- 更新任务状态\n- 设置任务依赖关系\n- 删除过时的任务\n\n### 参数\n- `taskId`（必需）：要更新的任务 ID\n- `status`：\"pending\"、\"in_progress\"、\"completed\"、\"deleted\"\n- `subject`：新的任务标题\n- `description`：新的描述\n- `addBlocks`：此任务阻塞的任务\n- `addBlockedBy`：阻塞此任务的任务\n\n### 状态流程\npending → in_progress → completed"
+    },
+    "taskList": {
+      "description": "查看所有任务及其当前状态",
+      "details": "## TaskList 工具\n\n列出当前会话中的所有任务。\n\n### 输出包含\n- 任务 ID\n- 主题（简短描述）\n- 状态（pending、in_progress、completed）\n- 所有者（如果已分配）\n- BlockedBy（依赖的任务 ID）\n\n### 使用场景\n- 检查可用任务\n- 查看整体进度\n- 查找未阻塞的任务\n- 完成任务后检查"
+    },
+    "planMode": {
+      "description": "进入计划模式以设计实现方案",
+      "details": "## EnterPlanMode 工具\n\n切换到计划模式进行实现规划。\n\n### 何时使用\n- 新功能实现\n- 存在多种有效方法\n- 需要架构决策\n- 多文件更改\n- 需求不明确\n\n### 计划模式中会发生什么\n1. 使用只读工具探索代码库\n2. 理解现有模式\n3. 设计实现方案\n4. 提交计划等待批准\n5. 准备好后使用 ExitPlanMode 退出\n\n### 跳过的情况\n- 单行修复\n- 明显的 bug\n- 清晰、具体的指令"
+    },
+    "browserSnapshot": {
+      "description": "获取页面元素的可访问性树快照",
+      "details": "## Browser Snapshot\n\n获取带有元素引用的可访问性树快照。\n\n### 使用方法\n1. 调用 browser_snapshot 获取元素引用\n2. 找到目标元素的引用（例如 @e2）\n3. 在其他浏览器工具中使用该引用\n4. 页面变化后重新调用 snapshot\n\n### 参数\n- `interactiveOnly`：只包含交互元素（默认：true）\n\n### 输出格式\n```\n[e1] button \"登录\"\n[e2] textbox \"邮箱\" placeholder=\"输入邮箱\"\n[e3] link \"忘记密码？\"\n```"
+    },
+    "browserNavigate": {
+      "description": "在浏览器中导航到 URL",
+      "details": "## Browser Navigate\n\n导航到 URL，在浏览器中打开页面。\n\n### 参数\n- `url`（必需）：要导航到的 URL\n- `waitUntil`：何时认为导航完成（load、domcontentloaded、networkidle）"
+    },
+    "browserClick": {
+      "description": "点击页面上的元素",
+      "details": "## Browser Click\n\n点击元素。使用快照中的引用（首选）或 CSS 选择器。\n\n### 参数\n- `ref`：快照中的元素引用（例如 @e2）\n- `selector`：CSS 选择器（备选）\n- `dblClick`：双击（默认：false）"
+    },
+    "browserFill": {
+      "description": "在输入框中填入文本",
+      "details": "## Browser Fill\n\n填充输入框。先清除现有值，然后输入新值。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）\n- `value`（必需）：要填入的值"
+    },
+    "browserType": {
+      "description": "在聚焦的元素中输入文本",
+      "details": "## Browser Type\n\n在当前聚焦的元素中输入文本。追加文本，不会先清除。\n\n### 参数\n- `text`（必需）：要输入的文本"
+    },
+    "browserScreenshot": {
+      "description": "截取页面或元素的屏幕截图",
+      "details": "## Browser Screenshot\n\n截取页面或特定元素的屏幕截图。\n\n### 参数\n- `ref`：要截图的元素（可选）\n- `fullPage`：截取整个页面（默认：false）\n- `filePath`：保存到文件而不是返回 base64\n- `format`：png、jpeg 或 webp（默认：png）\n- `quality`：jpeg/webp 的质量（0-100）"
+    },
+    "browserBack": {
+      "description": "在浏览器历史中后退",
+      "details": "## Browser Back\n\n在浏览器历史中后退。\n\n### 参数\n无"
+    },
+    "browserForward": {
+      "description": "在浏览器历史中前进",
+      "details": "## Browser Forward\n\n在浏览器历史中前进。\n\n### 参数\n无"
+    },
+    "browserReload": {
+      "description": "重新加载当前页面",
+      "details": "## Browser Reload\n\n重新加载当前页面。\n\n### 参数\n无"
+    },
+    "browserGetText": {
+      "description": "获取元素的文本内容",
+      "details": "## Browser Get Text\n\n获取元素的文本内容。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）"
+    },
+    "browserGetUrl": {
+      "description": "获取当前页面 URL",
+      "details": "## Browser Get URL\n\n获取当前页面 URL。\n\n### 参数\n无"
+    },
+    "browserGetTitle": {
+      "description": "获取页面标题",
+      "details": "## Browser Get Title\n\n获取页面标题。\n\n### 参数\n无"
+    },
+    "browserWait": {
+      "description": "等待元素、文本或 URL 模式出现",
+      "details": "## Browser Wait\n\n等待元素、文本或 URL 模式出现。\n\n### 参数\n- `selector`：等待匹配选择器的元素\n- `text`：等待文本出现\n- `url`：等待 URL 匹配模式\n- `timeout`：超时时间（毫秒，默认：30000）"
+    },
+    "browserScroll": {
+      "description": "滚动页面或将元素滚动到视图中",
+      "details": "## Browser Scroll\n\n滚动页面或将元素滚动到视图中。\n\n### 参数\n- `direction`：up、down、left、right\n- `amount`：滚动量（像素）\n- `ref`：将元素滚动到视图中\n- `selector`：将元素滚动到视图中（备选）"
+    },
+    "browserPress": {
+      "description": "按下按键或组合键",
+      "details": "## Browser Press\n\n按下按键或组合键（例如 'Enter'、'Tab'、'Control+A'）。\n\n### 参数\n- `key`（必需）：按键或组合键（例如 'Enter'、'Control+A'）"
+    },
+    "browserSelect": {
+      "description": "从下拉菜单中选择选项",
+      "details": "## Browser Select\n\n从下拉菜单（<select> 元素）中选择选项。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）\n- `value`（必需）：要选择的选项值"
+    },
+    "browserCheck": {
+      "description": "选中或取消选中复选框",
+      "details": "## Browser Check\n\n选中或取消选中复选框。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）\n- `checked`（必需）：是否选中"
+    },
+    "browserHover": {
+      "description": "悬停在元素上",
+      "details": "## Browser Hover\n\n悬停在元素上（对工具提示、下拉菜单有用）。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）"
+    },
+    "browserDrag": {
+      "description": "将元素拖拽到另一个元素",
+      "details": "## Browser Drag\n\n将元素拖拽到另一个元素。\n\n### 参数\n- `fromRef`：要拖拽的元素\n- `fromSelector`：要拖拽的元素（备选）\n- `toRef`：要放置到的元素\n- `toSelector`：要放置到的元素（备选）"
+    },
+    "browserDownloadImage": {
+      "description": "将图片元素下载到文件",
+      "details": "## Browser Download Image\n\n将图片元素下载到文件。\n\n### 参数\n- `ref`：快照中的元素引用\n- `selector`：CSS 选择器（备选）\n- `filePath`（必需）：保存图片的路径"
+    },
+    "browserDownloadFile": {
+      "description": "从 URL 或链接下载文件",
+      "details": "## Browser Download File\n\n从 URL 或链接元素下载文件。\n\n### 参数\n- `ref`：要下载的链接元素\n- `url`：直接下载的 URL\n- `filePath`（必需）：保存文件的路径"
+    },
+    "browserEmulate": {
+      "description": "模拟设备设置",
+      "details": "## Browser Emulate\n\n模拟设备设置（视口、用户代理、配色方案、地理位置）。\n\n### 参数\n- `viewport`：{ width, height, isMobile, hasTouch, deviceScaleFactor }\n- `userAgent`：用户代理字符串\n- `colorScheme`：light、dark 或 auto\n- `geolocation`：{ latitude, longitude }"
+    },
+    "browserEvaluate": {
+      "description": "在浏览器中执行 JavaScript",
+      "details": "## Browser Evaluate\n\n在浏览器上下文中执行 JavaScript 代码，返回结果。\n\n### 参数\n- `script`（必需）：要执行的 JavaScript 代码\n\n### 注意事项\n- 返回可 JSON 序列化的结果"
+    },
+    "markArtifact": {
+      "description": "将文件标记为交付物",
+      "details": "## Mark Artifact\n\n将文件标记为交付物。用于标记重要的输出文件。\n\n### 参数\n- `file_path`（必需）：文件的绝对路径\n- `description`：交付物的可选描述\n\n### 使用场景\n- 脚本生成的输出文件（PDF、图片、文档）\n- 使用 Bash 创建的文件\n- 需要向用户突出显示的重要文件"
+    },
+    "listArtifacts": {
+      "description": "列出当前会话中所有标记的交付物",
+      "details": "## List Artifacts\n\n列出当前会话中所有标记的交付物。\n\n### 参数\n无\n\n### 返回\n按状态分组的已标记文件列表（创建、修改、删除）"
+    }
   },
   "memory": {
     "title": "记忆",

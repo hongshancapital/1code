@@ -34,13 +34,14 @@ import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStat
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
-import { computePreviewStatsFromMessages } from "./chats"
+import { computePreviewStatsFromMessages } from "./chat-helpers"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
 import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
 import { memoryHooks } from "../../memory"
+import { createBrowserMcpServer, browserManager } from "../../browser"
 
 /**
  * Type for Claude SDK streaming messages
@@ -1602,6 +1603,17 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 mcpServersFiltered = await ensureMcpTokensFresh(mcpServersForSdk, lookupPath)
               } else {
                 mcpServersFiltered = mcpServersForSdk
+              }
+
+              // Add browser MCP server if browser sidebar is ready
+              // This enables browser_* tools for AI-controlled browser automation
+              if (browserManager.isReady) {
+                const browserMcp = await createBrowserMcpServer()
+                mcpServersFiltered = {
+                  ...mcpServersFiltered,
+                  browser: browserMcp,
+                }
+                console.log("[Browser MCP] Added browser MCP server")
               }
             }
 

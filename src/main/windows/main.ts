@@ -288,6 +288,11 @@ function registerIpcHandlers(): void {
     shell.openExternal(url),
   )
 
+  // Internal browser - forward to renderer to open browser sidebar
+  ipcMain.on("browser:open-url", (_event, url: string) => {
+    window.webContents.send("browser:navigate", url)
+  })
+
   // Clipboard
   ipcMain.handle("clipboard:write", (_event, text: string) =>
     clipboard.writeText(text),
@@ -651,6 +656,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
       sandbox: false, // Required for electron-trpc
       webSecurity: true,
       partition: "persist:main", // Use persistent session for cookies
+      webviewTag: true, // Enable webview tag for browser sidebar
     },
   })
 

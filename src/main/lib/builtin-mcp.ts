@@ -8,6 +8,7 @@
 
 import { type AuthManager, getAzureAuthHeaders } from "../auth-manager"
 import { getEnv, getApiOrigin } from "./env"
+import { BROWSER_USER_AGENT } from "./constants"
 
 // API base URL from validated environment
 function getApiBaseUrl(): string {
@@ -60,8 +61,7 @@ export async function getBuiltinMcpConfig(
       Origin: origin,
       Referer: `${origin}/`,
       // Browser-like headers to pass CloudFront WAF
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+      "User-Agent": BROWSER_USER_AGENT,
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-site",

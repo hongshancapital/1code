@@ -122,5 +122,73 @@
     "moving": "处理中...",
     "success": "已转换为正式项目",
     "error": "转换失败"
+  },
+  "browser": {
+    "history": {
+      "title": "浏览历史",
+      "noHistory": "暂无浏览记录",
+      "clearAll": "清除全部",
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}}分钟前",
+      "hoursAgo": "{{count}}小时前",
+      "daysAgo": "{{count}}天前"
+    },
+    "siteInfo": {
+      "title": "网站信息",
+      "noSite": "无网站",
+      "connectionSecure": "连接是安全的",
+      "connectionNotSecure": "连接不安全",
+      "noConnection": "无连接",
+      "viewCertificate": "查看证书",
+      "clearCache": "清除 Cookie 和缓存"
+    },
+    "certificate": {
+      "title": "证书查看者：{{hostname}}",
+      "loading": "正在加载证书...",
+      "noCertificate": "无可用证书",
+      "fetchError": "获取证书失败",
+      "basicInfo": "基本信息",
+      "details": "详细信息",
+      "subject": "颁发对象",
+      "issuer": "颁发者",
+      "validity": "有效期",
+      "commonName": "公用名 (CN)",
+      "organization": "组织 (O)",
+      "organizationalUnit": "组织单位 (OU)",
+      "validFrom": "颁发日期",
+      "validTo": "截止日期",
+      "serialNumber": "序列号",
+      "fingerprint": "SHA-256 指纹"
+    },
+    "toolbar": {
+      "back": "后退",
+      "forward": "前进",
+      "reload": "刷新",
+      "stop": "停止加载",
+      "openExternal": "在浏览器中打开",
+      "screenshot": "截图到聊天",
+      "devTools": "开发者工具",
+      "reactGrab": "选择元素",
+      "reactGrabCancel": "取消元素选择",
+      "terminal": "终端"
+    },
+    "devMode": {
+      "label": "开发者模式",
+      "description": "启用开发者工具"
+    },
+    "console": {
+      "title": "控制台",
+      "close": "关闭控制台",
+      "clear": "清空控制台",
+      "copy": "复制日志",
+      "empty": "控制台为空"
+    },
+    "device": {
+      "title": "设备模拟",
+      "responsive": "自适应",
+      "mobile": "手机",
+      "tablet": "平板",
+      "desktop": "桌面"
+    }
   }
 }

@@ -58,6 +58,7 @@ import {
   trackSendMessage,
 } from "../../../lib/sensors-analytics"
 import {
+  betaBrowserEnabledAtom,
   chatSourceModeAtom,
   customClaudeConfigAtom,
   defaultAgentModeAtom,
@@ -93,6 +94,7 @@ import { DetailsSidebar } from "../../details-sidebar/details-sidebar"
 import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
 import { FileViewerSidebar } from "../../file-viewer"
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
+import { BrowserPanel, browserVisibleAtomFamily, browserActiveAtomFamily, browserUrlAtomFamily, browserPendingScreenshotAtomFamily } from "../../browser-sidebar"
 import { terminalSidebarOpenAtomFamily, terminalDisplayModeAtom, terminalBottomHeightAtom } from "../../terminal/atoms"
 import { TerminalSidebar, TerminalBottomPanelContent } from "../../terminal/terminal-sidebar"
 import { ResizableBottomPanel } from "@/components/ui/resizable-bottom-panel"
@@ -101,6 +103,7 @@ import {
   agentsChangesPanelWidthAtom,
   agentsDiffSidebarWidthAtom,
   agentsPlanSidebarWidthAtom,
+  agentsBrowserSidebarWidthAtom,
   agentsPreviewSidebarOpenAtom,
   agentsPreviewSidebarWidthAtom,
   agentsSubChatsSidebarModeAtom,
@@ -1256,6 +1259,10 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
       ? 1200
       : typeof window !== 'undefined' ? window.innerWidth : 1200
 
+  const handleOpenDiffSearch = useCallback(() => {
+    diffViewRef.current?.openSearch()
+  }, [])
+
   const diffViewContent = (
     <div
       ref={diffSidebarRef}
@@ -1302,6 +1309,7 @@ const DiffSidebarRenderer = memo(function DiffSidebarRenderer({
           reviewButtonSlot={reviewButtonSlot}
           hasPendingDiffChanges={hasPendingDiffChanges}
           onRefreshDiff={onRefreshDiff}
+          onOpenSearch={handleOpenDiffSearch}
         />
       ) : sandboxId ? (
         <div className="flex items-center h-10 px-2 border-b border-border/50 bg-background shrink-0">
@@ -1631,6 +1639,52 @@ const ChatViewInner = memo(function ChatViewInner({
     setImagesFromDraft,
     setFilesFromDraft,
   } = useAgentsFileUpload()
+
+  // Listen for browser screenshots to add to chat input
+  const browserPendingScreenshotAtom = useMemo(
+    () => browserPendingScreenshotAtomFamily(parentChatId),
+    [parentChatId],
+  )
+  const [pendingScreenshot, setPendingScreenshot] = useAtom(browserPendingScreenshotAtom)
+  useEffect(() => {
+    if (!pendingScreenshot) return
+
+    // Convert data URL to File and add as attachment
+    const addScreenshotToInput = async () => {
+      try {
+        // Parse data URL: data:image/png;base64,xxxx
+        const [header, base64Data] = pendingScreenshot.split(",")
+        if (!base64Data) return
+
+        const mimeMatch = header?.match(/data:([^;]+)/)
+        const mimeType = mimeMatch?.[1] || "image/png"
+        const extension = mimeType.split("/")[1] || "png"
+
+        // Convert base64 to blob
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: mimeType })
+
+        // Create file
+        const filename = `browser-screenshot-${Date.now()}.${extension}`
+        const file = new File([blob], filename, { type: mimeType })
+
+        // Add to attachments
+        await handleAddAttachments([file])
+      } catch (error) {
+        console.error("Failed to add screenshot to input:", error)
+      } finally {
+        // Clear pending screenshot
+        setPendingScreenshot(null)
+      }
+    }
+
+    addScreenshotToInput()
+  }, [pendingScreenshot, setPendingScreenshot, handleAddAttachments])
 
   // Text context selection hook (for selecting text from assistant messages and diff)
   const {
@@ -3983,6 +4037,33 @@ export function ChatView({
     [activeSubChatIdForPlan],
   )
   const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planSidebarAtom)
+
+  // Browser beta feature check
+  const betaBrowserEnabled = useAtomValue(betaBrowserEnabledAtom)
+
+  // Browser sidebar state (per-chat)
+  const browserVisibleAtom = useMemo(
+    () => browserVisibleAtomFamily(chatId),
+    [chatId],
+  )
+  const browserActiveAtom = useMemo(
+    () => browserActiveAtomFamily(chatId),
+    [chatId],
+  )
+  const [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw] = useAtom(browserVisibleAtom)
+  const setBrowserActive = useSetAtom(browserActiveAtom)
+  const browserUrlAtom = useMemo(
+    () => browserUrlAtomFamily(chatId),
+    [chatId],
+  )
+  const setBrowserUrl = useSetAtom(browserUrlAtom)
+  // Browser screenshot atom - for passing screenshots to ChatViewInner
+  const browserPendingScreenshotAtom = useMemo(
+    () => browserPendingScreenshotAtomFamily(chatId),
+    [chatId],
+  )
+  const setBrowserPendingScreenshot = useSetAtom(browserPendingScreenshotAtom)
+
   const currentPlanPathAtom = useMemo(
     () => currentPlanPathAtomFamily(activeSubChatIdForPlan || ""),
     [activeSubChatIdForPlan],
@@ -4002,7 +4083,35 @@ export function ChatView({
 
   // Details sidebar state (unified sidebar that combines all right sidebars)
   const isUnifiedSidebarEnabled = useAtomValue(unifiedSidebarEnabledAtom)
-  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useAtom(detailsSidebarOpenAtom)
+  const [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw] = useAtom(detailsSidebarOpenAtom)
+
+  // Mutual exclusion: Browser sidebar and Details sidebar cannot be open at the same time
+  const setIsBrowserSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof open === 'function' ? open(isBrowserSidebarOpen) : open
+    if (newValue) {
+      setIsDetailsSidebarOpenRaw(false) // Close details when opening browser
+    }
+    setIsBrowserSidebarOpenRaw(newValue)
+  }, [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw, setIsDetailsSidebarOpenRaw])
+
+  const setIsDetailsSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
+    const newValue = typeof open === 'function' ? open(isDetailsSidebarOpen) : open
+    // Note: We intentionally do NOT close browser sidebar when opening details
+    // Both can be open at the same time
+    setIsDetailsSidebarOpenRaw(newValue)
+  }, [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw])
+
+  // Listen for browser navigation requests from chat links
+  useEffect(() => {
+    const cleanup = window.desktopApi.onBrowserNavigate((url: string) => {
+      setBrowserUrl(url)
+      setIsBrowserSidebarOpenRaw(true)
+      setBrowserActive(true)
+      // Close details sidebar (mutual exclusion)
+      setIsDetailsSidebarOpenRaw(false)
+    })
+    return cleanup
+  }, [setBrowserUrl, setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
 
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
@@ -6788,6 +6897,38 @@ Make sure to preserve all functionality from both branches when resolving confli
               refetchTrigger={planEditRefetchTrigger}
               mode={currentMode}
               onSubmitReview={handleSubmitReview}
+            />
+          </ResizableSidebar>
+        )}
+
+        {/* Browser Sidebar - shows web browser panel (only when beta feature is enabled) */}
+        {betaBrowserEnabled && !isMobileFullscreen && (
+          <ResizableSidebar
+            isOpen={isBrowserSidebarOpen}
+            onClose={() => setIsBrowserSidebarOpen(false)}
+            widthAtom={agentsBrowserSidebarWidthAtom}
+            minWidth={400}
+            maxWidth={900}
+            side="right"
+            animationDuration={0}
+            initialWidth={0}
+            exitWidth={0}
+            showResizeTooltip={true}
+            className="bg-tl-background border-l"
+            style={{ borderLeftWidth: "0.5px" }}
+          >
+            <BrowserPanel
+              chatId={chatId}
+              projectId={(agentChat as any)?.projectId || chatId}
+              onCollapse={() => setIsBrowserSidebarOpen(false)}
+              onClose={() => {
+                setIsBrowserSidebarOpen(false)
+                setBrowserActive(false)
+              }}
+              onScreenshot={(imageData) => {
+                // Set pending screenshot to be picked up by ChatViewInner
+                setBrowserPendingScreenshot(imageData)
+              }}
             />
           </ResizableSidebar>
         )}
