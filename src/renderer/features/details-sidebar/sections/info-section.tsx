@@ -356,26 +356,28 @@ Please suggest a new branch name.`
               tooltip={t("details.workspace.openInFinder")}
             />
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={handleOpenInEditor}
-                disabled={openInAppMutation.isPending}
-              >
-                {editorIcon ? (
-                  <img src={editorIcon} alt="" className="h-3.5 w-3.5" />
-                ) : (
-                  <span className="h-3.5 w-3.5 text-muted-foreground">E</span>
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              {t("details.workspace.openIn", { editor: editorLabel })}
-            </TooltipContent>
-          </Tooltip>
+          {project?.mode === "coding" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={handleOpenInEditor}
+                  disabled={openInAppMutation.isPending}
+                >
+                  {editorIcon ? (
+                    <img src={editorIcon} alt="" className="h-3.5 w-3.5" />
+                  ) : (
+                    <span className="h-3.5 w-3.5 text-muted-foreground">E</span>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {t("details.workspace.openIn", { editor: editorLabel })}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       )}
 

@@ -86,6 +86,7 @@ interface LazyDirectoryNodeProps {
   onReference: (path: string, name: string, type: "file" | "folder") => void
   onOpenInEditor: (path: string) => void
   searchQuery: string
+  showEditorButton?: boolean
 }
 
 function LazyDirectoryNode({
@@ -99,6 +100,7 @@ function LazyDirectoryNode({
   onReference,
   onOpenInEditor,
   searchQuery,
+  showEditorButton = true,
 }: LazyDirectoryNodeProps) {
   const isExpanded = expandedPaths.has(entry.path)
   const isFolder = entry.type === "folder"
@@ -219,13 +221,15 @@ function LazyDirectoryNode({
             >
               <AtSign className="h-3 w-3 text-muted-foreground hover:text-primary" />
             </button>
-            <button
-              onClick={handleOpenInEditor}
-              className="shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
-              title="Open in editor"
-            >
-              <GenericEditorIcon className="h-3 w-3 text-muted-foreground hover:text-primary" />
-            </button>
+            {showEditorButton && (
+              <button
+                onClick={handleOpenInEditor}
+                className="shrink-0 p-0.5 rounded hover:bg-primary/20 transition-colors"
+                title="Open in editor"
+              >
+                <GenericEditorIcon className="h-3 w-3 text-muted-foreground hover:text-primary" />
+              </button>
+            )}
           </>
         )}
       </div>
@@ -246,6 +250,7 @@ function LazyDirectoryNode({
               onReference={onReference}
               onOpenInEditor={onOpenInEditor}
               searchQuery={searchQuery}
+              showEditorButton={showEditorButton}
             />
           ))}
         </div>
@@ -320,6 +325,11 @@ export function FileTreePanel({
   onFileSelect,
   showHeader = true,
 }: FileTreePanelProps) {
+  // Get project mode to determine if editor button should be shown
+  const { data: projects } = trpc.projects.list.useQuery({ includePlayground: true })
+  const project = projects?.find(p => projectPath?.startsWith(p.path))
+  const isCodingMode = project?.mode === "coding"
+
   const [expandedPaths, setExpandedPaths] = useAtom(fileTreeExpandedPathsAtom)
   const [searchQuery, setSearchQuery] = useAtom(fileTreeSearchQueryAtom)
   const [savedExpandedPaths, setSavedExpandedPaths] = useAtom(fileTreeSavedExpandedPathsAtom)
@@ -851,6 +861,7 @@ export function FileTreePanel({
               onReference={handleReference}
               onOpenInEditor={handleOpenInEditor}
               searchQuery={searchQuery}
+              showEditorButton={isCodingMode}
             />
           ))
         )}
