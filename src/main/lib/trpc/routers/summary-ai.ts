@@ -18,6 +18,7 @@ export async function callSummaryAI(
   modelId: string,
   systemPrompt: string,
   userMessage: string,
+  maxTokens = 200,
 ): Promise<string | null> {
   const credentials = await getProviderCredentials(providerId, modelId)
   if (!credentials) {
@@ -27,9 +28,9 @@ export async function callSummaryAI(
 
   try {
     if (providerId === "anthropic") {
-      return await callAnthropicAPI(credentials, systemPrompt, userMessage)
+      return await callAnthropicAPI(credentials, systemPrompt, userMessage, maxTokens)
     }
-    return await callOpenAICompatibleAPI(credentials, systemPrompt, userMessage)
+    return await callOpenAICompatibleAPI(credentials, systemPrompt, userMessage, maxTokens)
   } catch (error) {
     console.warn("[SummaryAI] Call failed:", (error as Error).message)
     return null
@@ -43,6 +44,7 @@ async function callAnthropicAPI(
   credentials: { model: string; token: string; baseUrl: string },
   systemPrompt: string,
   userMessage: string,
+  maxTokens = 200,
 ): Promise<string | null> {
   const response = await fetch(`${credentials.baseUrl}/messages`, {
     method: "POST",
@@ -53,13 +55,13 @@ async function callAnthropicAPI(
     },
     body: JSON.stringify({
       model: credentials.model,
-      max_tokens: 200,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [
         { role: "user", content: userMessage },
       ],
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!response.ok) {
@@ -78,6 +80,7 @@ async function callOpenAICompatibleAPI(
   credentials: { model: string; token: string; baseUrl: string },
   systemPrompt: string,
   userMessage: string,
+  maxTokens = 200,
 ): Promise<string | null> {
   const response = await fetch(`${credentials.baseUrl}/chat/completions`, {
     method: "POST",
@@ -91,10 +94,10 @@ async function callOpenAICompatibleAPI(
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      max_tokens: 200,
-      temperature: 0.7,
+      max_tokens: maxTokens,
+      temperature: 0.3,
     }),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!response.ok) {

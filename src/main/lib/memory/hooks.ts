@@ -5,13 +5,18 @@
  */
 
 import { getDatabase, memorySessions, observations, userPrompts } from "../db"
-import { eq } from "drizzle-orm"
+import { eq, desc } from "drizzle-orm"
 import {
   parseToolToObservation,
   parseAssistantMessage,
   isMetaObservation,
   buildObservationText,
 } from "./observation-parser"
+import {
+  enhanceObservation,
+  isSummaryModelConfigured,
+  generateSessionSummary,
+} from "./summarizer"
 import type {
   SessionStartData,
   UserPromptData,
@@ -93,7 +98,7 @@ export const memoryHooks = {
       }
 
       // Parse tool to observation using rules
-      const parsed = parseToolToObservation(
+      let parsed = parseToolToObservation(
         data.toolName,
         data.toolInput,
         data.toolOutput,
@@ -103,6 +108,16 @@ export const memoryHooks = {
       if (!parsed) {
         // Unknown tool or should be skipped
         return
+      }
+
+      // Enhance with LLM if summary model is configured (async, best-effort)
+      if (isSummaryModelConfigured()) {
+        try {
+          parsed = await enhanceObservation(parsed, data.toolInput, data.toolOutput)
+        } catch (error) {
+          // Silently fall back to rule-based
+          console.warn("[Memory] LLM enhancement failed, using rule-based:", (error as Error).message)
+        }
       }
 
       // Store to database
@@ -154,7 +169,7 @@ export const memoryHooks = {
 
   /**
    * Called when a session ends
-   * Updates the session status to completed
+   * Updates the session status to completed and generates session summary
    */
   async onSessionEnd(data: SessionEndData): Promise<void> {
     if (!data.sessionId) return
@@ -172,11 +187,61 @@ export const memoryHooks = {
 
       console.log(`[Memory] Session completed: ${data.sessionId}`)
 
-      // Phase 3: Generate session summary
-      // await generateSessionSummary(data.sessionId)
+      // Generate session summary with LLM (async, best-effort)
+      if (isSummaryModelConfigured()) {
+        this._generateAndStoreSummary(data.sessionId).catch((error) => {
+          console.warn("[Memory] Session summary generation failed:", (error as Error).message)
+        })
+      }
     } catch (error) {
       console.error("[Memory] Failed to complete session:", error)
     }
+  },
+
+  /**
+   * Internal: generate and store session summary
+   */
+  async _generateAndStoreSummary(sessionId: string): Promise<void> {
+    const db = getDatabase()
+
+    // Gather user prompts for this session
+    const prompts = db
+      .select()
+      .from(userPrompts)
+      .where(eq(userPrompts.sessionId, sessionId))
+      .orderBy(userPrompts.promptNumber)
+      .all()
+
+    // Gather observations for this session
+    const obs = db
+      .select()
+      .from(observations)
+      .where(eq(observations.sessionId, sessionId))
+      .orderBy(observations.createdAtEpoch)
+      .all()
+
+    if (prompts.length === 0 && obs.length === 0) return
+
+    const promptTexts = prompts.map((p) => p.promptText)
+    const obsTitles = obs.map((o) => o.title || "")
+    const obsNarratives = obs.map((o) => o.narrative || "")
+
+    const summary = await generateSessionSummary(promptTexts, obsTitles, obsNarratives)
+    if (!summary) return
+
+    // Store summary on the session
+    db.update(memorySessions)
+      .set({
+        summaryRequest: summary.request,
+        summaryInvestigated: summary.investigated,
+        summaryLearned: summary.learned,
+        summaryCompleted: summary.completed,
+        summaryNextSteps: summary.nextSteps,
+      })
+      .where(eq(memorySessions.id, sessionId))
+      .run()
+
+    console.log(`[Memory] Session summary generated for: ${sessionId}`)
   },
 
   /**

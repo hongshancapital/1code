@@ -11,6 +11,15 @@ export {
 } from "./observation-parser"
 export * from "./types"
 
+// Summarizer (LLM-enhanced observations)
+export {
+  setSummaryModelConfig,
+  isSummaryModelConfigured,
+  enhanceObservation,
+  generateSessionSummary,
+  type SessionSummary,
+} from "./summarizer"
+
 // Vector store
 export {
   initVectorStore,

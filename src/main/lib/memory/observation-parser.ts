@@ -318,28 +318,45 @@ export function buildObservationText(parsed: ParsedObservation): string {
 
 /**
  * Parse assistant text message to generate an observation
- * Captures AI responses for memory
+ * Only captures substantial AI responses that contain real insight.
+ * Filters out tool-related filler, short confirmations, and routine messages.
  */
 export function parseAssistantMessage(
   text: string,
   messageId?: string,
 ): ParsedObservation | null {
   // Skip very short messages or empty messages
-  if (!text || text.trim().length < 20) return null
+  if (!text || text.trim().length < 100) return null
 
-  // Skip messages that are just tool-related
-  if (text.startsWith("I'll ") && text.length < 100) return null
+  // Skip messages that are just tool-related filler
+  if (text.startsWith("I'll ") && text.length < 200) return null
+  if (text.startsWith("Let me ") && text.length < 200) return null
+  if (text.startsWith("Now ") && text.length < 200) return null
 
-  // Extract a title from the first line or sentence
-  const firstLine = text.split("\n")[0].slice(0, 100)
+  // Skip messages that are mostly code blocks (low insight density)
+  const textWithoutCode = text.replace(/```[\s\S]*?```/g, "")
+  if (textWithoutCode.trim().length < 80) return null
+
+  // Skip messages that look like status updates
+  const statusPatterns = [
+    /^(好的|好|OK|Done|完成|继续)/i,
+    /^(Looking at|Reading|Searching|Checking)/i,
+    /^(查看|读取|搜索|检查)/i,
+  ]
+  if (statusPatterns.some((p) => p.test(text.trim()))) return null
+
+  // Extract a title from the first meaningful line
+  const firstLine = text.split("\n")[0].replace(/^#+\s*/, "").slice(0, 100)
   const title = firstLine.endsWith(".")
     ? firstLine
     : firstLine.length < 80
       ? firstLine
       : `${firstLine.slice(0, 77)}...`
 
-  // Truncate narrative to reasonable length
-  const narrative = text.length > 1000 ? `${text.slice(0, 1000)}...` : text
+  // Truncate narrative — keep only the non-code text for embedding quality
+  const narrative = textWithoutCode.length > 500
+    ? `${textWithoutCode.slice(0, 500)}...`
+    : textWithoutCode
 
   return {
     type: "response" as ObservationType,

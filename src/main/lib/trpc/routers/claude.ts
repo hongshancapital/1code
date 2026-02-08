@@ -1113,6 +1113,8 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
         skillAwarenessEnabled: z.boolean().optional(), // Enable skill awareness prompt injection (default true)
         memoryEnabled: z.boolean().optional(), // Enable memory context injection (default true)
         memoryRecordingEnabled: z.boolean().optional(), // Enable memory recording (default true)
+        summaryProviderId: z.string().optional(), // Summary model provider for LLM-enhanced memory
+        summaryModelId: z.string().optional(), // Summary model ID for LLM-enhanced memory
         imageConfig: z
           .object({
             baseUrl: z.string(),
@@ -1261,6 +1263,21 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             let memorySessionId: string | null = null
             const promptNumber = existingMessages.filter((m: any) => m.role === "user").length + 1
             if (projectId && input.memoryRecordingEnabled !== false) {
+              // Sync summary model config for LLM-enhanced observations
+              try {
+                const { setSummaryModelConfig } = await import("../../memory/summarizer")
+                if (input.summaryProviderId && input.summaryModelId) {
+                  setSummaryModelConfig({
+                    providerId: input.summaryProviderId,
+                    modelId: input.summaryModelId,
+                  })
+                } else {
+                  setSummaryModelConfig(null)
+                }
+              } catch {
+                // Summarizer not available, continue with rule-based
+              }
+
               try {
                 memorySessionId = await memoryHooks.onSessionStart({
                   subChatId: input.subChatId,
@@ -1846,17 +1863,12 @@ ${prompt}
             }
 
             // Build memory context (only when enabled, default true)
+            // Uses hybrid search (FTS + vector) when prompt is available,
+            // with recent sessions as stable context
             let memoryAppendSection: string | undefined
             if (input.memoryEnabled !== false && projectId) {
               try {
-                const memoryObs = db
-                  .select()
-                  .from(observations)
-                  .where(eq(observations.projectId, projectId))
-                  .orderBy(desc(observations.createdAtEpoch))
-                  .limit(20)
-                  .all()
-
+                // 1. Always include recent session summaries (stable context)
                 const memorySess = db
                   .select()
                   .from(memorySessions)
@@ -1865,6 +1877,52 @@ ${prompt}
                   .limit(5)
                   .all()
 
+                // 2. Use hybrid search for semantically relevant observations
+                // Falls back to recent observations if search fails
+                let relevantObs: Array<{ type: string; title: string | null; narrative: string | null }> = []
+                const userPrompt = input.prompt?.trim()
+                if (userPrompt && userPrompt.length > 5) {
+                  try {
+                    const { hybridSearch } = await import("../../memory/hybrid-search")
+                    const searchResults = await hybridSearch({
+                      query: userPrompt,
+                      projectId,
+                      type: "observations",
+                      limit: 15,
+                    })
+                    // Filter out noise: skip "response" type (AI responses) and low-score results
+                    relevantObs = searchResults
+                      .filter((r) => r.type === "observation" && r.score > 0.005)
+                      .map((r) => ({
+                        type: (r as any).observationType || r.type,
+                        title: r.title,
+                        narrative: r.excerpt,
+                      }))
+                  } catch (searchErr) {
+                    console.warn("[Memory] Hybrid search failed, using recent:", searchErr)
+                  }
+                }
+
+                // Fallback: recent observations (excluding response type to reduce noise)
+                if (relevantObs.length === 0) {
+                  const recentObs = db
+                    .select()
+                    .from(observations)
+                    .where(eq(observations.projectId, projectId))
+                    .orderBy(desc(observations.createdAtEpoch))
+                    .limit(30)
+                    .all()
+                  relevantObs = recentObs
+                    .filter((o) => o.type !== "response")
+                    .slice(0, 15)
+                    .map((o) => ({
+                      type: o.type,
+                      title: o.title,
+                      narrative: o.narrative,
+                    }))
+                }
+
+                // 3. Build context markdown
                 const lines: string[] = []
                 if (memorySess.length > 0) {
                   lines.push("## Recent Sessions\n")
@@ -1881,12 +1939,12 @@ ${prompt}
                   }
                   lines.push("")
                 }
-                if (memoryObs.length > 0) {
+                if (relevantObs.length > 0) {
                   lines.push("## Recent Observations\n")
-                  for (const o of memoryObs) {
+                  for (const o of relevantObs) {
                     lines.push(`- [${o.type}] ${o.title}`)
                     if (o.narrative) {
-                      lines.push(`  > ${o.narrative.slice(0, 100)}...`)
+                      lines.push(`  > ${o.narrative.slice(0, 200)}`)
                     }
                   }
                 }
@@ -1902,6 +1960,27 @@ ${prompt}
 
             // Build system prompt using PromptBuilder (composable architecture)
             const promptBuilder = getPromptBuilder()
+
+            // Collect append sections
+            const appendSections: string[] = []
+            if (memoryAppendSection) {
+              appendSections.push(memoryAppendSection)
+            }
+
+            // Inject browser context when user is actively browsing
+            if (browserManager.isReady && browserManager.currentUrl && browserManager.currentUrl !== "about:blank") {
+              const browserTitle = browserManager.currentTitle || "Unknown"
+              const browserUrl = browserManager.currentUrl
+              appendSections.push(
+`# Active Browser Context
+The user is currently using the built-in browser and viewing:
+- **Page Title**: ${browserTitle}
+- **URL**: ${browserUrl}
+
+If the user needs help with the page content, you can use the browser MCP tools (browser_lock, browser_snapshot, browser_click, browser_fill, browser_screenshot, etc.) to assist them. Remember to call browser_lock before and browser_unlock after using browser tools.`
+              )
+            }
+
             const systemPromptConfig = await promptBuilder.buildSystemPrompt(
               {
                 type: "chat",
@@ -1910,7 +1989,7 @@ ${prompt}
                 includeSkillAwareness: input.skillAwarenessEnabled !== false,
                 includeAgentsMd: true,
                 userProfile: input.userProfile,
-                ...(memoryAppendSection && { appendSections: [memoryAppendSection] }),
+                ...(appendSections.length > 0 && { appendSections }),
               },
               input.cwd
             )

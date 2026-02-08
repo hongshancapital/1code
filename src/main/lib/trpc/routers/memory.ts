@@ -534,22 +534,14 @@ export const memoryRouter = router({
     .input(
       z.object({
         projectId: z.string(),
-        limit: z.number().default(100),
+        query: z.string().optional(),
+        limit: z.number().default(20),
       }),
     )
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       const db = getDatabase()
 
-      // Get recent observations
-      const obs = db
-        .select()
-        .from(observations)
-        .where(eq(observations.projectId, input.projectId))
-        .orderBy(desc(observations.createdAtEpoch))
-        .limit(input.limit)
-        .all()
-
-      // Get recent sessions with summaries
+      // Get recent sessions with summaries (always stable context)
       const sessions = db
         .select()
         .from(memorySessions)
@@ -557,6 +549,39 @@ export const memoryRouter = router({
         .orderBy(desc(memorySessions.startedAtEpoch))
         .limit(5)
         .all()
+
+      // Get observations: prefer semantic search if query provided
+      let obs: Observation[] = []
+      if (input.query) {
+        try {
+          const results = await hybridSearch({
+            projectId: input.projectId,
+            query: input.query,
+            limit: input.limit,
+          })
+          obs = results
+            .filter((r) => r.score > 0.005 && r.type !== "response")
+            .map((r) => r as unknown as Observation)
+        } catch {
+          // Fallback to recent observations on search failure
+        }
+      }
+
+      // Fallback: recent observations excluding noisy response type
+      if (obs.length === 0) {
+        obs = db
+          .select()
+          .from(observations)
+          .where(
+            and(
+              eq(observations.projectId, input.projectId),
+              sql`${observations.type} != 'response'`,
+            ),
+          )
+          .orderBy(desc(observations.createdAtEpoch))
+          .limit(input.limit)
+          .all()
+      }
 
       // Build context markdown
       const lines: string[] = []
@@ -579,10 +604,10 @@ export const memoryRouter = router({
 
       if (obs.length > 0) {
         lines.push("## Recent Observations\n")
-        for (const o of obs.slice(0, 20)) {
+        for (const o of obs) {
           lines.push(`- [${o.type}] ${o.title}`)
           if (o.narrative) {
-            lines.push(`  > ${o.narrative.slice(0, 100)}...`)
+            lines.push(`  > ${o.narrative.slice(0, 200)}`)
           }
         }
       }

@@ -4621,6 +4621,18 @@ export function ChatView({
     }
   )
 
+  // Invalidate messages cache when parent chatId changes (switching between workspaces)
+  // Without this, staleTime: Infinity causes stale cached data to be returned when
+  // switching back, missing user messages that were saved to DB by the backend.
+  const prevChatIdRef = useRef(chatId)
+  useEffect(() => {
+    if (prevChatIdRef.current !== chatId) {
+      getQueryClient().invalidateQueries({
+        queryKey: [['chats', 'getSubChatMessages']],
+      })
+      prevChatIdRef.current = chatId
+    }
+  }, [chatId])
 
   const { data: remoteAgentChat, isLoading: _isRemoteLoading } = useRemoteChat(
     chatSourceMode === "sandbox" ? chatId : null,
@@ -5713,8 +5725,8 @@ Make sure to preserve all functionality from both branches when resolving confli
               cachedMsgCount: existingMessages.length,
               newMsgCount: parsed.length,
             })
-            // 如果缓存为空但数据库有消息，重新创建 Chat
-            if (existingMessages.length === 0 && parsed.length > 0) {
+            // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
+            if (parsed.length > existingMessages.length) {
               console.log('[getOrCreateChat] Recreating chat with new messages')
               agentChatStore.delete(subChatId)
               // 不 return，继续往下创建新 Chat

@@ -20,7 +20,7 @@ import {
   memoryEnabledAtom,
   memoryRecordingEnabledAtom,
 } from "../../../lib/atoms"
-import { effectiveLlmSelectionAtom, imageProviderIdAtom, imageModelIdAtom, enabledModelsPerProviderAtom } from "../../../lib/atoms/model-config"
+import { effectiveLlmSelectionAtom, imageProviderIdAtom, imageModelIdAtom, enabledModelsPerProviderAtom, summaryProviderIdAtom, summaryModelIdAtom } from "../../../lib/atoms/model-config"
 import { appStore } from "../../../lib/jotai-store"
 import { trpcClient } from "../../../lib/trpc"
 import {
@@ -339,6 +339,7 @@ askUserQuestionTimeout,
             skillAwarenessEnabled,
             memoryEnabled,
             memoryRecordingEnabled,
+            ...((() => { const sp = appStore.get(summaryProviderIdAtom); const sm = appStore.get(summaryModelIdAtom); return sp && sm ? { summaryProviderId: sp, summaryModelId: sm } : {}; })()),
             ...(images.length > 0 && { images }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
