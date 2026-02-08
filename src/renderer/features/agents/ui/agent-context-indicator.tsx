@@ -19,8 +19,12 @@ type ModelId = keyof typeof CONTEXT_WINDOWS
 
 // Pre-computed token data to avoid re-computing on every render
 export interface MessageTokenData {
-  totalInputTokens: number
-  totalOutputTokens: number
+  // Per-API-call values from streaming events (accurate context window size)
+  lastCallInputTokens: number
+  lastCallOutputTokens: number
+  // Cumulative values from SDK (for fallback and cost display)
+  totalInputTokens: number   // Cumulative inputTokens across all API calls in the turn
+  totalOutputTokens: number  // Cumulative outputTokens across all API calls in the turn
   totalCostUsd: number
   messageCount: number
 }
@@ -101,10 +105,18 @@ export const AgentContextIndicator = memo(function AgentContextIndicator({
   isCompacting,
   disabled,
 }: AgentContextIndicatorProps) {
-  // Context usage estimate: last API call's input tokens = current conversation context size
-  // Adding output tokens gives the approximate context for the next request
-  // (since this turn's output becomes next turn's input)
-  const contextUsed = tokenData.totalInputTokens + tokenData.totalOutputTokens
+  // Context usage estimate:
+  // We now have per-API-call token counts from streaming events.
+  // lastCallInputTokens = the LAST API call's input tokens = actual context window size
+  // lastCallOutputTokens = the LAST API call's output tokens
+  // Together they approximate the context for the next request.
+  //
+  // Fallback to cumulative values if per-call data isn't available
+  // (e.g. non-streaming, Ollama, or older messages without per-call data).
+  const hasPerCallData = tokenData.lastCallInputTokens > 0
+  const contextUsed = hasPerCallData
+    ? tokenData.lastCallInputTokens + tokenData.lastCallOutputTokens
+    : tokenData.totalInputTokens + tokenData.totalOutputTokens
   const contextWindow = CONTEXT_WINDOWS[modelId]
   const percentUsed = Math.min(100, (contextUsed / contextWindow) * 100)
   const isEmpty = contextUsed === 0

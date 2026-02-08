@@ -37,8 +37,14 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
 
   // Track streaming thinking for Extended Thinking
   let currentThinkingId: string | null = null
-  let accumulatedThinking = ""
   let inThinkingBlock = false // Track if we're currently in a thinking block
+
+  // Track per-API-call token usage from streaming events for accurate context estimation.
+  // SDK's result.usage is cumulative across ALL API calls in the agentic loop,
+  // but message_start/message_delta events contain per-call values.
+  // The LAST API call's input_tokens is the actual context window size.
+  let lastApiCallInputTokens = 0
+  let lastApiCallOutputTokens = 0
 
   // Helper to create composite toolCallId: "parentId:childId" or just "childId"
   const makeCompositeId = (originalId: string, parentId: string | null): string => {
@@ -135,8 +141,16 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
     // Reset thinking state on new message start to prevent memory leaks
     if (msg.type === "stream_event" && msg.event?.type === "message_start") {
       currentThinkingId = null
-      accumulatedThinking = ""
       inThinkingBlock = false
+
+      // Capture per-API-call input tokens from message_start.
+      // Each message_start in the agentic loop contains the ACTUAL input tokens
+      // for that specific API call (= current context window size).
+      // The LAST one reflects the final context size.
+      const msgUsage = msg.event?.message?.usage
+      if (msgUsage?.input_tokens) {
+        lastApiCallInputTokens = msgUsage.input_tokens
+      }
     }
 
     // ===== STREAMING EVENTS (token-by-token) =====
@@ -239,54 +253,46 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         }
       }
 
-      // Thinking content block start (Extended Thinking)
+      // Thinking content block start → emit as reasoning (native AI SDK streaming)
       if (event.type === "content_block_start" && event.content_block?.type === "thinking") {
         currentThinkingId = `thinking-${Date.now()}`
-        accumulatedThinking = ""
         inThinkingBlock = true
         // Mark as streamed IMMEDIATELY to prevent assistant message from emitting duplicate
         // (assistant message may arrive before content_block_stop)
         emittedToolIds.add("thinking-streamed")
         yield {
-          type: "tool-input-start",
-          toolCallId: currentThinkingId,
-          toolName: "Thinking",
+          type: "reasoning-start",
+          id: currentThinkingId,
         }
       }
 
-      // Thinking/reasoning streaming - emit as tool-like chunks for UI
+      // Thinking streaming → reasoning-delta (pure text, no JSON escaping needed)
       if (event.delta?.type === "thinking_delta" && currentThinkingId && inThinkingBlock) {
         const thinkingText = String(event.delta.thinking || "")
-
-        // Accumulate and emit delta
-        accumulatedThinking += thinkingText
         yield {
-          type: "tool-input-delta",
-          toolCallId: currentThinkingId,
-          inputTextDelta: thinkingText,
+          type: "reasoning-delta",
+          id: currentThinkingId,
+          delta: thinkingText,
         }
       }
 
-      // Thinking complete (content_block_stop while in thinking block)
+      // Thinking complete → reasoning-end
       if (event.type === "content_block_stop" && inThinkingBlock && currentThinkingId) {
-        // Emit the complete thinking tool
         yield {
-          type: "tool-input-available",
-          toolCallId: currentThinkingId,
-          toolName: "Thinking",
-          input: { text: accumulatedThinking },
-        }
-        yield {
-          type: "tool-output-available",
-          toolCallId: currentThinkingId,
-          output: { completed: true },
+          type: "reasoning-end",
+          id: currentThinkingId,
         }
         // Track as emitted to skip duplicate from assistant message
         emittedToolIds.add(currentThinkingId)
         emittedToolIds.add("thinking-streamed") // Flag to skip complete block
         currentThinkingId = null
-        accumulatedThinking = ""
         inThinkingBlock = false
+      }
+
+      // Capture per-API-call output tokens from message_delta event.
+      // Anthropic API sends output_tokens in message_delta at the end of each response.
+      if (event.type === "message_delta" && event.usage?.output_tokens) {
+        lastApiCallOutputTokens = event.usage.output_tokens
       }
     }
 
@@ -305,20 +311,20 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
           // Mark as emitted FIRST to prevent any race conditions or duplicates
           emittedToolIds.add("thinking-streamed")
 
-          // Emit as tool-input-available with special "Thinking" tool name
-          // This allows the UI to render it like other tools
+          // Emit as reasoning chunks (fallback when streaming events were missed)
           const thinkingId = genId()
           yield {
-            type: "tool-input-available",
-            toolCallId: thinkingId,
-            toolName: "Thinking",
-            input: { text: block.thinking },
+            type: "reasoning-start",
+            id: thinkingId,
           }
-          // Immediately mark as complete
           yield {
-            type: "tool-output-available",
-            toolCallId: thinkingId,
-            output: { completed: true },
+            type: "reasoning-delta",
+            id: thinkingId,
+            delta: block.thinking,
+          }
+          yield {
+            type: "reasoning-end",
+            id: thinkingId,
           }
         }
 
@@ -610,6 +616,9 @@ export function createTransformer(options?: { emitSdkMessageUuid?: boolean; isUs
         finalTextId: lastTextId || undefined,
         // Per-model usage breakdown
         modelUsage,
+        // Per-API-call tokens from streaming events (last call = actual context size)
+        lastCallInputTokens: lastApiCallInputTokens || undefined,
+        lastCallOutputTokens: lastApiCallOutputTokens || undefined,
       }
       yield { type: "message-metadata", messageMetadata: metadata }
       yield { type: "finish-step" }

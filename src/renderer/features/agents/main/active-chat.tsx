@@ -2131,50 +2131,41 @@ const ChatViewInner = memo(function ChatViewInner({
 
     // Context window usage estimation:
     //
-    // SDK's metadata.inputTokens is the CUMULATIVE total across ALL API calls
-    // in the agentic loop (one user prompt may trigger multiple API calls for
-    // tool use), NOT the actual context window size. Using it directly would
-    // massively overcount (e.g. 3 tool calls → ~3x inflation).
+    // SDK's metadata.inputTokens/outputTokens are CUMULATIVE across ALL API calls
+    // in the agentic loop, NOT per-call values. Using them directly would massively
+    // overcount (e.g. 3 tool calls in one turn → ~3x inflation).
     //
-    // Better approach: sum outputTokens across all turns. Each turn's output
-    // becomes part of subsequent context, so cumulative outputTokens closely
-    // tracks how much of the context window is filled by AI-generated content.
-    // We also need to account for user messages and system prompt, so we use
-    // the last message's inputTokens minus its outputTokens as a baseline
-    // (representing system prompt + user messages + tool results).
+    // We now capture per-API-call tokens from streaming events (message_start has
+    // input_tokens, message_delta has output_tokens). The LAST API call's input
+    // tokens = actual context window size. Adding its output tokens gives the
+    // approximate context for the next request.
     //
-    // Estimation formula:
-    //   contextUsed ≈ sum(all turns' outputTokens) + lastTurn's (inputTokens - cumulativeOutputTokens)
-    //   where the second term captures system prompt + user content
-    //
-    // Simplified: just use lastTurn's inputTokens + lastTurn's outputTokens,
-    // but ONLY if we can get the per-turn (not cumulative) input tokens.
-    // Since we can't, we sum outputTokens across all turns as the AI contribution,
-    // then estimate system+user context from the difference.
-    let cumulativeOutputTokens = 0
-    let lastInputTokens = 0
-    let lastOutputTokens = 0
+    // Fallback: if per-call data isn't available (e.g. non-streaming or Ollama),
+    // use cumulative values as a rough upper bound.
+    let lastCallInputTokens = 0
+    let lastCallOutputTokens = 0
+    let lastCumulativeInputTokens = 0
+    let lastCumulativeOutputTokens = 0
 
-    for (const msg of messages) {
-      if (msg.metadata) {
-        cumulativeOutputTokens += msg.metadata.outputTokens || 0
-      }
-    }
-
-    // Find the last message with token data for the inputTokens baseline
+    // Find the last message with token data
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
       if (msg.metadata && (msg.metadata.inputTokens || msg.metadata.outputTokens)) {
-        lastInputTokens = msg.metadata.inputTokens || 0
-        lastOutputTokens = msg.metadata.outputTokens || 0
+        lastCumulativeInputTokens = msg.metadata.inputTokens || 0
+        lastCumulativeOutputTokens = msg.metadata.outputTokens || 0
+        lastCallInputTokens = msg.metadata.lastCallInputTokens || 0
+        lastCallOutputTokens = msg.metadata.lastCallOutputTokens || 0
         break
       }
     }
 
     return {
-      totalInputTokens: lastInputTokens,
-      totalOutputTokens: lastOutputTokens,
-      cumulativeOutputTokens,
+      // Per-call values (accurate context window size)
+      lastCallInputTokens,
+      lastCallOutputTokens,
+      // Cumulative values (for fallback and cost display)
+      totalInputTokens: lastCumulativeInputTokens,
+      totalOutputTokens: lastCumulativeOutputTokens,
       totalCostUsd,
       messageCount: messages.length,
     }

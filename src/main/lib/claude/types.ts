@@ -10,8 +10,10 @@ export type UIMessageChunk =
   | { type: "text-delta"; id: string; delta: string }
   | { type: "text-end"; id: string }
   // Reasoning (Extended Thinking)
+  | { type: "reasoning-start"; id: string }
   | { type: "reasoning"; id: string; text: string }
   | { type: "reasoning-delta"; id: string; delta: string }
+  | { type: "reasoning-end"; id: string }
   // Tool calls
   | { type: "tool-input-start"; toolCallId: string; toolName: string }
   | { type: "tool-input-delta"; toolCallId: string; inputTextDelta: string }
@@ -103,4 +105,9 @@ export type MessageMetadata = {
   finalTextId?: string
   // Per-model usage breakdown from SDK (model name -> usage)
   modelUsage?: Record<string, ModelUsageEntry>
+  // Per-API-call token counts from streaming events (NOT cumulative).
+  // These reflect the LAST API call in the agentic loop, which represents
+  // the actual context window size sent to the model.
+  lastCallInputTokens?: number
+  lastCallOutputTokens?: number
 }
