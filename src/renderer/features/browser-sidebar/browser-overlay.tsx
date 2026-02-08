@@ -118,7 +118,7 @@ export function BrowserOverlay({
         >
           {/* Locked mode: content blocking area (cursor-none only here, below status bar) */}
           {locked && (
-            <div className="absolute inset-0 top-8 bg-black/5 cursor-none" />
+            <div className="absolute inset-0 top-8 bg-black/5 cursor-not-allowed" />
           )}
 
           {/* Glow border — inset box-shadow, starts below status bar */}

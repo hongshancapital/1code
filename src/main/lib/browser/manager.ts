@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from "node:events"
+import * as fs from "node:fs/promises"
 import * as https from "node:https"
 import * as tls from "node:tls"
 import { BrowserWindow, ipcMain, webContents, session } from "electron"
@@ -265,6 +266,36 @@ export class BrowserManager extends EventEmitter {
 
   get isLocked(): boolean {
     return this.state.isLocked
+  }
+
+  /**
+   * Capture screenshot directly in main process via webContents.capturePage().
+   * Writes raw PNG Buffer to file — no base64 IPC, no data corruption.
+   */
+  async captureScreenshot(filePath: string): Promise<{ success: boolean; width: number; height: number; error?: string }> {
+    const allContents = webContents.getAllWebContents()
+    const browserWebview = allContents.find(wc => {
+      if (wc.getType() !== "webview") return false
+      try {
+        return wc.session === session.fromPartition("persist:browser")
+      } catch {
+        return false
+      }
+    })
+
+    if (!browserWebview) {
+      return { success: false, width: 0, height: 0, error: "No browser webview found" }
+    }
+
+    try {
+      const image = await browserWebview.capturePage()
+      const pngBuffer = image.toPNG()
+      await fs.writeFile(filePath, pngBuffer)
+      const size = image.getSize()
+      return { success: true, width: size.width, height: size.height }
+    } catch (e) {
+      return { success: false, width: 0, height: 0, error: `Screenshot failed: ${e}` }
+    }
   }
 
   /**

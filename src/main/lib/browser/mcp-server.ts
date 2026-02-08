@@ -357,21 +357,28 @@ To show the screenshot in chat, use markdown: ![description](file_path)`,
             return text(`Downloaded to: ${savePath}`)
           }
 
-          // Screenshot mode — always save to file
+          // Screenshot mode — capture directly in main process (no base64 IPC)
           const savePath = filePath || await getTempCapturePath("png")
-          const result = await browserManager.execute<{ base64: string; width: number; height: number }>(
-            "screenshot", { ref, fullPage, filePath: savePath }
-          )
-          if (!result.success) return error(result.error!)
 
-          // If renderer returned base64 (legacy path), write to file ourselves
-          if (result.data?.base64) {
-            try {
-              const buffer = Buffer.from(result.data.base64, "base64")
-              await fs.writeFile(savePath, buffer)
-            } catch (e) {
-              return error(`Failed to save screenshot: ${e}`)
+          if (ref) {
+            // Element screenshot: still needs renderer to locate the element
+            const result = await browserManager.execute<{ base64: string; width: number; height: number }>(
+              "screenshot", { ref, fullPage, filePath: savePath }
+            )
+            if (!result.success) return error(result.error!)
+            // Write base64 from renderer to file
+            if (result.data?.base64) {
+              try {
+                const buffer = Buffer.from(result.data.base64, "base64")
+                await fs.writeFile(savePath, buffer)
+              } catch (e) {
+                return error(`Failed to save screenshot: ${e}`)
+              }
             }
+          } else {
+            // Full page / viewport screenshot: use main process capturePage() directly
+            const result = await browserManager.captureScreenshot(savePath)
+            if (!result.success) return error(result.error!)
           }
 
           return text(
