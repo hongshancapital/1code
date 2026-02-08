@@ -68,6 +68,7 @@ import {
   overrideModelModeAtom,
   litellmSelectedModelAtom,
 } from "../../../lib/atoms"
+import { activeModelIdAtom } from "../../../lib/atoms/model-config"
 // Desktop uses real tRPC
 import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
@@ -227,6 +228,7 @@ export function NewChatForm({
   const [lastSelectedModelId, setLastSelectedModelId] = useAtom(
     lastSelectedModelIdAtom,
   )
+  const setActiveModelId = useSetAtom(activeModelIdAtom)
   // Mode for new chat - uses user's default preference directly
   // Note: defaultAgentMode is initialized synchronously via atomWithStorage with getOnInit: true
   const defaultAgentMode = useAtomValue(defaultAgentModeAtom)
@@ -2067,6 +2069,8 @@ export function NewChatForm({
                                   onClick={() => {
                                     setSelectedModel(model)
                                     setLastSelectedModelId(model.id)
+                                    // Sync to unified model config so new chats use this model
+                                    setActiveModelId(model.id)
                                   }}
                                   className="gap-2 justify-between"
                                 >

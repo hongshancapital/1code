@@ -45,8 +45,11 @@ import {
 import {
   sessionModelOverrideAtom,
   effectiveLlmSelectionAtom,
+  activeProviderIdAtom,
+  activeModelIdAtom,
   enabledProviderIdsAtom,
   enabledModelsPerProviderAtom,
+  chatModelSelectionsAtom,
   type ModelInfo,
   type ProviderInfo,
 } from "../../../lib/atoms/model-config"
@@ -487,6 +490,10 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Unified model config - session override and effective selection
   const [sessionOverride, setSessionOverride] = useAtom(sessionModelOverrideAtom)
   const effectiveSelection = useAtomValue(effectiveLlmSelectionAtom)
+  // Per-chat model persistence + global default update
+  const setActiveProviderId = useSetAtom(activeProviderIdAtom)
+  const setActiveModelId = useSetAtom(activeModelIdAtom)
+  const setChatModelSelections = useSetAtom(chatModelSelectionsAtom)
 
   // Fetch available providers, filter by enabled state
   const { data: providersData } = trpc.providers.list.useQuery()
@@ -1460,26 +1467,24 @@ export const ChatInputArea = memo(function ChatInputArea({
                       open={isModelDropdownOpen}
                       onOpenChange={setIsModelDropdownOpen}
                     >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
-                        >
-                          <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate max-w-[150px]">
-                            {currentProviderName !== "Anthropic" ? (
-                              <>
-                                <span className="text-muted-foreground">{currentProviderName}:</span> {currentModelName}
-                              </>
-                            ) : (
-                              currentModelName
-                            )}
-                            {sessionOverride && (
-                              <span className="text-yellow-500 ml-1">•</span>
-                            )}
-                          </span>
-                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                        </button>
-                      </DropdownMenuTrigger>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
+                            >
+                              <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate max-w-[120px]">
+                                {currentProviderName}
+                              </span>
+                              <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                            </button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {currentModelName}
+                        </TooltipContent>
+                      </Tooltip>
                       <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
                         {/* Session override indicator */}
                         {sessionOverride && (
@@ -1490,6 +1495,14 @@ export const ChatInputArea = memo(function ChatInputArea({
                                 className="text-xs text-muted-foreground hover:text-foreground underline"
                                 onClick={() => {
                                   setSessionOverride(null)
+                                  // Clear per-chat persisted model
+                                  if (parentChatId) {
+                                    setChatModelSelections((prev) => {
+                                      const next = { ...prev }
+                                      delete next[parentChatId]
+                                      return next
+                                    })
+                                  }
                                   setIsModelDropdownOpen(false)
                                 }}
                               >
@@ -1509,10 +1522,21 @@ export const ChatInputArea = memo(function ChatInputArea({
                             isCurrentProvider={provider.id === effectiveSelection.providerId}
                             currentModelId={currentModelId}
                             onSelectModel={(modelId) => {
-                              setSessionOverride({
+                              const selection = {
                                 providerId: provider.id,
                                 modelId,
-                              })
+                              }
+                              setSessionOverride(selection)
+                              // Persist globally: update default provider/model for new chats
+                              setActiveProviderId(provider.id === "anthropic" ? null : provider.id)
+                              setActiveModelId(modelId)
+                              // Persist per-chat: remember this chat's model choice
+                              if (parentChatId) {
+                                setChatModelSelections((prev) => ({
+                                  ...prev,
+                                  [parentChatId]: selection,
+                                }))
+                              }
                               setIsModelDropdownOpen(false)
                             }}
                           />

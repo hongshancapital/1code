@@ -74,6 +74,10 @@ import {
   removeTrafficLightRequestAtom,
   TRAFFIC_LIGHT_PRIORITIES,
 } from "../../../lib/atoms/traffic-light"
+import {
+  sessionModelOverrideAtom,
+  chatModelSelectionsAtom,
+} from "../../../lib/atoms/model-config"
 import { useFileChangeListener, useGitWatcher } from "../../../lib/hooks/use-file-change-listener"
 import { useRemoteChat } from "../../../lib/hooks/use-remote-chats"
 import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
@@ -4507,6 +4511,18 @@ export function ChatView({
       return prev
     })
   }, [chatId, setUnseenChanges])
+
+  // Restore per-chat model selection when switching chats
+  const chatModelSelections = useAtomValue(chatModelSelectionsAtom)
+  const setSessionModelOverride = useSetAtom(sessionModelOverrideAtom)
+  useEffect(() => {
+    const saved = chatModelSelections[chatId]
+    if (saved) {
+      setSessionModelOverride(saved)
+    } else {
+      setSessionModelOverride(null)
+    }
+  }, [chatId]) // eslint-disable-line react-hooks/exhaustive-deps -- only restore on chat switch
 
   // Get sub-chat state from store (reactive subscription for tabsToRender)
   const {

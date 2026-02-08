@@ -1133,6 +1133,8 @@ export {
   // Legacy aliases
   activeLlmProviderIdAtom,
   activeLlmModelIdAtom,
+  // Per-chat model persistence
+  chatModelSelectionsAtom,
   // Session override for chat-time switching
   sessionModelOverrideAtom,
   effectiveLlmSelectionAtom,

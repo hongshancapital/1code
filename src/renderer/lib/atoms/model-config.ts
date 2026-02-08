@@ -219,6 +219,20 @@ export const activeLlmProviderIdAtom = activeProviderIdAtom
 /** @deprecated Use activeModelIdAtom */
 export const activeLlmModelIdAtom = activeModelIdAtom
 
+// ============ Per-Chat Model Persistence ============
+
+/**
+ * Per-chat model selections (persisted to localStorage)
+ * Key: chatId, Value: { providerId, modelId }
+ * Used to restore model when switching back to an existing chat.
+ */
+export const chatModelSelectionsAtom = atomWithStorage<Record<string, ModelSelection>>(
+  "models:chat-selections",
+  {},
+  undefined,
+  { getOnInit: true },
+)
+
 // ============ Session Model Override (Chat-time switching) ============
 
 /**
