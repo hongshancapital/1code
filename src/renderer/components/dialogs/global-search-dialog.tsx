@@ -220,6 +220,12 @@ export function GlobalSearchDialog() {
   const [isResizing, setIsResizing] = useState(false)
   const resizeStartY = useRef(0)
   const resizeStartHeight = useRef(0)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
 
   // Handle resize drag
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -233,12 +239,14 @@ export function GlobalSearchDialog() {
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (!isMountedRef.current) return
       const deltaY = e.clientY - resizeStartY.current
       const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resizeStartHeight.current + deltaY))
       setDialogHeight(newHeight)
     }
 
     const handleMouseUp = () => {
+      if (!isMountedRef.current) return
       setIsResizing(false)
     }
 

@@ -146,6 +146,12 @@ export const CodeWithLineNumbers = memo(function CodeWithLineNumbers({
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const dragStartLine = useRef<number | null>(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
 
   // Split content into lines
   const lines = useMemo(() => content.split("\n"), [content])
@@ -300,6 +306,7 @@ export const CodeWithLineNumbers = memo(function CodeWithLineNumbers({
     if (!lineSelection || lineSelection.filePath !== filePath || !isDragging.current) return
 
     const handleGlobalMouseMove = (event: MouseEvent) => {
+      if (!isMountedRef.current) return
       const container = containerRef.current
       if (!container) return
 
@@ -319,6 +326,7 @@ export const CodeWithLineNumbers = memo(function CodeWithLineNumbers({
     }
 
     const handleGlobalMouseUp = () => {
+      if (!isMountedRef.current) return
       if (!isDragging.current || dragStartLine.current === null) return
 
       isDragging.current = false

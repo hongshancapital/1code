@@ -66,6 +66,12 @@ const ResizableContent = memo(function ResizableContent({
   const containerRef = useRef<HTMLDivElement>(null)
   const startYRef = useRef(0)
   const startHeightRef = useRef(0)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -82,6 +88,7 @@ const ResizableContent = memo(function ResizableContent({
     if (!isResizing) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (!isMountedRef.current) return
       const deltaY = e.clientY - startYRef.current
       let newHeight = startHeightRef.current + deltaY
 
@@ -95,6 +102,7 @@ const ResizableContent = memo(function ResizableContent({
     }
 
     const handleMouseUp = () => {
+      if (!isMountedRef.current) return
       setIsResizing(false)
     }
 
