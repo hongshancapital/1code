@@ -393,15 +393,29 @@ export function getWebviewScript(): string {
     return { success: false, error: 'Element is not a checkbox or radio' };
   };
 
-  // Hover
+  // Hover — dispatch mouse events with coordinates for JS handlers
+  // Note: CSS :hover pseudo-class requires sendInputEvent from Electron side
   window.__browserHover = function(ref) {
     const el = refMap.get(ref);
     if (!el) return { success: false, error: \`Element not found: \${ref}\` };
 
-    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    const rect = el.getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
 
-    return { success: true };
+    // Dispatch mouse events with coordinates (triggers JS listeners)
+    el.dispatchEvent(new MouseEvent('mouseenter', { clientX: cx, clientY: cy, bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseover', { clientX: cx, clientY: cy, bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mousemove', { clientX: cx, clientY: cy, bubbles: true }));
+
+    // Mark element for hover styling (CSS :hover can't be triggered from JS)
+    el.setAttribute('data-browser-hover', 'true');
+    // Clean up previous hover marks
+    document.querySelectorAll('[data-browser-hover]').forEach(e => {
+      if (e !== el) e.removeAttribute('data-browser-hover');
+    });
+
+    return { success: true, position: { x: cx, y: cy } };
   };
 
   // Drag element to another element
@@ -455,12 +469,56 @@ export function getWebviewScript(): string {
     return { success: true, data: { src } };
   };
 
-  // Get text content
-  window.__browserGetText = function(ref) {
-    const el = refMap.get(ref);
-    if (!el) return { success: false, error: \`Element not found: \${ref}\` };
+  // Get text content (supports both ref and selector)
+  window.__browserGetText = function(ref, selector) {
+    let el = null;
+    if (ref) {
+      el = refMap.get(ref);
+    } else if (selector) {
+      el = document.querySelector(selector);
+    }
+    if (!el) return { success: false, error: ref ? \`Element not found: \${ref}\` : \`No element matches: \${selector}\` };
 
     return { success: true, text: el.textContent || '' };
+  };
+
+  // Query elements by CSS selector, assign refs, return matches
+  window.__browserQuerySelector = function(selector) {
+    const elements = document.querySelectorAll(selector);
+    const results = [];
+    for (const el of elements) {
+      if (!isVisible(el)) continue;
+      // Check if element already has a ref
+      let existingRef = null;
+      for (const [r, mappedEl] of refMap.entries()) {
+        if (mappedEl === el) { existingRef = r; break; }
+      }
+      // Assign new ref if needed
+      const ref = existingRef || \`@e\${++refCounter}\`;
+      if (!existingRef) refMap.set(ref, el);
+      results.push({
+        ref,
+        role: getRole(el),
+        name: getAccessibleName(el),
+        tag: el.tagName.toLowerCase(),
+        attrs: getRelevantAttrs(el).trim() || undefined,
+      });
+    }
+    return { success: true, data: results, count: results.length };
+  };
+
+  // Get element clip rect for element-level screenshot
+  window.__browserGetElementClipRect = function(ref) {
+    const el = refMap.get(ref);
+    if (!el) return null;
+    el.scrollIntoView({ behavior: 'instant', block: 'center' });
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
   };
 
   // Wait for element/text/url

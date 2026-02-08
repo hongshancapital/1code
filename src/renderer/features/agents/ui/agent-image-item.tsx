@@ -49,10 +49,72 @@ export function AgentImageItem({
   const [currentIndex, setCurrentIndex] = useState(imageIndex)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
 
+  // Resolve local-file:// URLs to blob URLs via fetch (direct <img> src fails in Electron)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!url) return
+    if (!url.startsWith("local-file://")) {
+      setResolvedUrl(url)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.blob()
+      })
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setResolvedUrl(objectUrl)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn("[AgentImageItem] fetch local-file failed, falling back:", err)
+        setResolvedUrl(url) // fallback to direct URL
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [url])
+
   // Use allImages if provided, otherwise create single-image array
   const images = allImages || [{ id, filename, url }]
   const hasMultipleImages = images.length > 1
   const currentImage = images[currentIndex] || images[0]
+
+  // Resolve gallery image URL (for fullscreen view, which may show a different image)
+  const [resolvedGalleryUrl, setResolvedGalleryUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const galleryUrl = currentImage?.url
+    if (!galleryUrl) return
+    if (!galleryUrl.startsWith("local-file://")) {
+      setResolvedGalleryUrl(galleryUrl)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    fetch(galleryUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.blob()
+      })
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setResolvedGalleryUrl(objectUrl)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setResolvedGalleryUrl(galleryUrl)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [currentImage?.url])
 
   const handleImageError = () => {
     console.warn("[AgentImageItem] Failed to load image:", filename, url)
@@ -187,11 +249,11 @@ export function AgentImageItem({
           <div className="size-8 flex items-center justify-center bg-muted/50 rounded border border-destructive/20" title="Failed to load image">
             <ImageOff className="size-4 text-destructive/50" />
           </div>
-        ) : url ? (
+        ) : resolvedUrl ? (
           <HoverCard openDelay={200}>
             <HoverCardTrigger asChild>
               <img
-                src={url}
+                src={resolvedUrl}
                 alt={filename}
                 className="size-8 object-cover rounded cursor-pointer"
                 onClick={openFullscreen}
@@ -200,7 +262,7 @@ export function AgentImageItem({
             </HoverCardTrigger>
             <HoverCardContent className="w-auto max-w-72 p-0" side="top">
               <img
-                src={url}
+                src={resolvedUrl}
                 alt={filename}
                 className="max-w-72 max-h-72 w-auto h-auto object-contain rounded-[10px]"
                 onError={handleImageError}
@@ -231,7 +293,7 @@ export function AgentImageItem({
       </div>
 
       {/* Fullscreen overlay with gallery navigation - rendered via portal to escape stacking context */}
-      {isFullscreen && currentImage?.url && createPortal(
+      {isFullscreen && resolvedGalleryUrl && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -264,7 +326,7 @@ export function AgentImageItem({
           <ContextMenu onOpenChange={setIsContextMenuOpen}>
             <ContextMenuTrigger asChild>
               <img
-                src={currentImage.url}
+                src={resolvedGalleryUrl}
                 alt={currentImage.filename}
                 className="max-w-[90vw] max-h-[85vh] object-contain"
                 onClick={(e) => e.stopPropagation()}

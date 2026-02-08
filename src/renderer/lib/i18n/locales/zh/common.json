@@ -189,6 +189,14 @@
       "mobile": "手机",
       "tablet": "平板",
       "desktop": "桌面"
+    },
+    "searchEngine": {
+      "title": "搜索引擎"
+    },
+    "overlay": {
+      "aiControlling": "AI 正在操控浏览器",
+      "waiting": "等待中...",
+      "takeControl": "取回控制"
     }
   }
 }

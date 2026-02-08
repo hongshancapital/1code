@@ -189,6 +189,14 @@
       "mobile": "Mobile",
       "tablet": "Tablet",
       "desktop": "Desktop"
+    },
+    "searchEngine": {
+      "title": "Search Engine"
+    },
+    "overlay": {
+      "aiControlling": "AI controlling browser",
+      "waiting": "Waiting...",
+      "takeControl": "Take Control"
     }
   }
 }

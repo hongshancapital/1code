@@ -146,8 +146,8 @@ function extractTextFromPartFull(
       }
       break
 
-    case "tool-Thinking":
-      addText("tool-Thinking:content", part.thinking || part.text)
+    case "reasoning":
+      addText("reasoning:content", part.text)
       break
 
     default:

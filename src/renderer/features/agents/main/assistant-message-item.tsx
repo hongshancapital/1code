@@ -498,7 +498,7 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
     }
 
     if (part.type === "tool-Bash") return <AgentBashTool key={idx} part={part} messageId={message.id} partIndex={idx} chatStatus={status} />
-    if (part.type === "tool-Thinking") return <AgentThinkingTool key={idx} part={part} chatStatus={status} />
+    if (part.type === "reasoning") return <AgentThinkingTool key={idx} part={part} chatStatus={status} stableKey={`${message.id}:${idx}`} />
 
     // Plan files: unified handling
     // - In collapsed steps: all show mini indicator, last collapsed op's card shown separately after finalParts

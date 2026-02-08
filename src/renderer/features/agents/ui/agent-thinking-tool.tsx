@@ -7,26 +7,33 @@ import { cn } from "../../../lib/utils"
 import { ChatMarkdownRenderer } from "../../../components/chat-markdown-renderer"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { AgentToolInterrupted } from "./agent-tool-interrupted"
-import { areToolPropsEqual } from "./agent-tool-utils"
 
-interface ThinkingToolPart {
+// AI SDK reasoning part format
+interface ReasoningPart {
   type: string
-  state: string
-  input?: {
-    text?: string
-  }
-  output?: {
-    completed?: boolean
-  }
-  startedAt?: number
+  text: string
+  state?: "streaming" | "done"
 }
 
 interface AgentThinkingToolProps {
-  part: ThinkingToolPart
+  part: ReasoningPart
   chatStatus?: string
+  /** Stable key for persisting startedAt across remounts (e.g. "msgId:partIdx") */
+  stableKey?: string
 }
 
 const PREVIEW_LENGTH = 60
+
+// Module-level map to persist thinking start times across component remounts
+// (e.g. when switching subchat tabs and back)
+const thinkingStartTimes = new Map<string, number>()
+
+function getOrSetStartTime(key: string): number {
+  if (!thinkingStartTimes.has(key)) {
+    thinkingStartTimes.set(key, Date.now())
+  }
+  return thinkingStartTimes.get(key)!
+}
 
 function formatElapsedTime(ms: number): string {
   if (ms < 1000) return ""
@@ -41,10 +48,10 @@ function formatElapsedTime(ms: number): string {
 export const AgentThinkingTool = memo(function AgentThinkingTool({
   part,
   chatStatus,
+  stableKey,
 }: AgentThinkingToolProps) {
   const { t } = useTranslation("chat")
-  const isPending =
-    part.state !== "output-available" && part.state !== "output-error"
+  const isPending = part.state !== "done"
   // Include "submitted" status - this is when request was sent but streaming hasn't started yet
   const isActivelyStreaming = chatStatus === "streaming" || chatStatus === "submitted"
   const isStreaming = isPending && isActivelyStreaming
@@ -63,27 +70,29 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
     wasStreamingRef.current = isStreaming
   }, [isStreaming])
 
+  // Persist startedAt across remounts using module-level Map
+  const startedAt = stableKey ? getOrSetStartTime(stableKey) : Date.now()
+
   // Elapsed time — ticks every second while streaming
-  const startedAtRef = useRef(part.startedAt || Date.now())
   const [elapsedMs, setElapsedMs] = useState(0)
 
   useEffect(() => {
     if (!isStreaming) return
-    const tick = () => setElapsedMs(Date.now() - startedAtRef.current)
+    const tick = () => setElapsedMs(Date.now() - startedAt)
     tick()
     const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [isStreaming])
+  }, [isStreaming, startedAt])
 
   // Auto-scroll to bottom when streaming
   useEffect(() => {
     if (isStreaming && isExpanded && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [part.input?.text, isStreaming, isExpanded])
+  }, [part.text, isStreaming, isExpanded])
 
   // Get thinking text
-  const thinkingText = part.input?.text || ""
+  const thinkingText = part.text || ""
 
   // Build preview for collapsed state
   const previewText = thinkingText.slice(0, PREVIEW_LENGTH).replace(/\n/g, " ")
@@ -167,4 +176,4 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
       )}
     </div>
   )
-}, areToolPropsEqual)
+})

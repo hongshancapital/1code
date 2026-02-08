@@ -16,6 +16,7 @@ import {
   browserRecentActionsAtom,
   browserCursorPositionAtom,
   browserOverlayActiveAtom,
+  browserLockedAtom,
   browserLoadingAtomFamily,
   browserActiveAtomFamily,
   browserHistoryAtomFamily,
@@ -61,6 +62,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   const setRecentActions = useSetAtom(browserRecentActionsAtom)
   const setCursorPosition = useSetAtom(browserCursorPositionAtom)
   const [overlayActive, setOverlayActive] = useAtom(browserOverlayActiveAtom)
+  const [locked, setLocked] = useAtom(browserLockedAtom)
   const [isLoading, setIsLoading] = useState(true)
   const [webviewReady, setWebviewReady] = useState(false)
   // Sync loading state to atom for Globe icon indicator
@@ -116,6 +118,41 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   }, [setUrl])
 
   // Execute operation in webview
+  /**
+   * Convert webview-internal coordinates to screen (viewport/client) coordinates.
+   * The overlay then uses DOMMatrix inverse to convert screen → local space,
+   * which correctly handles any CSS transforms, status bar offsets, etc.
+   */
+  const webviewToScreenCoords = useCallback(async (x: number, y: number): Promise<{ x: number; y: number }> => {
+    const webview = webviewRef.current
+    if (!webview) return { x, y }
+
+    // Get webview's DOM rect (actual rendered size on screen)
+    const webviewRect = webview.getBoundingClientRect()
+
+    // Get internal viewport size (may differ from DOM size during device emulation)
+    let innerW: number, innerH: number
+    try {
+      const vp = await webview.executeJavaScript(`({ w: window.innerWidth, h: window.innerHeight })`)
+      innerW = vp.w
+      innerH = vp.h
+    } catch {
+      // Fallback: assume 1:1
+      innerW = webviewRect.width
+      innerH = webviewRect.height
+    }
+
+    // Scale: DOM pixels per internal CSS pixel
+    const scaleX = webviewRect.width / innerW
+    const scaleY = webviewRect.height / innerH
+
+    // Return screen (client) coordinates — overlay will convert to local via DOMMatrix
+    return {
+      x: webviewRect.left + x * scaleX,
+      y: webviewRect.top + y * scaleY,
+    }
+  }, [])
+
   const executeOperation = useCallback(async (
     operation: BrowserOperation
   ): Promise<BrowserResult> => {
@@ -156,10 +193,9 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
               `window.__browserGetElementRect("${ref}")`
             )
             if (rect) {
-              // Animate cursor to element center
-              const x = rect.x + rect.width / 2
-              const y = rect.y + rect.height / 2
-              setCursorPosition({ x, y })
+              // Animate cursor to element center (converted to container space)
+              const pos = await webviewToScreenCoords(rect.x + rect.width / 2, rect.y + rect.height / 2)
+              setCursorPosition(pos)
               // Wait for animation
               await new Promise(r => setTimeout(r, 300))
             }
@@ -184,7 +220,8 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
               `window.__browserGetElementRect("${ref}")`
             )
             if (rect) {
-              setCursorPosition({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
+              const pos = await webviewToScreenCoords(rect.x + rect.width / 2, rect.y + rect.height / 2)
+              setCursorPosition(pos)
               await new Promise(r => setTimeout(r, 200))
             }
             const result = await webview.executeJavaScript(
@@ -235,13 +272,14 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
         case "getText": {
           const ref = params.ref as string
-          if (ref) {
+          const selector = params.selector as string
+          if (ref || selector) {
             const result = await webview.executeJavaScript(
-              `window.__browserGetText("${ref}")`
+              `window.__browserGetText(${ref ? `"${ref}"` : "null"}, ${selector ? `"${selector}"` : "null"})`
             )
             return result
           }
-          return { success: false, error: "No ref provided" }
+          return { success: false, error: "No ref or selector provided" }
         }
 
         case "scroll": {
@@ -319,8 +357,20 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
               `window.__browserGetElementRect("${ref}")`
             )
             if (rect) {
-              setCursorPosition({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })
+              // 1. Animate cursor to element center (converted to container space)
+              const cx = rect.x + rect.width / 2
+              const cy = rect.y + rect.height / 2
+              const pos = await webviewToScreenCoords(cx, cy)
+              setCursorPosition(pos)
+              await new Promise(r => setTimeout(r, 300))
+              // 2. Send real mouseMove event to trigger CSS :hover
+              webview.sendInputEvent({
+                type: "mouseMove",
+                x: Math.round(cx),
+                y: Math.round(cy),
+              })
             }
+            // 3. Also dispatch JS mouse events via injected script
             const result = await webview.executeJavaScript(
               `window.__browserHover("${ref}")`
             )
@@ -401,6 +451,15 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           return { success: true, data: { result } }
         }
 
+        case "querySelector": {
+          const selector = params.selector as string
+          if (!selector) return { success: false, error: "No selector provided" }
+          const result = await webview.executeJavaScript(
+            `window.__browserQuerySelector(${JSON.stringify(selector)})`
+          )
+          return result
+        }
+
         default:
           return { success: false, error: `Unknown operation: ${type}` }
       }
@@ -410,14 +469,36 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         error: error instanceof Error ? error.message : String(error),
       }
     }
-  }, [navigate, setCursorPosition])
+  }, [navigate, setCursorPosition, webviewToScreenCoords])
+
+  // Listen for browser lock state changes from main process
+  useEffect(() => {
+    if (!window.desktopApi.onBrowserLockStateChanged) return
+    const cleanup = window.desktopApi.onBrowserLockStateChanged((isLocked: boolean) => {
+      setLocked(isLocked)
+      setOverlayActive(isLocked)
+    })
+    return cleanup
+  }, [setLocked, setOverlayActive])
+
+  // Listen for browser:show-panel from main process (AI requesting panel visibility)
+  useEffect(() => {
+    if (!window.desktopApi.onBrowserShowPanel) return
+    const cleanup = window.desktopApi.onBrowserShowPanel(() => {
+      setBrowserActive(true)
+    })
+    return cleanup
+  }, [setBrowserActive])
 
   // Listen for operations from main process
   useEffect(() => {
     const cleanup = window.desktopApi.onBrowserExecute(async (operation) => {
       setOperating(true)
       setCurrentAction(formatAction(operation.type, operation.params))
-      setOverlayActive(true)
+      // Only activate overlay per-operation if not in locked mode
+      if (!locked) {
+        setOverlayActive(true)
+      }
 
       const result = await executeOperation(operation)
 
@@ -438,12 +519,14 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         ...prev.slice(0, 4),
       ])
 
-      // Delay overlay hide for visual feedback
-      setTimeout(() => setOverlayActive(false), 500)
+      // Only hide overlay per-operation if not in locked mode
+      if (!locked) {
+        setTimeout(() => setOverlayActive(false), 500)
+      }
     })
 
     return cleanup
-  }, [executeOperation, setOperating, setCurrentAction, setOverlayActive, setRecentActions])
+  }, [executeOperation, setOperating, setCurrentAction, setOverlayActive, setRecentActions, locked])
 
   // Add URL to navigation history (called after navigation completes)
   const addToHistory = useCallback((newUrl: string) => {
@@ -496,6 +579,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       try {
         pageTitle = webview.getTitle() || ""
         setTitle(pageTitle)
+        window.desktopApi.browserTitleChanged(pageTitle)
       } catch {
         setTitle("")
       }
@@ -937,7 +1021,14 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             allowpopups="true"
           />
           {/* AI Overlay */}
-          <BrowserOverlay active={overlayActive} />
+          <BrowserOverlay
+            active={overlayActive}
+            locked={locked}
+            onUnlock={() => {
+              window.desktopApi.browserUnlock()
+            }}
+            webviewRef={webviewRef}
+          />
         </div>
 
         {/* Browser Console Panel */}
@@ -950,43 +1041,49 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   )
 }
 
-/** Format action for display */
+/** Format action for display - concise, professional descriptions */
 function formatAction(type: string, params: Record<string, unknown>): string {
   switch (type) {
-    case "navigate":
-      return `Navigating to ${params.url}`
+    case "navigate": {
+      try {
+        const u = new URL(params.url as string)
+        return `Navigate → ${u.hostname}`
+      } catch {
+        return `Navigate → ${params.url}`
+      }
+    }
     case "click":
-      return `Clicking ${params.ref || params.selector || "element"}`
+      return `Click → ${params.ref || params.selector || "element"}`
     case "fill":
-      return `Filling ${params.ref || params.selector || "input"}`
+      return `Input → ${params.ref || params.selector || "field"}`
     case "type":
-      return "Typing text"
+      return "Typing"
     case "screenshot":
-      return "Taking screenshot"
+      return "Capture screenshot"
     case "snapshot":
-      return "Taking snapshot"
+      return "Read page content"
     case "scroll":
-      return `Scrolling ${params.direction || "page"}`
+      return `Scroll ${params.direction || "page"}`
     case "press":
-      return `Pressing ${params.key}`
+      return `Key → ${params.key}`
     case "wait":
-      return "Waiting for element"
+      return "Waiting for content"
     case "hover":
-      return `Hovering ${params.ref || params.selector || "element"}`
+      return `Hover → ${params.ref || params.selector || "element"}`
     case "drag":
-      return "Dragging element"
+      return "Drag element"
     case "select":
-      return `Selecting ${params.value}`
+      return `Select → ${params.value}`
     case "check":
-      return `${params.checked ? "Checking" : "Unchecking"} ${params.ref || "element"}`
+      return `${params.checked ? "Check" : "Uncheck"} → ${params.ref || "element"}`
     case "evaluate":
-      return "Executing script"
+      return "Run script"
     case "emulate":
-      return "Applying emulation"
+      return "Set device emulation"
     case "downloadImage":
-      return "Downloading image"
+      return "Download image"
     case "downloadFile":
-      return "Downloading file"
+      return "Download file"
     default:
       return type
   }

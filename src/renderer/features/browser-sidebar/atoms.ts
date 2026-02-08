@@ -61,6 +61,9 @@ export const browserCursorPositionAtom = atom<CursorPosition | null>(null)
 /** Whether AI overlay is active */
 export const browserOverlayActiveAtom = atom(false)
 
+/** Whether the browser is locked by AI (lock/unlock MCP session) - global singleton */
+export const browserLockedAtom = atom(false)
+
 /** Webview URL history for back/forward - persisted */
 export const browserHistoryAtomFamily = atomFamily((chatId: string) =>
   atomWithStorage<{ urls: string[]; index: number }>(`browser-history-${chatId}`, { urls: [], index: -1 })
@@ -181,3 +184,20 @@ export const DEVICE_PRESETS: DevicePreset[] = [
 export const browserDevicePresetAtomFamily = atomFamily((chatId: string) =>
   atomWithStorage<string>(`browser-device-preset-${chatId}`, "responsive")
 )
+
+/** Search engine definitions */
+export interface SearchEngine {
+  id: string
+  name: string
+  urlTemplate: string // {query} placeholder
+  icon?: string
+}
+
+export const SEARCH_ENGINES: SearchEngine[] = [
+  { id: "google", name: "Google", urlTemplate: "https://www.google.com/search?q={query}" },
+  { id: "bing", name: "Bing", urlTemplate: "https://www.bing.com/search?q={query}" },
+  { id: "baidu", name: "Baidu", urlTemplate: "https://www.baidu.com/s?wd={query}" },
+]
+
+/** Default search engine - global, persisted */
+export const browserSearchEngineAtom = atomWithStorage<string>("browser-search-engine", "google")

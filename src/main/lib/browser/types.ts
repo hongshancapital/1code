@@ -39,6 +39,7 @@ export type BrowserOperationType =
   | "downloadFile"
   | "emulate"
   | "evaluate"
+  | "querySelector"
 
 /** Browser operation result */
 export interface BrowserResult<T = unknown> {
@@ -54,7 +55,7 @@ export interface PendingOperation {
   timer: ReturnType<typeof setTimeout>
 }
 
-/** Screenshot options */
+/** Screenshot options (v2: always saves to file) */
 export interface ScreenshotOptions {
   ref?: ElementRef
   fullPage?: boolean
@@ -71,9 +72,10 @@ export interface ScreenshotResult {
   height: number
 }
 
-/** Snapshot options */
+/** Snapshot options (v2: with CSS query support) */
 export interface SnapshotOptions {
   interactiveOnly?: boolean
+  query?: string
 }
 
 /** Snapshot result */
@@ -82,24 +84,48 @@ export interface SnapshotResult {
   elementCount: number
 }
 
-/** Navigate options */
+/** Navigate options (v2: with action and show) */
 export interface NavigateOptions {
-  url: string
+  url?: string
+  action?: "back" | "forward" | "reload"
+  show?: boolean
   waitUntil?: "load" | "domcontentloaded" | "networkidle"
 }
 
-/** Click options */
+/** Click action item for batch operations */
+export interface ClickAction {
+  ref?: string
+  selector?: string
+  mode?: "click" | "dblclick" | "hover" | "drag"
+  dragTo?: string
+}
+
+/** Click options (v2: batch support) */
 export interface ClickOptions {
   ref?: ElementRef
   selector?: string
   dblClick?: boolean
+  mode?: "click" | "dblclick" | "hover" | "drag"
+  dragTo?: string
+  actions?: ClickAction[]
 }
 
-/** Fill options */
+/** Input field item for batch operations */
+export interface InputField {
+  ref?: string
+  selector?: string
+  value?: string
+  checked?: boolean
+}
+
+/** Fill/Input options (v2: batch support) */
 export interface FillOptions {
   ref?: ElementRef
   selector?: string
-  value: string
+  value?: string
+  checked?: boolean
+  append?: boolean
+  fields?: InputField[]
 }
 
 /** Wait options */
@@ -116,6 +142,15 @@ export interface ScrollOptions {
   amount?: number
   ref?: ElementRef
   selector?: string
+}
+
+/** Capture options (v2: unified screenshot + download, always file) */
+export interface CaptureOptions {
+  mode?: "screenshot" | "download"
+  ref?: ElementRef
+  fullPage?: boolean
+  url?: string
+  filePath?: string
 }
 
 /** Emulate options */
@@ -142,11 +177,22 @@ export interface DownloadOptions {
   filePath: string
 }
 
+/** Query result from CSS selector */
+export interface QueryResult {
+  ref: string
+  role: string
+  name: string
+  tag: string
+  attrs?: Record<string, string>
+}
+
 /** Browser state for UI */
 export interface BrowserState {
   isReady: boolean
   isOperating: boolean
+  isLocked: boolean
   currentUrl: string | null
+  currentTitle: string | null
   currentAction: string | null
   recentActions: RecentAction[]
 }

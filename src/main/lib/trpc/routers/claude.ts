@@ -1654,15 +1654,17 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 mcpServersFiltered = mcpServersForSdk
               }
 
-              // Add browser MCP server if browser sidebar is ready
-              // This enables browser_* tools for AI-controlled browser automation
-              if (browserManager.isReady) {
+              // Always add browser MCP server — tools handle not-ready state internally
+              // This ensures browser_navigate can open the panel on demand even if it wasn't open at session start
+              try {
                 const browserMcp = await createBrowserMcpServer()
                 mcpServersFiltered = {
                   ...mcpServersFiltered,
                   browser: browserMcp,
                 }
-                console.log("[Browser MCP] Added browser MCP server")
+                console.log("[Browser MCP] Added browser MCP server (ready:", browserManager.isReady, ")")
+              } catch (err) {
+                console.error("[Browser MCP] Failed to create server:", err)
               }
 
               // Add image generation MCP server if image config is provided

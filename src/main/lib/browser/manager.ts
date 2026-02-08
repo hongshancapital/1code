@@ -38,6 +38,7 @@ export interface CertificateInfo {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_RECENT_ACTIONS = 5
+const LOCK_AUTO_RELEASE_MS = 5 * 60 * 1000 // 5 minutes
 
 /** Device emulation parameters */
 export interface DeviceEmulationParams {
@@ -53,10 +54,13 @@ export interface DeviceEmulationParams {
 
 export class BrowserManager extends EventEmitter {
   private pending = new Map<string, PendingOperation>()
+  private lockTimeout: NodeJS.Timeout | null = null
   private state: BrowserState = {
     isReady: false,
     isOperating: false,
+    isLocked: false,
     currentUrl: null,
+    currentTitle: null,
     currentAction: null,
     recentActions: [],
   }
@@ -85,6 +89,17 @@ export class BrowserManager extends EventEmitter {
     ipcMain.on("browser:url-changed", (_, url: string) => {
       this.state.currentUrl = url
       this.emit("urlChanged", url)
+    })
+
+    // Renderer reports title change
+    ipcMain.on("browser:title-changed", (_, title: string) => {
+      this.state.currentTitle = title
+      this.emit("titleChanged", title)
+    })
+
+    // Renderer requests manual unlock (user clicked "Take Control")
+    ipcMain.on("browser:manual-unlock", () => {
+      this.unlock()
     })
 
     // Renderer reports cursor position (for AI cursor animation)
@@ -248,8 +263,72 @@ export class BrowserManager extends EventEmitter {
     return this.state.isOperating
   }
 
+  get isLocked(): boolean {
+    return this.state.isLocked
+  }
+
+  /**
+   * Lock the browser for AI operation session.
+   * Idempotent — returns status message indicating current state.
+   * Auto-releases after 5 minutes as safety net.
+   */
+  lock(): { alreadyLocked: boolean } {
+    if (this.state.isLocked) {
+      // Reset the auto-release timer on re-lock
+      this.resetLockTimeout()
+      return { alreadyLocked: true }
+    }
+    this.state.isLocked = true
+    this.resetLockTimeout()
+    this.getWindow()?.webContents.send("browser:lock-state-changed", true)
+    this.emit("lockStateChanged", true)
+    return { alreadyLocked: false }
+  }
+
+  /**
+   * Unlock the browser after AI operation session.
+   * Idempotent — returns status message indicating current state.
+   */
+  unlock(): { wasLocked: boolean } {
+    if (!this.state.isLocked) {
+      return { wasLocked: false }
+    }
+    this.state.isLocked = false
+    this.clearLockTimeout()
+    this.getWindow()?.webContents.send("browser:lock-state-changed", false)
+    this.emit("lockStateChanged", false)
+    return { wasLocked: true }
+  }
+
+  /**
+   * Show the browser panel in the renderer.
+   * Sends IPC to renderer to set browserVisible = true.
+   */
+  showPanel(): void {
+    this.getWindow()?.webContents.send("browser:show-panel")
+  }
+
+  private resetLockTimeout(): void {
+    this.clearLockTimeout()
+    this.lockTimeout = setTimeout(() => {
+      console.warn("[BrowserManager] Lock auto-released after 5 minutes timeout")
+      this.unlock()
+    }, LOCK_AUTO_RELEASE_MS)
+  }
+
+  private clearLockTimeout(): void {
+    if (this.lockTimeout) {
+      clearTimeout(this.lockTimeout)
+      this.lockTimeout = null
+    }
+  }
+
   get currentUrl(): string | null {
     return this.state.currentUrl
+  }
+
+  get currentTitle(): string | null {
+    return this.state.currentTitle
   }
 
   get recentActions(): readonly RecentAction[] {
@@ -377,6 +456,8 @@ export class BrowserManager extends EventEmitter {
         return "Downloading image"
       case "downloadFile":
         return "Downloading file"
+      case "querySelector":
+        return `Querying ${params.selector || "elements"}`
       default:
         return type
     }
@@ -390,6 +471,9 @@ export class BrowserManager extends EventEmitter {
    * Clean up resources
    */
   cleanup(): void {
+    // Clear lock timeout
+    this.clearLockTimeout()
+
     // Clear all pending operations
     for (const [id, op] of this.pending) {
       clearTimeout(op.timer)
@@ -401,7 +485,9 @@ export class BrowserManager extends EventEmitter {
     this.state = {
       isReady: false,
       isOperating: false,
+      isLocked: false,
       currentUrl: null,
+      currentTitle: null,
       currentAction: null,
       recentActions: [],
     }

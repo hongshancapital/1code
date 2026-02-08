@@ -1026,6 +1026,15 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
         />
       )}
 
+      {/* Working indicator - subtle pulsing dots shown when AI is still streaming between visible actions */}
+      {isStreaming && isLastGroup && assistantMsgIds.length > 0 && (
+        <div className="flex items-center gap-[3px] mt-3 pl-1 pointer-events-none">
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s] [animation-delay:0.2s]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s] [animation-delay:0.4s]" />
+        </div>
+      )}
+
       {/* Planning indicator */}
       {isStreaming && isLastGroup && assistantMsgIds.length === 0 && sandboxSetupStatus === "ready" && (
         <div className="mt-4">

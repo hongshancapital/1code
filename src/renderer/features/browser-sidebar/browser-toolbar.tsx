@@ -48,6 +48,7 @@ import {
   Settings2,
   Monitor,
   Code2,
+  Search,
 } from "lucide-react"
 import {
   projectBrowserHistoryAtomFamily,
@@ -55,11 +56,25 @@ import {
   browserTerminalVisibleAtomFamily,
   browserSelectorActiveAtomFamily,
   browserDevicePresetAtomFamily,
+  browserSearchEngineAtom,
   DEVICE_PRESETS,
+  SEARCH_ENGINES,
   type BrowserHistoryEntry,
 } from "./atoms"
 import { cn } from "@/lib/utils"
 import { CertificateDialog } from "./certificate-dialog"
+
+/** Check if input looks like a URL (not a search query) */
+function isLikelyUrl(input: string): boolean {
+  const trimmed = input.trim()
+  // Has protocol
+  if (/^https?:\/\//i.test(trimmed)) return true
+  // localhost or IP
+  if (/^(localhost|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?(\/|$)/i.test(trimmed)) return true
+  // Has a dot followed by a valid TLD-like segment, no spaces
+  if (!trimmed.includes(" ") && /^[^\s]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) return true
+  return false
+}
 
 interface BrowserToolbarProps {
   url: string
@@ -115,7 +130,9 @@ export function BrowserToolbar({
   const [terminalVisible, setTerminalVisible] = useAtom(browserTerminalVisibleAtomFamily(chatId))
   const [selectorActive] = useAtom(browserSelectorActiveAtomFamily(chatId))
   const [devicePresetId, setDevicePresetId] = useAtom(browserDevicePresetAtomFamily(chatId))
+  const [searchEngineId, setSearchEngineId] = useAtom(browserSearchEngineAtom)
   const currentDevice = DEVICE_PRESETS.find(d => d.id === devicePresetId) || DEVICE_PRESETS[0]
+  const currentSearchEngine = SEARCH_ENGINES.find(e => e.id === searchEngineId) || SEARCH_ENGINES[0]
   const inputRef = useRef<HTMLInputElement>(null)
   const inputContainerRef = useRef<HTMLDivElement>(null)
   // Autocomplete state
@@ -228,12 +245,22 @@ export function BrowserToolbar({
     }
 
     if (e.key === "Enter") {
-      // Add to history when user manually navigates
-      const targetUrl = inputValue.startsWith("http://") || inputValue.startsWith("https://")
-        ? inputValue
-        : `https://${inputValue}`
+      const trimmed = inputValue.trim()
+      if (!trimmed) return
+
+      let targetUrl: string
+      if (isLikelyUrl(trimmed)) {
+        // Treat as URL
+        targetUrl = trimmed.startsWith("http://") || trimmed.startsWith("https://")
+          ? trimmed
+          : `https://${trimmed}`
+      } else {
+        // Treat as search query
+        targetUrl = currentSearchEngine.urlTemplate.replace("{query}", encodeURIComponent(trimmed))
+      }
+
       addToProjectHistory({ url: targetUrl, title: "", favicon: "" })
-      onNavigate(inputValue)
+      onNavigate(targetUrl)
       setAutocompleteOpen(false)
       e.currentTarget.blur()
     }
@@ -245,7 +272,7 @@ export function BrowserToolbar({
         e.currentTarget.blur()
       }
     }
-  }, [inputValue, url, onNavigate, addToProjectHistory, autocompleteOpen, autocompleteSuggestions, selectedAutocompleteIndex])
+  }, [inputValue, url, onNavigate, addToProjectHistory, autocompleteOpen, autocompleteSuggestions, selectedAutocompleteIndex, currentSearchEngine])
 
   const handleBlur = useCallback(() => {
     // Delay to allow clicking on autocomplete items
@@ -441,6 +468,26 @@ export function BrowserToolbar({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
+            {/* Search Engine - Sub Menu */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer">
+                <Search className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">{t("browser.searchEngine.title", "Search Engine")}</span>
+                <span className="text-muted-foreground/60 mr-1">
+                  {currentSearchEngine.name}
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup value={searchEngineId} onValueChange={setSearchEngineId}>
+                  {SEARCH_ENGINES.map((engine) => (
+                    <DropdownMenuRadioItem key={engine.id} value={engine.id} className="cursor-pointer">
+                      {engine.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             {/* Connection status - clickable to view certificate */}
             {isHttps ? (
               <DropdownMenuItem
@@ -506,7 +553,7 @@ export function BrowserToolbar({
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={handleBlur}
-          placeholder="Enter URL..."
+          placeholder={t("browser.toolbar.searchOrUrl", `Search ${currentSearchEngine.name} or enter URL...`)}
           className="h-7 pl-7 pr-8 text-xs focus-visible:ring-1 focus-visible:ring-offset-0"
         />
 

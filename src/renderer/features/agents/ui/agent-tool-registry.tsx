@@ -617,19 +617,4 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     variant: "simple",
   },
 
-  // Extended Thinking
-  "tool-Thinking": {
-    icon: SparklesIcon,
-    title: (part) => {
-      const isPending =
-        part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "Thinking..." : "Thought"
-    },
-    subtitle: (part) => {
-      const text = part.input?.text || ""
-      // Show first 50 chars as preview
-      return text.length > 50 ? text.slice(0, 47) + "..." : text
-    },
-    variant: "collapsible",
-  },
 }
