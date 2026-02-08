@@ -50,12 +50,20 @@ export function TextSelectionPopover({
   }, [selectedText, source, selectionRect, charStart, charLength, lineStart, lineEnd, onAddComment])
 
   // Track mouse down/up to know when selection is complete
+  // Use a ref to guard against setState after unmount (React Error #185)
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
+
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       // Ignore clicks on the popover itself
       if (popoverRef.current?.contains(e.target as Node)) {
         return
       }
+      if (!isMountedRef.current) return
       setIsMouseDown(true)
       setIsVisible(false) // Hide while selecting
     }
@@ -65,6 +73,7 @@ export function TextSelectionPopover({
       if (popoverRef.current?.contains(e.target as Node)) {
         return
       }
+      if (!isMountedRef.current) return
       setIsMouseDown(false)
     }
 

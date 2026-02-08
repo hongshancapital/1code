@@ -4,10 +4,12 @@ import { exposeElectronTRPC } from "trpc-electron/main"
 // Skip Sentry init if embedded in Tinker (env var inherited from main process)
 const isEmbeddedInTinker = process.env['HONG_EMBEDDED_IN_TINKER'] === 'true'
 
+// Use @sentry/electron/preload (NOT /renderer) to set up the IPC bridge
+// between renderer and main process. The renderer module is initialized
+// separately in src/renderer/main.tsx. Using /renderer here caused
+// double-initialization which broke the sentry-ipc:// transport.
 if (!isEmbeddedInTinker && process.env['NODE_ENV'] === "production") {
-  import("@sentry/electron/renderer").then((Sentry) => {
-    Sentry.init()
-  })
+  import("@sentry/electron/preload")
 }
 
 // Expose tRPC IPC bridge for type-safe communication
