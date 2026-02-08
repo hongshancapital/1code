@@ -1996,19 +1996,18 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [commentInputState?.existingCommentId, getComment])
 
   // Sync loading status to atom for UI indicators
-  // When streaming starts, set loading. When it stops, clear loading.
-  // Unseen changes, sound notification, and sidebar refresh are handled in onFinish callback
+  // Only SET loading here when streaming starts.
+  // CLEARING is handled exclusively by onFinish/onError callbacks in getOrCreateChat,
+  // because isStreaming can briefly become false between tool calls (e.g. during bash execution)
+  // while the overall turn is still in progress.
   const setLoadingSubChats = useSetAtom(loadingSubChatsAtom)
 
   useEffect(() => {
+    if (!isStreaming) return
     const storedParentChatId = agentChatStore.getParentChatId(subChatId)
     if (!storedParentChatId) return
 
-    if (isStreaming) {
-      setLoading(setLoadingSubChats, subChatId, storedParentChatId)
-    } else {
-      clearLoading(setLoadingSubChats, subChatId)
-    }
+    setLoading(setLoadingSubChats, subChatId, storedParentChatId)
   }, [isStreaming, subChatId, setLoadingSubChats])
 
   // Watch for pending PR message and send it
@@ -2130,12 +2129,39 @@ const ChatViewInner = memo(function ChatViewInner({
       }
     }
 
-    // Context usage = the last API call's input + output tokens
-    // Each API call's inputTokens already includes the full conversation history,
-    // so the last call's inputTokens represents the current context size.
-    // Adding outputTokens gives the total context window usage.
+    // Context window usage estimation:
+    //
+    // SDK's metadata.inputTokens is the CUMULATIVE total across ALL API calls
+    // in the agentic loop (one user prompt may trigger multiple API calls for
+    // tool use), NOT the actual context window size. Using it directly would
+    // massively overcount (e.g. 3 tool calls → ~3x inflation).
+    //
+    // Better approach: sum outputTokens across all turns. Each turn's output
+    // becomes part of subsequent context, so cumulative outputTokens closely
+    // tracks how much of the context window is filled by AI-generated content.
+    // We also need to account for user messages and system prompt, so we use
+    // the last message's inputTokens minus its outputTokens as a baseline
+    // (representing system prompt + user messages + tool results).
+    //
+    // Estimation formula:
+    //   contextUsed ≈ sum(all turns' outputTokens) + lastTurn's (inputTokens - cumulativeOutputTokens)
+    //   where the second term captures system prompt + user content
+    //
+    // Simplified: just use lastTurn's inputTokens + lastTurn's outputTokens,
+    // but ONLY if we can get the per-turn (not cumulative) input tokens.
+    // Since we can't, we sum outputTokens across all turns as the AI contribution,
+    // then estimate system+user context from the difference.
+    let cumulativeOutputTokens = 0
     let lastInputTokens = 0
     let lastOutputTokens = 0
+
+    for (const msg of messages) {
+      if (msg.metadata) {
+        cumulativeOutputTokens += msg.metadata.outputTokens || 0
+      }
+    }
+
+    // Find the last message with token data for the inputTokens baseline
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
       if (msg.metadata && (msg.metadata.inputTokens || msg.metadata.outputTokens)) {
@@ -2148,6 +2174,7 @@ const ChatViewInner = memo(function ChatViewInner({
     return {
       totalInputTokens: lastInputTokens,
       totalOutputTokens: lastOutputTokens,
+      cumulativeOutputTokens,
       totalCostUsd,
       messageCount: messages.length,
     }
@@ -5735,6 +5762,14 @@ Make sure to preserve all functionality from both branches when resolving confli
                     input: part.input || part.args,
                   }
                 }
+                // Migrate old "tool-Thinking" to native "reasoning" part
+                if (part.type === "tool-Thinking") {
+                  return {
+                    type: "reasoning",
+                    text: part.input?.text || "",
+                    state: "done",
+                  }
+                }
                 // Normalize state field from DB format to AI SDK format
                 if (part.type?.startsWith("tool-") && part.state) {
                   let normalizedState = part.state
@@ -5813,6 +5848,9 @@ Make sure to preserve all functionality from both branches when resolving confli
         messages,
         transport,
         onError: () => {
+          // Clear loading state on error (matches onFinish behavior)
+          clearLoading(setLoadingSubChats, subChatId)
+
           // Sync status to global store on error (allows queue to continue)
           useStreamingStatusStore.getState().setStatus(subChatId, "ready")
 
