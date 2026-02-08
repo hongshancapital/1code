@@ -57,6 +57,8 @@ export function TextSelectionPopover({
     return () => { isMountedRef.current = false }
   }, [])
 
+  const isMouseDownRef = useRef(false)
+
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
       // Ignore clicks on the popover itself
@@ -64,6 +66,7 @@ export function TextSelectionPopover({
         return
       }
       if (!isMountedRef.current) return
+      isMouseDownRef.current = true
       setIsMouseDown(true)
       setIsVisible(false) // Hide while selecting
     }
@@ -74,6 +77,8 @@ export function TextSelectionPopover({
         return
       }
       if (!isMountedRef.current) return
+      if (!isMouseDownRef.current) return
+      isMouseDownRef.current = false
       setIsMouseDown(false)
     }
 
@@ -87,12 +92,16 @@ export function TextSelectionPopover({
   }, [])
 
   // Show popover only when mouse is up and we have a valid selection
+  // Use a ref to track previous isMouseDown to avoid re-triggering on same value
   useEffect(() => {
     if (!isMouseDown && selectedText && source && selectionRect) {
+      // Only show when transitioning from mouse-down to mouse-up with valid selection
       setIsVisible(true)
     } else if (!selectedText || !source || !selectionRect) {
       setIsVisible(false)
     }
+    // Note: when isMouseDown becomes true, visibility is already set to false
+    // in handleMouseDown, so we don't need to handle that case here
   }, [isMouseDown, selectedText, source, selectionRect])
 
   // Don't render if not visible or if source is file-viewer (uses context menu instead)

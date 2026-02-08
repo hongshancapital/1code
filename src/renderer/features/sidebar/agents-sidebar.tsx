@@ -2412,38 +2412,49 @@ export function AgentsSidebar({
     prevProjectIdRef.current = selectedProject?.id ?? null
   }, [selectedProject?.id, isNavigatingProjectSync]) // Don't include selectedChatId in deps to avoid loops
 
-  // Load pinned IDs from localStorage when project changes
+  // Load pinned IDs from localStorage (global, not per-project, since sidebar shows all chats)
   useEffect(() => {
-    if (!selectedProject?.id) {
-      setPinnedChatIds(new Set())
-      return
-    }
     try {
-      const stored = localStorage.getItem(
-        `agent-pinned-chats-${selectedProject.id}`,
-      )
-      setPinnedChatIds(stored ? new Set(JSON.parse(stored)) : new Set())
+      const stored = localStorage.getItem('agent-pinned-chats')
+      if (stored) {
+        setPinnedChatIds(new Set(JSON.parse(stored)))
+      } else {
+        // Migration: merge any existing per-project pinned IDs into global key
+        const merged = new Set<string>()
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key?.startsWith('agent-pinned-chats-')) {
+            try {
+              const ids: string[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+              ids.forEach((id) => merged.add(id))
+            } catch { /* skip malformed entries */ }
+          }
+        }
+        setPinnedChatIds(merged)
+        if (merged.size > 0) {
+          localStorage.setItem('agent-pinned-chats', JSON.stringify([...merged]))
+        }
+      }
     } catch {
       setPinnedChatIds(new Set())
     }
-  }, [selectedProject?.id])
+  }, [])
 
   // Save pinned IDs to localStorage when they change
   const prevPinnedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
-    if (!selectedProject?.id) return
     // Only save if pinnedChatIds actually changed (avoid saving on load)
     if (
       (pinnedChatIds !== prevPinnedRef.current && pinnedChatIds.size > 0) ||
       prevPinnedRef.current.size > 0
     ) {
       localStorage.setItem(
-        `agent-pinned-chats-${selectedProject.id}`,
+        'agent-pinned-chats',
         JSON.stringify([...pinnedChatIds]),
       )
     }
     prevPinnedRef.current = pinnedChatIds
-  }, [pinnedChatIds, selectedProject?.id])
+  }, [pinnedChatIds])
 
   // Rename mutation
   const renameChatMutation = trpc.chats.rename.useMutation({
