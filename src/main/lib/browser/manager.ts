@@ -339,6 +339,35 @@ export class BrowserManager extends EventEmitter {
     this.getWindow()?.webContents.send("browser:show-panel")
   }
 
+  /**
+   * Ensure browser is ready — show panel if needed and wait for ready state.
+   * Returns true if ready, false if timed out.
+   */
+  async ensureReady(timeoutMs = 15_000): Promise<boolean> {
+    if (this.state.isReady) return true
+
+    // Show the panel to trigger webview creation
+    this.showPanel()
+
+    // Wait for ready event
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        this.removeListener("ready", onReady)
+        resolve(false)
+      }, timeoutMs)
+
+      const onReady = (ready: boolean) => {
+        if (ready) {
+          clearTimeout(timer)
+          this.removeListener("ready", onReady)
+          resolve(true)
+        }
+      }
+
+      this.on("ready", onReady)
+    })
+  }
+
   private resetLockTimeout(): void {
     this.clearLockTimeout()
     this.lockTimeout = setTimeout(() => {

@@ -105,7 +105,7 @@ export async function createBrowserMcpServer() {
       ),
 
       // ======================================================================
-      // 2. browser_lock — free
+      // 2. browser_lock — free, auto-opens browser panel if needed
       // ======================================================================
       tool(
         "browser_lock",
@@ -115,6 +115,12 @@ After finishing all browser operations, you MUST call browser_unlock to release 
 The lock auto-releases after 5 minutes as a safety net.`,
         {},
         async (): Promise<ToolResult> => {
+          // Auto-open browser panel and wait for ready
+          const ready = await browserManager.ensureReady()
+          if (!ready) {
+            return error("Browser failed to initialize. The browser panel could not be opened.")
+          }
+
           const result = browserManager.lock()
           if (result.alreadyLocked) {
             return text("Browser already locked. Proceeding with operations.")
@@ -157,12 +163,7 @@ Set show: true to open the browser panel if it's not visible.`,
           waitUntil: z.enum(["load", "domcontentloaded", "networkidle"]).optional()
             .describe("When to consider navigation complete"),
         },
-        async ({ url, action, show, waitUntil }) => {
-          // Show browser panel if requested
-          if (show) {
-            browserManager.showPanel()
-          }
-
+        async ({ url, action, waitUntil }) => {
           if (url) {
             const result = await browserManager.execute("navigate", { url, waitUntil })
             if (!result.success) return error(result.error!)
@@ -174,11 +175,6 @@ Set show: true to open the browser panel if it's not visible.`,
             if (!result.success) return error(result.error!)
             const actionLabels = { back: "Went back", forward: "Went forward", reload: "Reloaded" }
             return text(actionLabels[action])
-          }
-
-          // Just show panel, no navigation
-          if (show) {
-            return text("Browser panel opened.")
           }
 
           return error("Provide url or action parameter.")
