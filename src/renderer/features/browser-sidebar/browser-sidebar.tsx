@@ -481,15 +481,6 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     return cleanup
   }, [setLocked, setOverlayActive])
 
-  // Listen for browser:show-panel from main process (AI requesting panel visibility)
-  useEffect(() => {
-    if (!window.desktopApi.onBrowserShowPanel) return
-    const cleanup = window.desktopApi.onBrowserShowPanel(() => {
-      setBrowserActive(true)
-    })
-    return cleanup
-  }, [setBrowserActive])
-
   // Listen for operations from main process
   useEffect(() => {
     const cleanup = window.desktopApi.onBrowserExecute(async (operation) => {
