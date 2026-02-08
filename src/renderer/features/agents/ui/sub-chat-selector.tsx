@@ -465,31 +465,40 @@ export function SubChatSelector({
     if (!activeSubChatId || !tabsContainerRef.current) return
 
     const container = tabsContainerRef.current
-    const activeTabElement = tabRefs.current.get(activeSubChatId)
 
-    if (activeTabElement) {
-      setTimeout(() => {
-        const containerRect = container.getBoundingClientRect()
-        const tabRect = activeTabElement.getBoundingClientRect()
+    const scrollToTab = (attempt = 0) => {
+      const activeTabElement = tabRefs.current.get(activeSubChatId)
 
-        const isTabLeftOfView = tabRect.left < containerRect.left
-        const isTabRightOfView = tabRect.right > containerRect.right
-
-        if (isTabLeftOfView || isTabRightOfView) {
-          const tabCenter =
-            activeTabElement.offsetLeft + activeTabElement.offsetWidth / 2
-          const containerCenter = container.offsetWidth / 2
-          const targetScroll = tabCenter - containerCenter
-          const maxScroll = container.scrollWidth - container.offsetWidth
-          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll))
-
-          container.scrollTo({
-            left: clampedScroll,
-            behavior: "smooth",
-          })
+      if (!activeTabElement) {
+        // New tab may not be rendered yet, retry a few times
+        if (attempt < 5) {
+          setTimeout(() => scrollToTab(attempt + 1), 50)
         }
-      }, 0)
+        return
+      }
+
+      const containerRect = container.getBoundingClientRect()
+      const tabRect = activeTabElement.getBoundingClientRect()
+
+      const isTabLeftOfView = tabRect.left < containerRect.left
+      const isTabRightOfView = tabRect.right > containerRect.right
+
+      if (isTabLeftOfView || isTabRightOfView) {
+        const tabCenter =
+          activeTabElement.offsetLeft + activeTabElement.offsetWidth / 2
+        const containerCenter = container.offsetWidth / 2
+        const targetScroll = tabCenter - containerCenter
+        const maxScroll = container.scrollWidth - container.offsetWidth
+        const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll))
+
+        container.scrollTo({
+          left: clampedScroll,
+          behavior: "smooth",
+        })
+      }
     }
+
+    setTimeout(() => scrollToTab(), 0)
   }, [activeSubChatId, openSubChats])
 
   // Check if text is truncated for each tab - updates ref and DOM directly

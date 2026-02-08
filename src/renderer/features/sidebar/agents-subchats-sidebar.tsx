@@ -778,6 +778,36 @@ export function AgentsSubChatsSidebar({
     [allSubChats],
   )
 
+  // Scroll active sub-chat into view when it changes
+  useEffect(() => {
+    if (!activeSubChatId || !scrollContainerRef.current) return
+
+    const scrollToActive = (attempt = 0) => {
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const activeElement = container.querySelector<HTMLElement>(
+        `[data-subchat-id="${activeSubChatId}"]`,
+      )
+
+      if (!activeElement) {
+        // Element may not be rendered yet (e.g. newly created subchat), retry
+        if (attempt < 5) {
+          setTimeout(() => scrollToActive(attempt + 1), 50)
+        }
+        return
+      }
+
+      activeElement.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      })
+    }
+
+    // Small delay to let React render the new item
+    setTimeout(() => scrollToActive(), 0)
+  }, [activeSubChatId])
+
   // Update gradients when filtered chats change or on resize
   useEffect(() => {
     updateScrollGradients()
@@ -1311,6 +1341,7 @@ export function AgentsSubChatsSidebar({
                               <ContextMenuTrigger asChild>
                                 <div
                                   data-subchat-index={globalIndex}
+                                  data-subchat-id={subChat.id}
                                   onClick={(e) =>
                                     handleSubChatItemClick(
                                       subChat.id,
@@ -1615,6 +1646,7 @@ export function AgentsSubChatsSidebar({
                               <ContextMenuTrigger asChild>
                                 <div
                                   data-subchat-index={globalIndex}
+                                  data-subchat-id={subChat.id}
                                   onClick={(e) =>
                                     handleSubChatItemClick(
                                       subChat.id,
