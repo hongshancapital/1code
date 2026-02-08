@@ -4713,7 +4713,7 @@ export function ChatView({
   // Workspace isolation: limit mounted tabs to prevent memory growth
   // CRITICAL: Filter by workspace to prevent rendering sub-chats from other workspaces
   // Always render: active + pinned, then fill with recent up to limit
-  const MAX_MOUNTED_TABS = 5
+  const MAX_MOUNTED_TABS = 10
   const tabsToRender = useMemo(() => {
     if (!activeSubChatId) return []
 

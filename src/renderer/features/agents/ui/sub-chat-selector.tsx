@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useEffect, useRef, useState, memo, forwardRef, useImperativeHandle } from "react"
+import { useCallback, useMemo, useEffect, useRef, useState, memo, forwardRef, useImperativeHandle, startTransition } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
   loadingSubChatsAtom,
@@ -290,30 +290,34 @@ export function SubChatSelector({
 
   const onSwitch = useCallback(
     (subChatId: string) => {
-      const store = useAgentSubChatStore.getState()
-      store.setActiveSubChat(subChatId)
+      startTransition(() => {
+        const store = useAgentSubChatStore.getState()
+        store.setActiveSubChat(subChatId)
 
-      // Clear unseen indicator for this sub-chat
-      setSubChatUnseenChanges((prev: Set<string>) => {
-        if (prev.has(subChatId)) {
-          const next = new Set(prev)
-          next.delete(subChatId)
-          return next
-        }
-        return prev
+        // Clear unseen indicator for this sub-chat
+        setSubChatUnseenChanges((prev: Set<string>) => {
+          if (prev.has(subChatId)) {
+            const next = new Set(prev)
+            next.delete(subChatId)
+            return next
+          }
+          return prev
+        })
       })
     },
     [setSubChatUnseenChanges],
   )
 
   const onSwitchFromHistory = useCallback((subChatId: string) => {
-    const state = useAgentSubChatStore.getState()
-    const isAlreadyOpen = state.openSubChatIds.includes(subChatId)
+    startTransition(() => {
+      const state = useAgentSubChatStore.getState()
+      const isAlreadyOpen = state.openSubChatIds.includes(subChatId)
 
-    if (!isAlreadyOpen) {
-      state.addToOpenSubChats(subChatId)
-    }
-    state.setActiveSubChat(subChatId)
+      if (!isAlreadyOpen) {
+        state.addToOpenSubChats(subChatId)
+      }
+      state.setActiveSubChat(subChatId)
+    })
   }, [])
 
   const onCloseTab = useCallback((subChatId: string) => {
