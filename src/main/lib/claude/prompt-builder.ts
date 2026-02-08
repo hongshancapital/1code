@@ -52,12 +52,12 @@ export class PromptBuilder {
   /**
    * Build the software introduction section
    */
-  private buildSoftwareIntroSection(): string {
+  private buildSoftwareIntroSection(cwd?: string): string {
     const appPath = app.getAppPath()
     const exePath = app.getPath("exe")
     const appVersion = app.getVersion()
 
-    return `# About This Software
+    let intro = `# About This Software
 You are running **Hóng** — an internal Cowork AI tool for HongShan (HSG), built on Claude Code Agent.
 
 - **Version**: v${appVersion}
@@ -65,6 +65,12 @@ You are running **Hóng** — an internal Cowork AI tool for HongShan (HSG), bui
 - **Executable**: ${exePath}
 
 Hóng is a local-first desktop application for AI-powered code assistance and collaboration.`
+
+    if (cwd) {
+      intro += `\n\nThe current working directory is \`${cwd}\`. By default, any generated files should be placed in this directory unless otherwise specified.`
+    }
+
+    return intro
   }
 
   /**
@@ -245,7 +251,7 @@ ${content}`
 
     // Software intro
     if (mergedStrategy.includeSoftwareIntro) {
-      sections.softwareIntro = this.buildSoftwareIntroSection()
+      sections.softwareIntro = this.buildSoftwareIntroSection(cwd)
     }
 
     // User profile
