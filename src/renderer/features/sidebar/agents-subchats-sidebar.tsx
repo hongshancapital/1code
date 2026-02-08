@@ -246,27 +246,18 @@ export function AgentsSubChatsSidebar({
     }
   )
 
-  // Merge stream-based stats with DB stats (stream takes priority for active chat)
-  const subChatFiles = useMemo(() => {
-    const merged = new Map(subChatFilesFromStream)
-
-    // Add DB stats for sub-chats that don't have stream data
+  // DB-based stats map (from pre-computed statsJson, used as fallback when no stream data)
+  const dbSubChatStats = useMemo(() => {
+    const map = new Map<string, { fileCount: number; additions: number; deletions: number }>()
     if (subChatStatsData) {
       for (const stat of subChatStatsData) {
-        if (!merged.has(stat.subChatId) && (stat.fileCount > 0 || stat.additions > 0 || stat.deletions > 0)) {
-          // Convert to SubChatFileChange format (single aggregated entry)
-          merged.set(stat.subChatId, [{
-            filePath: `${stat.fileCount} files`,
-            displayPath: `${stat.fileCount} files`,
-            additions: stat.additions,
-            deletions: stat.deletions,
-          }])
+        if (stat.fileCount > 0 || stat.additions > 0 || stat.deletions > 0) {
+          map.set(stat.subChatId, { fileCount: stat.fileCount, additions: stat.additions, deletions: stat.deletions })
         }
       }
     }
-
-    return merged
-  }, [subChatFilesFromStream, subChatStatsData])
+    return map
+  }, [subChatStatsData])
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
   const { navigateToChat } = useNavigate()
@@ -1290,8 +1281,8 @@ export function AgentsSubChatsSidebar({
                           const draftText = getDraftText(subChat.id)
                           const hasPendingQuestion = pendingQuestionsMap.has(subChat.id)
                           const hasPendingPlan = pendingPlanApprovals.has(subChat.id)
-                          const fileChanges = subChatFiles.get(subChat.id) || []
-                          const stats =
+                          const fileChanges = subChatFilesFromStream.get(subChat.id) || []
+                          const stats: { fileCount: number; additions: number; deletions: number } | null =
                             fileChanges.length > 0
                               ? fileChanges.reduce(
                                   (acc, f) => ({
@@ -1301,7 +1292,7 @@ export function AgentsSubChatsSidebar({
                                   }),
                                   { fileCount: 0, additions: 0, deletions: 0 },
                                 )
-                              : null
+                              : dbSubChatStats.get(subChat.id) || null
 
                           return (
                             <SubChatHoverPreview
@@ -1594,8 +1585,8 @@ export function AgentsSubChatsSidebar({
                           const draftText = getDraftText(subChat.id)
                           const hasPendingQuestion = pendingQuestionsMap.has(subChat.id)
                           const hasPendingPlan = pendingPlanApprovals.has(subChat.id)
-                          const fileChanges = subChatFiles.get(subChat.id) || []
-                          const stats =
+                          const fileChanges = subChatFilesFromStream.get(subChat.id) || []
+                          const stats: { fileCount: number; additions: number; deletions: number } | null =
                             fileChanges.length > 0
                               ? fileChanges.reduce(
                                   (acc, f) => ({
@@ -1605,7 +1596,7 @@ export function AgentsSubChatsSidebar({
                                   }),
                                   { fileCount: 0, additions: 0, deletions: 0 },
                                 )
-                              : null
+                              : dbSubChatStats.get(subChat.id) || null
 
                           return (
                             <SubChatHoverPreview
