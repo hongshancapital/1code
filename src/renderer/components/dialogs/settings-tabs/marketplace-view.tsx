@@ -270,16 +270,29 @@ export function MarketplaceView() {
     })
   }, [plugins, searchQuery])
 
-  // Group by installed/available
-  const installedPlugins = filteredPlugins.filter((p) => p.isInstalled)
-  const availablePlugins = filteredPlugins.filter((p) => !p.isInstalled)
+  // Group by marketplace
+  const marketplaceGroups = useMemo(() => {
+    const groups = new Map<string, AvailablePlugin[]>()
+    for (const plugin of filteredPlugins) {
+      const existing = groups.get(plugin.marketplaceName) || []
+      existing.push(plugin)
+      groups.set(plugin.marketplaceName, existing)
+    }
+    // Sort: official marketplaces first, then alphabetically
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      const aOfficial = marketplaces?.some((m) => m.name === a && m.isOfficial)
+      const bOfficial = marketplaces?.some((m) => m.name === b && m.isOfficial)
+      if (aOfficial && !bOfficial) return -1
+      if (!aOfficial && bOfficial) return 1
+      return a.localeCompare(b)
+    })
+  }, [filteredPlugins, marketplaces])
 
   const allPluginIds = useMemo(
-    () => [
-      ...installedPlugins.map((p) => `${p.name}@${p.marketplaceName}`),
-      ...availablePlugins.map((p) => `${p.name}@${p.marketplaceName}`),
-    ],
-    [installedPlugins, availablePlugins]
+    () => marketplaceGroups.flatMap(([, plugins]) =>
+      plugins.map((p) => `${p.name}@${p.marketplaceName}`)
+    ),
+    [marketplaceGroups]
   )
 
   const { containerRef: listRef, onKeyDown: listKeyDown } = useListKeyboardNav({
@@ -298,9 +311,9 @@ export function MarketplaceView() {
   // Auto-select first plugin
   useEffect(() => {
     if (selectedPluginId || loadingPlugins || plugins.length === 0) return
-    const first = availablePlugins[0] || installedPlugins[0]
+    const first = marketplaceGroups[0]?.[1]?.[0]
     if (first) setSelectedPluginId(`${first.name}@${first.marketplaceName}`)
-  }, [plugins, selectedPluginId, loadingPlugins, availablePlugins, installedPlugins])
+  }, [plugins, selectedPluginId, loadingPlugins, marketplaceGroups])
 
   const handleInstall = useCallback(
     async (plugin: AvailablePlugin) => {
@@ -447,14 +460,13 @@ export function MarketplaceView() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {/* Installed */}
-                {installedPlugins.length > 0 && (
-                  <div>
+                {marketplaceGroups.map(([marketplace, groupPlugins]) => (
+                  <div key={marketplace}>
                     <p className="sticky top-0 z-10 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1.5 mb-1 bg-muted/80 backdrop-blur-sm rounded-md">
-                      {t("marketplace.sections.installed")}
+                      {marketplace}
                     </p>
                     <div className="flex flex-col gap-0.5">
-                      {installedPlugins.map((plugin) => (
+                      {groupPlugins.map((plugin) => (
                         <AvailablePluginListItem
                           key={`${plugin.name}@${plugin.marketplaceName}`}
                           plugin={plugin}
@@ -467,29 +479,7 @@ export function MarketplaceView() {
                       ))}
                     </div>
                   </div>
-                )}
-
-                {/* Available */}
-                {availablePlugins.length > 0 && (
-                  <div>
-                    <p className="sticky top-0 z-10 text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 py-1.5 mb-1 bg-muted/80 backdrop-blur-sm rounded-md">
-                      {t("marketplace.sections.available")}
-                    </p>
-                    <div className="flex flex-col gap-0.5">
-                      {availablePlugins.map((plugin) => (
-                        <AvailablePluginListItem
-                          key={`${plugin.name}@${plugin.marketplaceName}`}
-                          plugin={plugin}
-                          isSelected={
-                            selectedPluginId ===
-                            `${plugin.name}@${plugin.marketplaceName}`
-                          }
-                          onSelect={setSelectedPluginId}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>

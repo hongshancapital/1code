@@ -55,6 +55,7 @@ export function ManageMarketplacesDialog({
   const updateMutation = trpc.marketplace.updateMarketplace.useMutation()
   const removeMutation = trpc.marketplace.removeMarketplace.useMutation()
   const initOfficialMutation = trpc.marketplace.initializeOfficial.useMutation()
+  const initKnowledgeWorkMutation = trpc.marketplace.initializeKnowledgeWork.useMutation()
 
   const utils = trpc.useUtils()
 
@@ -134,7 +135,26 @@ export function ManageMarketplacesDialog({
     }
   }, [initOfficialMutation, refetch, utils, t])
 
+  const handleInitKnowledgeWork = useCallback(async () => {
+    setIsAdding(true)
+    try {
+      await initKnowledgeWorkMutation.mutateAsync()
+      toast.success(t("marketplace.toast.knowledgeWorkAdded"))
+      await refetch()
+      await utils.marketplace.listAvailablePlugins.invalidate()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("marketplace.toast.knowledgeWorkFailed")
+      )
+    } finally {
+      setIsAdding(false)
+    }
+  }, [initKnowledgeWorkMutation, refetch, utils, t])
+
   const hasOfficial = marketplaces.some((m) => m.isOfficial)
+  const hasKnowledgeWork = marketplaces.some((m) => m.name === "knowledge-work-plugins")
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -175,33 +195,65 @@ export function ManageMarketplacesDialog({
             </div>
           </div>
 
-          {/* Add official marketplace button if not present */}
-          {!hasOfficial && !isLoading && (
-            <div className="flex items-center justify-between p-3 rounded-lg border border-dashed border-border bg-muted/30">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 text-amber-500" />
-                <div>
-                  <p className="text-sm font-medium">
-                    {t("marketplace.manage.officialTitle")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {t("marketplace.manage.officialDescription")}
-                  </p>
+          {/* Add built-in marketplace buttons */}
+          {(!hasOfficial || !hasKnowledgeWork) && !isLoading && (
+            <div className="flex flex-col gap-2">
+              {!hasOfficial && (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-dashed border-border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-amber-500" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {t("marketplace.manage.officialTitle")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("marketplace.manage.officialDescription")}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleInitOfficial}
+                    disabled={isAdding}
+                  >
+                    {isAdding ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1.5" />
+                    )}
+                    {t("marketplace.manage.addOfficial")}
+                  </Button>
                 </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleInitOfficial}
-                disabled={isAdding}
-              >
-                {isAdding ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-1.5" />
-                )}
-                {t("marketplace.manage.addOfficial")}
-              </Button>
+              )}
+              {!hasKnowledgeWork && (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-dashed border-border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {t("marketplace.manage.knowledgeWorkTitle", { defaultValue: "Knowledge Work Plugins" })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("marketplace.manage.knowledgeWorkDescription", { defaultValue: "Enterprise plugins for productivity, sales, finance, and more" })}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleInitKnowledgeWork}
+                    disabled={isAdding}
+                  >
+                    {isAdding ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1.5" />
+                    )}
+                    {t("marketplace.manage.addKnowledgeWork", { defaultValue: "Add" })}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 

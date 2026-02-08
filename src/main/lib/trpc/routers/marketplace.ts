@@ -17,6 +17,7 @@ import {
   pullMarketplace,
   deleteMarketplace,
   initializeOfficialMarketplace,
+  initializeKnowledgeWorkMarketplace,
   syncExistingMarketplaces,
 } from "../../plugins/marketplace-operations"
 import {
@@ -103,6 +104,17 @@ export const marketplaceRouter = router({
     const result = await initializeOfficialMarketplace()
     if (!result.success) {
       throw new Error(result.error || "Failed to initialize official marketplace")
+    }
+    return result
+  }),
+
+  /**
+   * Initialize Knowledge Work Plugins marketplace (clone if not present)
+   */
+  initializeKnowledgeWork: publicProcedure.mutation(async () => {
+    const result = await initializeKnowledgeWorkMarketplace()
+    if (!result.success) {
+      throw new Error(result.error || "Failed to initialize Knowledge Work marketplace")
     }
     return result
   }),

@@ -20,6 +20,7 @@ import {
   getMarketplaceLocalPath,
   marketplaceExistsLocally,
   getOfficialMarketplaceInfo,
+  getKnowledgeWorkMarketplaceInfo,
 } from "./marketplace-config"
 import type {
   MarketplaceConfig,
@@ -345,6 +346,39 @@ export async function syncExistingMarketplaces(): Promise<void> {
   } catch {
     // Directory doesn't exist, nothing to sync
   }
+}
+
+/**
+ * Initialize the Knowledge Work Plugins marketplace if not present
+ */
+export async function initializeKnowledgeWorkMarketplace(): Promise<AddMarketplaceResult> {
+  const knowledgeWork = getKnowledgeWorkMarketplaceInfo()
+
+  // Check if directory already exists locally
+  if (await marketplaceExistsLocally(knowledgeWork.name)) {
+    // Directory exists, just ensure it's in the config
+    const config: MarketplaceConfig = {
+      ...knowledgeWork,
+      lastUpdatedAt: new Date().toISOString(),
+    }
+    await addMarketplaceConfig(config)
+    console.log(`[Marketplace] Knowledge Work marketplace already exists, added to config`)
+    return {
+      success: true,
+      marketplace: config,
+    }
+  }
+
+  // Clone Knowledge Work marketplace
+  const result = await cloneMarketplace(knowledgeWork.gitUrl, knowledgeWork.name, knowledgeWork.branch)
+
+  if (result.success) {
+    // Mark as official
+    result.marketplace.isOfficial = true
+    await addMarketplaceConfig(result.marketplace)
+  }
+
+  return result
 }
 
 /**

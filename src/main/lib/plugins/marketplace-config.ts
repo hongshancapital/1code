@@ -12,7 +12,7 @@ import type {
   PluginMarketplacesConfig,
   MarketplaceManifest,
 } from "./marketplace-types"
-import { OFFICIAL_MARKETPLACE } from "./marketplace-types"
+import { OFFICIAL_MARKETPLACE, KNOWLEDGE_WORK_MARKETPLACE } from "./marketplace-types"
 
 const CONFIG_PATH = PATHS.HONG_MARKETPLACES_CONFIG
 
@@ -191,4 +191,11 @@ export async function marketplaceExistsLocally(
  */
 export function getOfficialMarketplaceInfo(): MarketplaceConfig {
   return { ...OFFICIAL_MARKETPLACE, addedAt: new Date().toISOString() }
+}
+
+/**
+ * Get Knowledge Work Plugins marketplace info
+ */
+export function getKnowledgeWorkMarketplaceInfo(): MarketplaceConfig {
+  return { ...KNOWLEDGE_WORK_MARKETPLACE, addedAt: new Date().toISOString() }
 }

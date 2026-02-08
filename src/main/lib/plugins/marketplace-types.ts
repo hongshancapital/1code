@@ -141,3 +141,14 @@ export const OFFICIAL_MARKETPLACE: MarketplaceConfig = {
   addedAt: new Date().toISOString(),
   isOfficial: true,
 }
+
+/**
+ * Knowledge Work Plugins marketplace configuration
+ */
+export const KNOWLEDGE_WORK_MARKETPLACE: MarketplaceConfig = {
+  name: "knowledge-work-plugins",
+  gitUrl: "https://github.com/anthropics/knowledge-work-plugins.git",
+  branch: "main",
+  addedAt: new Date().toISOString(),
+  isOfficial: true,
+}
