@@ -42,8 +42,11 @@ export function BrowserPanel({ chatId, projectId, onCollapse, onClose, onScreens
 
   return (
     <div className="h-full flex flex-col bg-tl-background">
-      {/* Header - similar to AgentPlanSidebar */}
-      <div className="flex items-center justify-between px-2 h-10 bg-tl-background shrink-0 border-b border-border/50">
+      {/* Header - similar to AgentPlanSidebar, draggable for window move */}
+      <div
+        className="flex items-center justify-between px-2 h-10 bg-tl-background shrink-0 border-b border-border/50"
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+      >
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Collapse button */}
           <Button
@@ -51,6 +54,7 @@ export function BrowserPanel({ chatId, projectId, onCollapse, onClose, onScreens
             size="icon"
             onClick={onCollapse}
             className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             aria-label="Collapse browser"
           >
             <IconDoubleChevronRight className="h-4 w-4" />
@@ -82,6 +86,7 @@ export function BrowserPanel({ chatId, projectId, onCollapse, onClose, onScreens
           size="icon"
           onClick={handleClose}
           className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           aria-label="Close browser"
         >
           <X className="h-4 w-4" />

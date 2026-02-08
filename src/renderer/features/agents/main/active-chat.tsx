@@ -4131,6 +4131,18 @@ export function ChatView({
     return cleanup
   }, [setBrowserUrl, setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
 
+  // Listen for browser:show-panel from main process (AI lock/ensureReady)
+  // Must be here (always mounted) — not in BrowserSidebar which only mounts when visible
+  useEffect(() => {
+    if (!window.desktopApi.onBrowserShowPanel) return
+    const cleanup = window.desktopApi.onBrowserShowPanel(() => {
+      setIsBrowserSidebarOpenRaw(true)
+      setBrowserActive(true)
+      setIsDetailsSidebarOpenRaw(false)
+    })
+    return cleanup
+  }, [setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
+
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
   const toggleTerminalHotkey = useResolvedHotkeyDisplay("toggle-terminal")
@@ -4758,15 +4770,32 @@ export function ChatView({
       ...allSubChats.map(sc => sc.id),
     ])
 
+    // When both data sources are still empty (loading), trust activeSubChatId from localStorage.
+    // Without this, there's a race condition:
+    //   1. setChatId() resets allSubChats to []
+    //   2. Server query for agentChat is still loading → agentSubChats is []
+    //   3. activeSubChatId is restored from localStorage (valid)
+    //   4. validSubChatIds is empty → activeSubChatId fails validation → returns []
+    //   5. No ChatViewInner renders → blank screen
+    // By skipping the validation when no data has loaded yet, we allow the tab to mount
+    // and load its messages. Once data arrives, the next re-render will properly validate.
+    const dataNotYetLoaded = validSubChatIds.size === 0
+
     // If active sub-chat doesn't belong to this workspace → return []
     // This prevents rendering sub-chats from another workspace during race condition
-    if (!validSubChatIds.has(activeSubChatId)) {
+    // But skip this check when data hasn't loaded yet (trust localStorage)
+    if (!dataNotYetLoaded && !validSubChatIds.has(activeSubChatId)) {
       return []
     }
 
     // Filter openSubChatIds and pinnedSubChatIds to only valid IDs for this workspace
-    const validOpenIds = openSubChatIds.filter(id => validSubChatIds.has(id))
-    const validPinnedIds = pinnedSubChatIds.filter(id => validSubChatIds.has(id))
+    // When data hasn't loaded, allow all IDs through (they came from localStorage for this chatId)
+    const validOpenIds = dataNotYetLoaded
+      ? openSubChatIds
+      : openSubChatIds.filter(id => validSubChatIds.has(id))
+    const validPinnedIds = dataNotYetLoaded
+      ? pinnedSubChatIds
+      : pinnedSubChatIds.filter(id => validSubChatIds.has(id))
 
     // Start with active (must always be mounted)
     const mustRender = new Set([activeSubChatId])
