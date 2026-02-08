@@ -72,11 +72,11 @@ export const activeModelIdAtom = atomWithStorage<string | null>(
  * Set of enabled provider IDs.
  * Multiple providers can be enabled simultaneously.
  * Stored as an array in localStorage, used as a Set in code.
- * Default: ["anthropic"] — Anthropic is enabled by default.
+ * Default: ["litellm"] — LiteLLM is enabled by default; Anthropic requires account linking.
  */
 export const enabledProviderIdsAtom = atomWithStorage<string[]>(
   "models:enabled-provider-ids",
-  ["anthropic"],
+  ["litellm"],
   undefined,
   { getOnInit: true },
 )
