@@ -73,6 +73,19 @@ if (isEmbeddedInTinker) {
     try {
       Sentry.init({
         dsn: env.MAIN_VITE_SENTRY_DSN,
+        // Register sentry-ipc:// protocol handler on our custom session
+        // (partition: "persist:main") in addition to the default session.
+        // Without this, the handler only registers on defaultSession and
+        // renderers using the custom session fall back to fetch, causing
+        // ERR_UNKNOWN_URL_SCHEME errors.
+        getSessions: () => {
+          const sessions = [session.defaultSession]
+          const custom = session.fromPartition("persist:main")
+          if (custom !== session.defaultSession) {
+            sessions.push(custom)
+          }
+          return sessions
+        },
       })
       console.log("[App] Sentry initialized")
     } catch (error) {

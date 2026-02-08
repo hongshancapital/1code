@@ -152,10 +152,10 @@ function ProviderModelSection({
     { providerId: provider.id },
   )
   const allModels = modelsData?.models || []
-  // Filter to only show enabled models
+  // Filter to only show enabled models (empty list = all enabled)
   const models = enabledModelIds.length > 0
     ? allModels.filter((m) => enabledModelIds.includes(m.id))
-    : []
+    : allModels
 
   if (!isLoading && models.length === 0) return null
 
@@ -514,12 +514,12 @@ export const ChatInputArea = memo(function ChatInputArea({
   const currentProvider = providers.find((p: ProviderInfo) => p.id === effectiveSelection.providerId)
   const currentProviderName = currentProvider?.name || "Anthropic"
 
-  // Get enabled models for this provider
+  // Get enabled models for this provider (empty list = all enabled)
   const currentProviderEnabledModels = enabledModelsPerProvider[effectiveSelection.providerId] || []
 
   // Validate model: must be in provider's enabled models list (not stale localStorage value)
   const rawModelId = effectiveSelection.modelId || null
-  const currentModelId = rawModelId && currentProviderEnabledModels.includes(rawModelId) ? rawModelId : null
+  const currentModelId = rawModelId && (currentProviderEnabledModels.length === 0 || currentProviderEnabledModels.includes(rawModelId)) ? rawModelId : null
   const currentModel = currentModelId ? providerModels.find((m: ModelInfo) => m.id === currentModelId) : null
   const currentModelName = currentModel?.name || (currentModelId ? currentModelId : t("model.selectModel"))
 

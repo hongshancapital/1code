@@ -417,7 +417,7 @@ function ProviderDetailPanel({
         {provider.type === "litellm" && (
           <div className="p-4">
             <p className="text-sm text-muted-foreground">
-              内置 LLM 代理节点，由红杉为用户免费提供。
+              Hóng 为您提供的内置 LLM 节点
             </p>
           </div>
         )}
@@ -467,7 +467,7 @@ function ProviderDetailPanel({
           ) : (
             <div className="space-y-0.5">
               {filteredModels.map((model) => {
-                const isEnabled = enabledModelIds.includes(model.id)
+                const isEnabled = enabledModelIds.length === 0 || enabledModelIds.includes(model.id)
                 return (
                   <div
                     key={model.id}
