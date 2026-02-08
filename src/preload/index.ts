@@ -8,8 +8,12 @@ const isEmbeddedInTinker = process.env['HONG_EMBEDDED_IN_TINKER'] === 'true'
 // between renderer and main process. The renderer module is initialized
 // separately in src/renderer/main.tsx. Using /renderer here caused
 // double-initialization which broke the sentry-ipc:// transport.
+// IMPORTANT: Must use synchronous require() instead of async import() to ensure
+// window.__SENTRY_IPC__ is set up before the renderer's Sentry.init() runs.
+// Async import() caused a race condition where the renderer fell back to
+// fetch-based sentry-ipc:// transport, resulting in ERR_UNKNOWN_URL_SCHEME.
 if (!isEmbeddedInTinker && process.env['NODE_ENV'] === "production") {
-  import("@sentry/electron/preload")
+  require("@sentry/electron/preload")
 }
 
 // Expose tRPC IPC bridge for type-safe communication
@@ -284,6 +288,8 @@ contextBridge.exposeInMainWorld("desktopApi", {
   browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) =>
     ipcRenderer.send("browser:result", { id, result }),
   browserUrlChanged: (url: string) => ipcRenderer.send("browser:url-changed", url),
+  browserTitleChanged: (title: string) => ipcRenderer.send("browser:title-changed", title),
+  browserUnlock: () => ipcRenderer.send("browser:manual-unlock"),
   browserCursorPosition: (x: number, y: number) =>
     ipcRenderer.send("browser:cursor-position", { x, y }),
   browserGetCertificate: (url: string) => ipcRenderer.invoke("browser:get-certificate", url) as Promise<CertificateInfo | null>,
@@ -299,6 +305,11 @@ contextBridge.exposeInMainWorld("desktopApi", {
     const handler = (_event: unknown, url: string) => callback(url)
     ipcRenderer.on("browser:navigate", handler)
     return () => ipcRenderer.removeListener("browser:navigate", handler)
+  },
+  onBrowserLockStateChanged: (callback: (locked: boolean) => void) => {
+    const handler = (_event: unknown, locked: boolean) => callback(locked)
+    ipcRenderer.on("browser:lock-state-changed", handler)
+    return () => ipcRenderer.removeListener("browser:lock-state-changed", handler)
   },
 })
 
@@ -494,12 +505,15 @@ export interface DesktopApi {
   browserReady: (ready: boolean) => void
   browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) => void
   browserUrlChanged: (url: string) => void
+  browserTitleChanged: (title: string) => void
+  browserUnlock: () => void
   browserCursorPosition: (x: number, y: number) => void
   browserGetCertificate: (url: string) => Promise<CertificateInfo | null>
   browserSetDeviceEmulation: (params: DeviceEmulationParams | null) => Promise<void>
   browserClearCache: () => Promise<boolean>
   onBrowserExecute: (callback: (operation: { id: string; type: string; params: Record<string, unknown> }) => void) => () => void
   onBrowserNavigate: (callback: (url: string) => void) => () => void
+  onBrowserLockStateChanged: (callback: (locked: boolean) => void) => () => void
 }
 
 // Expose embedded flag for renderer process
