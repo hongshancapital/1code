@@ -65,6 +65,9 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   const [locked, setLocked] = useAtom(browserLockedAtom)
   const [isLoading, setIsLoading] = useState(true)
   const [webviewReady, setWebviewReady] = useState(false)
+  // Initial URL ref - only used for first render, prevents React from resetting webview src during navigation
+  // This is critical for OAuth flows where the webview navigates through multiple URLs
+  const initialUrlRef = useRef(url || "about:blank")
   // Sync loading state to atom for Globe icon indicator
   const setLoadingAtom = useSetAtom(browserLoadingAtomFamily(chatId))
   // Mark as active when URL is visited
@@ -410,14 +413,27 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           const fileRef = params.ref as string | undefined
           let downloadUrl = fileUrl
           if (!downloadUrl && fileRef) {
-            // Get href from link element
+            // Get href/src from element
             const href = await webview.executeJavaScript(
-              `(function() { const el = window.__browserRefMap.get("${fileRef}"); return el ? (el.href || el.getAttribute("href")) : null; })()`
+              `(function() { const el = window.__browserRefMap.get("${fileRef}"); return el ? (el.href || el.src || el.getAttribute("href") || el.getAttribute("src")) : null; })()`
             )
             if (href) downloadUrl = href
           }
           if (!downloadUrl) return { success: false, error: "No URL to download" }
-          return { success: true, data: { url: downloadUrl, filePath: params.filePath } }
+          // Fetch in webview context (carries cookies/session)
+          const fetchResult = await webview.executeJavaScript(
+            `window.__browserFetchResource(${JSON.stringify(downloadUrl)}, 50)`
+          )
+          if (!fetchResult.success) return fetchResult
+          return {
+            success: true,
+            data: {
+              base64: fetchResult.data.base64,
+              contentType: fetchResult.data.contentType,
+              filename: fetchResult.data.filename,
+              size: fetchResult.data.size,
+            },
+          }
         }
 
         case "emulate": {
@@ -460,6 +476,92 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           return result
         }
 
+        case "getAttribute": {
+          const attrRef = params.ref as string | undefined
+          const attrSelector = params.selector as string | undefined
+          const attribute = params.attribute as string | undefined
+          if (!attrRef && !attrSelector) return { success: false, error: "ref or selector required" }
+          const result = await webview.executeJavaScript(
+            `window.__browserGetAttribute(${attrRef ? `"${attrRef}"` : "null"}, ${attrSelector ? JSON.stringify(attrSelector) : "null"}, ${attribute ? JSON.stringify(attribute) : "null"})`
+          )
+          return result
+        }
+
+        case "extractContent": {
+          const ecRef = params.ref as string | undefined
+          const ecSelector = params.selector as string | undefined
+          const ecMode = (params.mode as string) || "article"
+          const result = await webview.executeJavaScript(
+            `window.__browserExtractHTML(${ecRef ? `"${ecRef}"` : "null"}, ${ecSelector ? JSON.stringify(ecSelector) : "null"}, ${JSON.stringify(ecMode)})`
+          )
+          return result
+        }
+
+        case "fullPageScreenshot": {
+          // Get page dimensions
+          const dims = await webview.executeJavaScript(
+            `window.__browserGetPageDimensions()`
+          ) as { scrollWidth: number; scrollHeight: number; viewportWidth: number; viewportHeight: number; scrollX: number; scrollY: number }
+
+          const originalScrollX = dims.scrollX
+          const originalScrollY = dims.scrollY
+          const vpHeight = dims.viewportHeight
+          const totalHeight = dims.scrollHeight
+          const maxSegments = 30
+
+          const segmentCount = Math.min(Math.ceil(totalHeight / vpHeight), maxSegments)
+          const segments: string[] = []
+
+          // Hide fixed/sticky elements to prevent duplication
+          await webview.executeJavaScript(`window.__browserHideFixedElements()`)
+
+          try {
+            for (let i = 0; i < segmentCount; i++) {
+              await webview.executeJavaScript(`window.__browserScrollTo(0, ${i * vpHeight})`)
+              // Wait for rendering
+              await new Promise(r => setTimeout(r, 150))
+              const image = await webview.capturePage()
+              segments.push(image.toPNG().toString("base64"))
+            }
+          } finally {
+            // Restore fixed elements and scroll position
+            await webview.executeJavaScript(`window.__browserRestoreFixedElements()`)
+            await webview.executeJavaScript(`window.__browserScrollTo(${originalScrollX}, ${originalScrollY})`)
+          }
+
+          return {
+            success: true,
+            data: {
+              segments,
+              viewportWidth: dims.viewportWidth,
+              viewportHeight: vpHeight,
+              totalHeight,
+              segmentCount,
+            },
+          }
+        }
+
+        case "startNetworkCapture": {
+          const result = await webview.executeJavaScript(
+            `window.__browserStartNetworkCapture(${JSON.stringify(params)})`
+          )
+          return result
+        }
+
+        case "stopNetworkCapture": {
+          const result = await webview.executeJavaScript(
+            `window.__browserStopNetworkCapture()`
+          )
+          return result
+        }
+
+        case "getNetworkRequests": {
+          const result = await webview.executeJavaScript(
+            `window.__browserGetNetworkRequests(${JSON.stringify(params)})`
+          )
+          return result
+        }
+
         default:
           return { success: false, error: `Unknown operation: ${type}` }
       }
@@ -480,6 +582,26 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     })
     return cleanup
   }, [setLocked, setOverlayActive])
+
+  // Listen for auth loop detection from main process
+  useEffect(() => {
+    if (!window.desktopApi.onBrowserAuthLoopDetected) return
+    const cleanup = window.desktopApi.onBrowserAuthLoopDetected((loopUrl: string) => {
+      console.warn("[BrowserSidebar] Auth loop detected:", loopUrl)
+      // Import toast dynamically to avoid adding to component imports
+      import("sonner").then(({ toast }) => {
+        toast.error("检测到认证循环，请在外部浏览器中完成登录", {
+          description: "该网站的认证流程需要在系统浏览器中完成",
+          duration: 8000,
+          action: {
+            label: "在浏览器中打开",
+            onClick: () => window.desktopApi.openExternal(loopUrl),
+          },
+        })
+      })
+    })
+    return cleanup
+  }, [])
 
   // Listen for operations from main process
   useEffect(() => {
@@ -637,6 +759,23 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       }
     }
 
+    // Handle load failures (e.g., ERR_ABORTED during OAuth redirects)
+    const handleDidFailLoad = (event: Electron.DidFailLoadEvent) => {
+      const { errorCode, errorDescription, validatedURL } = event
+      // ERR_ABORTED (-3) is common during rapid redirects (OAuth flows)
+      // Don't show error for these as they're usually not user-visible issues
+      if (errorCode === -3) {
+        console.log("[BrowserSidebar] Navigation aborted (likely redirect):", validatedURL)
+        // Still stop loading indicator
+        setIsLoading(false)
+        setLoadingAtom(false)
+        return
+      }
+      console.error("[BrowserSidebar] Page load failed:", errorCode, errorDescription, validatedURL)
+      setIsLoading(false)
+      setLoadingAtom(false)
+    }
+
     // Note: new-window events are handled by main process setWindowOpenHandler
     // which intercepts and redirects to same-page navigation via loadURL
 
@@ -705,6 +844,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     webview.addEventListener("did-start-loading", handleDidStartLoading)
     webview.addEventListener("did-navigate", handleDidNavigate)
     webview.addEventListener("did-navigate-in-page", handleDidNavigate)
+    webview.addEventListener("did-fail-load", handleDidFailLoad as any)
     webview.addEventListener("page-favicon-updated", handleFaviconUpdated as any)
     webview.addEventListener("console-message", handleConsoleMessage)
 
@@ -714,6 +854,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       webview.removeEventListener("did-start-loading", handleDidStartLoading)
       webview.removeEventListener("did-navigate", handleDidNavigate)
       webview.removeEventListener("did-navigate-in-page", handleDidNavigate)
+      webview.removeEventListener("did-fail-load", handleDidFailLoad as any)
       webview.removeEventListener("page-favicon-updated", handleFaviconUpdated as any)
       webview.removeEventListener("console-message", handleConsoleMessage)
       setWebviewReady(false)
@@ -991,6 +1132,9 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             </div>
           )}
           {/* Single webview instance - positioned absolutely to avoid re-creation */}
+          {/* IMPORTANT: src uses initialUrlRef instead of url state to prevent React from
+              resetting the webview during navigation (which breaks OAuth flows).
+              Subsequent navigations are handled via webview.src = newUrl in navigate() */}
           <webview
             ref={webviewRef as any}
             className={cn(
@@ -1006,7 +1150,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
               transform: "translate(-50%, -50%)",
               marginTop: 10, // Half of info bar height offset
             } : undefined}
-            src={url || "about:blank"}
+            src={initialUrlRef.current}
             partition="persist:browser"
             // @ts-expect-error - allowpopups is a valid webview attribute
             allowpopups="true"

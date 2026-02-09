@@ -30,6 +30,7 @@ export default defineConfig({
           "@anthropic-ai/claude-agent-sdk", // ESM module - must use dynamic import
           "@lancedb/lancedb", // Native module - must be externalized
           "@xenova/transformers", // WASM/native module
+          "sharp", // Native image processing - must be externalized with @img/*
         ],
         output: {
           format: "cjs",

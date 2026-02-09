@@ -316,6 +316,11 @@ contextBridge.exposeInMainWorld("desktopApi", {
     ipcRenderer.on("browser:show-panel", handler)
     return () => ipcRenderer.removeListener("browser:show-panel", handler)
   },
+  onBrowserAuthLoopDetected: (callback: (url: string) => void) => {
+    const handler = (_event: unknown, url: string) => callback(url)
+    ipcRenderer.on("browser:auth-loop-detected", handler)
+    return () => ipcRenderer.removeListener("browser:auth-loop-detected", handler)
+  },
 })
 
 // Type definitions
@@ -520,6 +525,7 @@ export interface DesktopApi {
   onBrowserNavigate: (callback: (url: string) => void) => () => void
   onBrowserLockStateChanged: (callback: (locked: boolean) => void) => () => void
   onBrowserShowPanel: (callback: () => void) => () => void
+  onBrowserAuthLoopDetected: (callback: (url: string) => void) => () => void
 }
 
 // Expose embedded flag for renderer process
