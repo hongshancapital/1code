@@ -24,15 +24,22 @@ interface AgentThinkingToolProps {
 
 const PREVIEW_LENGTH = 60
 
-// Module-level map to persist thinking start times across component remounts
+// Module-level map to persist thinking timestamps across component remounts
 // (e.g. when switching subchat tabs and back)
-const thinkingStartTimes = new Map<string, number>()
+const thinkingTimestamps = new Map<string, { startedAt: number; endedAt?: number }>()
 
 function getOrSetStartTime(key: string): number {
-  if (!thinkingStartTimes.has(key)) {
-    thinkingStartTimes.set(key, Date.now())
+  if (!thinkingTimestamps.has(key)) {
+    thinkingTimestamps.set(key, { startedAt: Date.now() })
   }
-  return thinkingStartTimes.get(key)!
+  return thinkingTimestamps.get(key)!.startedAt
+}
+
+function markEndTime(key: string): void {
+  const entry = thinkingTimestamps.get(key)
+  if (entry && !entry.endedAt) {
+    entry.endedAt = Date.now()
+  }
 }
 
 function formatElapsedTime(ms: number): string {
@@ -62,19 +69,28 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
   const wasStreamingRef = useRef(isStreaming)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-collapse when streaming ends (transition from true -> false)
-  useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming) {
-      setIsExpanded(false)
-    }
-    wasStreamingRef.current = isStreaming
-  }, [isStreaming])
-
   // Persist startedAt across remounts using module-level Map
   const startedAt = stableKey ? getOrSetStartTime(stableKey) : Date.now()
 
-  // Elapsed time — ticks every second while streaming
-  const [elapsedMs, setElapsedMs] = useState(0)
+  // Auto-collapse when streaming ends, and record end timestamp
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      setIsExpanded(false)
+      if (stableKey) {
+        markEndTime(stableKey)
+      }
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming, stableKey])
+
+  // Elapsed time — restore from timestamps on remount, tick every second while streaming
+  const [elapsedMs, setElapsedMs] = useState(() => {
+    if (!stableKey) return 0
+    const entry = thinkingTimestamps.get(stableKey)
+    if (!entry) return 0
+    const end = entry.endedAt ?? Date.now()
+    return end - entry.startedAt
+  })
 
   useEffect(() => {
     if (!isStreaming) return
@@ -96,7 +112,7 @@ export const AgentThinkingTool = memo(function AgentThinkingTool({
 
   // Build preview for collapsed state
   const previewText = thinkingText.slice(0, PREVIEW_LENGTH).replace(/\n/g, " ")
-  const elapsedDisplay = isStreaming ? formatElapsedTime(elapsedMs) : ""
+  const elapsedDisplay = formatElapsedTime(elapsedMs)
 
   // Show interrupted state if thinking was interrupted without completing
   if (isInterrupted && !thinkingText) {
