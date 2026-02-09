@@ -52,9 +52,13 @@ import { IS_DEV } from "./constants"
 // Use different protocol in dev to avoid conflicts with production app
 const PROTOCOL = IS_DEV ? "hong-dev" : "hong"
 
+// Check if Hong is embedded in Tinker
+const isEmbeddedInTinker = process.env.HONG_EMBEDDED_IN_TINKER === 'true'
+
 // Set dev mode userData path BEFORE requestSingleInstanceLock()
 // This ensures dev and prod have separate instance locks
-if (IS_DEV) {
+// Skip if embedded in Tinker (Tinker manages its own userData path)
+if (IS_DEV && !isEmbeddedInTinker) {
   const { join } = require("path")
   const devUserData = join(app.getPath("userData"), "..", "Agents Dev")
   app.setPath("userData", devUserData)
@@ -63,7 +67,6 @@ if (IS_DEV) {
 
 // Initialize Sentry before app is ready (production only)
 // Skip if embedded in Tinker (Tinker manages Sentry, @sentry/electron is singleton)
-const isEmbeddedInTinker = process.env.HONG_EMBEDDED_IN_TINKER === 'true'
 
 if (isEmbeddedInTinker) {
   console.log("[App] Skipping Sentry init (embedded in Tinker)")
@@ -218,6 +221,12 @@ function handleDeepLink(url: string): void {
     console.error("[DeepLink] Failed to parse:", e)
   }
 }
+
+// ============================================================================
+// STANDALONE APP LIFECYCLE
+// Skip everything below when embedded in Tinker (Tinker manages its own lifecycle)
+// ============================================================================
+if (!isEmbeddedInTinker) {
 
 // Register custom scheme for local file access BEFORE app is ready
 // This must be called before app.whenReady()
@@ -400,7 +409,8 @@ if (gotTheLock) {
     appStartTime = Date.now()
 
     // Set dev mode app name (userData path was already set before requestSingleInstanceLock)
-    if (IS_DEV) {
+    // Skip if embedded in Tinker (Tinker manages its own app name)
+    if (IS_DEV && !isEmbeddedInTinker) {
       app.name = "Agents Dev"
     }
 
@@ -1015,3 +1025,5 @@ if (gotTheLock) {
     console.error("[App] Unhandled rejection at:", promise, "reason:", reason)
   })
 }
+
+} // end if (!isEmbeddedInTinker)
