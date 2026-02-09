@@ -40,7 +40,7 @@ src/
 │   └── lib/
 │       ├── db/              # Drizzle + SQLite
 │       │   ├── index.ts     # DB init, auto-migrate on startup
-│       │   ├── schema/      # Drizzle table definitions (12 tables)
+│       │   ├── schema/      # Drizzle table definitions
 │       │   └── utils.ts     # ID generation
 │       ├── git/             # Git operations
 │       │   ├── index.ts     # createGitRouter() factory
@@ -57,7 +57,7 @@ src/
 │       │   └── artifact-server.ts  # Artifact tracking MCP
 │       ├── plugins/         # Plugin discovery
 │       │   └── index.ts     # ~/.claude/plugins/ scanner
-│       └── trpc/routers/    # tRPC routers (27 total)
+│       └── trpc/routers/    # tRPC routers
 │
 ├── preload/                 # IPC bridge (context isolation)
 │   └── index.ts             # Exposes desktopApi + tRPC bridge
@@ -104,7 +104,7 @@ src/
 // Core tables:
 projects              → id, name, path, mode, featureConfig, iconPath, isPlayground, git info
 chats                 → id, name, projectId, worktreePath, branch, baseBranch, prUrl, prNumber, tagId
-sub_chats             → id, name, chatId, sessionId, streamId, mode, messages (JSON)
+sub_chats             → id, name, chatId, sessionId, streamId, mode, messages (JSON), statsJson
 model_usage           → Token usage tracking per API call
 
 // Multi-account support:
@@ -119,6 +119,18 @@ automationExecutions  → id, automationId, status, triggeredBy, result, token u
 workspaceTags         → id, name, color (#hex), icon (Lucide name), sortOrder
 chatTags              → M:N relation (chatId, tagId)
 subChatTags           → M:N relation (subChatId, tagId)
+
+// Insights (Usage Reports):
+insights              → id, reportType, reportDate, statsJson, summary, status
+
+// Memory System:
+memorySessions        → id, project/chat/subChat, status, summary (learned/nextSteps)
+observations          → id, sessionId, type, narrative, facts (JSON), filesRead/Modified
+userPrompts           → id, sessionId, promptText
+
+// Model Providers (Custom/Local):
+modelProviders        → id, type, category, name, baseUrl, apiKey (encrypted)
+cachedModels          → id, providerId, modelId, name, category, metadata
 
 // Legacy (deprecated):
 claude_code_credentials → Use anthropicAccounts instead
@@ -145,11 +157,13 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 | `terminal` | PTY terminal management |
 | `ollama` | Local Ollama model support |
 | `litellm` | LiteLLM proxy for multiple LLM providers |
+| `providers` | Unified model provider management |
 | `voice` | Voice input processing |
 | `automations` | Cron-triggered AI workflows |
 | `tags` | Workspace tags CRUD and associations |
 | `skills` | Claude SDK skill discovery and sync |
 | `plugins` | Plugin discovery and MCP server configuration |
+| `marketplace` | Plugin marketplace management |
 | `agents` | Agent model configuration |
 | `editor` | Monaco editor integration |
 | `worktreeConfig` | Git worktree isolation settings |
@@ -157,6 +171,9 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 | `commands` | Custom command system |
 | `usage` | Token usage queries |
 | `external` | External service integrations |
+| `insights` | Usage reports and analytics |
+| `memory` | Long-term memory and session tracking |
+| `browser` | Browser automation for agents |
 | `debug` | Debug info (dev only) |
 
 ## Key Patterns
@@ -173,7 +190,7 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - Two modes: "plan" (read-only) and "agent" (full permissions)
 - Session resume via `sessionId` stored in SubChat
 - Message streaming via tRPC subscription (`claude.onMessage`)
-- Multi-account support via `anthropicAccounts` table (quick account switching)
+- Multi-account support via `anthropicAccounts` table
 
 ### Automations Engine
 - Located in `src/main/lib/automation/engine.ts` (singleton pattern)
@@ -181,7 +198,12 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - AI processing with configurable model and prompt
 - Actions: currently supports "inbox" (creates message in Inbox Chat)
 - Execution tracking with token usage statistics
-- Startup check for missed cron tasks
+
+### Memory System
+- Stores semantic memories (`observations`) and user prompts
+- `memorySessions` track full conversation context
+- Used for learning from mistakes and context recall across sessions
+- Backed by SQLite tables (`memory_sessions`, `observations`)
 
 ### MCP & Plugin System
 - Plugin discovery from `~/.claude/plugins/marketplaces/`
@@ -217,7 +239,6 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - PKCE protection with state parameter for CSRF prevention
 - Tokens encrypted with Electron `safeStorage` and stored in SQLite
 - Deep links: `hong://` (production), `hong-dev://` (development)
-- Okta uses dedicated callback server for SAML flow
 
 ### Git Security Layer
 - Path validation (`src/main/lib/git/security/path-validation.ts`) prevents directory traversal
@@ -260,7 +281,13 @@ All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
 - `src/renderer/features/cowork/atoms.ts` - Cowork state (artifacts, editor, search)
 - `src/renderer/features/comments/atoms.ts` - Code review comment state
 - `src/renderer/lib/lsp/use-lsp-client.ts` - Monaco LSP integration
-- `src/main/lib/trpc/routers/index.ts` - All tRPC routers (27 routers)
+- `src/main/lib/trpc/routers/index.ts` - All tRPC routers (30+ routers)
+- `src/main/lib/trpc/routers/chats-new.ts` - Current implementation of `chats` router
+
+## Deprecated / Unused
+
+- `src/main/lib/trpc/routers/summary-ai.ts` - Unused/Abandoned router
+- `claude_code_credentials` table - Deprecated, use `anthropicAccounts` instead
 
 ## Debugging First Install Issues
 
@@ -325,7 +352,7 @@ bun run dist:manifest      # Generate latest-mac.yml manifests
 
 **Done:**
 - Drizzle ORM with auto-migration
-- tRPC routers (27 routers covering all features)
+- tRPC routers (30+ routers covering all features)
 - Cowork mode with simplified UI (default)
 - File tree panel with lazy loading
 - Artifacts tracking with context (via Artifact MCP Server)
@@ -341,6 +368,10 @@ bun run dist:manifest      # Generate latest-mac.yml manifests
 - Automations framework (cron triggers + AI processing + Inbox executor)
 - Plugin and MCP server system
 - LiteLLM and Ollama integration for local/alternative models
+- Unified model provider management
+- Memory system (Long-term session tracking & observations)
+- Insights (AI-generated usage reports)
+- Browser automation (Headless/GUI browser control)
 - Voice input support
 - i18n support (Chinese/English)
 

@@ -172,8 +172,11 @@ export function MessageStoreProvider({
     storeRef.current.initMessages(messages, status)
   }
 
-  // CRITICAL: Use useLayoutEffect to sync messages AFTER render, not during
-  // This avoids "Cannot update a component while rendering a different component" error
+  // CRITICAL: Use useLayoutEffect to sync messages AFTER render but BEFORE paint.
+  // useLayoutEffect ensures store updates and useSyncExternalStore re-renders happen
+  // in the same commit batch. Using useEffect causes a paint-then-update cycle where
+  // useSyncExternalStore detects snapshot tearing, triggers synchronous re-renders,
+  // and Radix UI ref detach/attach cascades into "Maximum update depth exceeded" (#185).
   useLayoutEffect(() => {
     storeRef.current?.setMessages(messages, status)
   }, [messages, status])
@@ -295,59 +298,32 @@ interface MessageItemWrapperProps {
   sandboxSetupStatus: "cloning" | "ready" | "error"
 }
 
-// For non-last messages - no streaming subscription needed
-// Subscribes to message via Jotai messageAtomFamily, passes message as prop to AssistantMessageItem
-const NonStreamingMessageItem = memo(function NonStreamingMessageItem({
+// FIX for React #185 (Maximum update depth exceeded):
+// Previously, MessageItemWrapper conditionally rendered either StreamingMessageItem
+// or NonStreamingMessageItem based on isLast. When isLast changed (e.g., new message
+// added during streaming), React would UNMOUNT one component and MOUNT the other.
+// Since both wrapped AssistantMessageItem (a complex tree with many refs from Radix UI
+// tooltips, buttons, etc.), the entire subtree was destroyed and rebuilt. In React 19,
+// each ref detach/attach internally calls dispatchSetState, and the accumulated ref
+// operations during a single commit exceeded MAX_NESTED_UPDATES, causing #185.
+//
+// Fix: Use a single component so AssistantMessageItem stays at the same position in
+// the React tree. When isLast changes, React UPDATES props instead of unmounting/
+// remounting, avoiding the ref cascade entirely.
+//
+// Trade-off: All messages now subscribe to isStreamingAtom and chatStatusAtom.
+// But these only change at streaming start/end (not during streaming), and
+// memo(AssistantMessageItem) prevents child re-renders for non-last messages
+// since their effective isStreaming/status props don't change.
+export const MessageItemWrapper = memo(function MessageItemWrapper({
   messageId,
   subChatId,
   chatId,
   isMobile,
   sandboxSetupStatus,
-}: {
-  messageId: string
-  subChatId: string
-  chatId: string
-  isMobile: boolean
-  sandboxSetupStatus: "cloning" | "ready" | "error"
-}) {
-  // Subscribe to this specific message via Jotai - only re-renders when THIS message changes
+}: MessageItemWrapperProps) {
   const message = useAtomValue(messageAtomFamily(messageId))
-
-  if (!message) return null
-
-  return (
-    <AssistantMessageItem
-      message={message}
-      isLastMessage={false}
-      isStreaming={false}
-      status="ready"
-      subChatId={subChatId}
-      chatId={chatId}
-      isMobile={isMobile}
-      sandboxSetupStatus={sandboxSetupStatus}
-    />
-  )
-})
-
-// For the last message - subscribes to streaming status AND message via Jotai
-// Passes message as prop to AssistantMessageItem
-const StreamingMessageItem = memo(function StreamingMessageItem({
-  messageId,
-  subChatId,
-  chatId,
-  isMobile,
-  sandboxSetupStatus,
-}: {
-  messageId: string
-  subChatId: string
-  chatId: string
-  isMobile: boolean
-  sandboxSetupStatus: "cloning" | "ready" | "error"
-}) {
-  // Subscribe to this specific message via Jotai - only re-renders when THIS message changes
-  const message = useAtomValue(messageAtomFamily(messageId))
-
-  // Subscribe to streaming status
+  const isLast = useAtomValue(isLastMessageAtomFamily(messageId))
   const isStreaming = useAtomValue(isStreamingAtom)
   const status = useAtomValue(chatStatusAtom)
 
@@ -356,47 +332,9 @@ const StreamingMessageItem = memo(function StreamingMessageItem({
   return (
     <AssistantMessageItem
       message={message}
-      isLastMessage={true}
-      isStreaming={isStreaming}
-      status={status}
-      subChatId={subChatId}
-      chatId={chatId}
-      isMobile={isMobile}
-      sandboxSetupStatus={sandboxSetupStatus}
-    />
-  )
-})
-
-export const MessageItemWrapper = memo(function MessageItemWrapper({
-  messageId,
-  subChatId,
-  chatId,
-  isMobile,
-  sandboxSetupStatus,
-}: MessageItemWrapperProps) {
-
-  // Only subscribe to isLast - NOT to message content!
-  // StreamingMessageItem and NonStreamingMessageItem will subscribe to message themselves
-  const isLast = useAtomValue(isLastMessageAtomFamily(messageId))
-
-  // Only the last message subscribes to streaming status
-  if (isLast) {
-    // StreamingMessageItem subscribes to messageAtomFamily internally
-    return (
-      <StreamingMessageItem
-        messageId={messageId}
-        subChatId={subChatId}
-        chatId={chatId}
-        isMobile={isMobile}
-        sandboxSetupStatus={sandboxSetupStatus}
-      />
-    )
-  }
-
-  // NonStreamingMessageItem subscribes to messageAtomFamily internally
-  return (
-    <NonStreamingMessageItem
-      messageId={messageId}
+      isLastMessage={isLast}
+      isStreaming={isLast ? isStreaming : false}
+      status={isLast ? status : "ready"}
       subChatId={subChatId}
       chatId={chatId}
       isMobile={isMobile}
@@ -1026,12 +964,15 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
         />
       )}
 
-      {/* Working indicator - subtle pulsing dots shown when AI is still streaming between visible actions */}
+      {/* Working indicator - shown when AI is streaming but between visible tool calls */}
       {isStreaming && isLastGroup && assistantMsgIds.length > 0 && (
-        <div className="flex items-center gap-[3px] mt-3 pl-1 pointer-events-none">
-          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s] [animation-delay:0.2s]" />
-          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse [animation-duration:1.4s] [animation-delay:0.4s]" />
+        <div className="mt-4">
+          <ToolCallComponent
+            icon={toolRegistry["tool-planning"]?.icon}
+            title={toolRegistry["tool-planning"]?.title({}) || "Working..."}
+            isPending={true}
+            isError={false}
+          />
         </div>
       )}
 

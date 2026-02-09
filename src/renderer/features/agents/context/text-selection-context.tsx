@@ -272,7 +272,7 @@ export function TextSelectionProvider({
         // because selection.toString() may be empty for Shadow DOM selections
         const result = getSelectionRange(selection)
         if (!result) {
-          setState({ selectedText: null, source: null, selectionRect: null })
+          setState(emptyState)
           return
         }
 

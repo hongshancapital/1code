@@ -79,7 +79,15 @@ export function TextSelectionPopover({
       if (!isMountedRef.current) return
       if (!isMouseDownRef.current) return
       isMouseDownRef.current = false
-      setIsMouseDown(false)
+      // Defer state update to next frame to break the synchronous cascade:
+      // setIsMouseDown(false) → effect → setIsVisible(true) → re-render.
+      // When this runs synchronously, it accumulates with useLayoutEffect +
+      // useSyncExternalStore updates from MessageStoreProvider, exceeding
+      // React's MAX_NESTED_UPDATES limit (error #185).
+      requestAnimationFrame(() => {
+        if (!isMountedRef.current) return
+        setIsMouseDown(false)
+      })
     }
 
     document.addEventListener("mousedown", handleMouseDown)

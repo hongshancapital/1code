@@ -50,7 +50,7 @@ async function callAnthropicAPI(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": credentials.token,
+      "Authorization": `Bearer ${credentials.token}`,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({

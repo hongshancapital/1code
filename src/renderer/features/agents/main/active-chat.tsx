@@ -4633,13 +4633,17 @@ export function ChatView({
     }
   )
 
-  // Invalidate messages cache when parent chatId changes (switching between workspaces)
-  // Without this, staleTime: Infinity causes stale cached data to be returned when
-  // switching back, missing user messages that were saved to DB by the backend.
+  // Reset messages cache when parent chatId changes (switching between workspaces)
+  // CRITICAL: Must use resetQueries instead of invalidateQueries because:
+  // - invalidateQueries only marks as stale and refetches in background, keeping old cached data
+  // - With staleTime: Infinity, the old cache is returned immediately (isLoading=false, data=stale)
+  // - This bypasses the loading gate, causing getOrCreateChat to use stale messages
+  // - resetQueries clears the cache entirely (data=undefined, isLoading=true)
+  // - This ensures the loading gate blocks rendering until fresh data arrives
   const prevChatIdRef = useRef(chatId)
   useEffect(() => {
     if (prevChatIdRef.current !== chatId) {
-      getQueryClient().invalidateQueries({
+      getQueryClient().resetQueries({
         queryKey: [['chats', 'getSubChatMessages']],
       })
       prevChatIdRef.current = chatId

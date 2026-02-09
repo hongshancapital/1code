@@ -9,6 +9,7 @@ import {
   assistantIdsForUserMsgAtomFamily,
   isLastUserMessageAtomFamily,
   isStreamingAtom,
+  isStreamingIdleAtom,
 } from "../stores/message-store"
 import { MemoizedAssistantMessages } from "./messages-list"
 import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
@@ -101,6 +102,7 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   const assistantIds = useAtomValue(assistantIdsForUserMsgAtomFamily(userMsgId))
   const isLastGroup = useAtomValue(isLastUserMessageAtomFamily(userMsgId))
   const isStreaming = useAtomValue(isStreamingAtom)
+  const isStreamingIdle = useAtomValue(isStreamingIdleAtom)
 
   // Extract user message content
   // Note: file-content parts are hidden from UI but sent to agent
@@ -257,6 +259,18 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
           isMobile={isMobile}
           sandboxSetupStatus={sandboxSetupStatus}
         />
+      )}
+
+      {/* Working indicator - shown when AI is streaming but between visible tool calls */}
+      {isStreamingIdle && isLastGroup && assistantIds.length > 0 && (
+        <div className="mt-4">
+          <ToolCallComponent
+            icon={toolRegistry["tool-planning"]?.icon}
+            title={toolRegistry["tool-planning"]?.title({}) || "Working..."}
+            isPending={true}
+            isError={false}
+          />
+        </div>
       )}
 
       {/* Planning indicator */}

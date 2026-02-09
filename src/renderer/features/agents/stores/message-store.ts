@@ -400,6 +400,40 @@ export const hasMessagesAtom = atom((get) => {
   return ids.length > 0
 })
 
+// Is streaming but idle - AI is working between visible actions
+// True when: streaming is active, but the last assistant message's last part
+// is NOT actively outputting text or executing a tool call.
+// This is the "thinking what to do next" state between tool calls.
+export const isStreamingIdleAtom = atom((get) => {
+  const isStreaming = get(isStreamingAtom)
+  if (!isStreaming) return false
+
+  const lastMsg = get(lastAssistantMessageAtom)
+  if (!lastMsg) return false
+
+  const parts = lastMsg.parts || []
+  if (parts.length === 0) return false
+
+  const lastPart = parts[parts.length - 1]
+  if (!lastPart) return false
+
+  // Text part still streaming - NOT idle
+  if (lastPart.type === "text") return false
+
+  // Reasoning/thinking part still streaming - NOT idle
+  if (lastPart.type === "reasoning") return false
+
+  // Tool call still pending or input-streaming - NOT idle
+  if (lastPart.state === "input-streaming") return false
+  if (lastPart.state === "partial-call") return false
+
+  // Tool call with result pending (waiting for output) - NOT idle
+  if (lastPart.state === "call" || lastPart.state === "invoke") return false
+
+  // Last part is completed (output-available, output-error, done, etc.) - AI is idle/thinking
+  return true
+})
+
 // ============================================================================
 // LAST ASSISTANT MESSAGE - For plan detection
 // ============================================================================
