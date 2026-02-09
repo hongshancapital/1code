@@ -218,7 +218,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     const memoryRecordingEnabled = betaMemoryEnabled ? appStore.get(memoryRecordingEnabledAtom) : false
 
     // Read model selection dynamically via unified provider system
-    // effectiveLlmSelectionAtom considers session override > global default > anthropic fallback
+    // effectiveLlmSelectionAtom considers session override > global default > litellm fallback
     const effectiveSelection = appStore.get(effectiveLlmSelectionAtom)
     let modelString: string | undefined
     let customConfig: CustomClaudeConfig | undefined
@@ -226,26 +226,43 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     // Validate: only use model if it's in the enabled models list for that provider
     const enabledModelsMap = appStore.get(enabledModelsPerProviderAtom)
     const enabledModelsForProvider = enabledModelsMap[effectiveSelection.providerId] || []
-    const validatedModelId = effectiveSelection.modelId && enabledModelsForProvider.includes(effectiveSelection.modelId)
+    let validatedModelId = effectiveSelection.modelId && enabledModelsForProvider.includes(effectiveSelection.modelId)
       ? effectiveSelection.modelId
-      : null
+      : (enabledModelsForProvider.length === 0 ? effectiveSelection.modelId : null)
 
     // For non-Anthropic providers, fetch config (model, token, baseUrl) via tRPC
-    if (effectiveSelection.providerId && effectiveSelection.providerId !== "anthropic" && validatedModelId) {
-      try {
-        const providerConfig = await trpcClient.providers.getConfig.query({
-          providerId: effectiveSelection.providerId,
-          modelId: validatedModelId,
-        })
-        if (providerConfig) {
-          customConfig = {
-            model: providerConfig.model,
-            token: providerConfig.token,
-            baseUrl: providerConfig.baseUrl,
+    if (effectiveSelection.providerId && effectiveSelection.providerId !== "anthropic") {
+      // If no model selected, get default model from provider
+      if (!validatedModelId) {
+        try {
+          const modelsResult = await trpcClient.providers.getModels.query({
+            providerId: effectiveSelection.providerId,
+          })
+          if (modelsResult.defaultModelId) {
+            validatedModelId = modelsResult.defaultModelId
+            console.log(`[SD] Using default model for ${effectiveSelection.providerId}:`, validatedModelId)
           }
+        } catch (err) {
+          console.error("[SD] Failed to get default model:", err)
         }
-      } catch (err) {
-        console.error("[SD] Failed to get provider config:", err)
+      }
+
+      if (validatedModelId) {
+        try {
+          const providerConfig = await trpcClient.providers.getConfig.query({
+            providerId: effectiveSelection.providerId,
+            modelId: validatedModelId,
+          })
+          if (providerConfig) {
+            customConfig = {
+              model: providerConfig.model,
+              token: providerConfig.token,
+              baseUrl: providerConfig.baseUrl,
+            }
+          }
+        } catch (err) {
+          console.error("[SD] Failed to get provider config:", err)
+        }
       }
     } else {
       // Anthropic OAuth - no customConfig needed, just pass model if specified

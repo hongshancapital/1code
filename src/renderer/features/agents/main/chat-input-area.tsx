@@ -606,6 +606,15 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Input history navigation (ArrowUp/ArrowDown like terminal)
   const { getHistoryUp, getHistoryDown, resetHistory } = useInputHistory()
 
+  // Track mount state for RAF safe updates
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   useEffect(() => {
     voiceMountedRef.current = true
     return () => {
@@ -831,7 +840,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   // Save draft on blur (with attachments and text contexts)
   const handleEditorBlur = useCallback(async () => {
-    setIsFocused(false)
+    // Use RAF to avoid React error #185 (max update depth)
+    requestAnimationFrame(() => {
+      if (isMountedRef.current) {
+        setIsFocused(false)
+      }
+    })
 
     const draft = editorRef.current?.getValue() || ""
     const chatId = currentChatIdRef.current
@@ -1241,7 +1255,14 @@ export const ChatInputArea = memo(function ChatInputArea({
                     isMobile && "min-h-[56px]",
                   )}
                   onPaste={handlePaste}
-                  onFocus={() => setIsFocused(true)}
+                  onFocus={() => {
+                    // Use RAF to avoid React error #185 (max update depth)
+                    requestAnimationFrame(() => {
+                      if (isMountedRef.current) {
+                        setIsFocused(true)
+                      }
+                    })
+                  }}
                   onBlur={handleEditorBlur}
                   onHistoryUp={getHistoryUp}
                   onHistoryDown={getHistoryDown}
@@ -1530,7 +1551,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                               }
                               setSessionOverride(selection)
                               // Persist globally: update default provider/model for new chats
-                              setActiveProviderId(provider.id === "anthropic" ? null : provider.id)
+                              setActiveProviderId(provider.id)
                               setActiveModelId(modelId)
                               // Persist per-chat: remember this chat's model choice
                               if (parentChatId) {

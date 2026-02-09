@@ -49,7 +49,7 @@ export interface ModelSelection {
  */
 export const activeProviderIdAtom = atomWithStorage<string | null>(
   "models:active-provider-id",
-  null,
+  "litellm",
   undefined,
   { getOnInit: true },
 )
@@ -104,7 +104,7 @@ export const toggleProviderEnabledAtom = atom(
       if (current.length <= 1) return
       set(enabledProviderIdsAtom, current.filter((id) => id !== providerId))
       // If we disabled the active provider, switch to the first remaining
-      const activeId = get(activeProviderIdAtom) || "anthropic"
+      const activeId = get(activeProviderIdAtom) || "litellm"
       if (activeId === providerId) {
         const remaining = current.filter((id) => id !== providerId)
         set(activeProviderIdAtom, remaining[0] === "anthropic" ? null : remaining[0]!)
@@ -147,7 +147,7 @@ export const toggleModelEnabledAtom = atom(
       const updated = providerModels.filter((id) => id !== modelId)
       set(enabledModelsPerProviderAtom, { ...current, [providerId]: updated })
       // If removing the active model for this provider, clear activeModelId
-      const activeProvider = get(activeProviderIdAtom) || "anthropic"
+      const activeProvider = get(activeProviderIdAtom) || "litellm"
       const activeModel = get(activeModelIdAtom)
       if (activeProvider === providerId && activeModel === modelId) {
         set(activeModelIdAtom, updated[0] || null)
@@ -253,7 +253,7 @@ export const effectiveLlmSelectionAtom = atom((get) => {
     return override
   }
 
-  const providerId = get(activeProviderIdAtom) || "anthropic"
+  const providerId = get(activeProviderIdAtom) || "litellm"
   const modelId = get(activeModelIdAtom)
 
   return {
@@ -302,7 +302,7 @@ export const updateProviderModelsAtom = atom(
  * Available models for the current active provider
  */
 export const availableModelsAtom = atom((get) => {
-  const providerId = get(activeProviderIdAtom) || "anthropic"
+  const providerId = get(activeProviderIdAtom) || "litellm"
   const allModels = get(providerModelsAtom)
   return allModels[providerId] || []
 })

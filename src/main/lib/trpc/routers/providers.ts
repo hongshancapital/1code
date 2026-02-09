@@ -61,6 +61,7 @@ const MODEL_BLACKLIST = [
 
 // Preferred default model patterns in priority order
 const PREFERRED_MODEL_PATTERNS = [
+  /^claude-3-5-sonnet.*$/i,
   /^claude-sonnet-4-5-\d+$/,
   /^claude-sonnet-4-\d+$/,
   /^claude-sonnet.*$/i,
@@ -261,16 +262,7 @@ export const providersRouter = router({
       const env = getEnv()
       const providers: ProviderInfo[] = []
 
-      // 1. Anthropic OAuth (always present)
-      providers.push({
-        id: "anthropic",
-        type: "anthropic",
-        name: "Anthropic",
-        isEnabled: true,
-        isConfigured: true, // Actual OAuth status checked by UI
-      })
-
-      // 2. LiteLLM (only if env configured)
+      // 1. LiteLLM (only if env configured)
       if (env.MAIN_VITE_LITELLM_BASE_URL) {
         providers.push({
           id: "litellm",
@@ -280,6 +272,15 @@ export const providersRouter = router({
           isConfigured: true,
         })
       }
+
+      // 2. Anthropic OAuth (always present)
+      providers.push({
+        id: "anthropic",
+        type: "anthropic",
+        name: "Anthropic",
+        isEnabled: true,
+        isConfigured: true, // Actual OAuth status checked by UI
+      })
 
       // 3. Custom providers from DB (all of them, no category filter)
       try {

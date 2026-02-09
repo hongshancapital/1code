@@ -49,7 +49,7 @@ export function WelcomePage() {
   const { t } = useTranslation('onboarding')
   const setBillingMethod = useSetAtom(billingMethodAtom)
   const [selectedOption, setSelectedOption] =
-    useState<Exclude<BillingMethod, null>>("claude-subscription")
+    useState<Exclude<BillingMethod, null>>("litellm")
 
   const billingOptions = getBillingOptions(t)
 
