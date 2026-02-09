@@ -132,6 +132,13 @@ export function QueueProcessor() {
         toast.error("Failed to send queued message. It will be retried.")
       } finally {
         processingRef.current.delete(subChatId)
+
+        // Re-check queues after clearing the processing lock.
+        // This is critical because onFinish may have fired during
+        // `await chat.sendMessage()` while processingRef was still set,
+        // causing checkAllQueues to skip this subChatId. Without this
+        // re-check, remaining queue items would never be processed.
+        checkAllQueues()
       }
     }
 
