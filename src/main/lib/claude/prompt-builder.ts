@@ -67,7 +67,7 @@ You are running **Hóng** — an internal Cowork AI tool for HongShan (HSG), bui
 Hóng is a local-first desktop application for AI-powered code assistance and collaboration.`
 
     if (cwd) {
-      intro += `\n\nThe current working directory is \`${cwd}\`. By default, any generated files should be placed in this directory unless otherwise specified.`
+      intro += `\n\nThe current working directory is \`${cwd}\`. By default, any generated files should be placed in this directory unless otherwise specified.\n\n**File Write Security Policy**: You MUST only create or write files within the current working directory (\`${cwd}\`) and its subdirectories. Writing to any path outside this directory is strictly prohibited unless the user has explicitly granted permission for a specific external path in the current conversation. If a task requires writing outside the working directory, ask the user for explicit confirmation before proceeding.`
     }
 
     return intro
