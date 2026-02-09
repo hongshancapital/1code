@@ -349,7 +349,10 @@ export function DetailsSidebar({
     >
       <div className="flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-2 h-10 bg-tl-background shrink-0 border-b border-border/50">
+        <div
+          className="flex items-center justify-between px-2 h-10 bg-tl-background shrink-0 border-b border-border/50"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
           <div className="flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -358,6 +361,7 @@ export function DetailsSidebar({
                   size="icon"
                   onClick={closeSidebar}
                   className="h-6 w-6 p-0 hover:bg-foreground/10 transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] text-foreground shrink-0 rounded-md"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   aria-label={t("details.closeDetails")}
                 >
                   <IconDoubleChevronRight className="h-4 w-4" />
@@ -370,7 +374,9 @@ export function DetailsSidebar({
             </Tooltip>
             <span className="text-sm font-medium">{t("details.title")}</span>
           </div>
-          <WidgetSettingsPopup workspaceId={chatId} isRemoteChat={isRemoteChat} />
+          <div style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+            <WidgetSettingsPopup workspaceId={chatId} isRemoteChat={isRemoteChat} />
+          </div>
         </div>
 
         {/* Widget Cards - rendered in user-defined order */}

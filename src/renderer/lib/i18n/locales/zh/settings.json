@@ -462,10 +462,8 @@
       "checkNow": "立即检查"
     }
   },
-  "keyboard": {
-    "title": "快捷键",
-    "description": "配置键盘快捷键"
-  },
+
+
   "profile": {
     "title": "个人资料",
     "description": "管理您的账户和个性化设置",
@@ -597,7 +595,8 @@
     "searchPlaceholder": "搜索插件...",
     "selectMarketplace": "选择市场",
     "allMarketplaces": "全部市场",
-    "manage": "管理市场",
+
+
     "noMarketplaces": "未配置市场",
     "addMarketplaceHint": "添加市场以浏览插件",
     "addMarketplace": "添加市场",

@@ -406,7 +406,7 @@ export function MarketplaceView() {
               size="icon"
               className="h-7 w-7 shrink-0"
               onClick={() => setShowManageDialog(true)}
-              title={t("marketplace.manage")}
+              title={t("marketplace.manage.title")}
             >
               <Settings2 className="h-4 w-4" />
             </Button>

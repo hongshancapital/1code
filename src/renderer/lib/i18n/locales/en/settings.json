@@ -462,10 +462,8 @@
       "checkNow": "Check Now"
     }
   },
-  "keyboard": {
-    "title": "Keyboard",
-    "description": "Configure keyboard shortcuts"
-  },
+
+
   "profile": {
     "title": "Profile",
     "description": "Manage your account and personalization settings",
@@ -597,7 +595,8 @@
     "searchPlaceholder": "Search plugins...",
     "selectMarketplace": "Select marketplace",
     "allMarketplaces": "All marketplaces",
-    "manage": "Manage marketplaces",
+
+
     "noMarketplaces": "No marketplaces configured",
     "addMarketplaceHint": "Add a marketplace to browse plugins",
     "addMarketplace": "Add Marketplace",
