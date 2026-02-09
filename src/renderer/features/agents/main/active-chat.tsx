@@ -6849,8 +6849,12 @@ Make sure to preserve all functionality from both branches when resolving confli
                     // Defense in depth: double-check workspace ownership
                     // Use agentSubChats (server data) as primary source, fall back to allSubChats for optimistic updates
                     // This fixes the race condition where allSubChats is empty after setChatId but before setAllSubChats
-                    const belongsToWorkspace = agentSubChats.some(sc => sc.id === subChatId) ||
-                                              allSubChats.some(sc => sc.id === subChatId)
+                    // When both sources are empty (data still loading), skip this check - tabsToRender already
+                    // handles this case by trusting localStorage when no data has loaded yet.
+                    const hasWorkspaceData = agentSubChats.length > 0 || allSubChats.length > 0
+                    const belongsToWorkspace = !hasWorkspaceData ||
+                      agentSubChats.some(sc => sc.id === subChatId) ||
+                      allSubChats.some(sc => sc.id === subChatId)
 
                     if (!chat || !belongsToWorkspace) return null
 
