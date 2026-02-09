@@ -43,6 +43,7 @@ import { getCachedRuntimeEnvironment } from "./runner"
 import { memoryHooks } from "../../memory"
 import { createBrowserMcpServer, browserManager } from "../../browser"
 import { createImageGenMcpServer } from "../../mcp/image-gen-server"
+import { createImageProcessMcpServer } from "../../mcp/image-process-server"
 
 /**
  * Type for Claude SDK streaming messages
@@ -1688,6 +1689,21 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 } catch (err) {
                   console.error("[Image Gen MCP] Failed to create server:", err)
                 }
+              }
+
+              // Add image processing MCP server (local sharp-based, always available)
+              try {
+                const imageProcessMcp = await createImageProcessMcpServer({
+                  cwd: input.cwd,
+                  subChatId: input.subChatId,
+                })
+                mcpServersFiltered = {
+                  ...mcpServersFiltered,
+                  "image-process": imageProcessMcp,
+                }
+                console.log("[Image Process MCP] Added image processing MCP server")
+              } catch (err) {
+                console.error("[Image Process MCP] Failed to create server:", err)
               }
             }
 
