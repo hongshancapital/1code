@@ -210,7 +210,8 @@
       "noServers": "Configure MCP servers",
       "builtin": "Built-in",
       "enable": "Enable MCP server",
-      "disable": "Disable MCP server"
+      "disable": "Disable MCP server",
+      "mention": "Mention {{name}} in chat"
     },
     "usageWidget": {
       "resetsIn": "resets in {{time}}",

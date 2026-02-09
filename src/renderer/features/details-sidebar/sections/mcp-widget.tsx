@@ -174,6 +174,19 @@ export const McpWidget = memo(function McpWidget() {
     })
   }
 
+  const handleServerMention = (server: MCPServer, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setPendingMention({
+      id: `tool:${server.name}`,
+      label: server.name,
+      path: server.name,
+      repository: "",
+      truncatedPath: "MCP Server",
+      type: "tool",
+      mcpServer: server.name,
+    })
+  }
+
   const handleToolClick = (serverName: string, toolName: string, fullToolId: string) => {
     setPendingMention({
       id: `tool:${fullToolId}`,
@@ -243,11 +256,29 @@ export const McpWidget = memo(function McpWidget() {
               >
                 <ServerIcon server={server} />
                 <span className={cn(
-                  "text-xs truncate flex-1 text-left",
+                  "text-xs truncate text-left",
                   isDisabled ? "text-muted-foreground" : "text-foreground"
                 )}>
                   {server.name}
                 </span>
+                {/* @ mention button for server - shown on hover, after name */}
+                {!isDisabled && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        role="button"
+                        onClick={(e) => handleServerMention(server, e)}
+                        className="shrink-0 text-[10px] text-muted-foreground/0 group-hover/server:text-muted-foreground/50 hover:!text-foreground transition-colors"
+                      >
+                        @
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      {t("details.mcpWidget.mention", { name: server.name })}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                <span className="flex-1" />
               </button>
 
               {isBuiltin && (

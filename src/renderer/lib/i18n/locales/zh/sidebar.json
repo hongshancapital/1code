@@ -210,7 +210,8 @@
       "noServers": "配置 MCP 服务器",
       "builtin": "内置",
       "enable": "启用 MCP 服务器",
-      "disable": "禁用 MCP 服务器"
+      "disable": "禁用 MCP 服务器",
+      "mention": "在对话中提及 {{name}}"
     },
     "usageWidget": {
       "resetsIn": "{{time}} 后重置",
