@@ -8,6 +8,7 @@ import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { chatRegistry } from "../stores/chat-registry"
 import { appStore } from "../../../lib/jotai-store"
 import { loadingSubChatsAtom, setLoading, clearLoading } from "../atoms"
+import { trackSendMessage } from "../../../lib/sensors-analytics"
 
 // Delay between processing queue items (ms)
 const QUEUE_PROCESS_DELAY = 1000
@@ -109,6 +110,10 @@ export function QueueProcessor() {
             parentChatId
           )
         }
+
+        // Track message sent
+        const hasAt = parts.some((p: any) => p.type === "text" && p.text?.includes("@"))
+        trackSendMessage(mode, hasAt)
 
         // Send message using Chat's sendMessage method
         await chat.sendMessage({ role: "user", parts })

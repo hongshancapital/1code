@@ -88,7 +88,7 @@ import {
   getAudioFormat,
 } from "../../../lib/hooks/use-voice-recording"
 import { getResolvedHotkey } from "../../../lib/hotkeys"
-import { trackClickSelectFolder } from "../../../lib/sensors-analytics"
+import { trackClickSelectFolder, trackSendMessage } from "../../../lib/sensors-analytics"
 import {
   AgentsFileMention,
   AgentsMentionsEditor,
@@ -1127,6 +1127,10 @@ export function NewChatForm({
         })
       }
     }
+
+    // Track message sent
+    const hasAt = parts.some((p) => p.type === "text" && "text" in p && p.text?.includes("@"))
+    trackSendMessage(agentMode === "agent" ? "agent" : "plan", hasAt)
 
     // Chat mode: create independent playground chat with its own directory
     if (currentProjectMode === "chat") {
