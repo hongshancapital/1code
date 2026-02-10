@@ -154,7 +154,10 @@ export function logout(): void {
  */
 export async function shutdown(): Promise<void> {
   if (sensors) {
-    await sensors.close()
+    // sa-sdk-node 的 close() 会调 this.logger.close()，
+    // 但 submitTo 模式下 logger 为 null 导致崩溃。
+    // 直接调 onCompleted() 结束 stream 并 flush 数据即可。
+    sensors.onCompleted()
     sensors = undefined
   }
 }

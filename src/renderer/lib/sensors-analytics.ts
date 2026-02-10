@@ -34,13 +34,14 @@ const MAIL_SEPARATOR = "@"
 const getLoginIdByEmail = (email: string): string =>
   email.substring(0, email.indexOf(MAIL_SEPARATOR)) || email
 
-// 检查是否为开发模式（改为函数，每次调用时计算）
+// 检查是否为开发模式
+// 打包后通过 loadFile() 加载，协议是 file:，不能用协议判断
+// 有 VITE_SENSORS_SERVER_URL 说明构建时注入了神策地址，应该上报
 function isDev(): boolean {
   if (typeof window === "undefined") return true
-  const isFileProtocol = window.location.protocol === "file:"
-  const isLocalhost = window.location.hostname === "localhost"
-  const forceAnalytics = import.meta.env.VITE_FORCE_ANALYTICS === "true"
-  return (isFileProtocol || isLocalhost) && !forceAnalytics
+  if (import.meta.env.VITE_FORCE_ANALYTICS === "true") return false
+  if (import.meta.env.VITE_SENSORS_SERVER_URL) return false
+  return true
 }
 
 /**
