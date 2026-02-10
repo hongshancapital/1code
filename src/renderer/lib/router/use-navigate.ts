@@ -1,6 +1,6 @@
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, startTransition } from "react"
 import { useSetAtom } from "jotai"
-import { currentRouteAtom, navigatingProjectSyncAtom, scrollTargetAtom } from "./atoms"
+import { currentRouteAtom, navigatedProjectIdAtom, scrollTargetAtom } from "./atoms"
 import type { NavigationRoute } from "./types"
 import { SCROLL_TO_BOTTOM } from "./types"
 import {
@@ -11,9 +11,16 @@ import {
   showNewChatFormAtom,
 } from "../../features/agents/atoms"
 import { chatSourceModeAtom } from "../atoms"
+
+// Module-level tracker for the last project ID set via navigation.
+// We can't use appStore.get(selectedProjectAtom) because atomWithStorage
+// initializes asynchronously and may use a different Jotai store than the
+// React Provider tree, making its value unreliable.
+let _lastNavigatedProjectId: string | null = null
 import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-store"
 import { trpc } from "../trpc"
-import { agentChatStore } from "../../features/agents/stores/agent-chat-store"
+import { getQueryClient } from "../../contexts/TRPCProvider"
+import { chatRegistry } from "../../features/agents/stores/chat-registry"
 
 /**
  * Core navigation hook for the memory router.
@@ -28,7 +35,7 @@ export function useNavigate() {
   const setSelectedChatIsRemote = useSetAtom(selectedChatIsRemoteAtom)
   const setDesktopView = useSetAtom(desktopViewAtom)
   const setSelectedProject = useSetAtom(selectedProjectAtom)
-  const setNavigatingProjectSync = useSetAtom(navigatingProjectSyncAtom)
+  const setNavigatedProjectId = useSetAtom(navigatedProjectIdAtom)
   const setChatSourceMode = useSetAtom(chatSourceModeAtom)
   const setShowNewChatForm = useSetAtom(showNewChatFormAtom)
   const { addToOpenSubChats, setActiveSubChat, setChatId } =
@@ -62,49 +69,75 @@ export function useNavigate() {
       const store = useAgentSubChatStore.getState()
       if (store.chatId !== route.chatId) {
         // Clear old Chat objects from cache before switching
+        // With LRU registry, we now hibernate them instead of deleting
         const oldOpenIds = store.openSubChatIds
         for (const oldId of oldOpenIds) {
-          agentChatStore.delete(oldId)
+          chatRegistry.unregister(oldId)
         }
         setChatId(route.chatId)
       }
 
       // 3. Resolve project from chat data and sync selectedProject
-      // Set flag so the sidebar's "reset chatId on project change" effect knows
-      // this project change is caused by navigation, not by user switching projects.
-      console.log('[navigate] setNavigatingProjectSync(true)')
-      setNavigatingProjectSync(true)
+      // Set the target project ID so the sidebar knows this project change
+      // is intentional (navigation) and doesn't clear the selected chat.
+      const t0 = performance.now()
+      console.log('[navigate] resolving project...')
       try {
-        const chatData = await utils.chats.get.fetch({ id: route.chatId })
+        // OPTIMIZATION: Try to get from cache first (Instant Project Switch)
+        // This avoids the 3s blocking delay when switching back to a recently visited workspace
+        let chatData = utils.chats.get.getData({ id: route.chatId })
+        const t1 = performance.now()
+        console.log(`[navigate] getData: ${(t1 - t0).toFixed(0)}ms, hit=${!!chatData}`)
+
+        if (!chatData) {
+             // Fallback to fetch if not in cache, but allow stale data (10s) to avoid unnecessary network calls
+             chatData = await utils.chats.get.fetch({ id: route.chatId }, { staleTime: 10000 })
+             const t2 = performance.now()
+             console.log(`[navigate] fetch fallback: ${(t2 - t1).toFixed(0)}ms`)
+        }
+
         // Bail if a newer navigation has started while we were awaiting
         if (navigationVersionRef.current !== version) return
+
         if (chatData?.project) {
           const p = chatData.project
-          console.log('[navigate] setSelectedProject', { projectId: p.id, projectName: p.name })
-          setSelectedProject({
-            id: p.id,
-            name: p.name,
-            path: p.path,
-            gitRemoteUrl: p.gitRemoteUrl,
-            gitProvider: p.gitProvider as "github" | "gitlab" | "bitbucket" | null,
-            gitOwner: p.gitOwner,
-            gitRepo: p.gitRepo,
-            mode: p.mode as "chat" | "cowork" | "coding",
-            featureConfig: p.featureConfig,
-            isPlayground: p.isPlayground ?? false,
-          })
+
+          // Use module-level tracker to skip redundant updates if project ID matches.
+          // This avoids the heavy AgentsLayout re-render for same-project navigation.
+          if (_lastNavigatedProjectId !== p.id) {
+            console.log('[navigate] setSelectedProject (changed)', { from: _lastNavigatedProjectId?.slice(-8), to: p.id.slice(-8) })
+            _lastNavigatedProjectId = p.id
+
+            // 1. Mark this project ID as the navigation target
+            setNavigatedProjectId(p.id)
+
+            // 2. Schedule the heavy update with startTransition (low priority)
+            // This prevents the 3s UI freeze. The Sidebar will compare selectedProject.id
+            // with navigatedProjectId to know it should KEEP the chat.
+            startTransition(() => {
+              setSelectedProject({
+                id: p.id,
+                name: p.name,
+                path: p.path,
+                gitRemoteUrl: p.gitRemoteUrl,
+                gitProvider: p.gitProvider as "github" | "gitlab" | "bitbucket" | null,
+                gitOwner: p.gitOwner,
+                gitRepo: p.gitRepo,
+                mode: p.mode as "chat" | "cowork" | "coding",
+                featureConfig: p.featureConfig,
+                isPlayground: p.isPlayground ?? false,
+              })
+            })
+          } else {
+            console.log('[navigate] setSelectedProject SKIP (same project)', { id: p.id.slice(-8) })
+          }
         }
       } catch (e) {
         console.warn("[MemoryRouter] Failed to resolve project for chat:", route.chatId, e)
-      } finally {
-        // Reset flag after a macrotask so React has time to commit the project
-        // state update and fire the sidebar effect (which reads this flag)
-        // before we clear it.
-        setTimeout(() => {
-          console.log('[navigate] setNavigatingProjectSync(false) [setTimeout]')
-          setNavigatingProjectSync(false)
-        }, 0)
       }
+      // Note: We don't clear navigatedProjectId here. It's fine to leave it set.
+      // It will just be overwritten by the next navigation.
+      // Clearing it via setTimeout was the cause of the race condition.
 
       // 5. Open and activate subChat tab if specified
       if (route.subChatId) {

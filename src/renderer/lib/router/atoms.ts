@@ -15,5 +15,7 @@ export const scrollTargetAtom = atom<ScrollTarget | null>(null)
  * When true, the sidebar's "reset chatId on project change" effect should skip,
  * because the project change was triggered by chat navigation (not by the user
  * manually switching projects via the project selector).
+ *
+ * Stores the ID of the project being navigated to.
  */
-export const navigatingProjectSyncAtom = atom(false)
+export const navigatedProjectIdAtom = atom<string | null>(null)

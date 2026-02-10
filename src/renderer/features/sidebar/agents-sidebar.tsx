@@ -183,7 +183,7 @@ import { GroupingToggle } from "./components/grouping-toggle"
 import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "./components/tag-selector-submenu"
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 import { MoveToWorkspaceDialog } from "../../components/dialogs/move-to-workspace-dialog"
-import { useNavigate, navigatingProjectSyncAtom } from "../../lib/router"
+import { useNavigate, navigatedProjectIdAtom } from "../../lib/router"
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -1943,7 +1943,7 @@ export function AgentsSidebar({
 
   // Memory router for navigating with project context sync
   const { navigateToChat } = useNavigate()
-  const isNavigatingProjectSync = useAtomValue(navigatingProjectSyncAtom)
+  const navigatedProjectId = useAtomValue(navigatedProjectIdAtom)
 
   // Multiple drafts state - uses event-based sync instead of polling
   const drafts = useNewChatDrafts()
@@ -2393,10 +2393,14 @@ export function AgentsSidebar({
       return
     }
     // Skip if the project change was caused by navigateToChat resolving the
-    // chat's project — in that case we don't want to clear the chatId that
-    // was just set by the same navigation.
-    if (isNavigatingProjectSync) {
-      console.log('[sidebar] project-change effect: SKIP (navigating)', { prev: prevProjectIdRef.current, next: selectedProject?.id })
+    // chat's project — we check if the current project ID matches the one
+    // set during navigation. This works even with startTransition delays.
+    if (selectedProject?.id && selectedProject.id === navigatedProjectId) {
+      console.log('[sidebar] project-change effect: SKIP (navigating match)', {
+        prev: prevProjectIdRef.current,
+        next: selectedProject.id,
+        target: navigatedProjectId
+      })
       prevProjectIdRef.current = selectedProject?.id ?? null
       return
     }
@@ -2410,7 +2414,7 @@ export function AgentsSidebar({
       setSelectedChatId(null)
     }
     prevProjectIdRef.current = selectedProject?.id ?? null
-  }, [selectedProject?.id, isNavigatingProjectSync]) // Don't include selectedChatId in deps to avoid loops
+  }, [selectedProject?.id, navigatedProjectId]) // Don't include selectedChatId in deps to avoid loops
 
   // Load pinned IDs from localStorage (global, not per-project, since sidebar shows all chats)
   useEffect(() => {
