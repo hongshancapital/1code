@@ -46,6 +46,7 @@ import {
 } from "./windows/main"
 import { windowManager } from "./windows/window-manager"
 import { BROWSER_USER_AGENT } from "./lib/constants"
+import { initBrowserSession, registerWebviewHandlers } from "./lib/browser/init"
 import { IS_DEV } from "./constants"
 
 // Deep link protocol (must match package.json build.protocols.schemes)
@@ -417,10 +418,8 @@ if (gotTheLock) {
     // Register protocol handler (must be after app is ready)
     initialRegistration = registerProtocol()
 
-    // Configure browser webview session with proper User-Agent
-    // This prevents sites like Google from blocking the embedded browser
-    const browserSes = session.fromPartition("persist:browser")
-    browserSes.setUserAgent(BROWSER_USER_AGENT)
+    // Configure browser webview session (User-Agent etc.)
+    initBrowserSession()
 
     // Register local-file protocol for secure file access from renderer
     // IMPORTANT: Must register to the specific session used by BrowserWindow (persist:main)
@@ -578,134 +577,7 @@ if (gotTheLock) {
     console.log("[local-file] Protocol handler registered with Range request support")
 
     // Handle webview new-window events - convert popups to same-page navigation
-    // This intercepts target="_blank" links and window.open() calls in webviews
-    app.on("web-contents-created", (_event, contents) => {
-      // Only handle webview contents (type is "webview")
-      if (contents.getType() === "webview") {
-        // Track recent navigations to detect redirect loops
-        const recentNavigations: { url: string; time: number }[] = []
-        const LOOP_DETECTION_WINDOW = 3000 // 3 seconds
-        const LOOP_THRESHOLD = 3 // 3 navigations to same URL pattern = loop
-
-        // Helper: Check if URL is part of OAuth/SSO flow
-        const isOAuthUrl = (url: string): boolean => {
-          try {
-            const parsed = new URL(url)
-            const hostname = parsed.hostname.toLowerCase()
-            const pathname = parsed.pathname.toLowerCase()
-
-            // Known OAuth/SSO providers
-            const oauthProviders = [
-              "okta.com",
-              "oktapreview.com",
-              "auth0.com",
-              "login.microsoftonline.com",
-              "accounts.google.com",
-              "github.com/login",
-              "cognito",
-            ]
-            if (oauthProviders.some((p) => hostname.includes(p))) {
-              return true
-            }
-
-            // OAuth-related paths
-            const oauthPaths = [
-              "/oauth",
-              "/authorize",
-              "/callback",
-              "/saml",
-              "/sso",
-              "/login/oauth",
-              "/v1/authorize",
-              "/oauth2",
-            ]
-            if (oauthPaths.some((p) => pathname.includes(p))) {
-              return true
-            }
-
-            // OAuth-related query params
-            const oauthParams = ["code", "state", "id_token", "access_token", "SAMLResponse"]
-            if (oauthParams.some((p) => parsed.searchParams.has(p))) {
-              return true
-            }
-
-            return false
-          } catch {
-            return false
-          }
-        }
-
-        // Helper: Detect redirect loop
-        const detectRedirectLoop = (url: string): boolean => {
-          const now = Date.now()
-          // Clean old entries
-          while (recentNavigations.length > 0 && now - recentNavigations[0].time > LOOP_DETECTION_WINDOW) {
-            recentNavigations.shift()
-          }
-
-          // Extract URL pattern (without query string for comparison)
-          let urlPattern: string
-          try {
-            const parsed = new URL(url)
-            urlPattern = `${parsed.origin}${parsed.pathname}`
-          } catch {
-            urlPattern = url
-          }
-
-          // Count recent navigations to similar URLs
-          const similarCount = recentNavigations.filter((n) => {
-            try {
-              const parsed = new URL(n.url)
-              return `${parsed.origin}${parsed.pathname}` === urlPattern
-            } catch {
-              return n.url === url
-            }
-          }).length
-
-          // Add current navigation
-          recentNavigations.push({ url, time: now })
-
-          return similarCount >= LOOP_THRESHOLD
-        }
-
-        contents.setWindowOpenHandler(({ url }) => {
-          // Check for redirect loop
-          if (detectRedirectLoop(url)) {
-            console.warn("[Webview] Redirect loop detected, opening in external browser:", url)
-            shell.openExternal(url)
-            return { action: "deny" }
-          }
-
-          // For OAuth/SSO URLs, open in external browser to avoid breaking auth flow
-          if (isOAuthUrl(url)) {
-            console.log("[Webview] OAuth URL detected, opening in external browser:", url)
-            shell.openExternal(url)
-            return { action: "deny" }
-          }
-
-          // Navigate in the same webview instead of opening new window
-          // loadURL adds to history stack, allowing back/forward navigation
-          if (url) {
-            contents.loadURL(url)
-          }
-          return { action: "deny" }
-        })
-
-        // Handle will-navigate to detect auth redirects
-        contents.on("will-navigate", (event, url) => {
-          // Check for redirect loop on regular navigation too
-          if (detectRedirectLoop(url)) {
-            console.warn("[Webview] Redirect loop detected during navigation:", url)
-            event.preventDefault()
-            // Notify user or take action
-            const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-            if (mainWindow) {
-              mainWindow.webContents.send("browser:auth-loop-detected", url)
-            }
-          }
-        })
-      }
-    })
+    registerWebviewHandlers()
 
     // Handle deep link on macOS (app already running)
     app.on("open-url", (event, url) => {
