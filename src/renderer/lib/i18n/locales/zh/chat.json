@@ -88,5 +88,158 @@
     "completed": "已完成",
     "failed": "失败",
     "noResponse": "未收到响应"
+  },
+  "planning": {
+    "messages": [
+      "构思中...",
+      "酝酿中...",
+      "脑洞大开中...",
+      "灵感涌现中...",
+      "奋笔疾书中...",
+      "运筹帷幄中...",
+      "文思泉涌中...",
+      "创意发酵中...",
+      "思路梳理中...",
+      "灵光乍现中...",
+      "神经元放电中...",
+      "逻辑推演中...",
+      "创意烹饪中...",
+      "思维编织中...",
+      "代码酿造中...",
+      "想法孵化中...",
+      "蓝图绘制中...",
+      "点子碰撞中...",
+      "答案浮现中...",
+      "方案打磨中...",
+      "灵感捕捉中...",
+      "思维加速中...",
+      "智慧结晶中...",
+      "好点子冒泡中...",
+      "思考回路全开中...",
+      "知识融合中...",
+      "草稿起笔中...",
+      "拼图拼接中...",
+      "脑内风暴中...",
+      "解法推导中..."
+    ]
+  },
+  "tools": {
+    "task": {
+      "preparing": "准备子代理",
+      "running": "运行子代理",
+      "completed": "子代理已完成"
+    },
+    "grep": {
+      "preparing": "准备搜索",
+      "pending": "搜索中",
+      "foundMatches": "找到 {{count}} 处匹配",
+      "greppedFiles": "搜索了 {{count}} 个文件",
+      "noMatches": "无匹配"
+    },
+    "glob": {
+      "preparing": "准备搜索",
+      "pending": "浏览文件中",
+      "foundFiles": "找到 {{count}} 个文件",
+      "noFiles": "未找到文件"
+    },
+    "read": {
+      "preparing": "准备阅读",
+      "pending": "阅读中",
+      "completed": "已阅读"
+    },
+    "edit": {
+      "preparing": "准备编辑",
+      "default": "编辑"
+    },
+    "cloning": "克隆仓库中",
+    "write": {
+      "preparing": "准备创建",
+      "completed": "创建"
+    },
+    "bash": {
+      "preparing": "生成命令中",
+      "pending": "执行命令中",
+      "completed": "已执行命令"
+    },
+    "webFetch": {
+      "preparing": "准备抓取",
+      "pending": "抓取中",
+      "completed": "已抓取"
+    },
+    "webSearch": {
+      "preparing": "准备搜索",
+      "pending": "搜索网页中",
+      "completed": "已搜索网页"
+    },
+    "todoWrite": {
+      "adding": "添加待办中",
+      "updating": "更新待办中",
+      "added": "已添加待办",
+      "updated": "已更新待办",
+      "itemCount": "{{count}} 项",
+      "itemCount_plural": "{{count}} 项"
+    },
+    "taskCreate": {
+      "pending": "创建任务中",
+      "completed": "已创建任务"
+    },
+    "taskUpdate": {
+      "starting": "启动任务中",
+      "completing": "完成任务中",
+      "deleting": "删除任务中",
+      "updating": "更新任务中",
+      "started": "已启动任务",
+      "completedTask": "已完成任务",
+      "deleted": "已删除任务",
+      "updated": "已更新任务"
+    },
+    "taskGet": {
+      "pending": "获取任务中",
+      "completed": "已获取任务"
+    },
+    "taskList": {
+      "pending": "列出任务中",
+      "completed": "已列出 {{count}} 个任务",
+      "completedDefault": "已列出任务"
+    },
+    "planWrite": {
+      "creating": "创建计划中",
+      "approving": "审批计划中",
+      "completingPlan": "完成计划中",
+      "updating": "更新计划中",
+      "readyForReview": "计划待审阅",
+      "approved": "计划已批准",
+      "completedPlan": "计划已完成",
+      "created": "已创建计划",
+      "updated": "已更新计划"
+    },
+    "exitPlanMode": {
+      "pending": "结束计划中",
+      "completed": "计划完成"
+    },
+    "notebookEdit": {
+      "pending": "编辑笔记本中",
+      "completed": "已编辑笔记本"
+    },
+    "bashOutput": {
+      "pending": "获取输出中",
+      "completed": "已获取输出"
+    },
+    "killShell": {
+      "pending": "停止 Shell 中",
+      "completed": "已停止 Shell"
+    },
+    "mcpListResources": {
+      "pending": "列出资源中",
+      "completed": "已列出资源"
+    },
+    "mcpReadResource": {
+      "pending": "读取资源中",
+      "completed": "已读取资源"
+    },
+    "compact": {
+      "pending": "压缩中...",
+      "completed": "已压缩"
+    }
   }
 }

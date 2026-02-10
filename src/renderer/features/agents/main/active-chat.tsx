@@ -3304,6 +3304,10 @@ const ChatViewInner = memo(function ChatViewInner({
       shouldAutoScrollRef.current = true
       scrollToBottom()
 
+      // Track message sent
+      const hasAt = parts.some((p: any) => p.type === "text" && p.text?.includes("@"))
+      trackSendMessage(subChatModeRef.current, hasAt)
+
       await sendMessageRef.current({ role: "user", parts })
     } catch (error) {
       console.error("[handleSendFromQueue] Error sending queued message:", error)
@@ -3488,6 +3492,10 @@ const ChatViewInner = memo(function ChatViewInner({
     // Force scroll to bottom
     shouldAutoScrollRef.current = true
     scrollToBottom()
+
+    // Track message sent
+    const hasAt = parts.some((p: any) => p.type === "text" && p.text?.includes("@"))
+    trackSendMessage(subChatModeRef.current, hasAt)
 
     try {
       await sendMessageRef.current({ role: "user", parts })

@@ -88,5 +88,158 @@
     "completed": "Completed",
     "failed": "Failed",
     "noResponse": "No response received"
+  },
+  "planning": {
+    "messages": [
+      "Crafting...",
+      "Whirring...",
+      "Imagining...",
+      "Cooking...",
+      "Sussing...",
+      "Unravelling...",
+      "Creating...",
+      "Spinning...",
+      "Computing...",
+      "Synthesizing...",
+      "Manifesting...",
+      "Conjuring...",
+      "Brewing...",
+      "Weaving...",
+      "Sculpting...",
+      "Dreaming up...",
+      "Pondering...",
+      "Assembling...",
+      "Channeling...",
+      "Distilling...",
+      "Forging...",
+      "Hatching...",
+      "Sketching...",
+      "Concocting...",
+      "Calibrating...",
+      "Percolating...",
+      "Tinkering...",
+      "Orchestrating...",
+      "Decoding...",
+      "Igniting..."
+    ]
+  },
+  "tools": {
+    "task": {
+      "preparing": "Preparing subagent",
+      "running": "Running Subagent",
+      "completed": "Completed Subagent"
+    },
+    "grep": {
+      "preparing": "Preparing search",
+      "pending": "Grepping",
+      "foundMatches": "Found {{count}} matches",
+      "greppedFiles": "Grepped {{count}} files",
+      "noMatches": "No matches"
+    },
+    "glob": {
+      "preparing": "Preparing search",
+      "pending": "Exploring files",
+      "foundFiles": "Found {{count}} files",
+      "noFiles": "No files found"
+    },
+    "read": {
+      "preparing": "Preparing to read",
+      "pending": "Reading",
+      "completed": "Read"
+    },
+    "edit": {
+      "preparing": "Preparing edit",
+      "default": "Edit"
+    },
+    "cloning": "Cloning repo",
+    "write": {
+      "preparing": "Preparing to create",
+      "completed": "Create"
+    },
+    "bash": {
+      "preparing": "Generating command",
+      "pending": "Running command",
+      "completed": "Ran command"
+    },
+    "webFetch": {
+      "preparing": "Preparing fetch",
+      "pending": "Fetching",
+      "completed": "Fetched"
+    },
+    "webSearch": {
+      "preparing": "Preparing search",
+      "pending": "Searching web",
+      "completed": "Searched web"
+    },
+    "todoWrite": {
+      "adding": "Adding todo",
+      "updating": "Updating todos",
+      "added": "Added todo",
+      "updated": "Updated todos",
+      "itemCount": "{{count}} item",
+      "itemCount_plural": "{{count}} items"
+    },
+    "taskCreate": {
+      "pending": "Creating task",
+      "completed": "Created task"
+    },
+    "taskUpdate": {
+      "starting": "Starting task",
+      "completing": "Completing task",
+      "deleting": "Deleting task",
+      "updating": "Updating task",
+      "started": "Started task",
+      "completedTask": "Completed task",
+      "deleted": "Deleted task",
+      "updated": "Updated task"
+    },
+    "taskGet": {
+      "pending": "Getting task",
+      "completed": "Got task"
+    },
+    "taskList": {
+      "pending": "Listing tasks",
+      "completed": "Listed {{count}} tasks",
+      "completedDefault": "Listed tasks"
+    },
+    "planWrite": {
+      "creating": "Creating plan",
+      "approving": "Approving plan",
+      "completingPlan": "Completing plan",
+      "updating": "Updating plan",
+      "readyForReview": "Plan ready for review",
+      "approved": "Plan approved",
+      "completedPlan": "Plan completed",
+      "created": "Created plan",
+      "updated": "Updated plan"
+    },
+    "exitPlanMode": {
+      "pending": "Finishing plan",
+      "completed": "Plan complete"
+    },
+    "notebookEdit": {
+      "pending": "Editing notebook",
+      "completed": "Edited notebook"
+    },
+    "bashOutput": {
+      "pending": "Getting output",
+      "completed": "Got output"
+    },
+    "killShell": {
+      "pending": "Stopping shell",
+      "completed": "Stopped shell"
+    },
+    "mcpListResources": {
+      "pending": "Listing resources",
+      "completed": "Listed resources"
+    },
+    "mcpReadResource": {
+      "pending": "Reading resource",
+      "completed": "Read resource"
+    },
+    "compact": {
+      "pending": "Compacting...",
+      "completed": "Compacted"
+    }
   }
 }

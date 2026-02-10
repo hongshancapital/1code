@@ -26,6 +26,9 @@ import {
   SparklesIcon,
   WriteFileIcon,
 } from "../../../components/ui/icons"
+import i18n from "../../../lib/i18n"
+
+const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: "chat", ...options })
 
 export type ToolVariant = "simple" | "collapsible"
 
@@ -128,38 +131,6 @@ function calculateDiffStats(oldString: string, newString: string) {
   return { addedLines, removedLines }
 }
 
-const PLANNING_MESSAGES = [
-  "构思中...",
-  "酝酿中...",
-  "脑洞大开中...",
-  "灵感涌现中...",
-  "奋笔疾书中...",
-  "运筹帷幄中...",
-  "文思泉涌中...",
-  "创意发酵中...",
-  "思路梳理中...",
-  "灵光乍现中...",
-  "神经元放电中...",
-  "逻辑推演中...",
-  "创意烹饪中...",
-  "思维编织中...",
-  "代码酿造中...",
-  "想法孵化中...",
-  "蓝图绘制中...",
-  "点子碰撞中...",
-  "答案浮现中...",
-  "方案打磨中...",
-  "灵感捕捉中...",
-  "思维加速中...",
-  "智慧结晶中...",
-  "好点子冒泡中...",
-  "思考回路全开中...",
-  "知识融合中...",
-  "草稿起笔中...",
-  "拼图拼接中...",
-  "脑内风暴中...",
-  "解法推导中..."
-]
 
 export const AgentToolRegistry: Record<string, ToolMeta> = {
   "tool-Task": {
@@ -168,8 +139,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备子代理"
-      return isPending ? "运行子代理" : "子代理已完成"
+      if (isInputStreaming) return t("tools.task.preparing")
+      return isPending ? t("tools.task.running") : t("tools.task.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -188,18 +159,18 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备搜索"
-      if (isPending) return "搜索中"
+      if (isInputStreaming) return t("tools.grep.preparing")
+      if (isPending) return t("tools.grep.pending")
 
       const mode = part.output?.mode
       const numFiles = part.output?.numFiles || 0
       const numLines = part.output?.numLines || 0
 
       if (mode === "content") {
-        return numLines > 0 ? `找到 ${numLines} 处匹配` : "无匹配"
+        return numLines > 0 ? t("tools.grep.foundMatches", { count: numLines }) : t("tools.grep.noMatches")
       }
 
-      return numFiles > 0 ? `搜索了 ${numFiles} 个文件` : "无匹配"
+      return numFiles > 0 ? t("tools.grep.greppedFiles", { count: numFiles }) : t("tools.grep.noMatches")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -225,11 +196,11 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备搜索"
-      if (isPending) return "浏览文件中"
+      if (isInputStreaming) return t("tools.glob.preparing")
+      if (isPending) return t("tools.glob.pending")
 
       const numFiles = part.output?.numFiles || 0
-      return numFiles > 0 ? `找到 ${numFiles} 个文件` : "未找到文件"
+      return numFiles > 0 ? t("tools.glob.foundFiles", { count: numFiles }) : t("tools.glob.noFiles")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -255,8 +226,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备阅读"
-      return isPending ? "阅读中" : "已阅读"
+      if (isInputStreaming) return t("tools.read.preparing")
+      return isPending ? t("tools.read.pending") : t("tools.read.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -277,10 +248,10 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     icon: IconEditFile,
     title: (part) => {
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备编辑"
+      if (isInputStreaming) return t("tools.edit.preparing")
       const filePath = part.input?.file_path || ""
-      if (!filePath) return "编辑"
-      return filePath.split("/").pop() || "编辑"
+      if (!filePath) return t("tools.edit.default")
+      return filePath.split("/").pop() || t("tools.edit.default")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -313,7 +284,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
   // Cloning indicator - shown while sandbox is being created
   "tool-cloning": {
     icon: GitBranch,
-    title: () => "克隆仓库中",
+    title: () => t("tools.cloning"),
     variant: "simple",
   },
 
@@ -321,7 +292,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
   "tool-planning": {
     icon: PlanningIcon,
     title: () => {
-      return PLANNING_MESSAGES[Math.floor(Math.random() * PLANNING_MESSAGES.length)]
+      const messages = t("planning.messages", { returnObjects: true }) as string[]
+      return messages[Math.floor(Math.random() * messages.length)]
     },
     variant: "simple",
   },
@@ -330,8 +302,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     icon: WriteFileIcon,
     title: (part) => {
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备创建"
-      return "创建"
+      if (isInputStreaming) return t("tools.write.preparing")
+      return t("tools.write.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -349,8 +321,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "生成命令中"
-      return isPending ? "执行命令中" : "已执行命令"
+      if (isInputStreaming) return t("tools.bash.preparing")
+      return isPending ? t("tools.bash.pending") : t("tools.bash.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -374,8 +346,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备抓取"
-      return isPending ? "抓取中" : "已抓取"
+      if (isInputStreaming) return t("tools.webFetch.preparing")
+      return isPending ? t("tools.webFetch.pending") : t("tools.webFetch.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -396,8 +368,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const isInputStreaming = part.state === "input-streaming"
-      if (isInputStreaming) return "准备搜索"
-      return isPending ? "搜索网页中" : "已搜索网页"
+      if (isInputStreaming) return t("tools.webSearch.preparing")
+      return isPending ? t("tools.webSearch.pending") : t("tools.webSearch.completed")
     },
     subtitle: (part) => {
       // Don't show subtitle while input is still streaming
@@ -416,14 +388,14 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
         part.state !== "output-available" && part.state !== "output-error"
       const action = part.input?.action || "update"
       if (isPending) {
-        return action === "add" ? "添加待办中" : "更新待办中"
+        return action === "add" ? t("tools.todoWrite.adding") : t("tools.todoWrite.updating")
       }
-      return action === "add" ? "已添加待办" : "已更新待办"
+      return action === "add" ? t("tools.todoWrite.added") : t("tools.todoWrite.updated")
     },
     subtitle: (part) => {
       const todos = part.input?.todos || []
       if (todos.length === 0) return ""
-      return `${todos.length} 项`
+      return t("tools.todoWrite.itemCount", { count: todos.length })
     },
     variant: "simple",
   },
@@ -434,7 +406,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "创建任务中" : "已创建任务"
+      return isPending ? t("tools.taskCreate.pending") : t("tools.taskCreate.completed")
     },
     subtitle: (part) => {
       const subject = part.input?.subject || ""
@@ -450,15 +422,15 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       if (isPending) {
-        if (status === "in_progress") return "启动任务中"
-        if (status === "completed") return "完成任务中"
-        if (status === "deleted") return "删除任务中"
-        return "更新任务中"
+        if (status === "in_progress") return t("tools.taskUpdate.starting")
+        if (status === "completed") return t("tools.taskUpdate.completing")
+        if (status === "deleted") return t("tools.taskUpdate.deleting")
+        return t("tools.taskUpdate.updating")
       }
-      if (status === "in_progress") return "已启动任务"
-      if (status === "completed") return "已完成任务"
-      if (status === "deleted") return "已删除任务"
-      return "已更新任务"
+      if (status === "in_progress") return t("tools.taskUpdate.started")
+      if (status === "completed") return t("tools.taskUpdate.completedTask")
+      if (status === "deleted") return t("tools.taskUpdate.deleted")
+      return t("tools.taskUpdate.updated")
     },
     subtitle: (part) => {
       const subject = part.input?.subject
@@ -476,7 +448,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "获取任务中" : "已获取任务"
+      return isPending ? t("tools.taskGet.pending") : t("tools.taskGet.completed")
     },
     subtitle: (part) => {
       const subject = part.output?.task?.subject
@@ -495,8 +467,8 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
       const count = part.output?.tasks?.length
-      if (isPending) return "列出任务中"
-      return count !== undefined ? `已列出 ${count} 个任务` : "已列出任务"
+      if (isPending) return t("tools.taskList.pending")
+      return count !== undefined ? t("tools.taskList.completed", { count }) : t("tools.taskList.completedDefault")
     },
     subtitle: () => "",
     variant: "simple",
@@ -510,15 +482,15 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
       const action = part.input?.action || "create"
       const status = part.input?.plan?.status
       if (isPending) {
-        if (action === "create") return "创建计划中"
-        if (action === "approve") return "审批计划中"
-        if (action === "complete") return "完成计划中"
-        return "更新计划中"
+        if (action === "create") return t("tools.planWrite.creating")
+        if (action === "approve") return t("tools.planWrite.approving")
+        if (action === "complete") return t("tools.planWrite.completingPlan")
+        return t("tools.planWrite.updating")
       }
-      if (status === "awaiting_approval") return "计划待审阅"
-      if (status === "approved") return "计划已批准"
-      if (status === "completed") return "计划已完成"
-      return action === "create" ? "已创建计划" : "已更新计划"
+      if (status === "awaiting_approval") return t("tools.planWrite.readyForReview")
+      if (status === "approved") return t("tools.planWrite.approved")
+      if (status === "completed") return t("tools.planWrite.completedPlan")
+      return action === "create" ? t("tools.planWrite.created") : t("tools.planWrite.updated")
     },
     subtitle: (part) => {
       const plan = part.input?.plan
@@ -541,7 +513,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     icon: LogOut,
     title: (part) => {
       const {isPending} = getToolStatus(part)
-      return isPending ? "结束计划中" : "计划完成"
+      return isPending ? t("tools.exitPlanMode.pending") : t("tools.exitPlanMode.completed")
     },
     subtitle: () => "",
     variant: "simple",
@@ -553,7 +525,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "编辑笔记本中" : "已编辑笔记本"
+      return isPending ? t("tools.notebookEdit.pending") : t("tools.notebookEdit.completed")
     },
     subtitle: (part) => {
       const filePath = part.input?.file_path || ""
@@ -569,7 +541,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "获取输出中" : "已获取输出"
+      return isPending ? t("tools.bashOutput.pending") : t("tools.bashOutput.completed")
     },
     subtitle: (part) => {
       const pid = part.input?.pid
@@ -583,7 +555,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "停止 Shell 中" : "已停止 Shell"
+      return isPending ? t("tools.killShell.pending") : t("tools.killShell.completed")
     },
     subtitle: (part) => {
       const pid = part.input?.pid
@@ -598,7 +570,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "列出资源中" : "已列出资源"
+      return isPending ? t("tools.mcpListResources.pending") : t("tools.mcpListResources.completed")
     },
     subtitle: (part) => {
       const server = part.input?.server || ""
@@ -612,7 +584,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "读取资源中" : "已读取资源"
+      return isPending ? t("tools.mcpReadResource.pending") : t("tools.mcpReadResource.completed")
     },
     subtitle: (part) => {
       const uri = part.input?.uri || ""
@@ -627,7 +599,7 @@ export const AgentToolRegistry: Record<string, ToolMeta> = {
     title: (part) => {
       const isPending =
         part.state !== "output-available" && part.state !== "output-error"
-      return isPending ? "压缩中..." : "已压缩"
+      return isPending ? t("tools.compact.pending") : t("tools.compact.completed")
     },
     variant: "simple",
   },
