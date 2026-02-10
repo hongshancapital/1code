@@ -9,9 +9,23 @@
  */
 import { getProviderCredentials } from "./providers"
 
+/** Token usage data returned from API calls */
+export interface SummaryAIUsage {
+  inputTokens: number
+  outputTokens: number
+  model: string
+}
+
+/** Result with text content and optional usage data */
+export interface SummaryAIResult {
+  text: string
+  usage: SummaryAIUsage | null
+}
+
 /**
  * Call a configured AI provider for quick summary tasks.
  * Returns the model's text response, or null if the call fails.
+ * (Backward-compatible wrapper — returns string only)
  */
 export async function callSummaryAI(
   providerId: string,
@@ -20,6 +34,21 @@ export async function callSummaryAI(
   userMessage: string,
   maxTokens = 200,
 ): Promise<string | null> {
+  const result = await callSummaryAIWithUsage(providerId, modelId, systemPrompt, userMessage, maxTokens)
+  return result?.text ?? null
+}
+
+/**
+ * Call a configured AI provider and return both text and token usage.
+ * Use this when you need to track LLM consumption.
+ */
+export async function callSummaryAIWithUsage(
+  providerId: string,
+  modelId: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens = 200,
+): Promise<SummaryAIResult | null> {
   const credentials = await getProviderCredentials(providerId, modelId)
   if (!credentials) {
     console.warn("[SummaryAI] No credentials for provider:", providerId)
@@ -45,7 +74,7 @@ async function callAnthropicAPI(
   systemPrompt: string,
   userMessage: string,
   maxTokens = 200,
-): Promise<string | null> {
+): Promise<SummaryAIResult | null> {
   const response = await fetch(`${credentials.baseUrl}/messages`, {
     method: "POST",
     headers: {
@@ -70,7 +99,19 @@ async function callAnthropicAPI(
   }
 
   const data = await response.json()
-  return data.content?.[0]?.text?.trim() || null
+  const text = data.content?.[0]?.text?.trim()
+  if (!text) return null
+
+  // Anthropic usage: { input_tokens, output_tokens }
+  const usage: SummaryAIUsage | null = data.usage
+    ? {
+        inputTokens: data.usage.input_tokens || 0,
+        outputTokens: data.usage.output_tokens || 0,
+        model: credentials.model,
+      }
+    : null
+
+  return { text, usage }
 }
 
 /**
@@ -81,7 +122,7 @@ async function callOpenAICompatibleAPI(
   systemPrompt: string,
   userMessage: string,
   maxTokens = 200,
-): Promise<string | null> {
+): Promise<SummaryAIResult | null> {
   const response = await fetch(`${credentials.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -106,5 +147,17 @@ async function callOpenAICompatibleAPI(
   }
 
   const data = await response.json()
-  return data.choices?.[0]?.message?.content?.trim() || null
+  const text = data.choices?.[0]?.message?.content?.trim()
+  if (!text) return null
+
+  // OpenAI usage: { prompt_tokens, completion_tokens, total_tokens }
+  const usage: SummaryAIUsage | null = data.usage
+    ? {
+        inputTokens: data.usage.prompt_tokens || 0,
+        outputTokens: data.usage.completion_tokens || 0,
+        model: credentials.model,
+      }
+    : null
+
+  return { text, usage }
 }

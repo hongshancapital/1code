@@ -4,11 +4,24 @@
  * and generate session summaries. Falls back to rule-based parsing
  * when no summary model is configured.
  *
- * Borrowed from claude-mem architecture (SDKAgent + ResponseProcessor)
+ * Strategy:
+ * - Rule engine classifies with confidence score (0-1)
+ * - High confidence (>= 0.7): use rule result directly, skip LLM
+ * - Low confidence (< 0.7): call LLM to refine classification
+ * - No rate limiting — if LLM is needed, it runs
  */
 
 import type { ParsedObservation, ObservationType } from "./types"
 import { OBSERVATION_TYPES, OBSERVATION_CONCEPTS } from "./types"
+import type { SummaryAIUsage } from "../trpc/routers/summary-ai"
+
+/** Usage data from memory LLM calls, to be recorded in model_usage */
+export interface MemoryLLMUsage {
+  inputTokens: number
+  outputTokens: number
+  model: string
+  purpose: "observation_enhance" | "session_summary"
+}
 
 // ============ Configuration ============
 
@@ -44,11 +57,8 @@ export function isSummaryModelConfigured(): boolean {
 const VALID_TYPES = OBSERVATION_TYPES.map((t) => t.id)
 const VALID_CONCEPTS = OBSERVATION_CONCEPTS as readonly string[]
 
-/**
- * Tools that are too routine to warrant LLM enhancement.
- * These produce simple, predictable observations that rules handle fine.
- */
-const SKIP_LLM_TOOLS = new Set(["Glob", "WebSearch"])
+/** Confidence threshold: below this, call LLM for refinement */
+const CONFIDENCE_THRESHOLD = 0.7
 
 /**
  * Minimum output size to justify LLM enhancement.
@@ -57,93 +67,79 @@ const SKIP_LLM_TOOLS = new Set(["Glob", "WebSearch"])
 const MIN_OUTPUT_LENGTH = 50
 
 /**
- * Rate limiting: track recent LLM calls to avoid bursts.
- * Max N calls per window to prevent runaway API costs.
- */
-const LLM_RATE_LIMIT = 10 // max calls per window
-const LLM_RATE_WINDOW_MS = 60_000 // 1 minute
-const recentLlmCalls: number[] = []
-
-function isRateLimited(): boolean {
-  const now = Date.now()
-  // Remove calls outside the window
-  while (recentLlmCalls.length > 0 && recentLlmCalls[0]! < now - LLM_RATE_WINDOW_MS) {
-    recentLlmCalls.shift()
-  }
-  return recentLlmCalls.length >= LLM_RATE_LIMIT
-}
-
-function recordLlmCall(): void {
-  recentLlmCalls.push(Date.now())
-}
-
-/**
  * Determine if a tool call should be enhanced with LLM.
- * Returns false for routine operations that rules handle well enough.
+ * Based on confidence score from rule engine + output size.
  */
 function shouldEnhanceWithLLM(
-  toolName: string,
+  parsed: ParsedObservation,
   toolOutput: unknown,
 ): boolean {
-  // Skip tools that produce predictable observations
-  if (SKIP_LLM_TOOLS.has(toolName)) return false
+  // High confidence — rule engine is sure enough, skip LLM
+  if (parsed.confidence !== undefined && parsed.confidence >= CONFIDENCE_THRESHOLD) {
+    return false
+  }
 
   // Skip if output is too small to be interesting
   const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput)
   if (outputStr.length < MIN_OUTPUT_LENGTH) return false
 
-  // Rate limiting
-  if (isRateLimited()) {
-    console.log("[Summarizer] Rate limited, skipping LLM enhancement")
-    return false
-  }
-
   return true
 }
 
-const OBSERVATION_SYSTEM_PROMPT = `You are a code intelligence observer. Your job is to analyze tool executions from a coding session and produce structured observations.
+const OBSERVATION_SYSTEM_PROMPT = `You are a project activity observer. Analyze tool executions and classify them accurately.
 
 Given a tool call (name, input, output), produce a single observation in XML format:
 
 <observation>
-  <type>one of: discovery, decision, bugfix, feature, refactor, change</type>
+  <type>one of: explore, research, implement, fix, refactor, edit, compose, analyze, decision, conversation</type>
   <title>Short, descriptive title (max 80 chars)</title>
   <narrative>1-2 sentence explanation of what was learned or changed and WHY it matters</narrative>
-  <concepts>comma-separated from: how-it-works, why-it-exists, what-changed, problem-solution, gotcha, pattern, trade-off, api, testing, performance, security</concepts>
+  <concepts>comma-separated from: how-it-works, why-it-exists, what-changed, problem-solution, gotcha, pattern, trade-off, api, testing, performance, security, user-requirement, project-context, design-rationale, data-insight, workflow, documentation</concepts>
 </observation>
 
+Type definitions:
+- "explore": browsing/reading code to understand structure
+- "research": deep investigation — reading docs, fetching URLs, studying references
+- "implement": creating new functionality, writing new code/files
+- "fix": fixing a bug, error, or broken behavior
+- "refactor": restructuring code without changing behavior
+- "edit": minor/generic code modifications, config tweaks
+- "compose": writing documentation, text, translations, non-code content
+- "analyze": running tests, profiling, benchmarking, reviewing, data analysis
+- "decision": choosing between approaches, architecture decisions
+- "conversation": substantive AI explanation or discussion
+
 Rules:
-- "discovery": reading/searching/exploring code to understand it
-- "decision": choosing between approaches, architecture choices
-- "bugfix": fixing a bug or error
-- "feature": adding new functionality
-- "refactor": restructuring without changing behavior
-- "change": generic code modification
-- The narrative should capture INSIGHT, not just repeat the tool action. Bad: "Read file X". Good: "Explored the auth module - uses OAuth PKCE flow with encrypted token storage"
-- Keep titles concise and meaningful
+- The narrative should capture INSIGHT, not just repeat the tool action
+- Bad: "Read file X". Good: "Explored the auth module — uses OAuth PKCE flow with encrypted token storage"
 - Pick 1-3 most relevant concepts
 - Respond ONLY with the XML block, nothing else`
 
+/** Result of enhanceObservation — includes usage for tracking */
+export interface EnhanceResult {
+  observation: ParsedObservation
+  usage: MemoryLLMUsage | null
+}
+
 /**
  * Enhance a rule-based observation using LLM.
- * Returns enhanced observation, or the original if LLM fails or is skipped.
+ * Only called when confidence is below threshold.
+ * Returns enhanced observation + usage data for tracking.
  */
 export async function enhanceObservation(
   ruleBased: ParsedObservation,
   toolInput: unknown,
   toolOutput: unknown,
-): Promise<ParsedObservation> {
-  if (!summaryConfig) return ruleBased
+): Promise<EnhanceResult> {
+  if (!summaryConfig) return { observation: ruleBased, usage: null }
 
-  // Skip routine tools and small outputs
-  if (!shouldEnhanceWithLLM(ruleBased.toolName, toolOutput)) {
-    return ruleBased
+  // Check confidence + output size
+  if (!shouldEnhanceWithLLM(ruleBased, toolOutput)) {
+    return { observation: ruleBased, usage: null }
   }
 
   try {
-    const { callSummaryAI } = await import("../trpc/routers/summary-ai")
-
-    recordLlmCall()
+    const { callSummaryAIWithUsage } = await import("../trpc/routers/summary-ai")
 
     // Build context for LLM
     const inputStr = truncate(JSON.stringify(toolInput), 1500)
@@ -156,7 +152,7 @@ export async function enhanceObservation(
 Input: ${inputStr}
 Output: ${outputStr}`
 
-    const result = await callSummaryAI(
+    const result = await callSummaryAIWithUsage(
       summaryConfig.providerId,
       summaryConfig.modelId,
       OBSERVATION_SYSTEM_PROMPT,
@@ -164,29 +160,38 @@ Output: ${outputStr}`
       300,
     )
 
-    if (!result) return ruleBased
+    if (!result) return { observation: ruleBased, usage: null }
+
+    // Build usage data for tracking
+    const usage: MemoryLLMUsage | null = result.usage
+      ? { ...result.usage, purpose: "observation_enhance" }
+      : null
 
     // Parse XML response
-    const enhanced = parseObservationXml(result)
-    if (!enhanced) return ruleBased
+    const enhanced = parseObservationXml(result.text)
+    if (!enhanced) return { observation: ruleBased, usage }
 
     // Merge: keep file info from rule-based, use LLM for semantics
     return {
-      ...ruleBased,
-      type: enhanced.type,
-      title: enhanced.title || ruleBased.title,
-      narrative: enhanced.narrative || ruleBased.narrative,
-      concepts: enhanced.concepts.length > 0 ? enhanced.concepts : ruleBased.concepts,
+      observation: {
+        ...ruleBased,
+        type: enhanced.type,
+        title: enhanced.title || ruleBased.title,
+        narrative: enhanced.narrative || ruleBased.narrative,
+        concepts: enhanced.concepts.length > 0 ? enhanced.concepts : ruleBased.concepts,
+        confidence: 0.95, // LLM-enhanced — high confidence
+      },
+      usage,
     }
   } catch (error) {
     console.warn("[Summarizer] Enhancement failed, using rule-based:", (error as Error).message)
-    return ruleBased
+    return { observation: ruleBased, usage: null }
   }
 }
 
 // ============ Session Summary ============
 
-const SESSION_SUMMARY_SYSTEM_PROMPT = `You are a code session analyst. Given a list of observations from a coding session, generate a structured summary.
+const SESSION_SUMMARY_SYSTEM_PROMPT = `You are a project session analyst. Given a list of observations from a work session, generate a structured summary.
 
 Respond with XML:
 
@@ -212,6 +217,12 @@ export interface SessionSummary {
   nextSteps: string
 }
 
+/** Result of generateSessionSummary — includes usage for tracking */
+export interface SessionSummaryResult {
+  summary: SessionSummary
+  usage: MemoryLLMUsage | null
+}
+
 /**
  * Generate a session summary from its observations.
  * Returns null if LLM is not configured or call fails.
@@ -220,11 +231,11 @@ export async function generateSessionSummary(
   userPrompts: string[],
   observationTitles: string[],
   observationNarratives: string[],
-): Promise<SessionSummary | null> {
+): Promise<SessionSummaryResult | null> {
   if (!summaryConfig) return null
 
   try {
-    const { callSummaryAI } = await import("../trpc/routers/summary-ai")
+    const { callSummaryAIWithUsage } = await import("../trpc/routers/summary-ai")
 
     const promptsSummary = userPrompts.length > 0
       ? `User prompts:\n${userPrompts.map((p, i) => `${i + 1}. ${truncate(p, 200)}`).join("\n")}`
@@ -239,7 +250,7 @@ export async function generateSessionSummary(
 
     const userMessage = `${promptsSummary}\n\n${obsSummary}`
 
-    const result = await callSummaryAI(
+    const result = await callSummaryAIWithUsage(
       summaryConfig.providerId,
       summaryConfig.modelId,
       SESSION_SUMMARY_SYSTEM_PROMPT,
@@ -249,7 +260,14 @@ export async function generateSessionSummary(
 
     if (!result) return null
 
-    return parseSummaryXml(result)
+    const summary = parseSummaryXml(result.text)
+    if (!summary) return null
+
+    const usage: MemoryLLMUsage | null = result.usage
+      ? { ...result.usage, purpose: "session_summary" }
+      : null
+
+    return { summary, usage }
   } catch (error) {
     console.warn("[Summarizer] Session summary failed:", (error as Error).message)
     return null
@@ -329,28 +347,43 @@ function extractTag(xml: string, tag: string): string | null {
  * Normalize observation type string to valid ObservationType
  */
 function normalizeType(raw: string | null): ObservationType {
-  if (!raw) return "discovery"
+  if (!raw) return "explore"
 
   const cleaned = raw.trim().toLowerCase().replace(/[_\s-]/g, "")
 
-  // Map common variations
+  // Map common variations and legacy types
   const typeMap: Record<string, ObservationType> = {
-    discovery: "discovery",
-    decision: "decision",
-    bugfix: "bugfix",
-    bug_fix: "bugfix",
-    fix: "bugfix",
-    feature: "feature",
-    featureimpl: "feature",
-    feature_impl: "feature",
+    // New types (direct match)
+    explore: "explore",
+    research: "research",
+    implement: "implement",
+    fix: "fix",
     refactor: "refactor",
-    coderefactor: "refactor",
-    code_refactor: "refactor",
-    change: "change",
-    response: "response",
+    edit: "edit",
+    compose: "compose",
+    analyze: "analyze",
+    decision: "decision",
+    conversation: "conversation",
+    // Legacy types
+    discovery: "explore",
+    change: "edit",
+    feature: "implement",
+    bugfix: "fix",
+    bugfixed: "fix",
+    response: "conversation",
+    // Common LLM variations
+    implementation: "implement",
+    analysis: "analyze",
+    writing: "compose",
+    documentation: "compose",
+    investigation: "research",
+    exploration: "explore",
+    fixing: "fix",
+    refactoring: "refactor",
+    editing: "edit",
   }
 
-  return typeMap[cleaned] || (VALID_TYPES.includes(cleaned as ObservationType) ? cleaned as ObservationType : "discovery")
+  return typeMap[cleaned] || (VALID_TYPES.includes(cleaned as ObservationType) ? cleaned as ObservationType : "explore")
 }
 
 /**

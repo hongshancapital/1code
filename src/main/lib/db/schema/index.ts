@@ -148,6 +148,7 @@ export const modelUsage = sqliteTable("model_usage", {
   messageUuid: text("message_uuid"), // SDK message UUID for deduplication
   // Request metadata
   mode: text("mode"), // "plan" | "agent"
+  source: text("source"), // "chat" (default) | "memory" | "automation" — distinguishes LLM call origin
   durationMs: integer("duration_ms"),
   // Timestamp
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(

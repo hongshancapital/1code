@@ -560,14 +560,14 @@ export const memoryRouter = router({
             limit: input.limit,
           })
           obs = results
-            .filter((r) => r.score > 0.005 && r.type !== "response")
+            .filter((r) => r.score > 0.005 && r.type === "observation")
             .map((r) => r as unknown as Observation)
         } catch {
           // Fallback to recent observations on search failure
         }
       }
 
-      // Fallback: recent observations excluding noisy response type
+      // Fallback: recent observations excluding noisy conversation/response type
       if (obs.length === 0) {
         obs = db
           .select()
@@ -575,7 +575,7 @@ export const memoryRouter = router({
           .where(
             and(
               eq(observations.projectId, input.projectId),
-              sql`${observations.type} != 'response'`,
+              sql`${observations.type} NOT IN ('conversation', 'response')`,
             ),
           )
           .orderBy(desc(observations.createdAtEpoch))

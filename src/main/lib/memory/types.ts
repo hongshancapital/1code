@@ -1,24 +1,37 @@
 /**
  * Memory Types
- * Borrowed from claude-mem architecture
+ * Observation type system for coding + cowork scenarios
  */
 
 // ============ OBSERVATION TYPES ============
-// Observation type system (borrowed from claude-mem ModeManager)
+// 10 types covering both coding and cowork activities
 export const OBSERVATION_TYPES = [
-  { id: "discovery", name: "Discovery", icon: "Search" },
-  { id: "decision", name: "Decision", icon: "Target" },
-  { id: "bugfix", name: "Bug Fix", icon: "Bug" },
-  { id: "feature", name: "Feature", icon: "Sparkles" },
+  { id: "explore", name: "Explore", icon: "Search" },
+  { id: "research", name: "Research", icon: "BookOpen" },
+  { id: "implement", name: "Implement", icon: "Sparkles" },
+  { id: "fix", name: "Fix", icon: "Bug" },
   { id: "refactor", name: "Refactor", icon: "RefreshCw" },
-  { id: "change", name: "Change", icon: "FileEdit" },
-  { id: "response", name: "AI Response", icon: "MessageCircle" },
+  { id: "edit", name: "Edit", icon: "FileEdit" },
+  { id: "compose", name: "Compose", icon: "PenLine" },
+  { id: "analyze", name: "Analyze", icon: "BarChart3" },
+  { id: "decision", name: "Decision", icon: "Target" },
+  { id: "conversation", name: "Conversation", icon: "MessageCircle" },
 ] as const
 
 export type ObservationType = (typeof OBSERVATION_TYPES)[number]["id"]
 
+// Legacy type mapping for backward compatibility with existing DB data
+export const LEGACY_TYPE_MAP: Record<string, ObservationType> = {
+  discovery: "explore",
+  change: "edit",
+  feature: "implement",
+  bugfix: "fix",
+  response: "conversation",
+}
+
 // Concept tags system
 export const OBSERVATION_CONCEPTS = [
+  // Technical
   "how-it-works",
   "why-it-exists",
   "what-changed",
@@ -30,6 +43,13 @@ export const OBSERVATION_CONCEPTS = [
   "testing",
   "performance",
   "security",
+  // Collaboration
+  "user-requirement",
+  "project-context",
+  "design-rationale",
+  "data-insight",
+  "workflow",
+  "documentation",
 ] as const
 
 export type ObservationConcept = (typeof OBSERVATION_CONCEPTS)[number]
@@ -46,6 +66,8 @@ export interface ParsedObservation {
   filesModified: string[]
   toolName: string
   toolCallId?: string
+  /** Confidence of rule-based classification (0-1). Low confidence triggers LLM enhancement. */
+  confidence?: number
 }
 
 // ============ HOOK DATA TYPES ============

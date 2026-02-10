@@ -40,6 +40,7 @@ export const usageRouter = router({
         sessionId: z.string().optional(),
         messageUuid: z.string().optional(),
         mode: z.enum(["plan", "agent"]).optional(),
+        source: z.enum(["chat", "memory", "automation"]).optional(),
         durationMs: z.number().optional(),
       }),
     )
@@ -74,6 +75,7 @@ export const usageRouter = router({
           sessionId: input.sessionId,
           messageUuid: input.messageUuid,
           mode: input.mode,
+          source: input.source,
           durationMs: input.durationMs,
         })
         .returning()
@@ -252,6 +254,45 @@ export const usageRouter = router({
 
     return query
       .groupBy(modelUsage.model)
+      .orderBy(desc(sql`sum(${modelUsage.totalTokens})`))
+      .all()
+  }),
+
+  /**
+   * Get usage grouped by source
+   */
+  getBySource: publicProcedure.input(dateRangeSchema).query(({ input }) => {
+    const db = getDatabase()
+
+    const conditions = []
+    if (input.startDate) {
+      conditions.push(gte(modelUsage.createdAt, new Date(input.startDate)))
+    }
+    if (input.endDate) {
+      const endDate = new Date(input.endDate)
+      endDate.setDate(endDate.getDate() + 1)
+      conditions.push(lte(modelUsage.createdAt, endDate))
+    }
+
+    const baseQuery = db
+      .select({
+        // Handle NULL source as 'chat' for legacy data
+        source: sql<string>`coalesce(${modelUsage.source}, 'chat')`,
+        totalInputTokens: sql<number>`sum(${modelUsage.inputTokens})`,
+        totalOutputTokens: sql<number>`sum(${modelUsage.outputTokens})`,
+        totalTokens: sql<number>`sum(${modelUsage.totalTokens})`,
+        totalCostUsd: sql<number>`sum(cast(${modelUsage.costUsd} as real))`,
+        count: sql<number>`count(*)`,
+      })
+      .from(modelUsage)
+
+    const query =
+      conditions.length > 0
+        ? baseQuery.where(and(...conditions))
+        : baseQuery
+
+    return query
+      .groupBy(sql`coalesce(${modelUsage.source}, 'chat')`)
       .orderBy(desc(sql`sum(${modelUsage.totalTokens})`))
       .all()
   }),

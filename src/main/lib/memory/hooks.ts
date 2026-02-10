@@ -4,7 +4,7 @@
  * Borrowed from claude-mem architecture
  */
 
-import { getDatabase, memorySessions, observations, userPrompts } from "../db"
+import { getDatabase, memorySessions, observations, userPrompts, modelUsage } from "../db"
 import { eq, desc } from "drizzle-orm"
 import {
   parseToolToObservation,
@@ -17,6 +17,7 @@ import {
   isSummaryModelConfigured,
   generateSessionSummary,
 } from "./summarizer"
+import type { MemoryLLMUsage } from "./summarizer"
 import type {
   SessionStartData,
   UserPromptData,
@@ -24,6 +25,72 @@ import type {
   SessionEndData,
 } from "./types"
 import { queueForEmbedding } from "./vector-store"
+
+/**
+ * Record memory system LLM usage to model_usage table.
+ * Uses the session's associated subChatId/chatId/projectId for tracking.
+ */
+function recordMemoryUsage(
+  usage: MemoryLLMUsage,
+  sessionId: string,
+  subChatId: string,
+  chatId: string,
+  projectId: string,
+): void {
+  try {
+    const db = getDatabase()
+    const totalTokens = usage.inputTokens + usage.outputTokens
+
+    db.insert(modelUsage)
+      .values({
+        subChatId,
+        chatId,
+        projectId,
+        model: usage.model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens,
+        sessionId,
+        mode: "agent",
+        source: "memory",
+      })
+      .run()
+
+    console.log(
+      `[Memory] Usage recorded: ${usage.purpose} — ${totalTokens} tokens (${usage.model})`,
+    )
+  } catch (error) {
+    // Non-critical, don't block memory pipeline
+    console.warn("[Memory] Failed to record usage:", (error as Error).message)
+  }
+}
+
+/**
+ * Look up session context (subChatId, chatId, projectId) from memorySessions table.
+ */
+function getSessionContext(sessionId: string): {
+  subChatId: string
+  chatId: string
+  projectId: string
+} | null {
+  try {
+    const db = getDatabase()
+    const session = db
+      .select({
+        subChatId: memorySessions.subChatId,
+        chatId: memorySessions.chatId,
+        projectId: memorySessions.projectId,
+      })
+      .from(memorySessions)
+      .where(eq(memorySessions.id, sessionId))
+      .get()
+
+    if (!session?.subChatId || !session?.chatId || !session?.projectId) return null
+    return session as { subChatId: string; chatId: string; projectId: string }
+  } catch {
+    return null
+  }
+}
 
 export const memoryHooks = {
   /**
@@ -113,7 +180,16 @@ export const memoryHooks = {
       // Enhance with LLM if summary model is configured (async, best-effort)
       if (isSummaryModelConfigured()) {
         try {
-          parsed = await enhanceObservation(parsed, data.toolInput, data.toolOutput)
+          const result = await enhanceObservation(parsed, data.toolInput, data.toolOutput)
+          parsed = result.observation
+
+          // Record LLM usage if any
+          if (result.usage) {
+            const ctx = getSessionContext(data.sessionId)
+            if (ctx) {
+              recordMemoryUsage(result.usage, data.sessionId, ctx.subChatId, ctx.chatId, ctx.projectId)
+            }
+          }
         } catch (error) {
           // Silently fall back to rule-based
           console.warn("[Memory] LLM enhancement failed, using rule-based:", (error as Error).message)
@@ -226,17 +302,25 @@ export const memoryHooks = {
     const obsTitles = obs.map((o) => o.title || "")
     const obsNarratives = obs.map((o) => o.narrative || "")
 
-    const summary = await generateSessionSummary(promptTexts, obsTitles, obsNarratives)
-    if (!summary) return
+    const result = await generateSessionSummary(promptTexts, obsTitles, obsNarratives)
+    if (!result) return
+
+    // Record LLM usage for session summary
+    if (result.usage) {
+      const ctx = getSessionContext(sessionId)
+      if (ctx) {
+        recordMemoryUsage(result.usage, sessionId, ctx.subChatId, ctx.chatId, ctx.projectId)
+      }
+    }
 
     // Store summary on the session
     db.update(memorySessions)
       .set({
-        summaryRequest: summary.request,
-        summaryInvestigated: summary.investigated,
-        summaryLearned: summary.learned,
-        summaryCompleted: summary.completed,
-        summaryNextSteps: summary.nextSteps,
+        summaryRequest: result.summary.request,
+        summaryInvestigated: result.summary.investigated,
+        summaryLearned: result.summary.learned,
+        summaryCompleted: result.summary.completed,
+        summaryNextSteps: result.summary.nextSteps,
       })
       .where(eq(memorySessions.id, sessionId))
       .run()

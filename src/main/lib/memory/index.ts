@@ -18,6 +18,9 @@ export {
   enhanceObservation,
   generateSessionSummary,
   type SessionSummary,
+  type MemoryLLMUsage,
+  type EnhanceResult,
+  type SessionSummaryResult,
 } from "./summarizer"
 
 // Vector store

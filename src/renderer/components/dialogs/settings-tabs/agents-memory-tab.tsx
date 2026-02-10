@@ -28,6 +28,9 @@ import {
   MessageCircle,
   Filter,
   ChevronDown,
+  BookOpen,
+  PenLine,
+  BarChart3,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -59,25 +62,43 @@ import { selectedProjectAtom } from "../../../features/agents/atoms"
 import { memoryEnabledAtom, memoryRecordingEnabledAtom } from "../../../lib/atoms"
 import { Switch } from "../../ui/switch"
 
-// Observation type icons (borrowed from claude-mem)
+// Observation type icons
 const OBSERVATION_ICONS: Record<string, React.ReactNode> = {
-  discovery: <Search className="h-4 w-4 text-blue-500" />,
-  decision: <Target className="h-4 w-4 text-purple-500" />,
-  bugfix: <Bug className="h-4 w-4 text-red-500" />,
-  feature: <Sparkles className="h-4 w-4 text-green-500" />,
+  explore: <Search className="h-4 w-4 text-blue-500" />,
+  research: <BookOpen className="h-4 w-4 text-cyan-500" />,
+  implement: <Sparkles className="h-4 w-4 text-green-500" />,
+  fix: <Bug className="h-4 w-4 text-red-500" />,
   refactor: <RefreshCw className="h-4 w-4 text-orange-500" />,
+  edit: <FileEdit className="h-4 w-4 text-gray-500" />,
+  compose: <PenLine className="h-4 w-4 text-emerald-500" />,
+  analyze: <BarChart3 className="h-4 w-4 text-amber-500" />,
+  decision: <Target className="h-4 w-4 text-purple-500" />,
+  conversation: <MessageCircle className="h-4 w-4 text-indigo-500" />,
+  // Legacy types (backward compat with existing DB data)
+  discovery: <Search className="h-4 w-4 text-blue-500" />,
   change: <FileEdit className="h-4 w-4 text-gray-500" />,
+  feature: <Sparkles className="h-4 w-4 text-green-500" />,
+  bugfix: <Bug className="h-4 w-4 text-red-500" />,
   response: <MessageCircle className="h-4 w-4 text-indigo-500" />,
 }
 
 // Observation type labels
 const OBSERVATION_TYPE_LABELS: Record<string, string> = {
-  discovery: "Discovery",
-  decision: "Decision",
-  bugfix: "Bug Fix",
-  feature: "Feature",
+  explore: "Explore",
+  research: "Research",
+  implement: "Implement",
+  fix: "Fix",
   refactor: "Refactor",
+  edit: "Edit",
+  compose: "Compose",
+  analyze: "Analyze",
+  decision: "Decision",
+  conversation: "Conversation",
+  // Legacy types
+  discovery: "Discovery",
   change: "Change",
+  feature: "Feature",
+  bugfix: "Bug Fix",
   response: "AI Response",
 }
 

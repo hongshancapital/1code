@@ -1368,8 +1368,33 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             // Capture stderr from Claude process for debugging
             const stderrLines: string[] = []
 
+            // FIX: Merge previous unanswered user messages to prevent context loss on interruption
+            // When a user interrupts an ongoing generation, the SDK rolls back to the last assistant message.
+            // This causes any intermediate user messages (between the last assistant message and the current one)
+            // to be lost from the SDK's context. We must manually merge them into the current prompt.
+            let effectivePrompt = input.prompt
+            const previousUnansweredMessages: string[] = []
+
+            // Iterate backwards through existing messages to find continuous user messages at the tail
+            // existingMessages does NOT include the current message yet
+            for (let i = existingMessages.length - 1; i >= 0; i--) {
+              const msg = existingMessages[i]
+              if (msg.role === 'assistant') break
+              if (msg.role === 'user') {
+                 // Extract text parts
+                 const text = msg.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
+                 if (text && text.trim()) previousUnansweredMessages.unshift(text)
+              }
+            }
+
+            if (previousUnansweredMessages.length > 0) {
+              console.log(`[claude] Merging ${previousUnansweredMessages.length} previous unanswered messages into prompt`)
+              // Join with double newlines to separate distinct messages clearly
+              effectivePrompt = `${previousUnansweredMessages.join('\n\n')}\n\n${input.prompt}`
+            }
+
             // Parse mentions from prompt (agents, skills, files, folders)
-            const { cleanedPrompt, agentMentions, skillMentions } = parseMentions(input.prompt)
+            const { cleanedPrompt, agentMentions, skillMentions } = parseMentions(effectivePrompt)
 
             // Build agents option for SDK (proper registration via options.agents)
             const agentsOption = await buildAgentsOption(agentMentions, input.cwd)
@@ -1659,6 +1684,10 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
               // This ensures browser_navigate can open the panel on demand even if it wasn't open at session start
               try {
                 const browserMcp = await createBrowserMcpServer()
+                // Set working directory for relative path resolution
+                if (input.cwd) {
+                  browserManager.workingDirectory = input.cwd
+                }
                 mcpServersFiltered = {
                   ...mcpServersFiltered,
                   browser: browserMcp,
@@ -1908,7 +1937,7 @@ ${prompt}
                       type: "observations",
                       limit: 15,
                     })
-                    // Filter out noise: skip "response" type (AI responses) and low-score results
+                    // Filter out noise: skip "conversation"/"response" type (AI responses) and low-score results
                     relevantObs = searchResults
                       .filter((r) => r.type === "observation" && r.score > 0.005)
                       .map((r) => ({
@@ -1931,7 +1960,7 @@ ${prompt}
                     .limit(30)
                     .all()
                   relevantObs = recentObs
-                    .filter((o) => o.type !== "response")
+                    .filter((o) => o.type !== "conversation" && o.type !== "response")
                     .slice(0, 15)
                     .map((o) => ({
                       type: o.type,
