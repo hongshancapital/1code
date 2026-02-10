@@ -175,7 +175,7 @@ export function useNavigate() {
       setChatId,
       utils.chats.get,
       setSelectedProject,
-      setNavigatingProjectSync,
+      setNavigatedProjectId,
       addToOpenSubChats,
       setActiveSubChat,
       setScrollTarget,

@@ -74,13 +74,10 @@ function writeArtifacts(filePath: string, artifacts: StoredArtifact[]): void {
 /**
  * Create Artifact MCP server with tools
  */
-export async function createArtifactMcpServer(context: ArtifactMcpContext) {
-  const { createSdkMcpServer, tool } = await getSdkModule()
+export async function getArtifactToolDefinitions(context: ArtifactMcpContext) {
+  const { tool } = await getSdkModule()
 
-  return createSdkMcpServer({
-    name: "artifact-marker",
-    version: "1.0.0",
-    tools: [
+  return [
       // ========================================
       // mark_artifact - 标记交付物
       // ========================================
@@ -214,6 +211,16 @@ Call: mark_artifact(file_path="/path/to/report.pdf", description="Monthly Report
           }
         }
       ),
-    ],
+    ]
+}
+
+export async function createArtifactMcpServer(context: ArtifactMcpContext) {
+  const { createSdkMcpServer } = await getSdkModule()
+  const tools = await getArtifactToolDefinitions(context)
+
+  return createSdkMcpServer({
+    name: "artifact-marker",
+    version: "1.0.0",
+    tools,
   })
 }

@@ -52,18 +52,25 @@ export async function autoRenameAgentChat({
 
       try {
         // Rename sub-chat
+        console.log(`[auto-rename] Attempt ${attempt + 1}: renaming subChat ${subChatId} to "${name}"`)
         await renameSubChat({ subChatId, name })
+        console.log(`[auto-rename] renameSubChat succeeded`)
         updateSubChatName(subChatId, name)
+        console.log(`[auto-rename] updateSubChatName succeeded`)
 
         // Also rename parent chat if this is the first sub-chat
         if (isFirstSubChat) {
+          console.log(`[auto-rename] Renaming parent chat ${parentChatId}`)
           await renameChat({ chatId: parentChatId, name })
           updateChatName(parentChatId, name)
+          console.log(`[auto-rename] Parent chat renamed`)
         }
 
+        console.log(`[auto-rename] ✓ Rename complete!`)
         return // Success!
-      } catch {
+      } catch (err) {
         // NOT_FOUND or other error - retry
+        console.warn(`[auto-rename] Attempt ${attempt + 1} failed:`, (err as Error).message || err)
         if (attempt === delays.length - 1) {
           console.error(
             `[auto-rename] Failed to rename after ${delays.length} attempts`,

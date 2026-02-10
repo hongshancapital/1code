@@ -472,6 +472,9 @@ export function AgentsSkillsTab() {
     try {
       await setSkillEnabledMutation.mutateAsync({ skillName, enabled })
       await trpcUtils.claudeSettings.getEnabledSkills.invalidate()
+      // Invalidate skills queries so widgets update after filesystem sync
+      await trpcUtils.skills.listEnabled.invalidate()
+      await trpcUtils.skills.list.invalidate()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update"
       toast.error("Failed to update skill", { description: message })

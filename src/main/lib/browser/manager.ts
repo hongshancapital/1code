@@ -56,6 +56,13 @@ export interface DeviceEmulationParams {
 export class BrowserManager extends EventEmitter {
   private pending = new Map<string, PendingOperation>()
   private lockTimeout: NodeJS.Timeout | null = null
+  private _workingDirectory: string | null = null
+
+  // Network monitoring state
+  private capturedRequests = new Map<string, CapturedNetworkRequest>()
+  private isCapturingNetwork = false
+  private networkOptions: { maxBodySize?: number; captureTypes?: string[] } = {}
+
   private state: BrowserState = {
     isReady: false,
     isOperating: false,
@@ -74,6 +81,7 @@ export class BrowserManager extends EventEmitter {
   private setupIpcHandlers(): void {
     // Renderer reports browser ready state
     ipcMain.on("browser:ready", (_, ready: boolean) => {
+      console.log("[BrowserManager] IPC browser:ready received from renderer:", ready)
       this.state.isReady = ready
       this.emit("ready", ready)
     })
@@ -152,8 +160,9 @@ export class BrowserManager extends EventEmitter {
     if (params === null) {
       // Disable emulation - restore defaults
       browserWebview.disableDeviceEmulation()
-      // Reset to default user agent
-      const defaultUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+      // Reset to default user agent using actual Chrome version
+      const chromeVersion = process.versions.chrome
+      const defaultUA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`
       browserWebview.setUserAgent(defaultUA)
       this.emit("deviceEmulationChanged", null)
     } else {
@@ -169,6 +178,7 @@ export class BrowserManager extends EventEmitter {
           width: params.viewWidth,
           height: params.viewHeight,
         },
+        scale:1,
         deviceScaleFactor: params.deviceScaleFactor,
       })
       // Set user agent
@@ -272,7 +282,7 @@ export class BrowserManager extends EventEmitter {
    * Capture screenshot directly in main process via webContents.capturePage().
    * Writes raw PNG Buffer to file — no base64 IPC, no data corruption.
    */
-  async captureScreenshot(filePath: string): Promise<{ success: boolean; width: number; height: number; error?: string }> {
+  async captureScreenshot(filePath: string, rect?: Electron.Rectangle): Promise<{ success: boolean; width: number; height: number; error?: string }> {
     const allContents = webContents.getAllWebContents()
     const browserWebview = allContents.find(wc => {
       if (wc.getType() !== "webview") return false
@@ -288,7 +298,10 @@ export class BrowserManager extends EventEmitter {
     }
 
     try {
-      const image = await browserWebview.capturePage()
+      const image = rect ? await browserWebview.capturePage(rect) : await browserWebview.capturePage()
+      if (image.isEmpty()) {
+        return { success: false, width: 0, height: 0, error: "Captured image is empty (element may be off-screen or have zero size)" }
+      }
       const pngBuffer = image.toPNG()
       await fs.writeFile(filePath, pngBuffer)
       const size = image.getSize()
@@ -296,6 +309,303 @@ export class BrowserManager extends EventEmitter {
     } catch (e) {
       return { success: false, width: 0, height: 0, error: `Screenshot failed: ${e}` }
     }
+  }
+
+  /**
+   * Capture full page segments directly in main process to avoid IPC data transfer limits.
+   * Returns buffers for stitching.
+   */
+  async captureFullPageSegments(): Promise<BrowserResult<{
+    segments: Buffer[]
+    width: number
+    height: number
+    viewportHeight: number
+    totalHeight: number
+  }>> {
+    const wc = this.getWebContents()
+    if (!wc) return { success: false, error: "No browser webview found" }
+
+    try {
+      // Get dimensions
+      const dims = await wc.executeJavaScript(`(() => {
+        const body = document.body;
+        const html = document.documentElement;
+        return {
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          totalHeight: Math.max(body.scrollHeight, body.offsetHeight, html.clientHeight, html.scrollHeight, html.offsetHeight),
+          scrollX: window.scrollX,
+          scrollY: window.scrollY
+        };
+      })()`)
+
+      const { viewportWidth, viewportHeight, totalHeight, scrollX, scrollY } = dims
+      const maxSegments = 50
+      const segmentCount = Math.min(Math.ceil(totalHeight / viewportHeight), maxSegments)
+      const segments: Buffer[] = []
+
+      // Hide scrollbars
+      const cssKey = await wc.insertCSS(`::-webkit-scrollbar { display: none !important; }`)
+
+      try {
+        for (let i = 0; i < segmentCount; i++) {
+          await wc.executeJavaScript(`window.scrollTo(0, ${i * viewportHeight})`)
+          // Wait for scroll/render
+          await new Promise(r => setTimeout(r, 200))
+
+          // Capture viewport
+          const image = await wc.capturePage()
+          if (!image.isEmpty()) {
+            segments.push(image.toPNG())
+          }
+        }
+      } finally {
+        // Restore state
+        await wc.removeInsertedCSS(cssKey)
+        await wc.executeJavaScript(`window.scrollTo(${scrollX}, ${scrollY})`)
+      }
+
+      return {
+        success: true,
+        data: {
+          segments,
+          width: viewportWidth,
+          height: totalHeight,
+          viewportHeight,
+          totalHeight
+        }
+      }
+    } catch (e) {
+      return { success: false, error: `Full page capture failed: ${e}` }
+    }
+  }
+
+  /**
+   * Start network monitoring via CDP (Chrome DevTools Protocol)
+   */
+  async startNetworkCapture(options: { maxBodySize?: number; captureTypes?: string[] } = {}): Promise<BrowserResult> {
+    const wc = this.getWebContents()
+    if (!wc) return { success: false, error: "No browser webview found" }
+
+    try {
+      if (!wc.debugger.isAttached()) {
+        wc.debugger.attach("1.3")
+      }
+
+      await wc.debugger.sendCommand("Network.enable", {
+        maxResourceBufferSize: 1024 * 1024 * 10, // 10MB
+        maxTotalBufferSize: 1024 * 1024 * 100,   // 100MB
+      })
+
+      this.isCapturingNetwork = true
+      this.networkOptions = options
+      this.setupNetworkListeners(wc)
+
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: `Failed to start network capture: ${e}` }
+    }
+  }
+
+  /**
+   * Stop network monitoring
+   */
+  async stopNetworkCapture(): Promise<BrowserResult<number>> {
+    const wc = this.getWebContents()
+    if (!wc) return { success: false, error: "No browser webview found" }
+
+    try {
+      this.isCapturingNetwork = false
+      await wc.debugger.sendCommand("Network.disable")
+      if (wc.debugger.isAttached()) {
+        wc.debugger.detach()
+      }
+      return { success: true, data: this.capturedRequests.size }
+    } catch (e) {
+      return { success: false, error: `Failed to stop network capture: ${e}` }
+    }
+  }
+
+  /**
+   * Clear captured requests
+   */
+  async clearNetworkCapture(): Promise<BrowserResult> {
+    this.capturedRequests.clear()
+    return { success: true }
+  }
+
+  /**
+   * Get captured network requests with filtering
+   */
+  async getNetworkRequests(filter: {
+    urlPattern?: string
+    method?: string
+    hasError?: boolean
+    limit?: number
+    offset?: number
+  } = {}): Promise<BrowserResult<{ requests: CapturedNetworkRequest[]; total: number; capturing: boolean }>> {
+    let requests = Array.from(this.capturedRequests.values())
+
+    // Apply filters
+    if (filter.urlPattern) {
+      try {
+        const re = new RegExp(filter.urlPattern, "i")
+        requests = requests.filter(r => re.test(r.url))
+      } catch {}
+    }
+
+    if (filter.method) {
+      requests = requests.filter(r => r.method === filter.method)
+    }
+
+    if (filter.hasError) {
+      requests = requests.filter(r => !!r.error || r.status >= 400)
+    }
+
+    // Sort by start time desc
+    requests.sort((a, b) => b.startTime - a.startTime)
+
+    const total = requests.length
+    const limit = filter.limit || 50
+    const offset = filter.offset || 0
+    const sliced = requests.slice(offset, offset + limit)
+
+    return {
+      success: true,
+      data: {
+        requests: sliced,
+        total,
+        capturing: this.isCapturingNetwork
+      }
+    }
+  }
+
+  /**
+   * Wait for network requests matching the filter
+   */
+  async waitForNetworkRequests(filter: {
+    urlPattern?: string
+    method?: string
+    count?: number
+    timeout?: number
+  }): Promise<BrowserResult<{ requests: CapturedNetworkRequest[] }>> {
+    if (!this.isCapturingNetwork) {
+      return { success: false, error: "Network monitoring is not active. Call browser_network with action='start' first." }
+    }
+
+    const count = filter.count || 1
+    const timeoutMs = filter.timeout || DEFAULT_TIMEOUT_MS
+    const collected: CapturedNetworkRequest[] = []
+
+    return new Promise((resolve) => {
+      let timer: NodeJS.Timeout
+
+      const listener = (req: CapturedNetworkRequest) => {
+        // Check filters
+        if (filter.method && req.method !== filter.method) return
+        if (filter.urlPattern) {
+          try {
+            if (!new RegExp(filter.urlPattern, "i").test(req.url)) return
+          } catch {
+            return
+          }
+        }
+
+        collected.push(req)
+
+        if (collected.length >= count) {
+          cleanup()
+          resolve({ success: true, data: { requests: collected } })
+        }
+      }
+
+      const cleanup = () => {
+        this.removeListener("network-request-completed", listener)
+        if (timer) clearTimeout(timer)
+      }
+
+      this.on("network-request-completed", listener)
+
+      timer = setTimeout(() => {
+        cleanup()
+        resolve({ success: true, data: { requests: collected } })
+      }, timeoutMs)
+    })
+  }
+
+  private setupNetworkListeners(wc: Electron.WebContents) {
+    // Remove existing listeners to avoid duplicates
+    wc.debugger.removeAllListeners("message")
+
+    wc.debugger.on("message", async (event, method, params) => {
+      if (!this.isCapturingNetwork) return
+
+      if (method === "Network.requestWillBeSent") {
+        const { requestId, request, timestamp, type } = params
+        // Filter by captureTypes if specified
+        if (this.networkOptions.captureTypes && !this.networkOptions.captureTypes.includes(type)) {
+          return
+        }
+
+        this.capturedRequests.set(requestId, {
+          id: requestId,
+          method: request.method,
+          url: request.url,
+          status: 0,
+          statusText: "",
+          requestHeaders: request.headers,
+          startTime: timestamp, // Monotonic time
+          duration: 0,
+          size: 0,
+          type: type === "XHR" || type === "Fetch" ? "fetch" : "other",
+          requestBody: request.postData
+        })
+      } else if (method === "Network.responseReceived") {
+        const { requestId, response } = params
+        const req = this.capturedRequests.get(requestId)
+        if (req) {
+          req.status = response.status
+          req.statusText = response.statusText
+          req.responseHeaders = response.headers
+          req.contentType = response.mimeType
+        }
+      } else if (method === "Network.loadingFinished") {
+        const { requestId, timestamp, encodedDataLength } = params
+        const req = this.capturedRequests.get(requestId)
+        if (req) {
+          req.duration = (timestamp - req.startTime) * 1000 // s to ms
+          req.size = encodedDataLength
+
+          // Try to get response body for XHR/Fetch/Document
+          // We only fetch body for text-based content to avoid performance issues
+          if (["fetch", "xhr", "document", "script", "stylesheet"].includes(req.type) ||
+              (req.contentType && (req.contentType.includes("json") || req.contentType.includes("text") || req.contentType.includes("xml")))) {
+            try {
+              const { body, base64Encoded } = await wc.debugger.sendCommand("Network.getResponseBody", { requestId })
+              if (body) {
+                const maxBodySize = this.networkOptions.maxBodySize || 1024 * 1024 // Default 1MB
+                if (body.length > maxBodySize) {
+                  req.responseBody = body.slice(0, maxBodySize) + "... (truncated)"
+                } else {
+                  req.responseBody = body
+                }
+              }
+            } catch (e) {
+              // Ignore body fetch errors (e.g. for redirects or empty bodies)
+            }
+          }
+          this.emit("network-request-completed", req)
+        }
+      } else if (method === "Network.loadingFailed") {
+        const { requestId, errorText, timestamp } = params
+        const req = this.capturedRequests.get(requestId)
+        if (req) {
+          req.error = errorText
+          req.duration = (timestamp - req.startTime) * 1000
+          this.emit("network-request-completed", req)
+        }
+      }
+    })
   }
 
   /**
@@ -332,11 +642,28 @@ export class BrowserManager extends EventEmitter {
   }
 
   /**
+   * Renew the lock timeout to prevent auto-release during active use.
+   * Called by MCP tools when they are executed.
+   */
+  renewLock(): void {
+    if (this.state.isLocked) {
+      this.resetLockTimeout()
+    }
+  }
+
+  /**
    * Show the browser panel in the renderer.
    * Sends IPC to renderer to set browserVisible = true.
    */
   showPanel(): void {
-    this.getWindow()?.webContents.send("browser:show-panel")
+    const win = this.getWindow()
+    console.log("[BrowserManager] showPanel called, window exists:", !!win, "allWindows:", BrowserWindow.getAllWindows().length)
+    if (win) {
+      win.webContents.send("browser:show-panel")
+      console.log("[BrowserManager] browser:show-panel IPC sent")
+    } else {
+      console.error("[BrowserManager] No window available to send browser:show-panel")
+    }
   }
 
   /**
@@ -344,22 +671,30 @@ export class BrowserManager extends EventEmitter {
    * Returns true if ready, false if timed out.
    */
   async ensureReady(timeoutMs = 15_000): Promise<boolean> {
-    if (this.state.isReady) return true
+    console.log("[BrowserManager] ensureReady called, current isReady:", this.state.isReady)
+    if (this.state.isReady) {
+      console.log("[BrowserManager] Already ready, returning true immediately")
+      return true
+    }
 
     // Show the panel to trigger webview creation
     this.showPanel()
 
     // Wait for ready event
     return new Promise<boolean>((resolve) => {
+      console.log("[BrowserManager] Waiting for ready event (timeout:", timeoutMs, "ms)")
       const timer = setTimeout(() => {
+        console.error("[BrowserManager] TIMEOUT! No ready event received after", timeoutMs, "ms")
         this.removeListener("ready", onReady)
         resolve(false)
       }, timeoutMs)
 
       const onReady = (ready: boolean) => {
+        console.log("[BrowserManager] Received ready event:", ready)
         if (ready) {
           clearTimeout(timer)
           this.removeListener("ready", onReady)
+          console.log("[BrowserManager] Browser is now ready, resolving true")
           resolve(true)
         }
       }
@@ -391,6 +726,14 @@ export class BrowserManager extends EventEmitter {
     return this.state.currentTitle
   }
 
+  get workingDirectory(): string | null {
+    return this._workingDirectory
+  }
+
+  set workingDirectory(dir: string | null) {
+    this._workingDirectory = dir
+  }
+
   get recentActions(): readonly RecentAction[] {
     return this.state.recentActions
   }
@@ -410,6 +753,130 @@ export class BrowserManager extends EventEmitter {
 
     const id = crypto.randomUUID()
     const operation: BrowserOperation = { id, type, params }
+
+    // Handle main-process-only operations
+    if (type === "cookies") {
+      this.state.isOperating = true
+      this.state.currentAction = this.formatAction(type, params)
+      this.emit("operationStart", { type, params })
+
+      try {
+        const ses = session.fromPartition("persist:browser")
+        const { action, cookie, url } = params as any
+        let result: BrowserResult = { success: false, error: "Unknown action" }
+
+        if (action === 'get') {
+          const filter: any = {}
+          if (url) filter.url = url
+          if (cookie?.domain) filter.domain = cookie.domain
+          if (cookie?.name) filter.name = cookie.name
+          const cookies = await ses.cookies.get(filter)
+          result = { success: true, data: { cookies } }
+        } else if (action === 'set') {
+          if (!url && !cookie?.url) throw new Error("URL required for setting cookie")
+          const details = { ...cookie, url: url || cookie.url }
+          await ses.cookies.set(details)
+          result = { success: true }
+        } else if (action === 'delete') {
+          if (!url) throw new Error("URL required for deleting cookie")
+          if (!cookie?.name) throw new Error("Cookie name required")
+          await ses.cookies.remove(url, cookie.name)
+          result = { success: true }
+        } else if (action === 'clear') {
+          await ses.clearStorageData({ storages: ['cookies'] })
+          result = { success: true }
+        }
+
+        this.finishOperation(type, params, result.success)
+        return result as BrowserResult<T>
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e)
+        this.finishOperation(type, params, false)
+        return { success: false, error } as BrowserResult<T>
+      }
+    }
+
+    if (type === "uploadFile") {
+      this.state.isOperating = true
+      this.state.currentAction = this.formatAction(type, params)
+      this.emit("operationStart", { type, params })
+
+      try {
+        const { selector, ref, filePath } = params as any
+        let cssSelector = selector
+
+        // Resolve ref to selector if needed
+        if (ref && !cssSelector) {
+          // Temporarily use renderer to get selector
+          // Note: recursively calling execute() might be risky if not careful,
+          // but here we are calling a renderer operation from a main operation.
+          // We need to use the renderer execution path.
+          // Since this block intercepts 'uploadFile', we can still use the standard
+          // IPC path for 'getSelector'.
+          const opId = crypto.randomUUID()
+          const op: BrowserOperation = { id: opId, type: "getSelector", params: { ref } }
+
+          const selResult = await new Promise<BrowserResult<any>>((resolve) => {
+             const timer = setTimeout(() => {
+               this.pending.delete(opId)
+               resolve({ success: false, error: "Timeout getting selector" })
+             }, 5000)
+
+             this.pending.set(opId, {
+               resolve: (r) => {
+                 clearTimeout(timer)
+                 resolve(r)
+               },
+               reject: (e) => {
+                 clearTimeout(timer)
+                 resolve({ success: false, error: e.message })
+               },
+               timer
+             })
+
+             this.getWindow()?.webContents.send("browser:execute", op)
+          })
+
+          if (selResult.success && selResult.data?.selector) {
+            cssSelector = selResult.data.selector
+          }
+        }
+
+        if (!cssSelector) throw new Error("Selector required for file upload (could not resolve ref)")
+
+        const wc = this.getWebContents()
+        if (!wc) throw new Error("No browser webview found")
+
+        if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+        await wc.debugger.sendCommand('DOM.enable')
+        const { root } = await wc.debugger.sendCommand('DOM.getDocument')
+        const { nodeId } = await wc.debugger.sendCommand('DOM.querySelector', { nodeId: root.nodeId, selector: cssSelector })
+
+        if (!nodeId) throw new Error(`Node not found for selector: ${cssSelector}`)
+
+        await wc.debugger.sendCommand('DOM.setFileInputFiles', {
+          files: [filePath],
+          nodeId
+        })
+
+        await wc.debugger.sendCommand('DOM.disable')
+        wc.debugger.detach()
+
+        const result = { success: true }
+        this.finishOperation(type, params, true)
+        return result as BrowserResult<T>
+      } catch (e) {
+        // Cleanup debugger
+        try {
+          const wc = this.getWebContents()
+          if (wc?.debugger.isAttached()) wc.debugger.detach()
+        } catch {}
+
+        const error = e instanceof Error ? e.message : String(e)
+        this.finishOperation(type, params, false)
+        return { success: false, error } as BrowserResult<T>
+      }
+    }
 
     // Update state
     this.state.isOperating = true
@@ -518,6 +985,26 @@ export class BrowserManager extends EventEmitter {
         return "Downloading file"
       case "querySelector":
         return `Querying ${params.selector || "elements"}`
+      case "getAttribute":
+        return `Getting attribute ${params.attribute || "all"} of ${params.ref || params.selector || "element"}`
+      case "extractContent":
+        return `Extracting content (${params.mode || "article"})`
+      case "fullPageScreenshot":
+        return "Taking full page screenshot"
+      case "startNetworkCapture":
+        return "Starting network monitoring"
+      case "stopNetworkCapture":
+        return "Stopping network monitoring"
+      case "getNetworkRequests":
+        return "Querying network requests"
+      case "clearNetworkCapture":
+        return "Clearing network capture"
+      case "cookies":
+        return `Managing cookies (${params.action})`
+      case "storage":
+        return `Managing storage (${params.action})`
+      case "uploadFile":
+        return "Uploading file"
       default:
         return type
     }
@@ -525,6 +1012,18 @@ export class BrowserManager extends EventEmitter {
 
   private getWindow(): BrowserWindow | null {
     return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
+  }
+
+  private getWebContents(): Electron.WebContents | null {
+    const allContents = webContents.getAllWebContents()
+    return allContents.find(wc => {
+      if (wc.getType() !== "webview") return false
+      try {
+        return wc.session === session.fromPartition("persist:browser")
+      } catch {
+        return false
+      }
+    }) || null
   }
 
   /**

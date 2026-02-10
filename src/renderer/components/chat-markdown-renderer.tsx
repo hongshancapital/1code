@@ -273,12 +273,50 @@ function ImageFullscreenViewer({ src, alt, onClose }: { src: string; alt: string
  */
 function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  const resolved = src ? resolveImageSrc(src) : ""
+
+  // For local-file:// URLs, fetch and convert to blob URL
+  // Direct <img src="local-file://..."> fails in Electron
+  useEffect(() => {
+    if (!resolved || !resolved.startsWith("local-file://")) {
+      setBlobUrl(null)
+      return
+    }
+
+    const cached = imageStatusCache.get(resolved)
+    if (cached === "error") return
+
+    let objectUrl: string | null = null
+    let cancelled = false
+
+    fetch(resolved)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.blob()
+      })
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => {
+        if (cancelled) return
+        imageStatusCache.set(resolved, "error")
+        setBlobUrl(null)
+      })
+
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [resolved])
 
   if (!src || !isImageSrcSafe(src)) {
     return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
   }
 
-  const resolved = resolveImageSrc(src)
   const cached = imageStatusCache.get(resolved)
 
   // If previously failed, show alt text
@@ -286,10 +324,14 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
     return alt ? <span className="text-muted-foreground italic text-xs">[{alt}]</span> : null
   }
 
+  // For local files, wait for blob URL; for remote/data URLs, use directly
+  const displaySrc = resolved.startsWith("local-file://") ? blobUrl : resolved
+  if (!displaySrc) return null
+
   return (
     <>
       <img
-        src={resolved}
+        src={displaySrc}
         alt={alt || ""}
         className="max-w-full max-h-96 rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
         onLoad={() => { imageStatusCache.set(resolved, "loaded") }}
@@ -298,7 +340,7 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
       />
       {isFullscreen && (
         <ImageFullscreenViewer
-          src={resolved}
+          src={displaySrc}
           alt={alt || ""}
           onClose={() => setIsFullscreen(false)}
         />

@@ -5,7 +5,7 @@
 
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
-import { chats, getDatabase, memorySessions, projects, subChats } from "../../db"
+import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"
 import { applyRollbackStash } from "../../git/stash"
 import { publicProcedure, router } from "../index"
 import {
@@ -481,13 +481,17 @@ export const subChatsRouter = router({
       userMessage: z.string(),
       summaryProviderId: z.string().optional(),
       summaryModelId: z.string().optional(),
+      subChatId: z.string().optional(),
+      chatId: z.string().optional(),
+      projectId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       // 1. Try configured summary AI provider
       if (input.summaryProviderId && input.summaryModelId) {
         try {
-          const { callSummaryAI } = await import("./summary-ai")
-          const name = await callSummaryAI(
+          const { callSummaryAIWithUsage } = await import("./summary-ai")
+          const startTime = Date.now()
+          const result = await callSummaryAIWithUsage(
             input.summaryProviderId,
             input.summaryModelId,
             "Generate a short, descriptive name for a chat conversation based on the user's first message. " +
@@ -495,9 +499,29 @@ export const subChatsRouter = router({
             "Return ONLY the name, nothing else. No quotes, no punctuation at the end.",
             input.userMessage,
           )
-          if (name) {
-            console.log("[generateSubChatName] Summary AI generated:", name)
-            return { name }
+          if (result?.text) {
+            console.log("[generateSubChatName] Summary AI generated:", result.text)
+            // Record usage
+            if (result.usage && input.subChatId && input.chatId && input.projectId) {
+              try {
+                const db = getDatabase()
+                const totalTokens = result.usage.inputTokens + result.usage.outputTokens
+                db.insert(modelUsage).values({
+                  subChatId: input.subChatId,
+                  chatId: input.chatId,
+                  projectId: input.projectId,
+                  model: result.usage.model,
+                  inputTokens: result.usage.inputTokens,
+                  outputTokens: result.usage.outputTokens,
+                  totalTokens,
+                  source: "auto-name",
+                  durationMs: Date.now() - startTime,
+                }).run()
+              } catch (usageErr) {
+                console.warn("[generateSubChatName] Failed to record usage:", (usageErr as Error).message)
+              }
+            }
+            return { name: result.text }
           }
         } catch (error) {
           console.warn("[generateSubChatName] Summary AI failed, falling back:", (error as Error).message)

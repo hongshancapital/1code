@@ -402,8 +402,14 @@ export const hasMessagesAtom = atom((get) => {
 
 // Is streaming but idle - AI is working between visible actions
 // True when: streaming is active, but the last assistant message's last part
-// is NOT actively outputting text or executing a tool call.
-// This is the "thinking what to do next" state between tool calls.
+// is COMPLETED (output-available or output-error). This means the AI finished
+// the previous action and is thinking about what to do next.
+//
+// NOT idle when:
+// - Last part is text (AI is outputting text)
+// - Last part is reasoning (AI is thinking aloud)
+// - Last part is a tool call that hasn't completed yet (any state other than
+//   output-available/output-error, including Task tools running subagents)
 export const isStreamingIdleAtom = atom((get) => {
   const isStreaming = get(isStreamingAtom)
   if (!isStreaming) return false
@@ -417,21 +423,17 @@ export const isStreamingIdleAtom = atom((get) => {
   const lastPart = parts[parts.length - 1]
   if (!lastPart) return false
 
-  // Text part still streaming - NOT idle
+  // Text part - AI is outputting text, NOT idle
   if (lastPart.type === "text") return false
 
-  // Reasoning/thinking part still streaming - NOT idle
+  // Reasoning/thinking part - AI is thinking aloud, NOT idle
   if (lastPart.type === "reasoning") return false
 
-  // Tool call still pending or input-streaming - NOT idle
-  if (lastPart.state === "input-streaming") return false
-  if (lastPart.state === "partial-call") return false
+  // Tool call: only idle if the tool has COMPLETED (output-available or output-error)
+  // Any other state means the tool is still executing (including Task tools with subagents)
+  const isToolCompleted = lastPart.state === "output-available" || lastPart.state === "output-error"
 
-  // Tool call with result pending (waiting for output) - NOT idle
-  if (lastPart.state === "call" || lastPart.state === "invoke") return false
-
-  // Last part is completed (output-available, output-error, done, etc.) - AI is idle/thinking
-  return true
+  return isToolCompleted
 })
 
 // ============================================================================
@@ -725,7 +727,12 @@ function updatePreviousState(
 export const syncMessagesWithStatusAtom = atom(
   null,
   (get, set, payload: { messages: Message[]; status: string; subChatId?: string }) => {
+    const _syncStart = performance.now()
     const { messages, status, subChatId } = payload
+
+    // Guard: during workspace switch transition, currentSubChatIdAtom is reset to "default".
+    // Skip sync to prevent stale messages from a previous workspace being written into atoms.
+    if (!subChatId || subChatId === "default") return
 
     // Update current subChatId if provided AND changed
     // Avoid unnecessary set() calls - even though Jotai won't re-render for same primitive,
@@ -852,6 +859,11 @@ export const syncMessagesWithStatusAtom = atom(
       set(streamingMessageIdAtom, lastId)
     } else {
       set(streamingMessageIdAtom, null)
+    }
+
+    const duration = performance.now() - _syncStart
+    if (duration > 5) {
+      console.log(`[SyncMessages] SLOW SYNC: ${duration.toFixed(2)}ms (msgs=${messages.length}, fullReset=${isFullReset})`)
     }
   }
 )

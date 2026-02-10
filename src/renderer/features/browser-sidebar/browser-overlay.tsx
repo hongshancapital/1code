@@ -112,19 +112,19 @@ export function BrowserOverlay({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className={cn(
-            "absolute inset-0 z-50",
+            "absolute inset-0 z-30",
             locked ? "pointer-events-auto" : "pointer-events-none"
           )}
         >
-          {/* Locked mode: content blocking area (cursor-none only here, below status bar) */}
+          {/* Locked mode: content blocking area (cursor-none only here) */}
           {locked && (
-            <div className="absolute inset-0 top-8 bg-black/5 cursor-not-allowed" />
+            <div className="absolute inset-0 bg-black/5 cursor-not-allowed" />
           )}
 
-          {/* Glow border — inset box-shadow, starts below status bar */}
+          {/* Glow border — inset box-shadow */}
           <GlowBorder active={!!currentAction} locked={locked} />
 
-          {/* Status bar — z-20 to sit above everything, normal cursor */}
+          {/* Status bar — z-20 to sit above everything, floating capsule */}
           <StatusBar
             currentAction={currentAction}
             recentActions={recentActions.slice(0, 3)}
@@ -150,7 +150,7 @@ function GlowBorder({ active, locked }: { active: boolean; locked: boolean }) {
 
   return (
     <motion.div
-      className="absolute inset-0 top-8 pointer-events-none z-10 rounded-[inherit]"
+      className="absolute inset-0 pointer-events-none z-10 rounded-[inherit]"
       style={{ boxShadow: shadow }}
       animate={active ? {
         opacity: [0.6, 1, 0.6],
@@ -181,15 +181,15 @@ function StatusBar({
   const { t } = useTranslation("common")
   return (
     <motion.div
-      initial={{ y: -32, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: -32, opacity: 0 }}
+      initial={{ y: -20, opacity: 0, x: "-50%" }}
+      animate={{ y: 0, opacity: 1, x: "-50%" }}
+      exit={{ y: -20, opacity: 0, x: "-50%" }}
       className={cn(
-        "absolute top-0 left-0 right-0 z-20",
-        "h-8 px-3",
+        "absolute top-3 left-1/2 z-20",
+        "h-8 px-3 rounded-full shadow-lg shadow-black/20",
         "bg-zinc-900/90 backdrop-blur-md",
-        "border-b border-white/[0.06]",
-        "flex items-center gap-2",
+        "border border-white/[0.08]",
+        "flex items-center gap-2 whitespace-nowrap w-max",
         locked && "cursor-default"
       )}
     >
@@ -233,9 +233,6 @@ function StatusBar({
       )}>
         {currentAction || (locked ? t("browser.overlay.aiControlling") : t("browser.overlay.waiting"))}
       </span>
-
-      {/* Spacer */}
-      <div className="flex-1" />
 
       {/* Recent actions - compact, only when not locked */}
       {!locked && recentActions.length > 0 && (

@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from "
 import { join, dirname } from "path"
 import { safeStorage } from "electron"
 
+import { PkceState } from "./lib/auth/types"
+
 export interface AuthUser {
   id: string
   email: string
@@ -35,10 +37,58 @@ export interface AuthData {
 export class AuthStore {
   private filePath: string
   private skipFilePath: string
+  private pkceFilePath: string
 
   constructor(userDataPath: string) {
     this.filePath = join(userDataPath, "auth.dat") // .dat for encrypted data
     this.skipFilePath = join(userDataPath, "auth-skipped.json")
+    this.pkceFilePath = join(userDataPath, "auth-pkce.json")
+  }
+
+  /**
+   * Save PKCE state for ongoing auth flow
+   */
+  savePkceState(state: PkceState): void {
+    try {
+      // PKCE state is temporary and not highly sensitive (verifier is one-time use)
+      // So we store it in plain text JSON for reliability across app restarts
+      const dir = dirname(this.pkceFilePath)
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+      }
+      writeFileSync(this.pkceFilePath, JSON.stringify(state), "utf-8")
+    } catch (error) {
+      console.error("Failed to save PKCE state:", error)
+    }
+  }
+
+  /**
+   * Load PKCE state
+   */
+  loadPkceState(): PkceState | null {
+    try {
+      if (existsSync(this.pkceFilePath)) {
+        const content = readFileSync(this.pkceFilePath, "utf-8")
+        return JSON.parse(content)
+      }
+      return null
+    } catch (error) {
+      console.error("Failed to load PKCE state:", error)
+      return null
+    }
+  }
+
+  /**
+   * Clear PKCE state
+   */
+  clearPkceState(): void {
+    try {
+      if (existsSync(this.pkceFilePath)) {
+        unlinkSync(this.pkceFilePath)
+      }
+    } catch (error) {
+      console.error("Failed to clear PKCE state:", error)
+    }
   }
 
   /**

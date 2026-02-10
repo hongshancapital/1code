@@ -67,8 +67,14 @@ export function TextSelectionPopover({
       }
       if (!isMountedRef.current) return
       isMouseDownRef.current = true
-      setIsMouseDown(true)
-      setIsVisible(false) // Hide while selecting
+
+      // Defer state update to avoid React Error #185 (Max update depth)
+      // when multiple components respond to mousedown synchronously
+      requestAnimationFrame(() => {
+        if (!isMountedRef.current) return
+        setIsMouseDown(true)
+        setIsVisible(false) // Hide while selecting
+      })
     }
 
     const handleMouseUp = (e: MouseEvent) => {

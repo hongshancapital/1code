@@ -47,6 +47,12 @@ function validateSourceImage(imagePath: string): string | null {
   return null
 }
 
+function resolveOutputPathArg(outputPath: string | undefined, cwd: string): string | undefined {
+  if (!outputPath) return undefined
+  if (path.isAbsolute(outputPath)) return outputPath
+  return path.resolve(cwd, outputPath)
+}
+
 function resolveOutputPath(sourcePath: string, operation: string, targetFormat?: string): string {
   const dir = path.dirname(sourcePath)
   const ext = targetFormat ? `.${targetFormat}` : path.extname(sourcePath)
@@ -217,13 +223,16 @@ function buildWatermarkSvg(
 // Server factory
 // ---------------------------------------------------------------------------
 
-export async function createImageProcessMcpServer(context: ImageProcessMcpContext) {
-  const { createSdkMcpServer, tool } = await getSdkModule()
+export async function getImageProcessToolDefinitions(context: ImageProcessMcpContext) {
+  const { tool } = await getSdkModule()
 
-  return createSdkMcpServer({
-    name: "image-process",
-    version: "1.0.0",
-    tools: [
+  /** Resolve relative paths using the working directory */
+  function resolvePath(filePath: string): string {
+    if (path.isAbsolute(filePath)) return filePath
+    return path.resolve(context.cwd, filePath)
+  }
+
+  return [
       // ================================================================
       // image_info — 获取图片元信息
       // ================================================================
@@ -245,6 +254,7 @@ image_info(path="/path/to/photo.jpg")`,
           path: z.string().describe("Absolute path to the image file"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -307,11 +317,12 @@ image_resize(path="/path/to/photo.jpg", width=800)`,
           if (!args.width && !args.height) {
             return errorResult("Error: At least one of width or height must be provided")
           }
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
           try {
-            const outputPath = args.output_path || resolveOutputPath(args.path, "resized")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "resized")
             const info = await sharp(args.path)
               .resize(args.width || null, args.height || null, { fit: args.fit })
               .toFile(outputPath)
@@ -355,6 +366,7 @@ image_crop(path="/path/to/photo.jpg", x=100, y=50, w=400, h=300)`,
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -368,7 +380,7 @@ image_crop(path="/path/to/photo.jpg", x=100, y=50, w=400, h=300)`,
               }
             }
 
-            const outputPath = args.output_path || resolveOutputPath(args.path, "cropped")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "cropped")
             const info = await sharp(args.path)
               .extract({ left: args.x, top: args.y, width: args.w, height: args.h })
               .toFile(outputPath)
@@ -414,6 +426,7 @@ image_compress(path="/path/to/photo.jpg", quality=60)`,
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -427,7 +440,7 @@ image_compress(path="/path/to/photo.jpg", quality=60)`,
             }
 
             const outputPath =
-              args.output_path || resolveOutputPath(args.path, "compressed", fmt)
+              resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "compressed", fmt)
 
             if (args.max_kb) {
               // Binary search for target size
@@ -513,11 +526,12 @@ image_convert(path="/path/to/photo.png", format="webp", quality=85)`,
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
           try {
-            const outputPath = args.output_path || resolveOutputPath(args.path, "converted", args.format)
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "converted", args.format)
             const info = await sharp(args.path)
               .toFormat(args.format as keyof sharp.FormatEnum, { quality: args.quality })
               .toFile(outputPath)
@@ -560,6 +574,7 @@ image_to_base64(path="/path/to/icon.png", max_width=64)`,
           max_width: z.number().int().positive().optional().describe("Max width to resize before encoding"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -625,6 +640,7 @@ image_rotate(path="/path/to/photo.jpg", flop=true)`,
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -637,7 +653,7 @@ image_rotate(path="/path/to/photo.jpg", flop=true)`,
             if (args.flip) pipeline = pipeline.flip()
             if (args.flop) pipeline = pipeline.flop()
 
-            const outputPath = args.output_path || resolveOutputPath(args.path, "rotated")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "rotated")
             const info = await pipeline.toFile(outputPath)
 
             const ops: string[] = []
@@ -683,7 +699,8 @@ image_concat(paths=["/path/to/img1.png", "/path/to/img2.png"], direction="vertic
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
-          // Validate all sources
+          // Resolve and validate all sources
+          args.paths = args.paths.map((p: string) => resolvePath(p))
           for (const p of args.paths) {
             const err = validateSourceImage(p)
             if (err) return errorResult(err)
@@ -732,7 +749,7 @@ image_concat(paths=["/path/to/img1.png", "/path/to/img2.png"], direction="vertic
               offset += (isHorizontal ? m.width : m.height) + args.gap
             }
 
-            const outputPath = args.output_path || resolveOutputPath(args.paths[0], "concat")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.paths[0], "concat")
             const info = await sharp({
               create: {
                 width: canvasWidth,
@@ -790,6 +807,7 @@ image_watermark(path="/path/to/photo.jpg", text="© 2024 Company", position="bot
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -800,7 +818,7 @@ image_watermark(path="/path/to/photo.jpg", text="© 2024 Company", position="bot
 
             const svgBuf = buildWatermarkSvg(w, h, args.text, args.position, args.opacity, args.font_size, args.color)
 
-            const outputPath = args.output_path || resolveOutputPath(args.path, "watermarked")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "watermarked")
             const info = await sharp(args.path)
               .composite([{ input: svgBuf, top: 0, left: 0 }])
               .toFile(outputPath)
@@ -868,6 +886,7 @@ image_annotate(path="/path/to/screenshot.png", annotations=[
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
@@ -878,7 +897,7 @@ image_annotate(path="/path/to/screenshot.png", annotations=[
 
             const svgBuf = buildAnnotationSvg(w, h, args.annotations as any)
 
-            const outputPath = args.output_path || resolveOutputPath(args.path, "annotated")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, "annotated")
             const info = await sharp(args.path)
               .composite([{ input: svgBuf, top: 0, left: 0 }])
               .toFile(outputPath)
@@ -926,11 +945,12 @@ image_thumbnail(path="/path/to/photo.jpg", size=128)`,
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.path = resolvePath(args.path)
           const err = validateSourceImage(args.path)
           if (err) return errorResult(err)
 
           try {
-            const outputPath = args.output_path || resolveOutputPath(args.path, `thumb-${args.size}`)
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.path, `thumb-${args.size}`)
             const info = await sharp(args.path)
               .resize(args.size, args.size, { fit: "inside" })
               .toFile(outputPath)
@@ -983,6 +1003,8 @@ image_composite(base_image="/path/to/photo.jpg", overlay_image="/path/to/logo.pn
           output_path: z.string().optional().describe("Output file path"),
         },
         async (args): Promise<ToolResult> => {
+          args.base_image = resolvePath(args.base_image)
+          args.overlay_image = resolvePath(args.overlay_image)
           const baseErr = validateSourceImage(args.base_image)
           if (baseErr) return errorResult(baseErr)
           const overlayErr = validateSourceImage(args.overlay_image)
@@ -1008,7 +1030,7 @@ image_composite(base_image="/path/to/photo.jpg", overlay_image="/path/to/logo.pn
               compositeOpts.top = args.top
             }
 
-            const outputPath = args.output_path || resolveOutputPath(args.base_image, "composite")
+            const outputPath = resolveOutputPathArg(args.output_path, context.cwd) || resolveOutputPath(args.base_image, "composite")
             const info = await sharp(args.base_image)
               .composite([compositeOpts])
               .toFile(outputPath)
@@ -1023,6 +1045,16 @@ image_composite(base_image="/path/to/photo.jpg", overlay_image="/path/to/logo.pn
           }
         },
       ),
-    ],
+    ]
+}
+
+export async function createImageProcessMcpServer(context: ImageProcessMcpContext) {
+  const { createSdkMcpServer } = await getSdkModule()
+  const tools = await getImageProcessToolDefinitions(context)
+
+  return createSdkMcpServer({
+    name: "image-process",
+    version: "1.0.0",
+    tools,
   })
 }

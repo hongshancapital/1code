@@ -462,8 +462,6 @@
       "checkNow": "Check Now"
     }
   },
-
-
   "profile": {
     "title": "Profile",
     "description": "Manage your account and personalization settings",
@@ -595,8 +593,6 @@
     "searchPlaceholder": "Search plugins...",
     "selectMarketplace": "Select marketplace",
     "allMarketplaces": "All marketplaces",
-
-
     "noMarketplaces": "No marketplaces configured",
     "addMarketplaceHint": "Add a marketplace to browse plugins",
     "addMarketplace": "Add Marketplace",
@@ -820,178 +816,6 @@
     "editor": "Editor",
     "commands": "Commands",
     "memory": "Memory"
-  },
-  "tools": {
-    "title": "Internal Tools",
-    "searchPlaceholder": "Search tools...",
-    "noToolsFound": "No tools found",
-    "selectTool": "Select a tool to view details",
-    "category": {
-      "claudeSdk": "Claude SDK",
-      "custom": "Custom",
-      "browserMcp": "Browser",
-      "artifactMcp": "Artifact"
-    },
-    "read": {
-      "description": "Read file contents from the filesystem",
-      "details": "## Read Tool\n\nRead files from the local filesystem with support for various file types.\n\n### Capabilities\n- Read text files with line numbers\n- Read images (PNG, JPG, etc.) - presented visually\n- Read PDF files with page range selection\n- Read Jupyter notebooks (.ipynb) with all cells and outputs\n- Supports offset and limit for large files\n\n### Parameters\n- `file_path` (required): Absolute path to the file\n- `offset`: Line number to start reading from\n- `limit`: Number of lines to read\n- `pages`: Page range for PDF files (e.g., \"1-5\")\n\n### Notes\n- Line numbers start at 1\n- Lines longer than 2000 characters are truncated\n- For PDFs larger than 10 pages, use the `pages` parameter"
-    },
-    "write": {
-      "description": "Write content to files on the filesystem",
-      "details": "## Write Tool\n\nWrite or overwrite files on the local filesystem.\n\n### Capabilities\n- Create new files\n- Overwrite existing files\n- Works with any text-based file format\n\n### Parameters\n- `file_path` (required): Absolute path to the file\n- `content` (required): Content to write to the file\n\n### Notes\n- Will overwrite existing files without warning\n- Requires reading the file first if it exists\n- Creates parent directories if they don't exist"
-    },
-    "edit": {
-      "description": "Perform exact string replacements in files",
-      "details": "## Edit Tool\n\nPerform exact string replacements in files.\n\n### Capabilities\n- Replace specific text in files\n- Preserve exact indentation\n- Replace all occurrences with `replace_all`\n\n### Parameters\n- `file_path` (required): Absolute path to the file\n- `old_string` (required): Text to replace\n- `new_string` (required): Replacement text\n- `replace_all`: Replace all occurrences (default: false)\n\n### Notes\n- Edit will fail if `old_string` is not unique\n- Must read file before editing\n- Preserves file encoding and line endings"
-    },
-    "bash": {
-      "description": "Execute shell commands with timeout support",
-      "details": "## Bash Tool\n\nExecute bash commands with optional timeout.\n\n### Capabilities\n- Run any shell command\n- Working directory persists between commands\n- Supports background execution\n- Configurable timeout (up to 10 minutes)\n\n### Parameters\n- `command` (required): The command to execute\n- `timeout`: Timeout in milliseconds (default: 120000)\n- `run_in_background`: Run command in background\n\n### Notes\n- Shell state (environment, etc.) does not persist\n- Output truncated at 30000 characters\n- Use for git, npm, docker, and other CLI tools"
-    },
-    "glob": {
-      "description": "Fast file pattern matching across the codebase",
-      "details": "## Glob Tool\n\nFast file pattern matching for finding files by name patterns.\n\n### Capabilities\n- Match files using glob patterns\n- Works with any codebase size\n- Returns files sorted by modification time\n\n### Parameters\n- `pattern` (required): Glob pattern (e.g., \"**/*.ts\")\n- `path`: Directory to search in (default: cwd)\n\n### Examples\n- `**/*.tsx` - All TypeScript React files\n- `src/**/*.ts` - TypeScript files in src\n- `*.json` - JSON files in current directory"
-    },
-    "grep": {
-      "description": "Search file contents using regular expressions",
-      "details": "## Grep Tool\n\nSearch file contents using ripgrep-powered regex.\n\n### Capabilities\n- Full regex syntax support\n- Filter by file type or glob pattern\n- Multiple output modes: content, files, count\n- Context lines before/after matches\n\n### Parameters\n- `pattern` (required): Regex pattern to search\n- `path`: Directory to search (default: cwd)\n- `glob`: Filter files by glob pattern\n- `type`: Filter by file type (js, py, etc.)\n- `output_mode`: \"content\", \"files_with_matches\", \"count\"\n\n### Notes\n- Uses ripgrep syntax (not grep)\n- Supports multiline matching with `multiline: true`"
-    },
-    "webFetch": {
-      "description": "Fetch and analyze content from URLs",
-      "details": "## WebFetch Tool\n\nFetch content from URLs and process with AI.\n\n### Capabilities\n- Fetch any public URL\n- Convert HTML to markdown\n- Process content with custom prompt\n- 15-minute cache for repeated requests\n\n### Parameters\n- `url` (required): URL to fetch\n- `prompt` (required): What to extract from the content\n\n### Limitations\n- Cannot access authenticated URLs\n- HTTP URLs upgraded to HTTPS\n- Results may be summarized if too large"
-    },
-    "webSearch": {
-      "description": "Search the web for up-to-date information",
-      "details": "## WebSearch Tool\n\nSearch the web for current information.\n\n### Capabilities\n- Real-time web search\n- Domain filtering (include/block)\n- Up-to-date information beyond knowledge cutoff\n\n### Parameters\n- `query` (required): Search query\n- `allowed_domains`: Only include these domains\n- `blocked_domains`: Exclude these domains\n\n### Notes\n- Results include links as markdown\n- Requires including sources in response"
-    },
-    "notebookEdit": {
-      "description": "Edit Jupyter notebook cells",
-      "details": "## NotebookEdit Tool\n\nEdit cells in Jupyter notebooks (.ipynb files).\n\n### Capabilities\n- Replace cell contents\n- Insert new cells\n- Delete cells\n- Support code and markdown cells\n\n### Parameters\n- `notebook_path` (required): Absolute path to notebook\n- `new_source` (required): New cell content\n- `cell_id`: ID of cell to edit\n- `cell_type`: \"code\" or \"markdown\"\n- `edit_mode`: \"replace\", \"insert\", or \"delete\""
-    },
-    "task": {
-      "description": "Launch specialized agents for complex tasks",
-      "details": "## Task Tool\n\nLaunch specialized subagents for complex tasks.\n\n### Agent Types\n- **Bash**: Command execution specialist\n- **Explore**: Fast codebase exploration\n- **Plan**: Architecture and implementation planning\n- **general-purpose**: Multi-step task handling\n\n### Parameters\n- `prompt` (required): Task description\n- `subagent_type` (required): Agent type to use\n- `description` (required): Short 3-5 word summary\n- `run_in_background`: Run asynchronously\n- `resume`: Continue previous agent session\n\n### Notes\n- Agents have access to subset of tools\n- Can run multiple agents in parallel\n- Background agents write to output files"
-    },
-    "askUser": {
-      "description": "Ask the user questions during execution",
-      "details": "## AskUserQuestion Tool\n\nAsk the user questions to gather information or clarify requirements.\n\n### Use Cases\n- Gather user preferences\n- Clarify ambiguous instructions\n- Get decisions on implementation choices\n- Offer choices about direction\n\n### Parameters\n- `questions` (required): Array of 1-4 questions\n  - `question`: The question text\n  - `header`: Short label (max 12 chars)\n  - `options`: 2-4 choices with labels and descriptions\n  - `multiSelect`: Allow multiple selections\n\n### Notes\n- Users can always select \"Other\" for custom input\n- Place recommended option first with \"(Recommended)\""
-    },
-    "taskCreate": {
-      "description": "Create structured task lists for tracking progress",
-      "details": "## TaskCreate Tool\n\nCreate structured task lists for complex coding sessions.\n\n### Use Cases\n- Complex multi-step tasks (3+ steps)\n- Plan mode task tracking\n- Multiple user tasks\n- Non-trivial operations\n\n### Parameters\n- `subject` (required): Brief task title (imperative form)\n- `description` (required): Detailed task description\n- `activeForm`: Present continuous form for spinner\n\n### Notes\n- Tasks created with status \"pending\"\n- Use TaskUpdate to set dependencies\n- Not needed for single trivial tasks"
-    },
-    "taskUpdate": {
-      "description": "Update task status, details, and dependencies",
-      "details": "## TaskUpdate Tool\n\nUpdate existing tasks in the task list.\n\n### Use Cases\n- Mark tasks as completed\n- Update task status\n- Set task dependencies\n- Delete obsolete tasks\n\n### Parameters\n- `taskId` (required): ID of task to update\n- `status`: \"pending\", \"in_progress\", \"completed\", \"deleted\"\n- `subject`: New task title\n- `description`: New description\n- `addBlocks`: Tasks this one blocks\n- `addBlockedBy`: Tasks blocking this one\n\n### Status Workflow\npending → in_progress → completed"
-    },
-    "taskList": {
-      "description": "View all tasks and their current status",
-      "details": "## TaskList Tool\n\nList all tasks in the current session.\n\n### Output Includes\n- Task ID\n- Subject (brief description)\n- Status (pending, in_progress, completed)\n- Owner (if assigned)\n- BlockedBy (dependency IDs)\n\n### Use Cases\n- Check available tasks\n- Review overall progress\n- Find unblocked tasks\n- After completing a task"
-    },
-    "planMode": {
-      "description": "Enter plan mode for designing implementation approaches",
-      "details": "## EnterPlanMode Tool\n\nTransition to plan mode for implementation planning.\n\n### When to Use\n- New feature implementation\n- Multiple valid approaches exist\n- Architectural decisions needed\n- Multi-file changes\n- Unclear requirements\n\n### What Happens in Plan Mode\n1. Explore codebase with read-only tools\n2. Understand existing patterns\n3. Design implementation approach\n4. Present plan for approval\n5. Exit with ExitPlanMode when ready\n\n### Skip For\n- Single-line fixes\n- Obvious bugs\n- Clear, specific instructions"
-    },
-    "browserSnapshot": {
-      "description": "Get accessibility tree snapshot with element references",
-      "details": "## Browser Snapshot\n\nGet accessibility tree snapshot with element references.\n\n### Usage\n1. Call browser_snapshot to get element refs\n2. Find the target element's ref (e.g., @e2)\n3. Use that ref with other browser tools\n4. After page changes, call snapshot again\n\n### Parameters\n- `interactiveOnly`: Only include interactive elements (default: true)\n\n### Output Format\n```\n[e1] button \"Sign In\"\n[e2] textbox \"Email\" placeholder=\"Enter email\"\n[e3] link \"Forgot password?\"\n```"
-    },
-    "browserNavigate": {
-      "description": "Navigate to a URL in the browser",
-      "details": "## Browser Navigate\n\nNavigate to a URL. Opens the page in the browser.\n\n### Parameters\n- `url` (required): URL to navigate to\n- `waitUntil`: When to consider navigation complete (load, domcontentloaded, networkidle)"
-    },
-    "browserClick": {
-      "description": "Click an element on the page",
-      "details": "## Browser Click\n\nClick an element. Use ref from snapshot (preferred) or CSS selector.\n\n### Parameters\n- `ref`: Element reference from snapshot (e.g., @e2)\n- `selector`: CSS selector (fallback)\n- `dblClick`: Double click (default: false)"
-    },
-    "browserFill": {
-      "description": "Fill an input field with text",
-      "details": "## Browser Fill\n\nFill an input field. Clears existing value first, then types the new value.\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)\n- `value` (required): Value to fill in"
-    },
-    "browserType": {
-      "description": "Type text into the focused element",
-      "details": "## Browser Type\n\nType text into the currently focused element. Appends text, does not clear first.\n\n### Parameters\n- `text` (required): Text to type"
-    },
-    "browserScreenshot": {
-      "description": "Take a screenshot of the page or element",
-      "details": "## Browser Screenshot\n\nTake a screenshot of the page or a specific element.\n\n### Parameters\n- `ref`: Element to screenshot (optional)\n- `fullPage`: Capture full page (default: false)\n- `filePath`: Save to file instead of returning base64\n- `format`: png, jpeg, or webp (default: png)\n- `quality`: Quality for jpeg/webp (0-100)"
-    },
-    "browserBack": {
-      "description": "Go back in browser history",
-      "details": "## Browser Back\n\nGo back in browser history.\n\n### Parameters\nNone"
-    },
-    "browserForward": {
-      "description": "Go forward in browser history",
-      "details": "## Browser Forward\n\nGo forward in browser history.\n\n### Parameters\nNone"
-    },
-    "browserReload": {
-      "description": "Reload the current page",
-      "details": "## Browser Reload\n\nReload the current page.\n\n### Parameters\nNone"
-    },
-    "browserGetText": {
-      "description": "Get text content of an element",
-      "details": "## Browser Get Text\n\nGet text content of an element.\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)"
-    },
-    "browserGetUrl": {
-      "description": "Get the current page URL",
-      "details": "## Browser Get URL\n\nGet the current page URL.\n\n### Parameters\nNone"
-    },
-    "browserGetTitle": {
-      "description": "Get the page title",
-      "details": "## Browser Get Title\n\nGet the page title.\n\n### Parameters\nNone"
-    },
-    "browserWait": {
-      "description": "Wait for an element, text, or URL pattern",
-      "details": "## Browser Wait\n\nWait for an element, text, or URL pattern to appear.\n\n### Parameters\n- `selector`: Wait for element matching selector\n- `text`: Wait for text to appear\n- `url`: Wait for URL to match pattern\n- `timeout`: Timeout in ms (default: 30000)"
-    },
-    "browserScroll": {
-      "description": "Scroll the page or element into view",
-      "details": "## Browser Scroll\n\nScroll the page or scroll an element into view.\n\n### Parameters\n- `direction`: up, down, left, right\n- `amount`: Scroll amount in pixels\n- `ref`: Scroll element into view\n- `selector`: Scroll element into view (fallback)"
-    },
-    "browserPress": {
-      "description": "Press a key or key combination",
-      "details": "## Browser Press\n\nPress a key or key combination (e.g., 'Enter', 'Tab', 'Control+A').\n\n### Parameters\n- `key` (required): Key or combination (e.g., 'Enter', 'Control+A')"
-    },
-    "browserSelect": {
-      "description": "Select an option from a dropdown",
-      "details": "## Browser Select\n\nSelect an option from a dropdown (<select> element).\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)\n- `value` (required): Option value to select"
-    },
-    "browserCheck": {
-      "description": "Check or uncheck a checkbox",
-      "details": "## Browser Check\n\nCheck or uncheck a checkbox.\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)\n- `checked` (required): Whether to check or uncheck"
-    },
-    "browserHover": {
-      "description": "Hover over an element",
-      "details": "## Browser Hover\n\nHover over an element (useful for tooltips, dropdowns).\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)"
-    },
-    "browserDrag": {
-      "description": "Drag an element to another element",
-      "details": "## Browser Drag\n\nDrag an element to another element.\n\n### Parameters\n- `fromRef`: Element to drag\n- `fromSelector`: Element to drag (fallback)\n- `toRef`: Element to drop onto\n- `toSelector`: Element to drop onto (fallback)"
-    },
-    "browserDownloadImage": {
-      "description": "Download an image element to a file",
-      "details": "## Browser Download Image\n\nDownload an image element to a file.\n\n### Parameters\n- `ref`: Element reference from snapshot\n- `selector`: CSS selector (fallback)\n- `filePath` (required): Path to save image"
-    },
-    "browserDownloadFile": {
-      "description": "Download a file from a URL or link",
-      "details": "## Browser Download File\n\nDownload a file from a URL or link element.\n\n### Parameters\n- `ref`: Link element to download\n- `url`: Direct URL to download\n- `filePath` (required): Path to save file"
-    },
-    "browserEmulate": {
-      "description": "Emulate device settings",
-      "details": "## Browser Emulate\n\nEmulate device settings (viewport, user agent, color scheme, geolocation).\n\n### Parameters\n- `viewport`: { width, height, isMobile, hasTouch, deviceScaleFactor }\n- `userAgent`: User agent string\n- `colorScheme`: light, dark, or auto\n- `geolocation`: { latitude, longitude }"
-    },
-    "browserEvaluate": {
-      "description": "Execute JavaScript in the browser",
-      "details": "## Browser Evaluate\n\nExecute JavaScript code in the browser context. Returns the result.\n\n### Parameters\n- `script` (required): JavaScript code to execute\n\n### Notes\n- Returns JSON-serializable result"
-    },
-    "markArtifact": {
-      "description": "Mark a file as a deliverable artifact",
-      "details": "## Mark Artifact\n\nMark a file as a deliverable artifact. Use this to highlight important output files.\n\n### Parameters\n- `file_path` (required): Absolute path to the file\n- `description`: Optional description of the artifact\n\n### Use Cases\n- Script-generated output files (PDF, images, documents)\n- Files created with Bash\n- Important files to highlight for the user"
-    },
-    "listArtifacts": {
-      "description": "List all marked artifacts in the session",
-      "details": "## List Artifacts\n\nList all marked artifacts in the current session.\n\n### Parameters\nNone\n\n### Returns\nList of files marked as artifacts, grouped by status (created, modified, deleted)"
-    }
   },
   "memory": {
     "title": "Memory",

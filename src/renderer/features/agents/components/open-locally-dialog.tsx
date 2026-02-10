@@ -8,7 +8,7 @@ import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
 import type { RemoteChat } from "../../../lib/remote-api"
 import { Folder, Download, Check } from "lucide-react"
-import { agentChatStore } from "../stores/agent-chat-store"
+import { chatRegistry } from "../stores/chat-registry"
 import { useNavigate } from "../../../lib/router"
 
 interface Project {
@@ -54,7 +54,7 @@ export function OpenLocallyDialog({
       toast.success("Opened locally")
 
       // 1. Clear stale Chat instances from cache
-      agentChatStore.clear()
+      chatRegistry.clear()
 
       // 2. Invalidate list queries
       utils.chats.list.invalidate()
@@ -79,7 +79,7 @@ export function OpenLocallyDialog({
       toast.success("Cloned and opened locally")
 
       // 1. Clear stale Chat instances from cache
-      agentChatStore.clear()
+      chatRegistry.clear()
 
       // 2. Invalidate list queries
       utils.projects.list.invalidate()

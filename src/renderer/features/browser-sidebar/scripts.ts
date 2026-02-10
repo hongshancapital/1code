@@ -182,6 +182,21 @@ export function getWebviewScript(): string {
       }
     }
 
+    // src for media elements (img, iframe, video, audio, source)
+    if (['IMG', 'IFRAME', 'VIDEO', 'AUDIO', 'SOURCE'].includes(el.tagName)) {
+      const src = el.getAttribute('src');
+      if (src) {
+        const truncated = src.length > 200 ? src.slice(0, 200) + '...' : src;
+        attrs.push(\`src="\${truncated}"\`);
+      }
+    }
+
+    // alt for images
+    if (el.tagName === 'IMG') {
+      const alt = el.getAttribute('alt');
+      if (alt) attrs.push(\`alt="\${alt}"\`);
+    }
+
     // Disabled state
     if (el.disabled) attrs.push('disabled');
 
@@ -198,26 +213,39 @@ export function getWebviewScript(): string {
   }
 
   // Generate accessibility snapshot
-  window.__browserGenerateSnapshot = function(interactiveOnly = true) {
+  window.__browserGenerateSnapshot = function(interactiveOnly = true, maxElements = 0, includeImages = false, includeLinks = false) {
     refMap.clear();
     refCounter = 0;
+    var hitLimit = false;
 
     const lines = [];
 
     function processNode(el, indent) {
       if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+      if (hitLimit) return;
       if (!isVisible(el)) return;
 
       // Skip script, style, etc.
       if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(el.tagName)) return;
 
       const interactive = isInteractive(el);
+      let isRelevant = interactive;
 
-      // If only interactive elements, skip non-interactive but still process children
-      if (interactiveOnly && !interactive) {
+      // Explicit inclusions
+      if (includeImages && el.tagName === 'IMG') isRelevant = true;
+      if (includeLinks && el.tagName === 'A') isRelevant = true;
+
+      // If filtering by interactive/relevant elements
+      if (interactiveOnly && !isRelevant) {
         for (const child of el.children) {
           processNode(child, indent);
         }
+        return;
+      }
+
+      // Check element limit
+      if (maxElements > 0 && refCounter >= maxElements) {
+        hitLimit = true;
         return;
       }
 
@@ -243,7 +271,8 @@ export function getWebviewScript(): string {
 
     return {
       snapshot: lines.join('\\n'),
-      elementCount: refCounter
+      elementCount: refCounter,
+      truncated: hitLimit
     };
   };
 
@@ -253,9 +282,20 @@ export function getWebviewScript(): string {
   };
 
   // Get element bounding rect
-  window.__browserGetElementRect = function(ref) {
-    const el = refMap.get(ref);
+  window.__browserGetElementRect = function(ref, selector) {
+    let el = null;
+    if (ref) el = refMap.get(ref);
+    else if (selector) el = document.querySelector(selector);
+
     if (!el) return null;
+    // Scroll into view first to ensure coordinates are relative to viewport correctly and element is visible
+    // Use 'auto' for instant scrolling so we get the final position immediately
+    try {
+      el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+    } catch (e) {
+      // Fallback for browsers that don't support options
+      el.scrollIntoView(true);
+    }
     const rect = el.getBoundingClientRect();
     return {
       x: rect.x,
@@ -487,7 +527,10 @@ export function getWebviewScript(): string {
     const elements = document.querySelectorAll(selector);
     const results = [];
     for (const el of elements) {
-      if (!isVisible(el)) continue;
+      // Note: We deliberately include hidden elements here to allow finding
+      // elements that might be opacity:0 (like file inputs) or lazy-loaded images.
+      // if (!isVisible(el)) continue;
+
       // Check if element already has a ref
       let existingRef = null;
       for (const [r, mappedEl] of refMap.entries()) {
@@ -560,6 +603,487 @@ export function getWebviewScript(): string {
 
       check();
     });
+  };
+
+  // ========================================================================
+  // P0-1: Fetch resource in browser context (carries cookies/session)
+  // ========================================================================
+  window.__browserFetchResource = async function(url, maxSizeMB) {
+    maxSizeMB = maxSizeMB || 50;
+    try {
+      const response = await fetch(url, { credentials: 'include', redirect: 'follow' });
+      if (!response.ok) {
+        return { success: false, error: 'HTTP ' + response.status + ': ' + response.statusText };
+      }
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+      if (contentLength > maxSizeMB * 1024 * 1024) {
+        return { success: false, error: 'File too large: ' + (contentLength / 1024 / 1024).toFixed(1) + 'MB (max ' + maxSizeMB + 'MB)' };
+      }
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > maxSizeMB * 1024 * 1024) {
+        return { success: false, error: 'File too large: ' + (buffer.byteLength / 1024 / 1024).toFixed(1) + 'MB (max ' + maxSizeMB + 'MB)' };
+      }
+      var bytes = new Uint8Array(buffer);
+      var binary = '';
+      var chunkSize = 8192;
+      for (var i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+      }
+      var base64 = btoa(binary);
+      var filename = '';
+      var disposition = response.headers.get('content-disposition');
+      if (disposition) {
+        var match = disposition.match(/filename[*]?=(?:UTF-8''|"?)([^";\\n]+)/i);
+        if (match) filename = decodeURIComponent(match[1]);
+      }
+      if (!filename) {
+        try { filename = new URL(url).pathname.split('/').pop() || ''; } catch(e) {}
+      }
+      return { success: true, data: { base64: base64, contentType: contentType, filename: filename, size: buffer.byteLength } };
+    } catch (err) {
+      var msg = err.message || String(err);
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('TypeError')) {
+        msg += ' (possible causes: CORS policy, network issue, or invalid URL)';
+        try {
+          await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+          msg += '. HEAD request with no-cors succeeded — likely a CORS restriction on this resource.';
+        } catch(e2) {
+          msg += '. HEAD request also failed — likely a network/DNS issue or invalid URL.';
+        }
+      }
+      return { success: false, error: 'Fetch failed: ' + msg };
+    }
+  };
+
+  // ========================================================================
+  // P0-1b: Smart download URL detection for batch download
+  // ========================================================================
+  window.__browserGetDownloadUrl = function(ref, selector, attribute) {
+    var el = null;
+    if (ref) el = refMap.get(ref);
+    else if (selector) el = document.querySelector(selector);
+    if (!el) return { success: false, error: ref ? 'Element not found: ' + ref : 'No match: ' + selector };
+
+    // If attribute explicitly specified, use it
+    if (attribute) {
+      var val = el.getAttribute(attribute);
+      if (!val && attribute in el) val = String(el[attribute]);
+      if (!val) return { success: false, error: 'Attribute "' + attribute + '" not found on element' };
+      return { success: true, data: { url: val, attribute: attribute, tag: el.tagName.toLowerCase() } };
+    }
+
+    // Smart detection based on tag
+    var tag = el.tagName.toLowerCase();
+    var url = null;
+    var detectedAttr = null;
+
+    switch (tag) {
+      case 'img':
+        url = el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-original');
+        detectedAttr = el.getAttribute('src') ? 'src' : (el.getAttribute('data-src') ? 'data-src' : 'data-original');
+        break;
+      case 'a':
+        url = el.getAttribute('href');
+        detectedAttr = 'href';
+        break;
+      case 'video':
+      case 'audio':
+        url = el.getAttribute('src') || el.getAttribute('poster');
+        detectedAttr = el.getAttribute('src') ? 'src' : 'poster';
+        break;
+      case 'source':
+        url = el.getAttribute('src') || el.getAttribute('srcset');
+        detectedAttr = el.getAttribute('src') ? 'src' : 'srcset';
+        // srcset may have multiple URLs, take the first
+        if (detectedAttr === 'srcset' && url) {
+          url = url.split(',')[0].trim().split(/\s+/)[0];
+        }
+        break;
+      case 'link':
+        url = el.getAttribute('href');
+        detectedAttr = 'href';
+        break;
+      default:
+        // Generic: check src, href, data-url, then background-image
+        if (el.getAttribute('src')) { url = el.getAttribute('src'); detectedAttr = 'src'; }
+        else if (el.getAttribute('href')) { url = el.getAttribute('href'); detectedAttr = 'href'; }
+        else if (el.getAttribute('data-url')) { url = el.getAttribute('data-url'); detectedAttr = 'data-url'; }
+        else {
+          var bg = window.getComputedStyle(el).backgroundImage;
+          if (bg && bg !== 'none') {
+            url = bg.replace(/^url\\(['"]?/, '').replace(/['"]?\\)$/, '');
+            detectedAttr = 'background-image';
+          }
+        }
+        break;
+    }
+
+    if (!url) return { success: false, error: 'Element <' + tag + '> has no downloadable attribute (tried: src, href, data-src, data-url, background-image)' };
+    return { success: true, data: { url: url, attribute: detectedAttr, tag: tag } };
+  };
+
+  // ========================================================================
+  // P0-2: Get element attribute / HTML
+  // ========================================================================
+  window.__browserGetAttribute = function(ref, selector, attribute) {
+    var el = null;
+    if (ref) el = refMap.get(ref);
+    else if (selector) el = document.querySelector(selector);
+    if (!el) return { success: false, error: ref ? 'Element not found: ' + ref : 'No match: ' + selector };
+
+    if (attribute === '__outerHTML') {
+      var outer = el.outerHTML;
+      if (outer.length > 102400) outer = outer.slice(0, 102400) + '\\n... (truncated, total ' + Math.round(outer.length / 1024) + 'KB)';
+      return { success: true, data: { value: outer } };
+    }
+    if (attribute === '__innerHTML') {
+      var inner = el.innerHTML;
+      if (inner.length > 102400) inner = inner.slice(0, 102400) + '\\n... (truncated, total ' + Math.round(inner.length / 1024) + 'KB)';
+      return { success: true, data: { value: inner } };
+    }
+    if (attribute === '__textContent') {
+      return { success: true, data: { value: el.textContent || '' } };
+    }
+    if (!attribute || attribute === '__all') {
+      var attrs = {};
+      for (var i = 0; i < el.attributes.length; i++) {
+        attrs[el.attributes[i].name] = el.attributes[i].value;
+      }
+      attrs['__tag'] = el.tagName.toLowerCase();
+      return { success: true, data: { attributes: attrs } };
+    }
+    var value = el.getAttribute(attribute);
+    if (value === null) {
+      if (attribute in el) {
+        return { success: true, data: { value: String(el[attribute]) } };
+      }
+      return { success: true, data: { value: null, exists: false } };
+    }
+    return { success: true, data: { value: value } };
+  };
+
+  // ========================================================================
+  // P0-4: Get unique selector for element (for CDP usage)
+  // ========================================================================
+  window.__browserGetSelector = function(ref) {
+    const el = refMap.get(ref);
+    if (!el) return { success: false, error: 'Element not found: ' + ref };
+
+    if (el.id) return { success: true, data: { selector: '#' + CSS.escape(el.id) } };
+
+    // Generate path
+    var path = [];
+    var current = el;
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      var selector = current.tagName.toLowerCase();
+      if (current.id) {
+        selector += '#' + CSS.escape(current.id);
+        path.unshift(selector);
+        break;
+      }
+      var sibling = current;
+      var nth = 1;
+      while (sibling = sibling.previousElementSibling) {
+        if (sibling.tagName.toLowerCase() === selector) nth++;
+      }
+      if (nth !== 1) selector += ':nth-of-type(' + nth + ')';
+      path.unshift(selector);
+      current = current.parentElement;
+    }
+    return { success: true, data: { selector: path.join(' > ') } };
+  };
+
+  // ========================================================================
+  // P0-3: Page dimensions and scroll for full-page screenshot
+  // ========================================================================
+  window.__browserGetPageDimensions = function() {
+    return {
+      scrollWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth || 0),
+      scrollHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight || 0),
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    };
+  };
+
+  window.__browserScrollTo = function(x, y) {
+    window.scrollTo(x, y);
+    return { success: true };
+  };
+
+  window.__browserHideFixedElements = function() {
+    var hidden = [];
+    var all = document.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var style = window.getComputedStyle(all[i]);
+      if (style.position === 'fixed' || style.position === 'sticky') {
+        var orig = all[i].style.cssText;
+        all[i].style.setProperty('visibility', 'hidden', 'important');
+        hidden.push({ el: all[i], orig: orig });
+      }
+    }
+    window.__browserHiddenFixedElements = hidden;
+    return { success: true, count: hidden.length };
+  };
+
+  window.__browserRestoreFixedElements = function() {
+    var hidden = window.__browserHiddenFixedElements || [];
+    for (var i = 0; i < hidden.length; i++) {
+      hidden[i].el.style.cssText = hidden[i].orig;
+    }
+    window.__browserHiddenFixedElements = [];
+    return { success: true };
+  };
+
+  // ========================================================================
+  // P1-3: Extract HTML for content extraction (Turndown runs in main process)
+  // ========================================================================
+  window.__browserExtractHTML = function(ref, selector, mode) {
+    mode = mode || 'article';
+    var root = null;
+    if (ref) root = refMap.get(ref);
+    else if (selector) root = document.querySelector(selector);
+
+    if (mode === 'plain') {
+      var target = root || document.body;
+      return { success: true, data: { text: target.textContent || '', title: document.title, mode: mode } };
+    }
+
+    if (mode === 'article' && !root) {
+      root = detectArticle();
+    }
+    if (!root) root = document.body;
+
+    var html = root.outerHTML;
+    if (html.length > 512000) {
+      html = html.slice(0, 512000) + '<!-- truncated -->';
+    }
+    return { success: true, data: { html: html, title: document.title, mode: mode } };
+
+    function detectArticle() {
+      var article = document.querySelector('article');
+      if (article && (article.textContent || '').trim().length > 200) return article;
+      var main = document.querySelector('[role="main"], main');
+      if (main && (main.textContent || '').trim().length > 200) return main;
+      var best = null, bestScore = 0;
+      var candidates = document.querySelectorAll('div, section, article');
+      for (var i = 0; i < candidates.length; i++) {
+        var el = candidates[i];
+        var text = el.textContent || '';
+        var textLen = text.trim().length;
+        var childCount = el.children.length;
+        var pCount = el.querySelectorAll(':scope > p').length;
+        var score = textLen / (childCount + 1) + pCount * 50;
+        if (textLen > 200 && score > bestScore) {
+          bestScore = score;
+          best = el;
+        }
+      }
+      return best || document.body;
+    }
+  };
+
+  // ========================================================================
+  // P1-5: Storage Management
+  // ========================================================================
+  window.__browserStorage = function(type, action, key, value) {
+    try {
+      const storage = type === 'session' ? window.sessionStorage : window.localStorage;
+
+      if (action === 'get') {
+        if (key) {
+          return { success: true, data: { data: storage.getItem(key) } };
+        }
+        // Get all
+        const data = {};
+        for (let i = 0; i < storage.length; i++) {
+          const k = storage.key(i);
+          if (k) data[k] = storage.getItem(k);
+        }
+        return { success: true, data: { data: data } };
+      }
+
+      if (action === 'set') {
+        if (!key) return { success: false, error: 'Key required for set' };
+        storage.setItem(key, value || '');
+        return { success: true };
+      }
+
+      if (action === 'delete') {
+        if (!key) return { success: false, error: 'Key required for delete' };
+        storage.removeItem(key);
+        return { success: true };
+      }
+
+      if (action === 'clear') {
+        storage.clear();
+        return { success: true };
+      }
+
+      return { success: false, error: 'Unknown action' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  };
+
+  // ========================================================================
+  // P1-4: Network request monitoring (fetch/XHR monkey-patch)
+  // ========================================================================
+  window.__browserNetworkCapture = {
+    active: false,
+    requests: [],
+    maxRequests: 200,
+    maxBodySize: 32768,
+    counter: 0,
+    originalFetch: null,
+    originalXHROpen: null,
+    originalXHRSend: null,
+  };
+
+  window.__browserStartNetworkCapture = function(options) {
+    options = options || {};
+    var capture = window.__browserNetworkCapture;
+    if (capture.active) return { success: true, message: 'Already capturing' };
+
+    capture.active = true;
+    capture.requests = [];
+    capture.counter = 0;
+    if (options.maxRequests) capture.maxRequests = options.maxRequests;
+    if (options.maxBodySize) capture.maxBodySize = options.maxBodySize;
+
+    // Patch fetch
+    capture.originalFetch = window.fetch;
+    window.fetch = async function() {
+      var args = arguments;
+      var id = ++capture.counter;
+      var startTime = Date.now();
+      var resource = args[0];
+      var init = args[1] || {};
+      var entry = {
+        id: id,
+        method: (init.method || 'GET').toUpperCase(),
+        url: typeof resource === 'string' ? resource : (resource.url || ''),
+        status: 0, statusText: '', requestBody: null, responseBody: null,
+        contentType: null, startTime: startTime, duration: 0, size: 0, type: 'fetch',
+      };
+      if (init.body && typeof init.body === 'string') {
+        entry.requestBody = init.body.slice(0, capture.maxBodySize);
+      }
+      try {
+        var response = await capture.originalFetch.apply(window, args);
+        entry.status = response.status;
+        entry.statusText = response.statusText;
+        entry.contentType = response.headers.get('content-type') || '';
+        entry.duration = Date.now() - startTime;
+        if (entry.contentType.indexOf('json') !== -1 || entry.contentType.indexOf('text') !== -1) {
+          try {
+            var cloned = response.clone();
+            var txt = await cloned.text();
+            entry.responseBody = txt.slice(0, capture.maxBodySize);
+            entry.size = txt.length;
+          } catch(e) {}
+        }
+        if (capture.requests.length >= capture.maxRequests) capture.requests.shift();
+        capture.requests.push(entry);
+        return response;
+      } catch (error) {
+        entry.error = error.message;
+        entry.duration = Date.now() - startTime;
+        if (capture.requests.length >= capture.maxRequests) capture.requests.shift();
+        capture.requests.push(entry);
+        throw error;
+      }
+    };
+
+    // Patch XHR
+    capture.originalXHROpen = XMLHttpRequest.prototype.open;
+    capture.originalXHRSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this.__captureData = { method: method, url: url, id: ++capture.counter };
+      return capture.originalXHROpen.apply(this, arguments);
+    };
+
+    XMLHttpRequest.prototype.send = function(body) {
+      var xhr = this;
+      if (xhr.__captureData) {
+        var entry = {
+          id: xhr.__captureData.id,
+          method: xhr.__captureData.method.toUpperCase(),
+          url: xhr.__captureData.url,
+          status: 0, statusText: '', requestBody: null, responseBody: null,
+          contentType: null, startTime: Date.now(), duration: 0, size: 0, type: 'xhr',
+        };
+        if (typeof body === 'string') entry.requestBody = body.slice(0, capture.maxBodySize);
+        xhr.addEventListener('load', function() {
+          entry.status = xhr.status;
+          entry.statusText = xhr.statusText;
+          entry.contentType = xhr.getResponseHeader('content-type') || '';
+          entry.duration = Date.now() - entry.startTime;
+          if (entry.contentType.indexOf('json') !== -1 || entry.contentType.indexOf('text') !== -1 || xhr.responseType === '' || xhr.responseType === 'text') {
+            try {
+              var t = typeof xhr.response === 'string' ? xhr.response : JSON.stringify(xhr.response);
+              entry.responseBody = t.slice(0, capture.maxBodySize);
+              entry.size = t.length;
+            } catch(e) {}
+          }
+          if (capture.requests.length >= capture.maxRequests) capture.requests.shift();
+          capture.requests.push(entry);
+        });
+        xhr.addEventListener('error', function() {
+          entry.error = 'Network error';
+          entry.duration = Date.now() - entry.startTime;
+          if (capture.requests.length >= capture.maxRequests) capture.requests.shift();
+          capture.requests.push(entry);
+        });
+      }
+      return capture.originalXHRSend.apply(this, arguments);
+    };
+
+    return { success: true };
+  };
+
+  window.__browserStopNetworkCapture = function() {
+    var capture = window.__browserNetworkCapture;
+    if (!capture.active) return { success: true, message: 'Not capturing' };
+    if (capture.originalFetch) window.fetch = capture.originalFetch;
+    if (capture.originalXHROpen) XMLHttpRequest.prototype.open = capture.originalXHROpen;
+    if (capture.originalXHRSend) XMLHttpRequest.prototype.send = capture.originalXHRSend;
+    capture.active = false;
+    capture.originalFetch = null;
+    capture.originalXHROpen = null;
+    capture.originalXHRSend = null;
+    return { success: true, count: capture.requests.length };
+  };
+
+  window.__browserClearNetworkCapture = function() {
+    var capture = window.__browserNetworkCapture;
+    capture.requests = [];
+    return { success: true };
+  };
+
+  window.__browserGetNetworkRequests = function(filter) {
+    filter = filter || {};
+    var capture = window.__browserNetworkCapture;
+    var results = capture.requests.slice();
+    if (filter.urlPattern) {
+      var re = new RegExp(filter.urlPattern, 'i');
+      results = results.filter(function(r) { return re.test(r.url); });
+    }
+    if (filter.method) {
+      var m = filter.method.toUpperCase();
+      results = results.filter(function(r) { return r.method === m; });
+    }
+    if (filter.hasError) {
+      results = results.filter(function(r) { return r.error || r.status >= 400; });
+    }
+    var limit = filter.limit || 50;
+    var offset = filter.offset || 0;
+    var total = results.length;
+    results = results.slice(offset, offset + limit);
+    return { success: true, data: { requests: results, total: total, capturing: capture.active, returned: results.length } };
   };
 
   console.log('[Browser] Webview script initialized');

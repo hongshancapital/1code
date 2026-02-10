@@ -41,21 +41,20 @@ export function useChatActions() {
 interface ChatDataSyncProps {
   chat: Chat<any>
   subChatId: string
-  streamId?: string | null
   children: ReactNode
 }
 
 export function ChatDataSync({
   chat,
   subChatId,
-  streamId,
   children,
 }: ChatDataSyncProps) {
   // Call useChat - this causes re-renders on every chunk
+  // resume: false — 本地 Electron app 不需要 HTTP 流重连
   const { messages, sendMessage, status, stop, regenerate } = useChat({
     id: subChatId,
     chat,
-    resume: !!streamId,
+    resume: false,
     experimental_throttle: 50,
   })
 

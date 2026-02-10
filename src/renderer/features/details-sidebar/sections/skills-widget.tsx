@@ -69,12 +69,9 @@ export const SkillsWidget = memo(function SkillsWidget() {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set())
 
   // Query enabled skills from tRPC
+  // No staleTime - invalidation from plugin/skill toggles will force immediate refetch
   const { data: skills = [] } = trpc.skills.listEnabled.useQuery(
     { cwd: selectedProject?.path },
-    {
-      // Cache for 5 minutes
-      staleTime: 5 * 60 * 1000,
-    }
   )
 
   const openSkillsSettings = useCallback(() => {

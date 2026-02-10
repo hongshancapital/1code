@@ -1,4 +1,4 @@
-import { Calendar, Database, Download, FolderOpen, MessageSquare, X } from "lucide-react"
+import { Activity, Calendar, Database, Download, FolderOpen, MessageSquare, X } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
@@ -11,7 +11,7 @@ interface UsageDetailsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-type ViewMode = "date" | "model" | "project" | "subchat"
+type ViewMode = "date" | "model" | "project" | "subchat" | "source"
 
 // Helper to format token count
 function formatTokenCount(tokens: number): string {
@@ -188,12 +188,17 @@ export function UsageDetailsDialog({
     trpc.usage.getBySubChat.useQuery(dateRange, {
       enabled: open && viewMode === "subchat",
     })
+  const { data: bySource, isLoading: bySourceLoading } =
+    trpc.usage.getBySource.useQuery(dateRange, {
+      enabled: open && viewMode === "source",
+    })
 
   const isLoading =
     (viewMode === "date" && byDateLoading) ||
     (viewMode === "model" && byModelLoading) ||
     (viewMode === "project" && byProjectLoading) ||
-    (viewMode === "subchat" && bySubChatLoading)
+    (viewMode === "subchat" && bySubChatLoading) ||
+    (viewMode === "source" && bySourceLoading)
 
   // Handle CSV export
   const handleExport = () => {
@@ -226,6 +231,20 @@ export function UsageDetailsDialog({
             { key: "count", label: "Requests" },
           ],
           `usage-by-model-${timestamp}.csv`
+        )
+        break
+      case "source":
+        exportToCsv(
+          bySource || [],
+          [
+            { key: "source", label: "Source" },
+            { key: "totalInputTokens", label: "Input Tokens" },
+            { key: "totalOutputTokens", label: "Output Tokens" },
+            { key: "totalTokens", label: "Total Tokens" },
+            { key: "totalCostUsd", label: "Cost (USD)" },
+            { key: "count", label: "Requests" },
+          ],
+          `usage-by-source-${timestamp}.csv`
         )
         break
       case "project":
@@ -303,6 +322,32 @@ export function UsageDetailsDialog({
             data={byModel || []}
             columns={[
               { key: "model", label: "Model" },
+              {
+                key: "totalInputTokens",
+                label: "Input",
+                format: formatTokenCount,
+              },
+              {
+                key: "totalOutputTokens",
+                label: "Output",
+                format: formatTokenCount,
+              },
+              {
+                key: "totalTokens",
+                label: "Total",
+                format: formatTokenCount,
+              },
+              { key: "totalCostUsd", label: "Cost", format: formatCost },
+              { key: "count", label: "Requests" },
+            ]}
+          />
+        )
+      case "source":
+        return (
+          <UsageTable
+            data={bySource || []}
+            columns={[
+              { key: "source", label: "Source", fallback: "chat" },
               {
                 key: "totalInputTokens",
                 label: "Input",
@@ -417,6 +462,12 @@ export function UsageDetailsDialog({
               onClick={() => setViewMode("subchat")}
               icon={MessageSquare}
               label="By Agent"
+            />
+            <TabButton
+              active={viewMode === "source"}
+              onClick={() => setViewMode("source")}
+              icon={Activity}
+              label="By Source"
             />
           </div>
 

@@ -52,6 +52,14 @@ interface BrowserSidebarProps {
 }
 
 export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onElementSelect }: BrowserSidebarProps) {
+  // Debug: log mount/unmount
+  useEffect(() => {
+    console.log("[BrowserSidebar] Component MOUNTED, chatId:", chatId)
+    return () => {
+      console.log("[BrowserSidebar] Component UNMOUNTED, chatId:", chatId)
+    }
+  }, [chatId])
+
   const webviewRef = useRef<Electron.WebviewTag | null>(null)
   const [url, setUrl] = useAtom(browserUrlAtomFamily(chatId))
   const [title, setTitle] = useAtom(browserTitleAtomFamily(chatId))
@@ -104,14 +112,52 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   const setReactGrabAvailableRef = useRef(setReactGrabAvailable)
   setReactGrabAvailableRef.current = setReactGrabAvailable
 
+  // Console log buffer for MCP tool access (separate from terminal panel UI)
+  interface ConsoleLogEntry {
+    id: number
+    level: "log" | "info" | "warn" | "error" | "debug"
+    message: string
+    timestamp: number
+    source: string
+  }
+  const consoleLogsRef = useRef<ConsoleLogEntry[]>([])
+  const consoleLogIdRef = useRef(0)
+  // Listeners for collect mode (waiting for matching logs)
+  const consoleCollectListenersRef = useRef<Array<(entry: ConsoleLogEntry) => void>>([])
+
+  const addConsoleLog = useCallback((level: number, message: string, source: string) => {
+    const levelMap: Record<number, ConsoleLogEntry["level"]> = {
+      0: "debug", 1: "log", 2: "warn", 3: "error",
+    }
+    const entry: ConsoleLogEntry = {
+      id: consoleLogIdRef.current++,
+      level: levelMap[level] || "log",
+      message,
+      timestamp: Date.now(),
+      source: source || "",
+    }
+    consoleLogsRef.current.push(entry)
+    // Keep max 1000 entries
+    if (consoleLogsRef.current.length > 1000) {
+      consoleLogsRef.current = consoleLogsRef.current.slice(-1000)
+    }
+    // Notify collect listeners
+    for (const listener of consoleCollectListenersRef.current) {
+      listener(entry)
+    }
+  }, [])
+
   // Navigate to URL
   const navigate = useCallback((newUrl: string) => {
     const webview = webviewRef.current
     if (!webview) return
 
-    // Add protocol if missing
+    // Add protocol if missing (allow file:// for local files)
     let normalizedUrl = newUrl
-    if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+    // Auto-detect absolute file paths and convert to file:// URL
+    if (normalizedUrl.startsWith("/") || /^[A-Z]:\\/i.test(normalizedUrl)) {
+      normalizedUrl = `file://${normalizedUrl}`
+    } else if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://") && !normalizedUrl.startsWith("file://")) {
       normalizedUrl = `https://${normalizedUrl}`
     }
 
@@ -169,23 +215,132 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
       switch (type) {
         case "snapshot": {
+          const maxEl = params.maxElements as number | undefined
+          const incImg = params.includeImages ?? false
+          const incLink = params.includeLinks ?? false
           const result = await webview.executeJavaScript(
-            `window.__browserGenerateSnapshot(${params.interactiveOnly ?? true})`
+            `window.__browserGenerateSnapshot(${params.interactiveOnly ?? true}, ${maxEl || 0}, ${incImg}, ${incLink})`
           ) as SnapshotResult
           return { success: true, data: result }
         }
 
         case "navigate": {
+          const waitUntil = (params.waitUntil as string) || "load"
+          const timeout = (params.timeout as number) || 30000
+          const startTime = Date.now()
+
           navigate(params.url as string)
-          // Wait for load
-          await new Promise<void>((resolve) => {
-            const handler = () => {
-              webview.removeEventListener("did-finish-load", handler)
-              resolve()
+
+          // "none" — return immediately
+          if (waitUntil === "none") {
+            return {
+              success: true,
+              data: {
+                url: params.url as string,
+                title: "",
+                loadState: "complete",
+                loadTime: Date.now() - startTime,
+              },
             }
-            webview.addEventListener("did-finish-load", handler)
-          })
-          return { success: true }
+          }
+
+          // Wait with timeout and strategy
+          let loadState: "complete" | "timeout" | "error" = "complete"
+
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(() => {
+                cleanup()
+                loadState = "timeout"
+                resolve()
+              }, timeout)
+
+              const cleanup = () => {
+                clearTimeout(timer)
+                webview.removeEventListener("did-finish-load", onLoad)
+                webview.removeEventListener("dom-ready", onDomReady)
+                webview.removeEventListener("did-fail-load", onFail)
+              }
+
+              const onLoad = () => {
+                if (waitUntil === "load") {
+                  cleanup()
+                  resolve()
+                }
+                // For networkidle, load fires first, then we wait for idle
+                if (waitUntil === "networkidle") {
+                  cleanup()
+                  // Wait for network idle: no new requests for 500ms
+                  let idleTimer: ReturnType<typeof setTimeout>
+                  const checkIdle = () => {
+                    clearTimeout(idleTimer)
+                    idleTimer = setTimeout(() => resolve(), 500)
+                  }
+                  checkIdle()
+                  // Poll for pending requests
+                  const pollInterval = setInterval(async () => {
+                    try {
+                      const pending = await webview.executeJavaScript(
+                        `performance.getEntriesByType('resource').filter(e => e.responseEnd === 0).length`
+                      )
+                      if (pending === 0) checkIdle()
+                    } catch {
+                      // ignore
+                    }
+                  }, 200)
+                  // Safety: clear poll after remaining timeout
+                  const remaining = timeout - (Date.now() - startTime)
+                  setTimeout(() => {
+                    clearInterval(pollInterval)
+                    clearTimeout(idleTimer)
+                    loadState = "timeout"
+                    resolve()
+                  }, Math.max(remaining, 1000))
+                }
+              }
+
+              const onDomReady = () => {
+                if (waitUntil === "domcontentloaded") {
+                  cleanup()
+                  resolve()
+                }
+              }
+
+              const onFail = (event: any) => {
+                // Ignore aborted loads (e.g. redirect)
+                if (event?.errorCode === -3) return
+                cleanup()
+                loadState = "error"
+                resolve()
+              }
+
+              webview.addEventListener("did-finish-load", onLoad)
+              webview.addEventListener("dom-ready", onDomReady)
+              webview.addEventListener("did-fail-load", onFail)
+            })
+          } catch {
+            loadState = "error"
+          }
+
+          const loadTime = Date.now() - startTime
+          let title = ""
+          let finalUrl = params.url as string
+          try {
+            title = webview.getTitle() || ""
+            finalUrl = webview.getURL() || finalUrl
+          } catch {
+            // ignore
+          }
+
+          return {
+            success: true,
+            data: {
+              url: finalUrl,
+              title,
+              loadState,
+              loadTime,
+            },
+          }
         }
 
         case "click": {
@@ -243,7 +398,24 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         }
 
         case "screenshot": {
-          const image = await webview.capturePage()
+          const ref = params.ref as string
+          const selector = params.selector as string
+          let rect: Electron.Rectangle | undefined = undefined
+
+          if (ref || selector) {
+            const elRect = await webview.executeJavaScript(
+              `window.__browserGetElementRect(${ref ? `"${ref}"` : "null"}, ${selector ? JSON.stringify(selector) : "null"})`
+            )
+            if (!elRect) return { success: false, error: "Element not found" }
+            rect = {
+              x: Math.round(elRect.x),
+              y: Math.round(elRect.y),
+              width: Math.round(elRect.width),
+              height: Math.round(elRect.height),
+            }
+          }
+
+          const image = await webview.capturePage(rect)
           const base64 = image.toPNG().toString("base64")
           return {
             success: true,
@@ -251,6 +423,24 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
               base64,
               width: image.getSize().width,
               height: image.getSize().height,
+            },
+          }
+        }
+
+        case "getElementRect": {
+          const ref = params.ref as string
+          const selector = params.selector as string
+          const elRect = await webview.executeJavaScript(
+            `window.__browserGetElementRect(${ref ? `"${ref}"` : "null"}, ${selector ? JSON.stringify(selector) : "null"})`
+          )
+          if (!elRect) return { success: false, error: "Element not found" }
+          return {
+            success: true,
+            data: {
+              x: Math.round(elRect.x),
+              y: Math.round(elRect.y),
+              width: Math.round(elRect.width),
+              height: Math.round(elRect.height),
             },
           }
         }
@@ -463,8 +653,71 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         }
 
         case "evaluate": {
-          const result = await webview.executeJavaScript(params.script as string)
-          return { success: true, data: { result } }
+          // Safe JS executor that handles all input forms:
+          //   1. Expression:       "document.title"
+          //   2. Function literal:  "() => { return x; }" or "(el) => el.src"
+          //   3. Multi-statement:   "const x = 1; x + 2"
+          //   4. Statements w/return: "const x = 1; return x;"
+          // Also ensures the return value is structured-clone-safe and catches errors.
+          const userScript = (params.script as string).trim()
+
+          // Strategy: inject a helper `__evalSafe` into the page and call it with the raw script.
+          // This avoids any template-level syntax issues from embedding user code in a template string.
+          const wrappedScript = `(async () => {
+            const __src = ${JSON.stringify(userScript)};
+            try {
+              let __result;
+              // Step 1: Detect function literal and invoke it
+              if (/^(?:async\\s+)?(?:function\\b|\\(|[a-zA-Z_$]\\w*\\s*=>)/.test(__src)) {
+                __result = await eval('(' + __src + ')()');
+              } else {
+                // Step 2: Try as expression first (handles "document.title", "1+2", etc.)
+                try {
+                  __result = await eval('(' + __src + ')');
+                } catch(_) {
+                  // Step 3: Fall back to statements (handles "const x=1; x+2" or "return x")
+                  // Wrap in async function to support return statements
+                  try {
+                    __result = await eval('(async function(){ ' + __src + ' })()');
+                  } catch(_2) {
+                    // Step 4: If no explicit return, wrap last expression
+                    __result = await eval(__src);
+                  }
+                }
+              }
+              // Ensure result is serializable (no DOM nodes, functions, etc.)
+              try {
+                if (__result === undefined) return { __ok: true, value: undefined };
+                if (__result === null) return { __ok: true, value: null };
+                const s = JSON.parse(JSON.stringify(__result));
+                return { __ok: true, value: s };
+              } catch(e) {
+                return { __ok: true, value: String(__result) };
+              }
+            } catch (e) {
+              return {
+                __ok: false,
+                name: e.name || 'Error',
+                message: e.message || String(e),
+                stack: e.stack || ''
+              };
+            }
+          })()`
+          try {
+            const wrapped = await webview.executeJavaScript(wrappedScript)
+            if (wrapped && wrapped.__ok === false) {
+              const details = [
+                `${wrapped.name}: ${wrapped.message}`,
+                wrapped.stack ? `\nStack:\n${wrapped.stack}` : "",
+              ].join("")
+              return { success: false, error: details }
+            }
+            return { success: true, data: { result: wrapped?.value } }
+          } catch (err) {
+            // Fallback for wrapper-level failures
+            const e = err instanceof Error ? err : new Error(String(err))
+            return { success: false, error: `${e.name}: ${e.message}` }
+          }
         }
 
         case "querySelector": {
@@ -541,25 +794,287 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           }
         }
 
-        case "startNetworkCapture": {
+        case "downloadBatch": {
+          const items = params.items as Array<{
+            ref?: string; url?: string; selector?: string;
+            filePath: string; attribute?: string;
+          }>
+          const options = (params.options || {}) as {
+            retry?: number; timeout?: number;
+            continueOnError?: boolean; concurrent?: number;
+          }
+          const concurrent = options.concurrent || 3
+          const maxRetry = options.retry || 0
+          const timeout = options.timeout || 30000
+          const continueOnError = options.continueOnError !== false
+
+          const startTime = Date.now()
+          const results: Array<{
+            input: { ref?: string; url?: string; selector?: string };
+            status: "success" | "failed";
+            filePath?: string; size?: number; url?: string;
+            mimeType?: string; error?: string; retries?: number;
+          }> = []
+
+          // Worker function for a single item
+          const downloadOne = async (item: typeof items[0]) => {
+            const input = { ref: item.ref, url: item.url, selector: item.selector }
+            let downloadUrl = item.url
+
+            // Resolve URL from element if not provided directly
+            if (!downloadUrl) {
+              const urlResult = await webview.executeJavaScript(
+                `window.__browserGetDownloadUrl(${item.ref ? `"${item.ref}"` : "null"}, ${item.selector ? JSON.stringify(item.selector) : "null"}, ${item.attribute ? JSON.stringify(item.attribute) : "null"})`
+              )
+              if (!urlResult.success) {
+                return { input, status: "failed" as const, error: urlResult.error, retries: 0 }
+              }
+              downloadUrl = urlResult.data.url
+            }
+
+            // Retry loop
+            let lastError = ""
+            for (let attempt = 0; attempt <= maxRetry; attempt++) {
+              try {
+                const fetchResult = await Promise.race([
+                  webview.executeJavaScript(
+                    `window.__browserFetchResource(${JSON.stringify(downloadUrl)}, 50)`
+                  ),
+                  new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`Download timeout after ${timeout}ms`)), timeout)
+                  ),
+                ]) as { success: boolean; data?: { base64: string; contentType: string; filename: string; size: number }; error?: string }
+
+                if (fetchResult.success && fetchResult.data) {
+                  return {
+                    input,
+                    status: "success" as const,
+                    base64: fetchResult.data.base64,
+                    size: fetchResult.data.size,
+                    url: downloadUrl,
+                    mimeType: fetchResult.data.contentType,
+                    filePath: item.filePath,
+                  }
+                }
+                lastError = fetchResult.error || "Unknown fetch error"
+              } catch (err) {
+                lastError = err instanceof Error ? err.message : String(err)
+              }
+            }
+            return { input, status: "failed" as const, error: lastError, retries: maxRetry }
+          }
+
+          // Concurrent download with pool
+          const queue = [...items]
+          const allResults: Array<Awaited<ReturnType<typeof downloadOne>>> = []
+
+          const worker = async () => {
+            while (queue.length > 0) {
+              const item = queue.shift()!
+              const result = await downloadOne(item)
+              allResults.push(result)
+              if (result.status === "failed" && !continueOnError) {
+                queue.length = 0 // drain queue
+              }
+            }
+          }
+
+          await Promise.all(
+            Array(Math.min(concurrent, items.length)).fill(null).map(() => worker())
+          )
+
+          // Build results (strip base64 from final output)
+          let totalSize = 0
+          for (const r of allResults) {
+            if (r.status === "success") {
+              totalSize += r.size || 0
+              results.push({
+                input: r.input,
+                status: "success",
+                filePath: r.filePath,
+                size: r.size,
+                url: r.url,
+                mimeType: r.mimeType,
+              })
+            } else {
+              results.push({
+                input: r.input,
+                status: "failed",
+                error: r.error,
+                retries: r.retries,
+              })
+            }
+          }
+
+          const duration = Date.now() - startTime
+          const successful = results.filter(r => r.status === "success").length
+
+          return {
+            success: true,
+            data: {
+              summary: {
+                total: items.length,
+                successful,
+                failed: items.length - successful,
+                totalSize,
+                duration,
+              },
+              results,
+              // Pass base64 data for main process to write files
+              _writeQueue: allResults
+                .filter(r => r.status === "success" && (r as any).base64)
+                .map(r => ({
+                  filePath: (r as any).filePath,
+                  base64: (r as any).base64,
+                })),
+            },
+          }
+        }
+
+        case "storage": {
+          const { type, action, key, value } = params as any
           const result = await webview.executeJavaScript(
-            `window.__browserStartNetworkCapture(${JSON.stringify(params)})`
+            `window.__browserStorage("${type}", "${action}", ${key ? JSON.stringify(key) : "null"}, ${value ? JSON.stringify(value) : "null"})`
           )
           return result
         }
 
-        case "stopNetworkCapture": {
+        case "getSelector": {
+          const { ref } = params as any
           const result = await webview.executeJavaScript(
-            `window.__browserStopNetworkCapture()`
+            `window.__browserGetSelector("${ref}")`
           )
           return result
         }
 
-        case "getNetworkRequests": {
-          const result = await webview.executeJavaScript(
-            `window.__browserGetNetworkRequests(${JSON.stringify(params)})`
-          )
-          return result
+        case "consoleQuery": {
+          const filters = (params.filters || {}) as {
+            levels?: string[]; textPattern?: string;
+            sourcePattern?: string; minTimestamp?: number;
+          }
+          const limit = (params.limit as number) || 50
+          const offset = (params.offset as number) || 0
+
+          let logs = [...consoleLogsRef.current]
+
+          // Apply filters
+          if (filters.levels && filters.levels.length > 0) {
+            logs = logs.filter(l => filters.levels!.includes(l.level))
+          }
+          if (filters.textPattern) {
+            try {
+              const re = new RegExp(filters.textPattern, "i")
+              logs = logs.filter(l => re.test(l.message))
+            } catch { /* invalid regex, skip */ }
+          }
+          if (filters.sourcePattern) {
+            try {
+              const re = new RegExp(filters.sourcePattern, "i")
+              logs = logs.filter(l => re.test(l.source))
+            } catch { /* invalid regex, skip */ }
+          }
+          if (filters.minTimestamp) {
+            logs = logs.filter(l => l.timestamp >= filters.minTimestamp!)
+          }
+
+          const total = logs.length
+          const sliced = logs.slice(offset, offset + limit)
+
+          return {
+            success: true,
+            data: {
+              action: "query",
+              logs: sliced,
+              total,
+              returned: sliced.length,
+              hasMore: offset + limit < total,
+            },
+          }
+        }
+
+        case "consoleCollect": {
+          const filters = (params.filters || {}) as {
+            levels?: string[]; textPattern?: string;
+            sourcePattern?: string;
+          }
+          const count = (params.count as number) || 1
+          const timeout = (params.timeout as number) || 30000
+
+          const matchesFilter = (entry: typeof consoleLogsRef.current[0]) => {
+            if (filters.levels && filters.levels.length > 0 && !filters.levels.includes(entry.level)) return false
+            if (filters.textPattern) {
+              try { if (!new RegExp(filters.textPattern, "i").test(entry.message)) return false } catch { return false }
+            }
+            if (filters.sourcePattern) {
+              try { if (!new RegExp(filters.sourcePattern, "i").test(entry.source)) return false } catch { return false }
+            }
+            return true
+          }
+
+          const startTime = Date.now()
+          const collected: typeof consoleLogsRef.current = []
+
+          const result = await new Promise<{
+            collected: typeof consoleLogsRef.current; timedOut: boolean;
+          }>((resolve) => {
+            const timer = setTimeout(() => {
+              cleanup()
+              resolve({ collected, timedOut: true })
+            }, timeout)
+
+            const listener = (entry: typeof consoleLogsRef.current[0]) => {
+              if (matchesFilter(entry)) {
+                collected.push(entry)
+                if (collected.length >= count) {
+                  cleanup()
+                  resolve({ collected, timedOut: false })
+                }
+              }
+            }
+
+            const cleanup = () => {
+              clearTimeout(timer)
+              const idx = consoleCollectListenersRef.current.indexOf(listener)
+              if (idx >= 0) consoleCollectListenersRef.current.splice(idx, 1)
+            }
+
+            consoleCollectListenersRef.current.push(listener)
+          })
+
+          return {
+            success: true,
+            data: {
+              action: "collect",
+              logs: result.collected,
+              collected: result.collected.length,
+              requested: count,
+              timedOut: result.timedOut,
+              waitTime: Date.now() - startTime,
+            },
+          }
+        }
+
+        case "consoleClear": {
+          const filters = (params.filters || {}) as { levels?: string[] }
+
+          if (filters.levels && filters.levels.length > 0) {
+            const before = consoleLogsRef.current.length
+            consoleLogsRef.current = consoleLogsRef.current.filter(
+              l => !filters.levels!.includes(l.level)
+            )
+            const cleared = before - consoleLogsRef.current.length
+            return {
+              success: true,
+              data: { action: "clear", cleared, remaining: consoleLogsRef.current.length },
+            }
+          }
+
+          const cleared = consoleLogsRef.current.length
+          consoleLogsRef.current = []
+          return {
+            success: true,
+            data: { action: "clear", cleared, remaining: 0 },
+          }
         }
 
         default:
@@ -666,10 +1181,12 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     if (!webview) return
 
     const handleDomReady = () => {
+      console.log("[BrowserSidebar] dom-ready event fired")
       // Inject our scripts
       webview.executeJavaScript(getWebviewScript())
       setWebviewReady(true)
       setReady(true)
+      console.log("[BrowserSidebar] Sending browserReady(true) to main process")
       window.desktopApi.browserReady(true)
     }
 
@@ -788,9 +1305,12 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       }
     }
 
-    // Handle console messages from webview (for React Grab element selection and status)
+    // Handle console messages from webview (for React Grab element selection, status, and MCP log buffer)
     const handleConsoleMessage = (event: Electron.ConsoleMessageEvent) => {
       const message = event.message
+
+      // Buffer all console messages for MCP tool access
+      addConsoleLog(event.level, message, (event as any).sourceId || "")
 
       // React Grab ready signal
       if (message === REACT_GRAB_MARKERS.READY) {
@@ -1154,6 +1674,8 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             partition="persist:browser"
             // @ts-expect-error - allowpopups is a valid webview attribute
             allowpopups="true"
+            // @ts-expect-error - disablewebsecurity is a valid webview attribute
+            disablewebsecurity="true"
           />
           {/* AI Overlay */}
           <BrowserOverlay

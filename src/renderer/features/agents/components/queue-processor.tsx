@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { useMessageQueueStore } from "../stores/message-queue-store"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
-import { agentChatStore } from "../stores/agent-chat-store"
+import { chatRegistry } from "../stores/chat-registry"
 import { appStore } from "../../../lib/jotai-store"
 import { loadingSubChatsAtom, setLoading, clearLoading } from "../atoms"
 
@@ -48,8 +48,8 @@ export function QueueProcessor() {
         return
       }
 
-      // Get the Chat object from agentChatStore
-      const chat = agentChatStore.get(subChatId)
+      // Get the Chat object from chatRegistry
+      const chat = chatRegistry.get(subChatId)
       if (!chat) {
         return
       }
@@ -101,7 +101,7 @@ export function QueueProcessor() {
         useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId)
 
         // Set loading state for sidebar indicator
-        const parentChatId = agentChatStore.getParentChatId(subChatId)
+        const parentChatId = chatRegistry.getEntry(subChatId)?.parentChatId
         if (parentChatId) {
           setLoading(
             (fn) => appStore.set(loadingSubChatsAtom, fn(appStore.get(loadingSubChatsAtom))),

@@ -271,6 +271,25 @@ export const claudeSettingsRouter = router({
       settings.enabledPlugins = enabledPlugins as unknown as Record<string, boolean>
       await writeClaudeSettings(settings)
       invalidateEnabledPluginsCache()
+
+      // Sync plugin skills via SkillManager
+      try {
+        const { getSkillManager } = await import("../../skills")
+        const sm = getSkillManager()
+        if (input.enabled) {
+          const { discoverInstalledPlugins } = await import("../../plugins")
+          const plugins = await discoverInstalledPlugins()
+          const plugin = plugins.find((p) => p.source === input.pluginSource)
+          if (plugin) {
+            await sm.syncPluginSkills(input.pluginSource, plugin.path)
+          }
+        } else {
+          await sm.removePluginSkills(input.pluginSource)
+        }
+      } catch (err) {
+        console.warn("[claudeSettings] Failed to sync plugin skills:", err)
+      }
+
       return { success: true }
     }),
 
@@ -411,9 +430,21 @@ export const claudeSettingsRouter = router({
         settings.enabledSkills = enabledSkills
         await writeClaudeSettings(settings)
 
-        // Sync builtin skills to ~/.claude/skills/ for SDK discovery
-        const { syncBuiltinSkillEnabled } = await import("./skills")
-        await syncBuiltinSkillEnabled(input.skillName, input.enabled)
+        // Sync managed skills to ~/.claude/skills/ for SDK discovery via SkillManager
+        try {
+          const { getSkillManager } = await import("../../skills")
+          const sm = getSkillManager()
+          if (input.enabled) {
+            const resolved = await sm.resolveOriginDir(input.skillName)
+            if (resolved) {
+              await sm.enableSkill(input.skillName, resolved.source, resolved.originDir, resolved.pluginSource)
+            }
+          } else {
+            await sm.disableSkill(input.skillName)
+          }
+        } catch (err) {
+          console.warn("[claudeSettings] Failed to sync skill state:", err)
+        }
       }
 
       return { success: true }

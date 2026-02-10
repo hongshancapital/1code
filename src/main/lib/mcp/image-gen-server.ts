@@ -67,16 +67,12 @@ function normalizeBaseUrl(url: string): string {
 /**
  * Create Image Generation MCP server with tools
  */
-export async function createImageGenMcpServer(context: ImageGenMcpContext) {
-  const { createSdkMcpServer, tool } = await getSdkModule()
+export async function getImageGenToolDefinitions(context: ImageGenMcpContext) {
+  const { tool } = await getSdkModule()
   const { apiConfig } = context
-
   const baseUrl = normalizeBaseUrl(apiConfig.baseUrl)
 
-  return createSdkMcpServer({
-    name: "image-gen",
-    version: "1.0.0",
-    tools: [
+  return [
       // ========================================
       // generate_image - 文生图
       // ========================================
@@ -438,6 +434,16 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
           }
         },
       ),
-    ],
+    ]
+}
+
+export async function createImageGenMcpServer(context: ImageGenMcpContext) {
+  const { createSdkMcpServer } = await getSdkModule()
+  const tools = await getImageGenToolDefinitions(context)
+
+  return createSdkMcpServer({
+    name: "image-gen",
+    version: "1.0.0",
+    tools,
   })
 }

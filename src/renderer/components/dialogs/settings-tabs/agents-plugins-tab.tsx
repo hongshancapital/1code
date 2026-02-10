@@ -382,6 +382,7 @@ function InstalledPluginsView() {
   }, [startOAuthMutation, refetchMcp, t])
 
   const setPluginEnabledMutation = trpc.claudeSettings.setPluginEnabled.useMutation()
+  const trpcUtils = trpc.useUtils()
 
   const filteredPlugins = useMemo(() => {
     if (!searchQuery.trim()) return plugins
@@ -469,11 +470,14 @@ function InstalledPluginsView() {
         description: formatPluginName(plugin.name),
       })
       await refetch()
+      // Invalidate skills queries so widgets update after plugin skills sync
+      await trpcUtils.skills.listEnabled.invalidate()
+      await trpcUtils.skills.list.invalidate()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update plugin"
       toast.error(message)
     }
-  }, [setPluginEnabledMutation, approveAllMutation, revokeAllMutation, refetch])
+  }, [setPluginEnabledMutation, approveAllMutation, revokeAllMutation, refetch, trpcUtils])
 
   return (
     <div className="flex h-full overflow-hidden">

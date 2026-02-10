@@ -1,6 +1,6 @@
 export type { NavigationRoute, ScrollTarget } from "./types"
 export { SCROLL_TO_BOTTOM } from "./types"
-export { currentRouteAtom, navigatingProjectSyncAtom, scrollTargetAtom } from "./atoms"
+export { currentRouteAtom, navigatedProjectIdAtom, scrollTargetAtom } from "./atoms"
 export { buildRoute, parseRoute, buildDeepLink } from "./route-utils"
 export { useNavigate } from "./use-navigate"
 export { useScrollToTarget } from "./use-scroll-to-target"

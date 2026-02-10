@@ -712,7 +712,10 @@ askUserQuestionTimeout,
   }
 
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
-    return null // Not needed for local app
+    // Local Electron app 不支持 HTTP 流重连。
+    // useChat 配置 resume: false，确保此方法不会被调用。
+    // 即使被调用，返回 null 也是安全的（AI SDK 会跳过重连）。
+    return null
   }
 
   private extractText(msg: UIMessage | undefined): string {

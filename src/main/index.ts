@@ -1045,13 +1045,27 @@ if (gotTheLock) {
       console.error("[App] AutomationEngine init failed:", error)
     }
 
-    // Sync builtin skills to user directory (for Claude SDK discovery)
+    // Sync all skills (builtin + enabled plugins) via SkillManager
     try {
-      const { syncBuiltinSkillsToUserDir } = await import("./lib/trpc/routers/skills")
-      await syncBuiltinSkillsToUserDir()
-      console.log("[App] Builtin skills synced")
+      const { getSkillManager } = await import("./lib/skills")
+      const sm = getSkillManager()
+      await sm.syncAllBuiltinSkills()
+
+      // Also sync skills from enabled plugins
+      const { getEnabledPlugins } = await import("./lib/trpc/routers/claude-settings")
+      const { discoverInstalledPlugins } = await import("./lib/plugins")
+      const [enabledSources, allPlugins] = await Promise.all([
+        getEnabledPlugins(),
+        discoverInstalledPlugins(),
+      ])
+      for (const plugin of allPlugins) {
+        if (enabledSources.includes(plugin.source)) {
+          await sm.syncPluginSkills(plugin.source, plugin.path)
+        }
+      }
+      console.log("[App] Skills synced (builtin + enabled plugins)")
     } catch (error) {
-      console.warn("[App] Failed to sync builtin skills:", error)
+      console.warn("[App] Failed to sync skills:", error)
     }
 
     // Create main window

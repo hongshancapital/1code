@@ -21,6 +21,7 @@ export type BrowserOperationType =
   | "fill"
   | "type"
   | "screenshot"
+  | "getElementRect"
   | "back"
   | "forward"
   | "reload"
@@ -37,9 +38,43 @@ export type BrowserOperationType =
   | "drag"
   | "downloadImage"
   | "downloadFile"
+  | "downloadBatch"
+  | "uploadFile"
+  | "cookies"
+  | "storage"
   | "emulate"
   | "evaluate"
   | "querySelector"
+  | "getAttribute"
+  | "extractContent"
+  | "fullPageScreenshot"
+  | "startNetworkCapture"
+  | "stopNetworkCapture"
+  | "getNetworkRequests"
+  | "clearNetworkCapture"
+  | "consoleQuery"
+  | "consoleCollect"
+  | "consoleClear"
+
+/** Captured network request */
+/** Captured network request */
+export interface CapturedNetworkRequest {
+  id: string | number
+  method: string
+  url: string
+  status: number
+  statusText: string
+  requestHeaders?: Record<string, string>
+  responseHeaders?: Record<string, string>
+  requestBody?: string     // POST body (truncated)
+  responseBody?: string    // Response body (truncated)
+  contentType?: string
+  startTime: number
+  duration: number
+  size: number
+  type: "fetch" | "xhr" | "other"
+  error?: string
+}
 
 /** Browser operation result */
 export interface BrowserResult<T = unknown> {
@@ -76,6 +111,8 @@ export interface ScreenshotResult {
 export interface SnapshotOptions {
   interactiveOnly?: boolean
   query?: string
+  includeImages?: boolean
+  includeLinks?: boolean
 }
 
 /** Snapshot result */

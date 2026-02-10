@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { useMessageQueueStore } from "./message-queue-store"
 import { useStreamingStatusStore } from "./streaming-status-store"
-import { agentChatStore } from "./agent-chat-store"
+import { chatRegistry } from "./chat-registry"
 import { getWindowId } from "../../../contexts/WindowContext"
 import { clearTaskSnapshotCache } from "../ui/agent-task-tools"
 
@@ -199,7 +199,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     // to prevent memory leaks and race conditions (QueueProcessor sending to closed subChat)
     useMessageQueueStore.getState().clearQueue(subChatId)
     useStreamingStatusStore.getState().clearStatus(subChatId)
-    agentChatStore.delete(subChatId)
+    chatRegistry.unregister(subChatId)
     clearTaskSnapshotCache(subChatId)
   },
 

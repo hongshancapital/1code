@@ -177,7 +177,17 @@ export class AuthManager {
   private onTokenRefresh?: (authData: AuthData) => void
 
   // PKCE state for ongoing auth flow
-  private pkceState: PkceState | null = null
+  private get pkceState(): PkceState | null {
+    return this.store.loadPkceState()
+  }
+
+  private set pkceState(state: PkceState | null) {
+    if (state) {
+      this.store.savePkceState(state)
+    } else {
+      this.store.clearPkceState()
+    }
+  }
 
   // Auth callback handlers (set from main process)
   private authCallbackHandlers?: AuthCallbackHandlers
