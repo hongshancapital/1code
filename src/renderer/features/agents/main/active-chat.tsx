@@ -4637,7 +4637,7 @@ export function ChatView({
       // 查询可能也不会重新执行。
       // 解决：让查询总是执行，后端会处理不存在的 subChat（返回 null）
       enabled: !!activeSubChatId && chatSourceMode === "local",
-      staleTime: Infinity, // Don't refetch - messages are kept in sync via streaming
+      // staleTime: Infinity, // REMOVED: Must refetch on mount/switch to get updates that happened in background
     }
   )
 
