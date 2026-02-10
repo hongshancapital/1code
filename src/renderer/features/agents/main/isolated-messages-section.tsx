@@ -1,18 +1,21 @@
 "use client"
 
-import { memo, useLayoutEffect, useRef } from "react"
+import { memo } from "react"
 import { useAtomValue } from "jotai"
-import { Virtuoso, type VirtuosoHandle, type Components } from "react-virtuoso"
 import { userMessageIdsAtom, currentSubChatIdAtom } from "../stores/message-store"
 import { IsolatedMessageGroup } from "./isolated-message-group"
-import { agentsChatFullWidthAtom } from "../../agents/atoms"
-import { cn } from "../../../lib/utils"
 
 // ============================================================================
 // ISOLATED MESSAGES SECTION (LAYER 3)
 // ============================================================================
 // Renders ALL message groups by subscribing to userMessageIdsAtom.
-// Uses react-virtuoso for virtualization to handle long conversations efficiently.
+// Only re-renders when a new user message is added (new conversation turn).
+// Each group independently subscribes to its own data via IsolatedMessageGroup.
+//
+// During streaming:
+// - This component does NOT re-render (userMessageIds don't change)
+// - Individual groups don't re-render (their user msg + assistant IDs don't change)
+// - Only the AssistantMessageItem for the streaming message re-renders
 // ============================================================================
 
 interface IsolatedMessagesSectionProps {
@@ -39,9 +42,6 @@ interface IsolatedMessagesSectionProps {
   }>
   MessageGroupWrapper: React.ComponentType<{ children: React.ReactNode; isLastGroup?: boolean }>
   toolRegistry: Record<string, { icon: any; title: (args: any) => string }>
-  virtuosoRef?: React.RefObject<VirtuosoHandle>
-  onAtBottomStateChange?: (atBottom: boolean) => void
-  onScroll?: (e: Event) => void
 }
 
 function areSectionPropsEqual(
@@ -60,10 +60,7 @@ function areSectionPropsEqual(
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupWrapper === next.MessageGroupWrapper &&
-    prev.toolRegistry === next.toolRegistry &&
-    prev.virtuosoRef === next.virtuosoRef &&
-    prev.onAtBottomStateChange === next.onAtBottomStateChange &&
-    prev.onScroll === next.onScroll
+    prev.toolRegistry === next.toolRegistry
   )
 }
 
@@ -80,99 +77,54 @@ export const IsolatedMessagesSection = memo(function IsolatedMessagesSection({
   ToolCallComponent,
   MessageGroupWrapper,
   toolRegistry,
-  virtuosoRef,
-  onAtBottomStateChange,
-  onScroll,
 }: IsolatedMessagesSectionProps) {
-  // Global atoms
+  // CRITICAL: Check if global atoms are synced for THIS subChat FIRST
+  // With keep-alive tabs, multiple ChatViewInner instances exist simultaneously.
+  // Global atoms (messageIdsAtom, etc.) contain data from the ACTIVE tab only.
+  // When a tab becomes active, useLayoutEffect syncs its messages to global atoms,
+  // but that happens AFTER this component renders. So on first render after activation,
+  // we might read stale data from the previous active tab.
+  //
+  // Solution: Check currentSubChatIdAtom BEFORE reading userMessageIdsAtom.
+  // If it doesn't match our subChatId, return empty to avoid showing wrong messages.
+  // The useLayoutEffect will sync and update currentSubChatIdAtom, which triggers
+  // a re-render of this component (since we're subscribed to it).
   const currentSubChatId = useAtomValue(currentSubChatIdAtom)
+
+  // Subscribe to user message IDs - but only use them if we're the active chat
   const userMsgIds = useAtomValue(userMessageIdsAtom)
-  const isChatFullWidth = useAtomValue(agentsChatFullWidthAtom)
 
-  // Performance logging
-  const _renderStart = performance.now()
-  useLayoutEffect(() => {
-    const duration = performance.now() - _renderStart
-    if (duration > 10) {
-      console.log(`[IsolatedMessagesSection] RENDER: ${duration.toFixed(0)}ms (msgs=${userMsgIds.length})`)
-    }
-  })
-
-  // Guard: sync check
+  // 修复：当切换 workspace 时，currentSubChatIdAtom 可能还是旧值
+  // 如果 subChatId 不匹配，且没有消息，说明可能是新的空 chat 或切换中的状态
+  // 此时应该允许渲染空内容，而不是返回 null（否则 UI 会卡住）
   if (currentSubChatId !== subChatId) {
+    // 如果有消息但 ID 不匹配，说明是旧数据，跳过渲染
     if (userMsgIds.length > 0) {
       return null
     }
+    // 如果没有消息，可能是新 chat 或切换中，允许继续渲染空内容
   }
 
-  // Define components for Virtuoso
-  const Scroller = useRef<Components["Scroller"]>(
-    ({ style, ...props }: any) => {
-      return (
-        <div
-          style={{ ...style }}
-          className="w-full h-full overflow-y-auto relative allow-text-selection outline-hidden scroll-smooth"
-          tabIndex={-1}
-          data-chat-container
-          {...props}
-        />
-      )
-    }
-  ).current
-
-  const List = useRef<Components["List"]>(
-    ({ style, children, ...props }: any) => {
-      return (
-        <div
-          style={{ ...style, paddingBottom: "32px" }}
-          className="w-full"
-          {...props}
-        >
-          {children}
-        </div>
-      )
-    }
-  ).current
-
   return (
-    <Virtuoso
-      ref={virtuosoRef}
-      style={{ height: "100%", width: "100%" }}
-      data={userMsgIds}
-      initialTopMostItemIndex={userMsgIds.length - 1}
-      // Follow output: "auto" works well for chat, but we can control it if needed
-      followOutput="auto"
-      alignToBottom={false} // We don't force align to bottom because we want natural scroll
-      atBottomThreshold={60}
-      atBottomStateChange={onAtBottomStateChange}
-      // Pass raw scroll events for header/auto-scroll logic in parent
-      onScroll={onScroll}
-      components={{ Scroller, List }}
-      itemContent={(index, userMsgId) => (
-        <div
-          className={cn(
-            "px-2 mx-auto mb-4", // Added mb-4 to replicate space-y-4
-            !isChatFullWidth && "max-w-2xl"
-          )}
-        >
-          <IsolatedMessageGroup
-            key={userMsgId}
-            userMsgId={userMsgId}
-            subChatId={subChatId}
-            chatId={chatId}
-            isMobile={isMobile}
-            sandboxSetupStatus={sandboxSetupStatus}
-            stickyTopClass={stickyTopClass}
-            sandboxSetupError={sandboxSetupError}
-            onRetrySetup={onRetrySetup}
-            onRetryMessage={onRetryMessage}
-            UserBubbleComponent={UserBubbleComponent}
-            ToolCallComponent={ToolCallComponent}
-            MessageGroupWrapper={MessageGroupWrapper}
-            toolRegistry={toolRegistry}
-          />
-        </div>
-      )}
-    />
+    <>
+      {userMsgIds.map((userMsgId) => (
+        <IsolatedMessageGroup
+          key={userMsgId}
+          userMsgId={userMsgId}
+          subChatId={subChatId}
+          chatId={chatId}
+          isMobile={isMobile}
+          sandboxSetupStatus={sandboxSetupStatus}
+          stickyTopClass={stickyTopClass}
+          sandboxSetupError={sandboxSetupError}
+          onRetrySetup={onRetrySetup}
+          onRetryMessage={onRetryMessage}
+          UserBubbleComponent={UserBubbleComponent}
+          ToolCallComponent={ToolCallComponent}
+          MessageGroupWrapper={MessageGroupWrapper}
+          toolRegistry={toolRegistry}
+        />
+      ))}
+    </>
   )
 }, areSectionPropsEqual)

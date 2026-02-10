@@ -16,6 +16,7 @@ export interface ChatEntry {
   createdAt: number
   lastActiveAt: number // 用于 LRU 淘汰
   isBackground?: boolean // 是否在后台运行（Keep-Alive）
+  streamId?: string | null // Add streamId to track active streams
 }
 
 // 最大保留的后台会话数量（防止内存泄漏，但足够覆盖高频切换场景）
@@ -155,6 +156,19 @@ class ChatRegistry {
 
   clearManuallyAborted(subChatId: string): void {
     this.manuallyAborted.delete(subChatId)
+  }
+
+  // ── Stream ID Management ──
+
+  registerStreamId(subChatId: string, streamId: string | null): void {
+    const entry = this.entries.get(subChatId)
+    if (entry) {
+      entry.streamId = streamId
+    }
+  }
+
+  getStreamId(subChatId: string): string | null {
+    return this.entries.get(subChatId)?.streamId ?? null
   }
 }
 
