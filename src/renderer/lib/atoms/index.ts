@@ -1151,8 +1151,18 @@ export {
   // Summary model (name generation, commit messages)
   summaryProviderIdAtom,
   summaryModelIdAtom,
+  // Task-specific model assignments
+  agentModeProviderIdAtom,
+  agentModeModelIdAtom,
+  planModeProviderIdAtom,
+  planModeModelIdAtom,
+  researchModeProviderIdAtom,
+  researchModeModelIdAtom,
   // Derived
   availableModelsAtom,
+  // Auto-populate recommended models
+  autoPopulateRecommendedModelsAtom,
+  autoSelectTaskModelsAtom,
   // Migration
   migrateOldModelConfig,
   isMigrationDone,
