@@ -11,6 +11,7 @@ export interface QueuedImage {
   mediaType: string
   filename?: string
   base64Data?: string
+  localPath?: string
 }
 
 export interface QueuedFile {
@@ -19,6 +20,7 @@ export interface QueuedFile {
   filename: string
   mediaType?: string
   size?: number
+  localPath?: string
 }
 
 // Text context selected from assistant messages
@@ -125,6 +127,7 @@ export function toQueuedImage(img: UploadedImage): QueuedImage {
     mediaType: img.mediaType || "image/png",
     filename: img.filename,
     base64Data: img.base64Data,
+    localPath: img.localPath,
   }
 }
 
@@ -136,6 +139,7 @@ export function toQueuedFile(file: UploadedFile): QueuedFile {
     filename: file.filename,
     mediaType: file.type,
     size: file.size,
+    localPath: file.localPath,
   }
 }
 
