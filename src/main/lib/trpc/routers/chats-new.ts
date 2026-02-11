@@ -14,10 +14,15 @@ import { createId } from "../../db/utils"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {
   createWorktreeForChat,
+  isValidBranchName,
+  renameBranch,
   removeWorktree,
+  sanitizeBranchNameForFolder,
   sanitizeProjectName,
 } from "../../git"
 import { gitCache } from "../../git/cache"
+import { withGitLock } from "../../git/git-factory"
+import { gitWatcherRegistry } from "../../git/watcher/git-watcher"
 import { terminalManager } from "../../terminal/manager"
 import { publicProcedure, router } from "../index"
 import { subChatsRouter } from "./sub-chats"
@@ -702,6 +707,165 @@ const chatsCoreRouter = router({
         .where(eq(chats.id, input.id))
         .returning()
         .get()
+    }),
+
+  /**
+   * Rename the git branch for a coding-mode chat.
+   * Validates the new name, runs `git branch -m`, and updates the DB.
+   */
+  renameBranch: publicProcedure
+    .input(z.object({
+      chatId: z.string(),
+      newBranchName: z.string().min(1).max(200),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      const chat = db
+        .select()
+        .from(chats)
+        .where(eq(chats.id, input.chatId))
+        .get()
+      if (!chat) throw new Error("Chat not found")
+      if (!chat.worktreePath || !chat.branch) {
+        throw new Error("Chat has no worktree or branch")
+      }
+
+      const trimmedName = input.newBranchName.trim()
+      if (chat.branch === trimmedName) {
+        return chat // no-op
+      }
+
+      const validation = isValidBranchName(trimmedName)
+      if (!validation.valid) {
+        throw new Error(`Invalid branch name: ${validation.error}`)
+      }
+
+      const result = await withGitLock(chat.worktreePath, async () => {
+        return renameBranch(chat.worktreePath!, chat.branch!, trimmedName)
+      })
+
+      if (!result.success) {
+        throw new Error(`Failed to rename branch: ${result.error}`)
+      }
+
+      const updated = db
+        .update(chats)
+        .set({ branch: trimmedName, updatedAt: new Date() })
+        .where(eq(chats.id, input.chatId))
+        .returning()
+        .get()
+
+      gitCache.invalidateStatus(chat.worktreePath)
+      gitCache.invalidateParsedDiff(chat.worktreePath)
+
+      return updated
+    }),
+
+  /**
+   * Rename / move the worktree directory for a coding-mode chat.
+   * Stops watchers & terminals first, moves the directory, then updates DB.
+   * Uses fs.rename first; falls back to copy-verify-delete on EBUSY/EPERM.
+   */
+  moveWorktree: publicProcedure
+    .input(z.object({
+      chatId: z.string(),
+      newFolderName: z.string().min(1).max(100),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDatabase()
+
+      const chat = db
+        .select()
+        .from(chats)
+        .where(eq(chats.id, input.chatId))
+        .get()
+      if (!chat) throw new Error("Chat not found")
+      if (!chat.worktreePath) throw new Error("Chat has no worktree path")
+
+      const sanitized = sanitizeBranchNameForFolder(input.newFolderName)
+      if (!sanitized) throw new Error("Invalid folder name")
+
+      const parentDir = join(chat.worktreePath, "..")
+      const newWorktreePath = join(parentDir, sanitized)
+
+      if (newWorktreePath === chat.worktreePath) {
+        return chat // no-op
+      }
+
+      if (existsSync(newWorktreePath)) {
+        throw new Error("A directory with this name already exists")
+      }
+
+      // --- Pre-cleanup: stop watchers & terminals (best-effort) ---
+      await gitWatcherRegistry.dispose(chat.worktreePath).catch((err: unknown) => {
+        console.warn(`[moveWorktree] Failed to dispose watcher: ${err}`)
+      })
+      await terminalManager.killByWorkspaceId(input.chatId).catch((err: unknown) => {
+        console.warn(`[moveWorktree] Failed to kill terminals: ${err}`)
+      })
+
+      // --- Move directory ---
+      const { rename: fsRename } = await import("fs/promises")
+      const { cp, rm: fsRm } = await import("fs/promises")
+
+      let moved = false
+      // Strategy 1: fast fs.rename (same filesystem)
+      try {
+        await fsRename(chat.worktreePath, newWorktreePath)
+        moved = true
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code !== "EXDEV" && code !== "EBUSY" && code !== "EPERM") {
+          // Unrecoverable — restore watcher and rethrow
+          await gitWatcherRegistry.getOrCreate(chat.worktreePath).catch(() => {})
+          throw new Error(`Failed to move directory: ${(err as Error).message}`)
+        }
+      }
+
+      // Strategy 2: copy → verify → delete-old
+      if (!moved) {
+        try {
+          await cp(chat.worktreePath, newWorktreePath, { recursive: true, force: true })
+        } catch (copyErr) {
+          // Clean partial copy, restore watcher
+          await fsRm(newWorktreePath, { recursive: true, force: true }).catch(() => {})
+          await gitWatcherRegistry.getOrCreate(chat.worktreePath).catch(() => {})
+          throw new Error(
+            `Copy failed: ${(copyErr as Error).message}. Original directory unchanged.`
+          )
+        }
+
+        // Verify the copy has a valid .git reference
+        const gitRef = join(newWorktreePath, ".git")
+        if (!existsSync(gitRef)) {
+          await fsRm(newWorktreePath, { recursive: true, force: true }).catch(() => {})
+          await gitWatcherRegistry.getOrCreate(chat.worktreePath).catch(() => {})
+          throw new Error("Copy verification failed. Original directory unchanged.")
+        }
+
+        // Delete old directory (best-effort — failure is non-fatal)
+        await fsRm(chat.worktreePath, { recursive: true, force: true }).catch((delErr) => {
+          console.warn(
+            `[moveWorktree] Old directory not removed: ${(delErr as Error).message}. ` +
+            `You may delete it manually: ${chat.worktreePath}`
+          )
+        })
+      }
+
+      // --- Update DB ---
+      const updated = db
+        .update(chats)
+        .set({ worktreePath: newWorktreePath, updatedAt: new Date() })
+        .where(eq(chats.id, input.chatId))
+        .returning()
+        .get()
+
+      // --- Invalidate caches for old path ---
+      gitCache.invalidateStatus(chat.worktreePath)
+      gitCache.invalidateParsedDiff(chat.worktreePath)
+
+      return updated
     }),
 
   /**

@@ -971,6 +971,28 @@ export function isValidBranchName(name: string): { valid: boolean; error?: strin
 }
 
 /**
+ * Rename a branch in a worktree.
+ * Runs `git branch -m oldName newName` inside the worktree.
+ * This is an atomic git operation — no rollback needed.
+ */
+export async function renameBranch(
+	worktreePath: string,
+	oldName: string,
+	newName: string,
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const git = simpleGit(worktreePath);
+		await git.branch(["-m", oldName, newName]);
+		return { success: true };
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+/**
  * Create a git worktree for a chat (wrapper for chats.ts)
  * @param projectPath - Path to the main repository
  * @param projectSlug - Sanitized project name for worktree directory

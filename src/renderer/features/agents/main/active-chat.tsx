@@ -141,7 +141,6 @@ import {
   pendingPlanApprovalsAtom,
   pendingPrMessageAtom,
   pendingReviewMessageAtom,
-  pendingBranchRenameMessageAtom,
   pendingUserQuestionsAtom,
   planEditRefetchTriggerAtomFamily,
   planSidebarOpenAtomFamily,
@@ -1656,7 +1655,9 @@ const ChatViewInner = memo(function ChatViewInner({
     isUploading,
     setImagesFromDraft,
     setFilesFromDraft,
-  } = useAgentsFileUpload()
+  } = useAgentsFileUpload(
+    parentChatId ? `${parentChatId}:${subChatId}` : undefined
+  )
 
   // Listen for browser screenshots to add to chat input
   const browserPendingScreenshotAtom = useMemo(
@@ -1776,45 +1777,54 @@ const ChatViewInner = memo(function ChatViewInner({
   // Restore draft when subChatId changes (switching between sub-chats)
   const prevSubChatIdForDraftRef = useRef<string | null>(null)
   useEffect(() => {
-    // Restore full draft (text + attachments + text contexts) for new sub-chat
-    const savedDraft = parentChatId
-      ? getSubChatDraftFull(parentChatId, subChatId)
-      : null
+    let cancelled = false
 
-    if (savedDraft) {
-      // Restore text
-      if (savedDraft.text) {
-        editorRef.current?.setValue(savedDraft.text)
-      } else {
+    async function restoreDraft() {
+      // Restore full draft (text + attachments + text contexts) for new sub-chat
+      const savedDraft = parentChatId
+        ? await getSubChatDraftFull(parentChatId, subChatId)
+        : null
+
+      if (cancelled) return
+
+      if (savedDraft) {
+        // Restore text
+        if (savedDraft.text) {
+          editorRef.current?.setValue(savedDraft.text)
+        } else {
+          editorRef.current?.clear()
+        }
+        // Restore images
+        if (savedDraft.images.length > 0) {
+          setImagesFromDraft(savedDraft.images)
+        } else {
+          clearAll()
+        }
+        // Restore files
+        if (savedDraft.files.length > 0) {
+          setFilesFromDraft(savedDraft.files)
+        }
+        // Restore text contexts
+        if (savedDraft.textContexts.length > 0) {
+          setTextContextsFromDraft(savedDraft.textContexts)
+        } else {
+          clearTextContexts()
+        }
+      } else if (
+        prevSubChatIdForDraftRef.current &&
+        prevSubChatIdForDraftRef.current !== subChatId
+      ) {
+        // Clear everything when switching to a sub-chat with no draft
         editorRef.current?.clear()
-      }
-      // Restore images
-      if (savedDraft.images.length > 0) {
-        setImagesFromDraft(savedDraft.images)
-      } else {
         clearAll()
-      }
-      // Restore files
-      if (savedDraft.files.length > 0) {
-        setFilesFromDraft(savedDraft.files)
-      }
-      // Restore text contexts
-      if (savedDraft.textContexts.length > 0) {
-        setTextContextsFromDraft(savedDraft.textContexts)
-      } else {
         clearTextContexts()
       }
-    } else if (
-      prevSubChatIdForDraftRef.current &&
-      prevSubChatIdForDraftRef.current !== subChatId
-    ) {
-      // Clear everything when switching to a sub-chat with no draft
-      editorRef.current?.clear()
-      clearAll()
-      clearTextContexts()
+
+      prevSubChatIdForDraftRef.current = subChatId
     }
 
-    prevSubChatIdForDraftRef.current = subChatId
+    restoreDraft()
+    return () => { cancelled = true }
   }, [
     subChatId,
     parentChatId,
@@ -2078,24 +2088,6 @@ const ChatViewInner = memo(function ChatViewInner({
       })
     }
   }, [pendingConflictMessage, isStreaming, isActive, sendMessage, setPendingConflictMessage])
-
-  // Watch for pending branch rename message and send it
-  const [pendingBranchRename, setPendingBranchRename] = useAtom(
-    pendingBranchRenameMessageAtom,
-  )
-
-  useEffect(() => {
-    if (pendingBranchRename && !isStreaming) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingBranchRename(null)
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: pendingBranchRename }],
-      })
-    }
-  }, [pendingBranchRename, isStreaming, sendMessage, setPendingBranchRename])
 
   // Handle pending "Build plan" from sidebar (atom - effect is defined after handleApprovePlan)
   const [pendingBuildPlanSubChatId, setPendingBuildPlanSubChatId] = useAtom(
@@ -3098,19 +3090,47 @@ const ChatViewInner = memo(function ChatViewInner({
     }
 
     // Build message parts: images first, then files, then text
-    // Include base64Data for API transmission
+    // Small images (< 5MB) are inlined as base64; large images use file path reference
+    // Claude API supports up to 8MB inline base64, 5MB leaves reasonable headroom
+    const IMAGE_INLINE_THRESHOLD = 5 * 1024 * 1024 // 5MB
     const parts: any[] = [
       ...currentImages
         .filter((img) => !img.isLoading && img.url)
-        .map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data, // Include base64 data for Claude API
-          },
-        })),
+        .map((img) => {
+          const sizeBytes = img.base64Data
+            ? Math.ceil((img.base64Data.length * 3) / 4)
+            : 0
+          if (img.base64Data && sizeBytes <= IMAGE_INLINE_THRESHOLD) {
+            // Small image: inline base64 for Claude API
+            return {
+              type: "data-image" as const,
+              data: {
+                url: img.url,
+                mediaType: img.mediaType,
+                filename: img.filename,
+                base64Data: img.base64Data,
+              },
+            }
+          } else if (img.tempPath) {
+            // Large image: pass file path reference
+            const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(1)
+            return {
+              type: "text" as const,
+              text: `[Image attachment: ${img.filename} (${sizeMB}MB) at path: ${img.tempPath}]`,
+            }
+          } else {
+            // Fallback: inline whatever we have
+            return {
+              type: "data-image" as const,
+              data: {
+                url: img.url,
+                mediaType: img.mediaType,
+                filename: img.filename,
+                base64Data: img.base64Data,
+              },
+            }
+          }
+        }),
       ...currentFiles
         .filter((f) => !f.isLoading && f.url)
         .map((f) => ({

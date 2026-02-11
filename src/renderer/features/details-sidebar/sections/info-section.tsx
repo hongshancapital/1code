@@ -1,16 +1,15 @@
 "use client"
 
-import { memo, useState, useCallback } from "react"
-import { useAtomValue, useSetAtom } from "jotai"
+import { memo, useState, useCallback, useRef, useEffect } from "react"
+import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
 import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
 } from "@/components/ui/icons"
-import { WandSparkles, ArrowRightCircle, HelpCircle } from "lucide-react"
+import { Pencil, ArrowRightCircle, HelpCircle, Loader2 } from "lucide-react"
 import { MoveToWorkspaceDialog } from "@/components/dialogs/move-to-workspace-dialog"
-import { pendingBranchRenameMessageAtom } from "@/features/agents/atoms"
 import {
   Tooltip,
   TooltipContent,
@@ -21,6 +20,7 @@ import { trpc } from "@/lib/trpc"
 import { preferredEditorAtom } from "@/lib/atoms"
 import { APP_META } from "../../../../shared/external-apps"
 import { EDITOR_ICONS } from "@/lib/editor-icons"
+import { toast } from "sonner"
 
 interface InfoSectionProps {
   chatId: string
@@ -123,6 +123,57 @@ function PropertyRow({
   )
 }
 
+/** Inline edit component shared by branch and folder rename */
+function InlineEdit({
+  currentValue,
+  onSubmit,
+  onCancel,
+  isLoading,
+  placeholder,
+}: {
+  currentValue: string
+  onSubmit: (value: string) => void
+  onCancel: () => void
+  isLoading: boolean
+  placeholder?: string
+}) {
+  const [value, setValue] = useState(currentValue)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.select()
+  }, [])
+
+  const handleSubmit = useCallback(() => {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === currentValue) {
+      onCancel()
+      return
+    }
+    onSubmit(trimmed)
+  }, [value, currentValue, onCancel, onSubmit])
+
+  return (
+    <div className="flex items-center gap-1 min-h-[28px] flex-1 min-w-0">
+      <input
+        ref={inputRef}
+        className="flex-1 min-w-0 text-xs bg-background border rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-ring"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSubmit()
+          if (e.key === "Escape") onCancel()
+        }}
+        onBlur={handleSubmit}
+        disabled={isLoading}
+        placeholder={placeholder}
+        autoFocus
+      />
+      {isLoading && <Loader2 className="h-3 w-3 animate-spin shrink-0 text-muted-foreground" />}
+    </div>
+  )
+}
+
 /**
  * Info Section for Details Sidebar
  * Shows workspace info: branch, PR, path
@@ -139,6 +190,10 @@ export const InfoSection = memo(function InfoSection({
 
   // Move to workspace dialog state
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
+
+  // Inline edit states
+  const [isEditingBranch, setIsEditingBranch] = useState(false)
+  const [isEditingPath, setIsEditingPath] = useState(false)
 
   // Extract folder name from path
   const folderName = worktreePath?.split("/").pop() || "Unknown"
@@ -159,6 +214,34 @@ export const InfoSection = memo(function InfoSection({
   // Mutations
   const openInFinderMutation = trpc.external.openInFinder.useMutation()
   const openInAppMutation = trpc.external.openInApp.useMutation()
+
+  // tRPC utils for invalidation
+  const utils = trpc.useUtils()
+
+  // Branch rename mutation
+  const renameBranchMutation = trpc.chats.renameBranch.useMutation({
+    onSuccess: () => {
+      setIsEditingBranch(false)
+      utils.chats.get.invalidate({ id: chatId })
+      utils.changes.getBranches.invalidate()
+      toast.success(t("details.workspace.branchRenamed"))
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Move worktree mutation
+  const moveWorktreeMutation = trpc.chats.moveWorktree.useMutation({
+    onSuccess: () => {
+      setIsEditingPath(false)
+      utils.chats.get.invalidate({ id: chatId })
+      toast.success(t("details.workspace.folderRenamed"))
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
 
   // Get preferred editor from settings
   const preferredEditor = useAtomValue(preferredEditorAtom)
@@ -225,29 +308,6 @@ export const InfoSection = memo(function InfoSection({
     }
   }
 
-  // AI branch rename
-  const setPendingBranchRenameMessage = useSetAtom(pendingBranchRenameMessageAtom)
-
-  const handleRenameBranch = useCallback(() => {
-    if (branchName) {
-      const message = `Current git branch: ${branchName}
-
-Please help me rename this branch to a more descriptive name. Follow these conventions:
-1. Use kebab-case (e.g., feat/add-user-auth, fix/login-bug)
-2. Keep it concise but descriptive
-3. Add a prefix if appropriate (feat/, fix/, refactor/, etc.)
-
-Steps:
-1. Suggest a better branch name based on recent changes or context
-2. Ask for confirmation before renaming
-3. Once confirmed, use \`git branch -m <new-name>\` to rename locally
-4. If there's a remote branch, remind me to update remote tracking
-
-Please suggest a new branch name.`
-      setPendingBranchRenameMessage(message)
-    }
-  }, [branchName, setPendingBranchRenameMessage])
-
   // Show loading state while branch data is loading (only for local chats)
   if (!isRemoteChat && isBranchLoading) {
     return (
@@ -303,26 +363,38 @@ Please suggest a new branch name.`
       {branchName && (
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            <PropertyRow
-              icon={GitBranchFilledIcon}
-              label={t("details.workspace.branch")}
-              value={branchName}
-              copyable
-              copiedText={t("details.workspace.copied")}
-              clickToCopyText={t("details.workspace.clickToCopy")}
-            />
+            {isEditingBranch ? (
+              <InlineEdit
+                currentValue={branchName}
+                onSubmit={(newName) => {
+                  renameBranchMutation.mutate({ chatId, newBranchName: newName })
+                }}
+                onCancel={() => setIsEditingBranch(false)}
+                isLoading={renameBranchMutation.isPending}
+                placeholder={t("details.workspace.branchNamePlaceholder")}
+              />
+            ) : (
+              <PropertyRow
+                icon={GitBranchFilledIcon}
+                label={t("details.workspace.branch")}
+                value={branchName}
+                copyable
+                copiedText={t("details.workspace.copied")}
+                clickToCopyText={t("details.workspace.clickToCopy")}
+              />
+            )}
           </div>
           {/* Only show rename button for local chats */}
-          {!isRemoteChat && (
+          {!isRemoteChat && !isEditingBranch && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0"
-                  onClick={handleRenameBranch}
+                  onClick={() => setIsEditingBranch(true)}
                 >
-                  <WandSparkles className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
@@ -343,40 +415,69 @@ Please suggest a new branch name.`
           tooltip={t("details.workspace.openInGitHub")}
         />
       )}
-      {/* Path - for non-playground local chats, with editor button */}
+      {/* Path - for non-playground local chats, with editor & rename buttons */}
       {worktreePath && !isPlayground && (
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            <PropertyRow
-              icon={FolderFilledIcon}
-              label={t("details.workspace.path")}
-              value={folderName}
-              title={worktreePath}
-              onClick={handleOpenFolder}
-              tooltip={t("details.workspace.openInFinder")}
-            />
+            {isEditingPath ? (
+              <InlineEdit
+                currentValue={folderName}
+                onSubmit={(newName) => {
+                  moveWorktreeMutation.mutate({ chatId, newFolderName: newName })
+                }}
+                onCancel={() => setIsEditingPath(false)}
+                isLoading={moveWorktreeMutation.isPending}
+                placeholder={t("details.workspace.folderNamePlaceholder")}
+              />
+            ) : (
+              <PropertyRow
+                icon={FolderFilledIcon}
+                label={t("details.workspace.path")}
+                value={folderName}
+                title={worktreePath}
+                onClick={handleOpenFolder}
+                tooltip={t("details.workspace.openInFinder")}
+              />
+            )}
           </div>
-          {project?.mode === "coding" && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0"
-                  onClick={handleOpenInEditor}
-                  disabled={openInAppMutation.isPending}
-                >
-                  {editorIcon ? (
-                    <img src={editorIcon} alt="" className="h-3.5 w-3.5" />
-                  ) : (
-                    <span className="h-3.5 w-3.5 text-muted-foreground">E</span>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {t("details.workspace.openIn", { editor: editorLabel })}
-              </TooltipContent>
-            </Tooltip>
+          {project?.mode === "coding" && !isEditingPath && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={handleOpenInEditor}
+                    disabled={openInAppMutation.isPending}
+                  >
+                    {editorIcon ? (
+                      <img src={editorIcon} alt="" className="h-3.5 w-3.5" />
+                    ) : (
+                      <span className="h-3.5 w-3.5 text-muted-foreground">E</span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {t("details.workspace.openIn", { editor: editorLabel })}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => setIsEditingPath(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {t("details.workspace.renameFolder")}
+                </TooltipContent>
+              </Tooltip>
+            </>
           )}
         </div>
       )}
