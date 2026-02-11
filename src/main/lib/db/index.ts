@@ -375,6 +375,17 @@ export function initDatabase() {
     console.log("[DB] Memory tables check:", error.message)
   }
 
+  // Ensure source column exists on model_usage table (for distinguishing chat/memory/automation usage)
+  try {
+    sqlite.exec(`ALTER TABLE model_usage ADD COLUMN source TEXT`)
+    console.log("[DB] Added source column to model_usage")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] source column check:", error.message)
+    }
+  }
+
   // Ensure model_providers and cached_models tables exist (for unified provider management)
   try {
     sqlite.exec(`
