@@ -148,6 +148,7 @@ import {
   QUESTIONS_SKIPPED_MESSAGE,
   selectedAgentChatIdAtom,
   selectedCommitAtom,
+  diffActiveTabAtom,
   selectedDiffFilePathAtom,
   selectedProjectAtom,
   setLoading,
@@ -644,15 +645,26 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
 
   // Active tab state (Changes/History)
   const [activeTab, setActiveTab] = useState<"changes" | "history">("changes")
+  const [globalActiveTab, setGlobalActiveTab] = useAtom(diffActiveTabAtom)
+
+  // Sync from global atom (set by git-activity-badges) to local state
+  useEffect(() => {
+    if (globalActiveTab !== activeTab) {
+      setActiveTab(globalActiveTab)
+    }
+  }, [globalActiveTab])
 
   // Register the reset function so handleCloseDiff can reset to "changes" tab before closing
   // This prevents React 19 ref cleanup issues with HistoryView's ContextMenu components
   useEffect(() => {
-    resetActiveTabRef.current = () => setActiveTab("changes")
+    resetActiveTabRef.current = () => {
+      setActiveTab("changes")
+      setGlobalActiveTab("changes")
+    }
     return () => {
       resetActiveTabRef.current = null
     }
-  }, [resetActiveTabRef])
+  }, [resetActiveTabRef, setGlobalActiveTab])
 
   // Selected commit for History tab
   const [selectedCommit, setSelectedCommit] = useAtom(selectedCommitAtom)
