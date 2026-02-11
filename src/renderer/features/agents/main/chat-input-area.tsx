@@ -63,6 +63,7 @@ import { AgentSendButton } from "../components/agent-send-button"
 import type { UploadedFile, UploadedImage } from "../hooks/use-agents-file-upload"
 import {
   clearSubChatDraft,
+  saveSubChatDraft,
   saveSubChatDraftWithAttachments,
 } from "../lib/drafts"
 import { useInputHistory } from "../hooks/use-input-history"
@@ -638,6 +639,19 @@ export const ChatInputArea = memo(function ChatInputArea({
   const currentDraftTextRef = useRef<string>("")
   currentSubChatIdRef.current = subChatId
   currentChatIdRef.current = parentChatId
+
+  // Save draft on unmount (e.g. workspace switch doesn't trigger blur)
+  useEffect(() => {
+    return () => {
+      const chatId = currentChatIdRef.current
+      const subChatIdValue = currentSubChatIdRef.current
+      const draft = currentDraftTextRef.current
+      if (!chatId) return
+      if (draft.trim()) {
+        saveSubChatDraft(chatId, subChatIdValue, draft)
+      }
+    }
+  }, [])
 
   // Keyboard shortcut: Cmd+/ to open model selector
   useEffect(() => {

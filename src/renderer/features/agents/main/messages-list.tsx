@@ -10,6 +10,7 @@ import {
   chatStatusAtom,
   isLastMessageAtomFamily,
   isStreamingAtom,
+  isMessagesSyncedAtom,
   messageAtomFamily,
 } from "../stores/message-store"
 import { MessageJsonDisplay } from "../ui/message-json-display"
@@ -813,6 +814,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   // Subscribe to this specific user message and its assistant IDs
   const { userMsg, assistantMsgIds, isLastGroup } = useUserMessageWithAssistants(userMsgId)
   const { isStreaming } = useStreamingStatus()
+  const isMessagesSynced = useAtomValue(isMessagesSyncedAtom)
   const showMessageJson = useAtomValue(showMessageJsonAtom)
   const isDev = import.meta.env.DEV
 
@@ -851,10 +853,12 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   // - No assistant response received
   // - Not currently streaming
   // - Not a sandbox setup issue (cloning or error)
+  // - Messages have been synced (not in workspace switch loading gap)
   const shouldShowRetry =
     isLastGroup &&
     assistantMsgIds.length === 0 &&
     !isStreaming &&
+    isMessagesSynced &&
     sandboxSetupStatus === "ready" &&
     onRetryMessage
 
