@@ -121,7 +121,9 @@
     "createFailed": "Failed to create",
     "updateFailed": "Failed to update",
     "deleteFailed": "Failed to delete",
-    "loadFailed": "Failed to load"
+    "loadFailed": "Failed to load",
+    "litellmConnection": "Connection failed",
+    "litellmConnectionDesc": "This service is available on the Hongshan office network. If you're working remotely, please connect via VPN and try again."
   },
   "warning": {
     "sendFirstRename": "Send a message first before renaming this chat",

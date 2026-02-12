@@ -1310,8 +1310,10 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
             let resolvedCustomConfig = input.customConfig
+            let isUsingLitellm = false
             if (input.customConfig && !input.customConfig.token && !input.customConfig.baseUrl && input.customConfig.model) {
               // LiteLLM mode: populate from env
+              isUsingLitellm = true
               const env = getEnv()
               const litellmBaseUrl = env.MAIN_VITE_LITELLM_BASE_URL
               const litellmApiKey = env.MAIN_VITE_LITELLM_API_KEY
@@ -2435,24 +2437,24 @@ If the user needs help with the page content, you can use the browser MCP tools 
                     // errorContext already contains the full message from sdkError
                   }
 
-                  // Emit auth-error for authentication failures, regular error otherwise
-                  if (errorCategory === "AUTH_FAILED_SDK") {
-                    safeEmit({
-                      type: "auth-error",
-                      errorText: errorContext,
-                    } as UIMessageChunk)
-                  } else {
-                    safeEmit({
-                      type: "error",
-                      errorText: errorContext,
-                      debugInfo: {
-                        category: errorCategory,
-                        rawErrorCode,
-                        sessionId: sdkMsg.session_id,
-                        messageId: sdkMsg.message?.id,
-                      },
-                    } as UIMessageChunk)
-                  }
+                  // Compute providerType for frontend error routing
+                  const providerType = isUsingOllama ? "ollama"
+                    : isUsingLitellm ? "litellm"
+                    : finalCustomConfig ? "custom"
+                    : "anthropic"
+
+                  // Unified error emit - frontend decides how to handle based on providerType + category
+                  safeEmit({
+                    type: "error",
+                    errorText: errorContext,
+                    debugInfo: {
+                      category: errorCategory,
+                      rawErrorCode,
+                      sessionId: sdkMsg.session_id,
+                      messageId: sdkMsg.message?.id,
+                      providerType,
+                    },
+                  } as UIMessageChunk)
 
                   console.log(`[SD] M:END sub=${subId} reason=sdk_error cat=${errorCategory} n=${chunkCount}`)
                   console.error(`[SD] SDK Error details:`, {

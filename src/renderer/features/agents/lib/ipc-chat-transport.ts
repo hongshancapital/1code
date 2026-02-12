@@ -131,6 +131,7 @@ const ERROR_TOAST_CONFIG: Record<
   // SDK_ERROR and other unknown errors use chunk.errorText for description
 }
 
+import i18n from "../../../lib/i18n"
 import type { MCPServer, SessionInfo } from "../../../lib/atoms"
 import type { PendingUserQuestion } from "../atoms"
 import type { BackgroundTaskStatus } from "../types/background-task"
@@ -163,7 +164,7 @@ interface StreamChunk {
   outputFile?: string
   // Error fields
   errorText?: string
-  debugInfo?: { category?: string }
+  debugInfo?: { category?: string; providerType?: string }
 }
 
 type IPCChatTransportConfig = {
@@ -572,10 +573,12 @@ askUserQuestionTimeout,
               // Handle errors - show toast to user FIRST before anything else
               if (chunk.type === "error") {
                 const category = chunk.debugInfo?.category || "UNKNOWN"
+                const providerType = chunk.debugInfo?.providerType
 
                 // Detailed SDK error logging for debugging
                 console.error(`[SDK ERROR] ========================================`)
                 console.error(`[SDK ERROR] Category: ${category}`)
+                console.error(`[SDK ERROR] Provider: ${providerType}`)
                 console.error(`[SDK ERROR] Error text: ${chunk.errorText}`)
                 console.error(`[SDK ERROR] Chat ID: ${this.config.chatId}`)
                 console.error(`[SDK ERROR] SubChat ID: ${this.config.subChatId}`)
@@ -593,6 +596,7 @@ askUserQuestionTimeout,
                   {
                     tags: {
                       errorCategory: category,
+                      providerType: providerType || "unknown",
                       mode: currentMode,
                     },
                     extra: {
@@ -608,6 +612,7 @@ askUserQuestionTimeout,
                 const errorDetails = [
                   `Error: ${chunk.errorText || "Unknown error"}`,
                   `Category: ${category}`,
+                  `Provider: ${providerType || "unknown"}`,
                   `Chat ID: ${this.config.chatId}`,
                   `SubChat ID: ${this.config.subChatId}`,
                   `CWD: ${this.config.cwd}`,
@@ -616,27 +621,61 @@ askUserQuestionTimeout,
                   chunk.debugInfo ? `Debug Info: ${JSON.stringify(chunk.debugInfo, null, 2)}` : null,
                 ].filter(Boolean).join("\n")
 
-                // Show toast based on error category
-                const config = ERROR_TOAST_CONFIG[category]
-                const title = config?.title || "Claude error"
-                // Use config description if set, otherwise fall back to errorText
-                const rawDescription = config?.description || chunk.errorText || "An unexpected error occurred"
-                // Truncate long descriptions for toast (keep first 300 chars)
-                const description = rawDescription.length > 300
-                  ? rawDescription.slice(0, 300) + "..."
-                  : rawDescription
+                // ── Anthropic auth/permission errors → show login modal + auto-retry ──
+                const ANTHROPIC_REAUTH_CATEGORIES = new Set([
+                  "AUTH_FAILED_SDK",
+                  "INVALID_API_KEY_SDK",
+                  "INVALID_API_KEY",
+                  "AUTH_FAILURE",
+                  "USAGE_POLICY_VIOLATION",
+                ])
+                if (providerType === "anthropic" && ANTHROPIC_REAUTH_CATEGORIES.has(category)) {
+                  appStore.set(pendingAuthRetryMessageAtom, {
+                    subChatId: this.config.subChatId,
+                    prompt,
+                    ...(images.length > 0 && { images }),
+                    readyToRetry: false,
+                  })
+                  appStore.set(agentsLoginModalOpenAtom, true)
+                  console.log(`[SD] R:AUTH_ERR sub=${subId} cat=${category}`)
+                  controller.error(new Error("Authentication required"))
+                  return
+                }
 
-                toast.error(title, {
-                  description,
-                  duration: 12000,
-                  action: {
-                    label: "Copy Error",
-                    onClick: () => {
-                      navigator.clipboard.writeText(errorDetails)
-                      toast.success("Error details copied to clipboard")
+                // ── LiteLLM errors → toast with office network / VPN hint ──
+                if (providerType === "litellm") {
+                  toast.error(i18n.t("toast:error.litellmConnection"), {
+                    description: i18n.t("toast:error.litellmConnectionDesc"),
+                    duration: 15000,
+                    action: {
+                      label: "Copy Error",
+                      onClick: () => {
+                        navigator.clipboard.writeText(errorDetails)
+                        toast.success("Error details copied to clipboard")
+                      },
                     },
-                  },
-                })
+                  })
+                } else {
+                  // ── Other errors (custom, ollama, unknown) → standard toast ──
+                  const config = ERROR_TOAST_CONFIG[category]
+                  const title = config?.title || "Claude error"
+                  const rawDescription = config?.description || chunk.errorText || "An unexpected error occurred"
+                  const description = rawDescription.length > 300
+                    ? rawDescription.slice(0, 300) + "..."
+                    : rawDescription
+
+                  toast.error(title, {
+                    description,
+                    duration: 12000,
+                    action: {
+                      label: "Copy Error",
+                      onClick: () => {
+                        navigator.clipboard.writeText(errorDetails)
+                        toast.success("Error details copied to clipboard")
+                      },
+                    },
+                  })
+                }
               }
 
               // Try to enqueue, but don't crash if stream is already closed

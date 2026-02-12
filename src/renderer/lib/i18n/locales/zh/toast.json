@@ -121,7 +121,9 @@
     "createFailed": "创建失败",
     "updateFailed": "更新失败",
     "deleteFailed": "删除失败",
-    "loadFailed": "加载失败"
+    "loadFailed": "加载失败",
+    "litellmConnection": "连接失败",
+    "litellmConnectionDesc": "此服务需在红杉办公网络下使用。远程办公时，请连接 VPN 后重试。"
   },
   "warning": {
     "sendFirstRename": "请先发送消息再重命名此对话",
