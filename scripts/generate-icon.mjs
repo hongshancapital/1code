@@ -29,6 +29,10 @@ const INPUT_ICON = join(BUILD_DIR, 'icon.png');
 const ICONSET_DIR = join(BUILD_DIR, 'icon.iconset');
 const OUTPUT_ICNS = join(BUILD_DIR, 'icon.icns');
 const OUTPUT_ICO = join(BUILD_DIR, 'icon.ico');
+const OUTPUT_IOS = join(BUILD_DIR, 'icon-ios.png');
+
+// Icon padding ratio (8% on each side)
+const ICON_PADDING_RATIO = 0.08;
 
 // macOS icon specifications
 const ICNS_SIZES = [
@@ -254,8 +258,54 @@ async function generateIco(sourcePath, outputPath) {
   console.log(`   ✓ Created ${outputPath.split('/').pop()} (with trimmed borders)`);
 }
 
+/**
+ * Generate iOS app icon (1024x1024) with padding
+ * iOS applies its own rounded corner mask, so we output a square PNG.
+ * The content is inset by the padding ratio on all sides.
+ */
+async function generateIosIcon(sourcePath, outputPath, size = 1024) {
+  console.log('\n📱 Generating iOS icon...');
+
+  const padding = Math.round(size * ICON_PADDING_RATIO);
+  const contentSize = size - (padding * 2);
+
+  console.log(`   • Canvas: ${size}x${size}`);
+  console.log(`   • Padding: ${padding}px (${ICON_PADDING_RATIO * 100}% each side)`);
+  console.log(`   • Content area: ${contentSize}x${contentSize}`);
+
+  // Trim transparent borders from source first
+  const trimmedBuffer = await trimTransparentBorders(sourcePath);
+
+  // Resize the trimmed content to fit the content area
+  const resizedContent = await sharp(trimmedBuffer)
+    .resize(contentSize, contentSize, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .png()
+    .toBuffer();
+
+  // Place on a white square canvas with padding
+  await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 }
+    }
+  })
+    .composite([
+      {
+        input: resizedContent,
+        left: padding,
+        top: padding
+      }
+    ])
+    .png()
+    .toFile(outputPath);
+
+  console.log(`   ✓ Created ${outputPath.split('/').pop()} (${size}x${size}, ${ICON_PADDING_RATIO * 100}% padding)`);
+}
+
 async function main() {
-  console.log('🎨 Generating app icons (macOS .icns + Windows .ico)...\n');
+  console.log('🎨 Generating app icons (macOS .icns + Windows .ico + iOS)...\n');
 
   // Check input file
   if (!existsSync(INPUT_ICON)) {
@@ -264,7 +314,7 @@ async function main() {
   }
 
   console.log(`📂 Input:  ${INPUT_ICON}`);
-  console.log(`📂 Output: ${OUTPUT_ICNS}, ${OUTPUT_ICO}\n`);
+  console.log(`📂 Output: ${OUTPUT_ICNS}, ${OUTPUT_ICO}, ${OUTPUT_IOS}\n`);
 
   // Create iconset directory
   if (existsSync(ICONSET_DIR)) {
@@ -281,7 +331,7 @@ async function main() {
   // Trim transparent borders from source icon first
   const trimmedMacBuffer = await trimTransparentBorders(INPUT_ICON);
 
-  console.log('1️⃣  Generating all required icon sizes...');
+  console.log('1️⃣  Generating all required icon sizes (with 12% padding)...');
 
   for (const { size, scale } of ICNS_SIZES) {
     const actualSize = size * scale;
@@ -291,9 +341,24 @@ async function main() {
 
     const outputPath = join(ICONSET_DIR, filename);
 
-    // Generate from trimmed buffer instead of original file
-    await sharp(trimmedMacBuffer)
-      .resize(actualSize, actualSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    // Apply 12% padding: shrink content to 76% of target, place centered on transparent canvas
+    const macPadding = Math.round(actualSize * ICON_PADDING_RATIO);
+    const macContentSize = actualSize - (macPadding * 2);
+
+    const resizedContent = await sharp(trimmedMacBuffer)
+      .resize(macContentSize, macContentSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+
+    await sharp({
+      create: {
+        width: actualSize,
+        height: actualSize,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
+      }
+    })
+      .composite([{ input: resizedContent, left: macPadding, top: macPadding }])
       .png()
       .toFile(outputPath);
 
@@ -322,11 +387,17 @@ async function main() {
   await generateIco(INPUT_ICON, OUTPUT_ICO);
 
   // ═══════════════════════════════════════════════════════════════
+  // Step 3: Generate iOS icon (1024x1024 square with 12% padding)
+  // ═══════════════════════════════════════════════════════════════
+  await generateIosIcon(INPUT_ICON, OUTPUT_IOS);
+
+  // ═══════════════════════════════════════════════════════════════
   // Done!
   // ═══════════════════════════════════════════════════════════════
   console.log('\n✅ Success! Icons generated:');
   console.log(`   • ${OUTPUT_ICNS} (macOS)`);
   console.log(`   • ${OUTPUT_ICO} (Windows)`);
+  console.log(`   • ${OUTPUT_IOS} (iOS)`);
 }
 
 main().catch(error => {
