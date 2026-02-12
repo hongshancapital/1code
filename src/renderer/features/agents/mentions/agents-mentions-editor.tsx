@@ -831,6 +831,7 @@ export const AgentsMentionsEditor = memo(
       // Handle IME composition start (e.g., Chinese pinyin input)
       const handleCompositionStart = useCallback((e: React.CompositionEvent) => {
         isComposingRef.current = true
+        justFinishedComposingRef.current = false
         // Close any open triggers when IME starts
         if (triggerActive.current) {
           triggerActive.current = false
@@ -1050,6 +1051,22 @@ export const AgentsMentionsEditor = memo(
         }
       }, [])
 
+      // Handle beforeinput - this fires before the input is actually committed
+      // Useful for detecting IME composition reliably via inputType
+      const handleBeforeInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+        const nativeEvent = e.nativeEvent as InputEvent
+        // When IME is composing, inputType will be "insertCompositionText"
+        // This is more reliable than compositionstart/end events for Enter handling
+        if (nativeEvent.inputType === "insertCompositionText") {
+          isComposingRef.current = true
+          justFinishedComposingRef.current = false
+          lastEnterTimeRef.current = Date.now() + 150
+        } else if (nativeEvent.inputType === "insertText" && isComposingRef.current) {
+          // Regular text insertion after IME ended - still block Enter for a bit
+          lastEnterTimeRef.current = Date.now() + 150
+        }
+      }, [])
+
       // Handle keydown
       const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -1115,8 +1132,10 @@ export const AgentsMentionsEditor = memo(
           const isImeActive = isComposingRef.current || justFinishedComposingRef.current
           // Also check the native isComposing flag as a fallback
           const isNativeComposing = (e.nativeEvent as KeyboardEvent).isComposing
+          // Also check if we're within the IME buffer time after composition
+          const inImeBuffer = Date.now() < lastEnterTimeRef.current
 
-          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing) {
+          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing && !inImeBuffer) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return
@@ -1689,6 +1708,7 @@ export const AgentsMentionsEditor = memo(
             contentEditable={!disabled}
             suppressContentEditableWarning
             spellCheck={false}
+            onBeforeInput={handleBeforeInput}
             onInput={handleInput}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
