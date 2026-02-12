@@ -126,7 +126,8 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   // Extract user message content
   // Note: file-content parts are hidden from UI but sent to agent
   // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
-  const rawTextContent = stripFileAttachmentText(
+  // and extracts file metadata as fallback for old messages without data-file parts
+  const { cleanedText: rawTextContent, parsedFiles } = stripFileAttachmentText(
     userMsg?.parts
       ?.filter((p: any) => p.type === "text")
       .map((p: any) => p.text)
@@ -135,8 +136,12 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
 
   const imageParts =
     userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
-  const fileParts =
+  const dbFileParts =
     userMsg?.parts?.filter((p: any) => p.type === "data-file") || []
+  // Use DB data-file parts if available, otherwise reconstruct from parsed text
+  const fileParts = dbFileParts.length > 0
+    ? dbFileParts
+    : parsedFiles.map((f) => ({ type: "data-file", data: { filename: f.filename, size: f.size, localPath: f.localPath } }))
 
   // Extract text mentions (quote/diff) to render separately above sticky block
   // NOTE: useMemo must be called before any early returns to follow Rules of Hooks

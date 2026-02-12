@@ -53,16 +53,47 @@ export function buildImagePart(img: {
   }
 }
 
+/** Parsed file info extracted from AI instruction text (for old messages without data-file parts) */
+export interface ParsedFileAttachment {
+  filename: string
+  size?: number
+  localPath: string
+}
+
 /**
- * Strip the AI-facing file attachment instruction from display text.
- * The transport layer injects "[The user has attached...]" into the prompt
- * for the AI to see, but it should not be visible in the user message bubble.
+ * Strip the AI-facing file attachment instruction from display text,
+ * and optionally extract file metadata from it (fallback for old messages).
  */
-export function stripFileAttachmentText(text: string): string {
-  return text.replace(
-    /\n?\n?\[The user has attached the following file\(s\)\. Use the Read tool to access their contents:\n[^\]]*\]/g,
-    "",
+export function stripFileAttachmentText(text: string): {
+  cleanedText: string
+  parsedFiles: ParsedFileAttachment[]
+} {
+  const parsedFiles: ParsedFileAttachment[] = []
+
+  const cleanedText = text.replace(
+    /\n?\n?\[The user has attached the following file\(s\)\. Use the Read tool to access their contents:\n([^\]]*)\]/g,
+    (_match, fileList: string) => {
+      // Parse each "- filename (size): path" line
+      const lineRegex = /^- (.+?)(?:\s+\(([^)]+)\))?: (.+)$/gm
+      let lineMatch: RegExpExecArray | null
+      while ((lineMatch = lineRegex.exec(fileList)) !== null) {
+        const filename = lineMatch[1]
+        const sizeStr = lineMatch[2]
+        const localPath = lineMatch[3]
+        let size: number | undefined
+        if (sizeStr) {
+          const num = parseFloat(sizeStr)
+          if (sizeStr.endsWith("MB")) size = Math.round(num * 1024 * 1024)
+          else if (sizeStr.endsWith("KB")) size = Math.round(num * 1024)
+          else size = Math.round(num)
+        }
+        parsedFiles.push({ filename, size, localPath })
+      }
+      return ""
+    },
   )
+
+  return { cleanedText, parsedFiles }
 }
 
 /**

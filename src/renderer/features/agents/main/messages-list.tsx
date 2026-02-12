@@ -822,7 +822,8 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
 
   // User message data (computed before hooks that depend on it)
   // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
-  const rawTextContent = stripFileAttachmentText(
+  // and extracts file metadata as fallback for old messages without data-file parts
+  const { cleanedText: rawTextContent, parsedFiles } = stripFileAttachmentText(
     userMsg?.parts
       ?.filter((p: any) => p.type === "text")
       .map((p: any) => p.text)
@@ -830,7 +831,11 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   )
 
   const imageParts = userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
-  const fileParts = userMsg?.parts?.filter((p: any) => p.type === "data-file") || []
+  const dbFileParts = userMsg?.parts?.filter((p: any) => p.type === "data-file") || []
+  // Use DB data-file parts if available, otherwise reconstruct from parsed text
+  const fileParts = dbFileParts.length > 0
+    ? dbFileParts
+    : parsedFiles.map((f) => ({ type: "data-file", data: { filename: f.filename, size: f.size, localPath: f.localPath } }))
 
   // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
   // Extract text mentions (quote/diff) to render separately above sticky block
