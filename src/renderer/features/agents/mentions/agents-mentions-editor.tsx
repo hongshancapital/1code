@@ -823,6 +823,8 @@ export const AgentsMentionsEditor = memo(
 
       // Track IME composition state using ref (avoids attribute timing issues)
       const isComposingRef = useRef(false)
+      // Track if we just finished composing to prevent immediate submission
+      const justFinishedComposingRef = useRef(false)
 
       // Handle IME composition start (e.g., Chinese pinyin input)
       const handleCompositionStart = useCallback((e: React.CompositionEvent) => {
@@ -843,6 +845,15 @@ export const AgentsMentionsEditor = memo(
       // Handle IME composition end
       const handleCompositionEnd = useCallback(() => {
         isComposingRef.current = false
+        // Mark that we just finished composing to prevent immediate submission
+        // This handles the case where compositionend and keydown happen in same event loop
+        justFinishedComposingRef.current = true
+        // Clear the flag after a short delay (one event cycle)
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            justFinishedComposingRef.current = false
+          })
+        })
       }, [])
 
       // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection
@@ -1095,8 +1106,9 @@ export const AgentsMentionsEditor = memo(
           }
 
           // Prevent submission during IME composition (e.g., Chinese/Japanese/Korean input)
-          // Use isComposingRef instead of e.nativeEvent.isComposing for more reliable timing
-          if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
+          // Check both isComposingRef and justFinishedComposingRef to handle timing issues
+          // where compositionend and keydown happen in same event loop
+          if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current && !justFinishedComposingRef.current) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return
