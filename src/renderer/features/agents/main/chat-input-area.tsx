@@ -63,7 +63,6 @@ import { AgentSendButton } from "../components/agent-send-button"
 import type { UploadedFile, UploadedImage } from "../hooks/use-agents-file-upload"
 import {
   clearSubChatDraft,
-  saveSubChatDraft,
   saveSubChatDraftWithAttachments,
 } from "../lib/drafts"
 import { useInputHistory } from "../hooks/use-input-history"
@@ -637,18 +636,44 @@ export const ChatInputArea = memo(function ChatInputArea({
   const currentSubChatIdRef = useRef<string>(subChatId)
   const currentChatIdRef = useRef<string | null>(parentChatId)
   const currentDraftTextRef = useRef<string>("")
+  const currentImagesRef = useRef<UploadedImage[]>([])
+  const currentFilesRef = useRef<UploadedFile[]>([])
+  const currentTextContextsRef = useRef<SelectedTextContext[]>([])
+  const currentDiffTextContextsRef = useRef<DiffTextContext[]>([])
   currentSubChatIdRef.current = subChatId
   currentChatIdRef.current = parentChatId
+  currentImagesRef.current = images
+  currentFilesRef.current = files
+  currentTextContextsRef.current = textContexts
+  currentDiffTextContextsRef.current = diffTextContexts ?? []
 
-  // Save draft on unmount (e.g. workspace switch doesn't trigger blur)
+  // Save full draft on unmount (e.g. workspace switch doesn't trigger blur)
   useEffect(() => {
     return () => {
       const chatId = currentChatIdRef.current
       const subChatIdValue = currentSubChatIdRef.current
       const draft = currentDraftTextRef.current
+      const imgs = currentImagesRef.current
+      const fls = currentFilesRef.current
+      const tcs = currentTextContextsRef.current
+      const dtcs = currentDiffTextContextsRef.current
       if (!chatId) return
-      if (draft.trim()) {
-        saveSubChatDraft(chatId, subChatIdValue, draft)
+
+      const hasContent =
+        draft.trim() ||
+        imgs.length > 0 ||
+        fls.length > 0 ||
+        tcs.length > 0 ||
+        dtcs.length > 0
+
+      if (hasContent) {
+        // Synchronous — only stores tempPath references in localStorage
+        saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
+          images: imgs,
+          files: fls,
+          textContexts: tcs,
+          diffTextContexts: dtcs,
+        })
       }
     }
   }, [])
@@ -853,7 +878,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   }, [pendingFileReference, setPendingFileReference, editorRef])
 
   // Save draft on blur (with attachments and text contexts)
-  const handleEditorBlur = useCallback(async () => {
+  const handleEditorBlur = useCallback(() => {
     // Use RAF to avoid React error #185 (max update depth)
     requestAnimationFrame(() => {
       if (isMountedRef.current) {
@@ -878,10 +903,11 @@ export const ChatInputArea = memo(function ChatInputArea({
       (diffTextContexts?.length ?? 0) > 0
 
     if (hasContent) {
-      await saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
+      saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
         images,
         files,
         textContexts,
+        diffTextContexts,
       })
     } else {
       clearSubChatDraft(chatId, subChatIdValue)

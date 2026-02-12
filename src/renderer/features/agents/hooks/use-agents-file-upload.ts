@@ -1,5 +1,6 @@
 // File upload hook for desktop app with base64 conversion for Claude API
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
+import { trpcClient } from "../../../lib/trpc"
 
 export interface UploadedImage {
   id: string
@@ -7,6 +8,7 @@ export interface UploadedImage {
   url: string // blob URL for preview
   localPath?: string // local file path for backend reference (large image fallback)
   base64Data?: string // base64 encoded data for API
+  tempPath?: string // disk temp file path for draft persistence
   isLoading: boolean
   mediaType?: string // MIME type e.g. "image/png", "image/jpeg"
 }
@@ -16,6 +18,9 @@ export interface UploadedFile {
   filename: string
   url: string // blob URL for preview only
   localPath?: string // local file path for backend reference
+
+  url: string
+  tempPath?: string // disk temp file path for draft persistence
   isLoading: boolean
   size?: number
   type?: string
@@ -38,10 +43,42 @@ async function fileToBase64(file: File): Promise<string> {
   })
 }
 
-export function useAgentsFileUpload() {
+/**
+ * Save attachment to disk via tRPC (fire-and-forget, updates state when done).
+ * Returns the tempPath on success, undefined on failure.
+ */
+async function saveToDisk(
+  draftKey: string,
+  attachmentId: string,
+  filename: string,
+  base64Data: string,
+  mediaType: string
+): Promise<string | undefined> {
+  try {
+    const result = await trpcClient.files.saveDraftAttachment.mutate({
+      draftKey,
+      attachmentId,
+      filename,
+      base64Data,
+      mediaType,
+    })
+    return result.tempPath
+  } catch (err) {
+    console.warn("[useAgentsFileUpload] Failed to save attachment to disk:", err)
+    return undefined
+  }
+}
+
+export function useAgentsFileUpload(draftKey?: string) {
   const [images, setImages] = useState<UploadedImage[]>([])
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
+
+  // Keep draftKey in a ref so the async disk save captures the latest value
+  const draftKeyRef = useRef(draftKey)
+  useEffect(() => {
+    draftKeyRef.current = draftKey
+  }, [draftKey])
 
   const handleAddAttachments = useCallback(async (inputFiles: File[]) => {
     setIsUploading(true)
@@ -88,9 +125,62 @@ export function useAgentsFileUpload() {
       type: file.type,
     }))
 
+    const newFiles: UploadedFile[] = await Promise.all(
+      otherFiles.map(async (file) => {
+        const id = crypto.randomUUID()
+        let base64Data: string | undefined
+        try {
+          base64Data = await fileToBase64(file)
+        } catch {
+          // non-critical for files
+        }
+
+        return {
+          id,
+          filename: file.name,
+          url: URL.createObjectURL(file),
+          isLoading: false,
+          size: file.size,
+          type: file.type,
+          _base64Data: base64Data, // temporary, used only for disk save below
+        } as UploadedFile & { _base64Data?: string }
+      })
+    )
+
     setImages((prev) => [...prev, ...newImages])
     setFiles((prev) => [...prev, ...newFiles])
     setIsUploading(false)
+
+    // Asynchronously persist to disk — update tempPath in state when done
+    const currentDraftKey = draftKeyRef.current
+    if (currentDraftKey) {
+      // Save images to disk
+      for (const img of newImages) {
+        if (!img.base64Data) continue
+        saveToDisk(currentDraftKey, img.id, img.filename, img.base64Data, img.mediaType || "image/png")
+          .then((tempPath) => {
+            if (tempPath) {
+              setImages((prev) =>
+                prev.map((i) => (i.id === img.id ? { ...i, tempPath } : i))
+              )
+            }
+          })
+      }
+
+      // Save files to disk
+      for (const file of newFiles) {
+        const b64 = (file as UploadedFile & { _base64Data?: string })._base64Data
+        if (!b64) continue
+        saveToDisk(currentDraftKey, file.id, file.filename, b64, file.type || "application/octet-stream")
+          .then((tempPath) => {
+            if (tempPath) {
+              setFiles((prev) =>
+                prev.map((f) => (f.id === file.id ? { ...f, tempPath } : f))
+              )
+            }
+          })
+      }
+    }
   }, [])
 
   const removeImage = useCallback((id: string) => {
