@@ -2814,7 +2814,7 @@ const ChatViewInner = memo(function ChatViewInner({
     ) {
       hasTriggeredAutoGenerateRef.current = true
       // Trigger rename for pre-populated initial message (from createAgentChat)
-      if (!hasTriggeredRenameRef.current && isFirstSubChat) {
+      if (!hasTriggeredRenameRef.current) {
         const firstMsg = messages[0]
         if (firstMsg?.role === "user") {
           const textPart = firstMsg.parts?.find((p: any) => p.type === "text")
@@ -6411,6 +6411,13 @@ Make sure to preserve all functionality from both branches when resolving confli
       const firstSubChatId = getFirstSubChatId(agentSubChats)
       const isFirst = firstSubChatId === subChatId
 
+      // Get the sub-chat to check manuallyRenamed flag
+      const subChat = agentSubChats.find(sc => sc.id === subChatId)
+      if (subChat?.manually_renamed) {
+        console.log("[auto-rename] Skipping - user has manually renamed this sub-chat")
+        return
+      }
+
       autoRenameAgentChat({
         subChatId,
         parentChatId: chatId,
@@ -6425,10 +6432,12 @@ Make sure to preserve all functionality from both branches when resolving confli
           })
         },
         renameSubChat: async (input) => {
-          await renameSubChatMutation.mutateAsync(input)
+          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
+          await renameSubChatMutation.mutateAsync({ ...input, skipManuallyRenamed: true })
         },
         renameChat: async (input) => {
-          await renameChatMutation.mutateAsync(input)
+          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
+          await renameChatMutation.mutateAsync({ ...input, skipManuallyRenamed: true })
         },
         updateSubChatName: (subChatIdToUpdate, name) => {
           // Update local store

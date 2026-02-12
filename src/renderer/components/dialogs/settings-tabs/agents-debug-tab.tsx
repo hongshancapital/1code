@@ -6,10 +6,11 @@ import { Switch } from "../../ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain } from "lucide-react"
-import { showMessageJsonAtom } from "../../../features/agents/atoms"
+import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, MessageSquare, ChevronDown, ChevronRight, ChevronLeft, Code, Trash2 } from "lucide-react"
+import { showMessageJsonAtom, showDebugRequestAtom, selectedAgentChatIdAtom } from "../../../features/agents/atoms"
 import { runtimeSimulatedModeAtom, runtimeInitBannerDismissedAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -68,6 +69,7 @@ export function AgentsDebugTab() {
   const [reactScanEnabled, setReactScanEnabled] = useState(false)
   const [reactScanLoading, setReactScanLoading] = useState(false)
   const [showMessageJson, setShowMessageJson] = useAtom(showMessageJsonAtom)
+  const [showDebugRequest, setShowDebugRequest] = useAtom(showDebugRequestAtom)
   const setRuntimeBannerDismissed = useSetAtom(runtimeInitBannerDismissedAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
@@ -369,9 +371,27 @@ export function AgentsDebugTab() {
                 {copyProductionDbMutation.isPending ? "..." : t('debug.devTools.copyButton')}
               </Button>
             </div>
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <span className="text-sm">Show Debug Request</span>
+                  <p className="text-xs text-muted-foreground">
+                    Display original claudeQuery payload in chat when sending messages
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={showDebugRequest}
+                onCheckedChange={setShowDebugRequest}
+              />
+            </div>
           </div>
         </div>
       )}
+
+      {/* User Message Debug - Show complete request payload */}
+      <UserMessageDebugSection />
 
       {/* Simulated Runtime Installation (dev mode only) */}
       {isDev && (
@@ -822,6 +842,255 @@ function SimulatedInstallSection() {
         <p className="text-xs text-muted-foreground">
           {t("debug.simulatedInstall.description")}
         </p>
+      </div>
+    </div>
+  )
+}
+
+// User Message Debug Section
+function UserMessageDebugSection() {
+  const { t } = useTranslation("settings")
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [copiedJson, setCopiedJson] = useState(false)
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const selectedAgentChatId = useAtom(selectedAgentChatIdAtom)[0]
+
+  // Query for last user message debug data
+  const { data: debugData, refetch } = trpc.debug.getLastUserMessage.useQuery(
+    { subChatId: selectedChatId || undefined },
+    {
+      enabled: !!selectedChatId,
+    }
+  )
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections)
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section)
+    } else {
+      newExpanded.add(section)
+    }
+    setExpandedSections(newExpanded)
+  }
+
+  const handleCopy = async () => {
+    if (debugData) {
+      await navigator.clipboard.writeText(JSON.stringify(debugData.requestPayload, null, 2))
+      setCopiedJson(true)
+      toast.success("User message data copied")
+      setTimeout(() => setCopiedJson(false), 2000)
+    }
+  }
+
+  const handleRefresh = () => {
+    refetch()
+  }
+
+  const formatValue = (value: unknown): string => {
+    if (value === undefined || value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number") return String(value)
+    if (typeof value === "boolean") return value ? "true" : "false"
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "[]"
+      return `[${value.length} items]`
+    }
+    if (typeof value === "object") {
+      const keys = Object.keys(value)
+      if (keys.length === 0) return "{}"
+      return `{${keys.length} keys}`
+    }
+    return String(value)
+  }
+
+  const payload = debugData?.requestPayload || {}
+  const timestamp = debugData?.timestamp || "-"
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        User Message Debug
+      </h4>
+      <div className="rounded-lg border bg-muted/30 divide-y">
+        {/* SubChat ID Selector */}
+        <div className="p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                SubChat ID
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={selectedChatId || ""}
+                  onChange={(e) => setSelectedChatId(e.target.value)}
+                  placeholder="Enter subChat ID or leave empty for latest"
+                  className="h-8 px-3 rounded border bg-background text-sm font-mono w-80"
+                />
+                {selectedAgentChatId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedChatId(selectedAgentChatId)}
+                  >
+                    Use Current Chat
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={!selectedChatId}
+              >
+                <RefreshCw className="h-4 w-4 mr-1.5" />
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedChatId(null)}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Show data when available */}
+        {selectedChatId && (
+          <>
+            {/* Timestamp */}
+            <div className="p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Timestamp</span>
+                <span className="text-sm font-mono">{timestamp}</span>
+              </div>
+            </div>
+
+            {/* Collapsible payload sections */}
+            {Object.entries(payload).map(([key, value]) => {
+              const isExpanded = expandedSections.has(key)
+              const isArray = Array.isArray(value)
+              const isObject = typeof value === "object" && value !== null && !isArray
+              const isEmptyArray = isArray && value.length === 0
+              const isEmptyObject = isObject && Object.keys(value).length === 0
+              const isSimpleValue = !isArray && !isObject
+
+              return (
+                <div key={key} className="border-t">
+                  <button
+                    onClick={() => toggleSection(key)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <span className="text-sm font-medium">{key}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {isSimpleValue ? (
+                          <span className="font-mono bg-background px-2 py-0.5 rounded">
+                            {formatValue(value)}
+                          </span>
+                        ) : isArray ? (
+                          <span className="font-mono text-blue-600 dark:text-blue-400">
+                            Array[{value.length}]
+                          </span>
+                        ) : isObject ? (
+                          <span className="font-mono text-purple-600 dark:text-purple-400">
+                            Object{"{"}{Object.keys(value).length}{"}"}
+                          </span>
+                        ) : (
+                          <span className="font-mono">null</span>
+                        )}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div className="p-3 bg-background border-t">
+                      {isSimpleValue ? (
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                          {formatValue(value)}
+                        </pre>
+                      ) : isArray ? (
+                        <div>
+                          {isEmptyArray ? (
+                            <p className="text-xs text-muted-foreground italic">Empty array</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {(value as unknown[]).map((item, idx) => (
+                                <div key={idx} className="border rounded bg-muted/20 p-2">
+                                  <div className="text-xs font-mono text-muted-foreground mb-1">
+                                    [{idx}]
+                                  </div>
+                                  <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">
+                                    {typeof item === "object"
+                                      ? JSON.stringify(item, null, 2)
+                                      : formatValue(item)}
+                                  </pre>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : isObject ? (
+                        <div>
+                          {isEmptyObject ? (
+                            <p className="text-xs text-muted-foreground italic">Empty object</p>
+                          ) : (
+                            <div className="grid gap-2 text-xs font-mono">
+                              {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+                                <div key={k} className="flex gap-2">
+                                  <span className="text-blue-600 dark:text-blue-400 min-w-24">{k}:</span>
+                                  <span className="text-muted-foreground break-all">
+                                    {typeof v === "object"
+                                      ? JSON.stringify(v, null, 2)
+                                      : formatValue(v)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <pre className="text-xs font-mono">null</pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* Copy full JSON button */}
+            <div className="p-3 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopy}
+                className="w-full"
+              >
+                {copiedJson ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Code className="h-4 w-4 mr-2" />
+                    Copy Full JSON
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

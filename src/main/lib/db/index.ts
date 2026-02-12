@@ -157,6 +157,26 @@ export function initDatabase() {
     }
   }
 
+  // Ensure manually_renamed column exists on chats and sub_chats tables
+  try {
+    sqlite.exec(`ALTER TABLE chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
+    console.log("[DB] Added manually_renamed column to chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] chats manually_renamed column check:", error.message)
+    }
+  }
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
+    console.log("[DB] Added manually_renamed column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] sub_chats manually_renamed column check:", error.message)
+    }
+  }
+
   // Ensure insights table exists (for usage analysis reports)
   try {
     sqlite.exec(`

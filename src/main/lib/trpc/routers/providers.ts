@@ -77,13 +77,12 @@ const CHAT_MODEL_WHITELIST = [
 
 // Excludes: models that match whitelist but are not chat models
 const CHAT_MODEL_EXCLUDES = [
-  /-coding$/i,        // Claude coding 变体
   /-embed/i,          // 嵌入模型
   /-realtime/i,       // 实时流模型
 ]
 
 /**
- * Filter models for LiteLLM/Custom providers.
+ * Filter models for LiteLLM/Custom providers
  * Keeps only mainstream chat models, excludes non-chat variants.
  * Anthropic models are NOT filtered by this (they use the official API list).
  */

@@ -109,6 +109,3 @@ export {
   createInsightsRequest,
   createWorkerRequest,
 } from "./engine"
-
-// SDK loader (Claude Agent SDK dynamic import)
-export { getClaudeQuery, clearClaudeQueryCache } from "./sdk-loader"

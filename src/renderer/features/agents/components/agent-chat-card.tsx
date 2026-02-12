@@ -165,7 +165,9 @@ export function AgentChatCard({
         onMouseEnter={onMouseEnter}
         className={cn(
           "relative rounded-2xl overflow-hidden min-w-[160px] max-w-[180px] p-2 cursor-pointer",
-          isSelected ? "bg-primary shadow-lg" : "bg-transparent",
+          isSelected
+            ? "bg-primary shadow-lg"
+            : "bg-transparent border border-primary/20 hover:border-primary/40",
         )}
       >
         <div className="flex items-start gap-2.5">

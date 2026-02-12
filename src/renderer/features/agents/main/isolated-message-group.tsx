@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { memo, useMemo } from "react"
 import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
-import { RotateCcw } from "lucide-react"
+import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react"
 import dayjs from "dayjs"
+import { showDebugRequestAtom } from "../atoms"
 import {
   messageAtomFamily,
   assistantIdsForUserMsgAtomFamily,
@@ -17,6 +19,9 @@ import { MemoizedAssistantMessages } from "./messages-list"
 import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
 import { AgentImageItem } from "../ui/agent-image-item"
 import { stripFileAttachmentText } from "../lib/message-utils"
+import { trpc } from "../../../lib/trpc"
+import { toast } from "sonner"
+import { MessageJsonDisplay } from "../ui/message-json-display"
 
 function formatMessageTime(date: Date | string | undefined): string | null {
   if (!date) return null
@@ -122,6 +127,61 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   const isStreaming = useAtomValue(isStreamingAtom)
   const isStreamingIdle = useAtomValue(isStreamingIdleAtom)
   const currentSubChatId = useAtomValue(currentSubChatIdAtom)
+
+  // Debug data state - only shown when showDebugRequest is enabled
+  const showDebugRequest = useAtomValue(showDebugRequestAtom)
+  const [expandedDebugSections, setExpandedDebugSections] = useState<Set<string>>(new Set())
+  const [copiedDebugJson, setCopiedDebugJson] = useState(false)
+
+  // Query debug data for this subChat
+  const { data: debugData } = trpc.debug.getLastUserMessage.useQuery(
+    { subChatId },
+    { enabled: showDebugRequest && !!subChatId }
+  )
+
+  // Debug logs
+  console.log('[IsolatedMessageGroup Debug] showDebugRequest:', showDebugRequest)
+  console.log('[IsolatedMessageGroup Debug] subChatId:', subChatId)
+  console.log('[IsolatedMessageGroup Debug] debugData:', debugData)
+  console.log('[IsolatedMessageGroup Debug] hasRequestPayload:', !!debugData?.requestPayload)
+
+  const toggleDebugSection = (section: string) => {
+    setExpandedDebugSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  }
+
+  const handleCopyDebugJson = async () => {
+    if (debugData?.requestPayload) {
+      await navigator.clipboard.writeText(JSON.stringify(debugData.requestPayload, null, 2))
+      setCopiedDebugJson(true)
+      toast.success("Debug request data copied")
+      setTimeout(() => setCopiedDebugJson(false), 2000)
+    }
+  }
+
+  const formatDebugValue = (value: unknown): string => {
+    if (value === undefined || value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number") return String(value)
+    if (typeof value === "boolean") return value ? "true" : "false"
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "[]"
+      return `[${value.length} items]`
+    }
+    if (typeof value === "object") {
+      const keys = Object.keys(value)
+      if (keys.length === 0) return "{}"
+      return `{${keys.length} keys}`
+    }
+    return String(value)
+  }
 
   // Extract user message content
   // Note: file-content parts are hidden from UI but sent to agent
@@ -305,6 +365,44 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
           isMobile={isMobile}
           sandboxSetupStatus={sandboxSetupStatus}
         />
+      )}
+
+      {/* Debug Request display - shown when showDebugRequest is enabled */}
+      {showDebugRequest && debugData && Object.keys(debugData).length > 0 && (
+        <div className="pointer-events-auto mt-1 mb-2">
+          <div className="rounded-lg border border-muted bg-muted/30">
+            {/* Header */}
+            <div className="flex items-center justify-between p-3 border-b border-muted">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Debug Request</span>
+              </div>
+              <span className="text-xs text-muted-foreground font-mono">
+                {debugData.timestamp || "-"}
+              </span>
+            </div>
+
+            {/* Request data */}
+            <div className="p-3 max-h-[500px] overflow-y-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                {JSON.stringify(debugData, null, 2)}
+              </pre>
+            </div>
+
+            {/* Copy button */}
+            <div className="p-3 border-t border-muted">
+              <button
+                onClick={() => {
+                  const dataStr = JSON.stringify(debugData, null, 2)
+                  navigator.clipboard.writeText(dataStr)
+                  toast.success("Debug request data copied")
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+              >
+                Copy Full JSON
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Working indicator - shown when AI is streaming but between visible tool calls */}

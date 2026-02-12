@@ -516,10 +516,7 @@ function ConfigureModelsDialog({
                         return (
                           <tr key={model.id} className="group hover:bg-muted/50 transition-colors">
                             <td className="px-3 py-2.5">
-                              <div className="flex flex-col">
-                                <span className="font-medium text-foreground text-xs">{model.name}</span>
-                                <span className="text-[11px] text-muted-foreground font-mono">{model.id}</span>
-                              </div>
+                              <span className="font-medium text-foreground text-xs">{model.name}</span>
                             </td>
                             <td className="px-3 py-2.5 text-right">
                               <Switch
@@ -1384,11 +1381,11 @@ function ContributionHeatmap() {
   }
 
   const levelColors = [
-    "bg-muted/30",
-    "bg-emerald-900/50",
-    "bg-emerald-700/70",
-    "bg-emerald-500/80",
-    "bg-emerald-400",
+    "bg-primary/10",
+    "bg-primary/30",
+    "bg-primary/50",
+    "bg-primary/70",
+    "bg-primary",
   ]
 
   const easterEggEmojis = ["🔥", "💸", "🤯", "💰", "🚀", "⚡", "🌟", "💎"]
@@ -1508,7 +1505,7 @@ function ContributionHeatmap() {
                     return (
                       <div
                         key={dayIndex}
-                        className={`w-[10px] h-[10px] rounded-[2px] ${levelColors[0]} cursor-default`}
+                        className="w-[10px] h-[10px] rounded-[2px] bg-primary/5 cursor-default"
                       />
                     )
                   }

@@ -681,14 +681,24 @@ const chatsCoreRouter = router({
 
   /**
    * Rename a chat
+   * Set manuallyRenamed to true when user manually renames
    */
   rename: publicProcedure
-    .input(z.object({ id: z.string(), name: z.string().min(1) }))
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1),
+      skipManuallyRenamed: z.boolean().optional(), // For internal/auto-rename usage
+    }))
     .mutation(({ input }) => {
       const db = getDatabase()
       return db
         .update(chats)
-        .set({ name: input.name, updatedAt: new Date() })
+        .set({
+          name: input.name,
+          updatedAt: new Date(),
+          // Only set manuallyRenamed if not explicitly skipped (for auto-rename)
+          ...(!input.skipManuallyRenamed && { manuallyRenamed: true }),
+        })
         .where(eq(chats.id, input.id))
         .returning()
         .get()

@@ -49,6 +49,10 @@ import {
   Monitor,
   Code2,
   Search,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
 } from "lucide-react"
 import {
   projectBrowserHistoryAtomFamily,
@@ -57,6 +61,9 @@ import {
   browserSelectorActiveAtomFamily,
   browserDevicePresetAtomFamily,
   browserSearchEngineAtom,
+  browserZoomAtomFamily,
+  ZOOM_FIT,
+  isZoomFitMode,
   DEVICE_PRESETS,
   SEARCH_ENGINES,
   type BrowserHistoryEntry,
@@ -96,6 +103,13 @@ interface BrowserToolbarProps {
   onClearCache: () => void
   onToggleDevTools: () => void
   onToggleReactGrab: () => void
+  zoomLevel: number
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onZoomReset: () => void
+  onFitWidth: () => void
+  onZoomSet: (level: number) => void
+  fitMode?: boolean
 }
 
 export function BrowserToolbar({
@@ -118,6 +132,13 @@ export function BrowserToolbar({
   onClearCache,
   onToggleDevTools,
   onToggleReactGrab,
+  zoomLevel,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
+  onFitWidth,
+  onZoomSet,
+  fitMode,
 }: BrowserToolbarProps) {
   const { t } = useTranslation("common")
   const [inputValue, setInputValue] = useState(url)
@@ -387,7 +408,7 @@ export function BrowserToolbar({
 
       {/* URL Input with Settings and History Dropdown */}
       <div ref={inputContainerRef} className="flex-1 relative flex items-center">
-        {/* Settings Dropdown - device emulation, site info, dev mode */}
+        {/* Settings Dropdown - organized menu */}
         <DropdownMenu open={siteInfoOpen} onOpenChange={setSiteInfoOpen}>
           <DropdownMenuTrigger asChild>
             <button
@@ -396,7 +417,7 @@ export function BrowserToolbar({
               <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={4} className="w-64">
+          <DropdownMenuContent align="start" sideOffset={4} className="w-72">
             {/* Site title */}
             <div className="px-2 py-1.5 border-b border-border/50">
               <div className="flex items-center gap-2">
@@ -416,11 +437,77 @@ export function BrowserToolbar({
               </div>
             </div>
 
-            {/* Device Emulation - Sub Menu */}
+            {/* 1. 链接证书 / Certificate */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer">
+                <Lock className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">证书</span>
+                {isHttps ? (
+                  <Lock className="w-3.5 h-3.5 text-green-500" />
+                ) : (
+                  <Shield className="w-3.5 h-3.5 text-yellow-500" />
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {isHttps ? (
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setSiteInfoOpen(false)
+                      setCertDialogOpen(true)
+                    }}
+                  >
+                    <Lock className="w-4 h-4 mr-2 text-green-500" />
+                    <span className="flex-1">{t("browser.siteInfo.connectionSecure")}</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  </DropdownMenuItem>
+                ) : (
+                  <div className="px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      {hasValidUrl ? (
+                        <>
+                          <Shield className="w-4 h-4 text-yellow-500" />
+                          <span className="text-muted-foreground text-sm">{t("browser.siteInfo.connectionNotSecure")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-muted-foreground text-sm">{t("browser.siteInfo.noConnection")}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
+            {/* 2. 搜索引擎 / Search Engine */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer">
+                <Search className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">搜索引擎</span>
+                <span className="text-muted-foreground/60 mr-1">
+                  {currentSearchEngine.name}
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup value={searchEngineId} onValueChange={setSearchEngineId}>
+                  {SEARCH_ENGINES.map((engine) => (
+                    <DropdownMenuRadioItem key={engine.id} value={engine.id} className="cursor-pointer">
+                      {engine.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            {/* 3. 设备模拟 / Device Emulation */}
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="cursor-pointer">
                 <Monitor className="w-4 h-4 mr-2 text-muted-foreground" />
-                <span className="flex-1">{t("browser.device.title")}</span>
+                <span className="flex-1">设备模拟</span>
                 <span className="text-muted-foreground/60 mr-1">
                   {currentDevice.id === "responsive" ? t("browser.device.responsive") : currentDevice.name}
                 </span>
@@ -468,81 +555,106 @@ export function BrowserToolbar({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
-            {/* Search Engine - Sub Menu */}
+            <DropdownMenuSeparator />
+
+            {/* 4. 缩放 / Zoom */}
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="cursor-pointer">
-                <Search className="w-4 h-4 mr-2 text-muted-foreground" />
-                <span className="flex-1">{t("browser.searchEngine.title", "Search Engine")}</span>
+                <Maximize2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">缩放</span>
                 <span className="text-muted-foreground/60 mr-1">
-                  {currentSearchEngine.name}
+                  {isZoomFitMode(zoomLevel) ? "自动" : `${Math.round(zoomLevel * 100)}%`}
                 </span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuRadioGroup value={searchEngineId} onValueChange={setSearchEngineId}>
-                  {SEARCH_ENGINES.map((engine) => (
-                    <DropdownMenuRadioItem key={engine.id} value={engine.id} className="cursor-pointer">
-                      {engine.name}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
+                {/* Zoom control row */}
+                <div className="flex items-center gap-1 px-3 py-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="h-8 w-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                        onClick={onZoomOut}
+                        disabled={zoomLevel <= 0.05}
+                      >
+                        <ZoomOut className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>缩小</TooltipContent>
+                  </Tooltip>
+
+                  <button
+                    className="flex-1 h-8 items-center justify-center rounded bg-muted/50 hover:bg-accent transition-colors text-sm font-medium tabular-nums cursor-pointer"
+                    onClick={onZoomReset}
+                  >
+                    {isZoomFitMode(zoomLevel) ? "自动" : `${Math.round(zoomLevel * 100)}%`}
+                  </button>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="h-8 w-8 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                        onClick={onZoomIn}
+                        disabled={zoomLevel >= 5.0}
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>放大</TooltipContent>
+                  </Tooltip>
+                </div>
+
+                {/* Fit width toggle button */}
+                <div className="px-3 py-2">
+                  <button
+                    className={cn(
+                      "w-full h-8 flex items-center justify-center gap-2 rounded transition-colors text-sm cursor-pointer",
+                      fitMode ? "bg-primary text-primary-foreground" : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={onFitWidth}
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                    {fitMode ? "自动适应" : "最佳适应"}
+                  </button>
+                </div>
+
+                {/* Zoom range hint */}
+                <div className="px-3 py-1 text-xs text-muted-foreground/60 text-center">
+                  缩放范围：5% - 500%
+                </div>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
-            {/* Connection status - clickable to view certificate */}
-            {isHttps ? (
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onClick={() => {
-                  setSiteInfoOpen(false)
-                  setCertDialogOpen(true)
-                }}
-              >
-                <Lock className="w-4 h-4 mr-2 text-green-500" />
-                <span className="flex-1">{t("browser.siteInfo.connectionSecure")}</span>
-                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/50" />
-              </DropdownMenuItem>
-            ) : (
-              <div className="px-2 py-1.5">
-                <div className="flex items-center gap-2">
-                  {hasValidUrl ? (
-                    <>
-                      <Shield className="w-4 h-4 text-yellow-500" />
-                      <span className="text-muted-foreground">{t("browser.siteInfo.connectionNotSecure")}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Globe className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">{t("browser.siteInfo.noConnection")}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Developer Mode Toggle */}
-            <DropdownMenuItem
-              className="cursor-pointer"
-              onSelect={(e) => e.preventDefault()}
-            >
-              <Code2 className="w-4 h-4 mr-2 text-muted-foreground" />
-              <span className="flex-1">{t("browser.devMode.label")}</span>
-              <Switch
-                checked={devMode}
-                onCheckedChange={setDevMode}
-                className="scale-75"
-              />
-            </DropdownMenuItem>
-
             <DropdownMenuSeparator />
 
-            {/* Clear Cache */}
-            <DropdownMenuItem
-              onClick={onClearCache}
-              className="cursor-pointer"
-            >
-              <Cookie className="w-4 h-4 mr-2 text-muted-foreground" />
-              {t("browser.siteInfo.clearCache")}
-            </DropdownMenuItem>
+            {/* 5. 开发者功能 / Developer Mode */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="cursor-pointer">
+                <Code2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">开发者功能</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <Code2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                  <span className="flex-1">{t("browser.devMode.label")}</span>
+                  <Switch
+                    checked={devMode}
+                    onCheckedChange={setDevMode}
+                    className="scale-75"
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={onClearCache}
+                  className="cursor-pointer"
+                >
+                  <Cookie className="w-4 h-4 mr-2 text-muted-foreground" />
+                  {t("browser.siteInfo.clearCache")}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -683,7 +795,24 @@ export function BrowserToolbar({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+
       </div>
+
+      {/* Zoom indicator - tag style in address bar, left of dropdown button */}
+      {/* Opens settings menu with zoom section when clicked */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSiteInfoOpen(true)}
+            className="h-6 px-2 text-xs font-medium tabular-nums hover:bg-foreground/10"
+          >
+            {fitMode ? "自动" : `${Math.round(zoomLevel * 100)}%`}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">缩放设置</TooltipContent>
+      </Tooltip>
 
       {/* External tools */}
       <Tooltip>

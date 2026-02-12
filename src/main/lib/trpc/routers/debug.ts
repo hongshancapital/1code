@@ -108,6 +108,7 @@ const lastUserMessageDebugData = new Map<string, UserMessageDebugData>()
  * This is called from claude router when a user sends a message
  */
 export function setLastUserMessageDebug(subChatId: string, data: Record<string, unknown>) {
+  console.log('[Debug] Saving debug data for subChat:', subChatId, 'keys:', Object.keys(data), 'data:', data)
   lastUserMessageDebugData.set(subChatId, {
     subChatId,
     timestamp: new Date().toISOString(),

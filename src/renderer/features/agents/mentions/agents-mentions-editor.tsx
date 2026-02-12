@@ -1095,7 +1095,8 @@ export const AgentsMentionsEditor = memo(
           }
 
           // Prevent submission during IME composition (e.g., Chinese/Japanese/Korean input)
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          // Use isComposingRef instead of e.nativeEvent.isComposing for more reliable timing
+          if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return

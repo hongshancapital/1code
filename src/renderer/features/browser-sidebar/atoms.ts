@@ -201,3 +201,49 @@ export const SEARCH_ENGINES: SearchEngine[] = [
 
 /** Default search engine - global, persisted */
 export const browserSearchEngineAtom = atomWithStorage<string>("browser-search-engine", "google")
+
+/** Browser zoom level - per chat, persisted */
+export const browserZoomAtomFamily = atomFamily((chatId: string) =>
+  atomWithStorage<number>(`browser-zoom-${chatId}`, 1.0)
+)
+
+/** Zoom range settings */
+export const ZOOM_MIN = 0.05  // 5%
+export const ZOOM_MAX = 5.0   // 500%
+export const ZOOM_STEP = 0.25 // 25% step
+
+/** Fit zoom level special value */
+export const ZOOM_FIT = 0  // Special value for "fit to width"
+
+/** Check if zoom is fit mode */
+export function isZoomFitMode(zoom: number): boolean {
+  return zoom === ZOOM_FIT
+}
+
+/** Common zoom levels for quick selection */
+export const ZOOM_QUICK_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+
+/** Clamp zoom to valid range */
+export function clampZoom(zoom: number): number {
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom))
+}
+
+/** Zoom in by step */
+export function zoomIn(current: number): number {
+  return clampZoom(current + ZOOM_STEP)
+}
+
+/** Zoom out by step */
+export function zoomOut(current: number): number {
+  return clampZoom(current - ZOOM_STEP)
+}
+
+/** Check if can zoom in */
+export function canZoomIn(current: number): boolean {
+  return current < ZOOM_MAX
+}
+
+/** Check if can zoom out */
+export function canZoomOut(current: number): boolean {
+  return current > ZOOM_MIN
+}
