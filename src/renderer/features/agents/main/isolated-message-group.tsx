@@ -11,7 +11,7 @@ import {
   isLastUserMessageAtomFamily,
   isStreamingAtom,
   isStreamingIdleAtom,
-  isMessagesSyncedAtom,
+  currentSubChatIdAtom,
 } from "../stores/message-store"
 import { MemoizedAssistantMessages } from "./messages-list"
 import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
@@ -121,7 +121,7 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   const isLastGroup = useAtomValue(isLastUserMessageAtomFamily(userMsgId))
   const isStreaming = useAtomValue(isStreamingAtom)
   const isStreamingIdle = useAtomValue(isStreamingIdleAtom)
-  const isMessagesSynced = useAtomValue(isMessagesSyncedAtom)
+  const currentSubChatId = useAtomValue(currentSubChatIdAtom)
 
   // Extract user message content
   // Note: file-content parts are hidden from UI but sent to agent
@@ -165,12 +165,12 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   // - No assistant response received
   // - Not currently streaming
   // - Not a sandbox setup issue (cloning or error)
-  // - Messages have been synced (not in workspace switch loading gap)
+  // - Current active subChat ID matches this subChat (prevents retry during switch gap)
   const shouldShowRetry =
     isLastGroup &&
     assistantIds.length === 0 &&
     !isStreaming &&
-    isMessagesSynced &&
+    currentSubChatId === subChatId &&
     sandboxSetupStatus === "ready" &&
     onRetryMessage
 

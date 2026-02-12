@@ -10,7 +10,7 @@ import {
   chatStatusAtom,
   isLastMessageAtomFamily,
   isStreamingAtom,
-  isMessagesSyncedAtom,
+  currentSubChatIdAtom,
   messageAtomFamily,
 } from "../stores/message-store"
 import { MessageJsonDisplay } from "../ui/message-json-display"
