@@ -29,6 +29,8 @@ export function buildImagePart(img: {
         mediaType: img.mediaType,
         filename: img.filename,
         base64Data: img.base64Data,
+        localPath: img.localPath,
+        tempPath: img.tempPath,
       },
     }
   } else if (img.localPath || img.tempPath) {
@@ -48,6 +50,8 @@ export function buildImagePart(img: {
         mediaType: img.mediaType,
         filename: img.filename,
         base64Data: img.base64Data,
+        localPath: img.localPath,
+        tempPath: img.tempPath,
       },
     }
   }

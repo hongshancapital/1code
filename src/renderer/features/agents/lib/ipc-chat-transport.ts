@@ -181,6 +181,8 @@ type ImageAttachment = {
   base64Data: string
   mediaType: string
   filename?: string
+  localPath?: string
+  tempPath?: string
 }
 
 // File reference for attached files (non-image) and large images
@@ -845,6 +847,8 @@ askUserQuestionTimeout,
       // Check for data-image parts with base64 data
       if (isDataUIPart(part) && part.type === "data-image") {
         const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string }
+
+        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string; tempPath?: string }
         if (data.base64Data && data.mediaType) {
           // Check if image exceeds inline size threshold
           const estimatedBytes = (data.base64Data.length * 3) / 4
@@ -889,6 +893,10 @@ askUserQuestionTimeout,
             filename: data.filename || data.localPath.split("/").pop() || "file",
             mediaType: data.mediaType,
             size: data.size,
+
+            filename: data.filename,
+            localPath: data.localPath,
+            tempPath: data.tempPath,
           })
         }
       }

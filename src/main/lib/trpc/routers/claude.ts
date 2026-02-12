@@ -576,6 +576,8 @@ const imageAttachmentSchema = z.object({
   base64Data: z.string(),
   mediaType: z.string(), // e.g. "image/png", "image/jpeg"
   filename: z.string().optional(),
+  localPath: z.string().optional(), // Original file path on disk
+  tempPath: z.string().optional(), // Temp copy path (draft-attachments)
 })
 
 export type ImageAttachment = z.infer<typeof imageAttachmentSchema>
@@ -1266,12 +1268,21 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
               const userParts: any[] = []
               if (input.images && input.images.length > 0) {
                 for (const img of input.images) {
+                  // Store a displayable URL for reload (local-file:// or data URL)
+                  // Don't store base64Data in DB to avoid bloat
+                  const displayUrl = img.localPath
+                    ? `local-file://${img.localPath}`
+                    : img.tempPath
+                      ? `local-file://${img.tempPath}`
+                      : `data:${img.mediaType};base64,${img.base64Data}`
                   userParts.push({
                     type: "data-image",
                     data: {
-                      base64Data: img.base64Data,
+                      url: displayUrl,
                       mediaType: img.mediaType,
                       filename: img.filename,
+                      localPath: img.localPath,
+                      tempPath: img.tempPath,
                     },
                   })
                 }
