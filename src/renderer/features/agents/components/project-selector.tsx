@@ -199,7 +199,12 @@ export function ProjectSelector() {
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen)
-        if (!isOpen) setSearchQuery("")
+        if (isOpen) {
+          // Re-validate project list on every open (removes stale/deleted folders)
+          utils.projects.list.invalidate()
+        } else {
+          setSearchQuery("")
+        }
       }}
     >
       <PopoverTrigger asChild>

@@ -861,6 +861,18 @@ const chatsCoreRouter = router({
         .returning()
         .get()
 
+      // --- Clear Session IDs ---
+      // Force Agent SDK to start fresh sessions with the new CWD
+      // Otherwise it tries to resume sessions bound to the old, non-existent path
+      db.update(subChats)
+        .set({ sessionId: null })
+        .where(eq(subChats.chatId, input.chatId))
+        .run()
+
+      console.log(
+        `[moveWorktree] Moved worktree for chat ${input.chatId} to ${newWorktreePath} and cleared session IDs`
+      )
+
       // --- Invalidate caches for old path ---
       gitCache.invalidateStatus(chat.worktreePath)
       gitCache.invalidateParsedDiff(chat.worktreePath)
