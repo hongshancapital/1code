@@ -6,6 +6,7 @@ import { useMessageQueueStore } from "../stores/message-queue-store"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { chatRegistry } from "../stores/chat-registry"
+import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { appStore } from "../../../lib/jotai-store"
 import { loadingSubChatsAtom, setLoading, clearLoading } from "../atoms"
 import { trackSendMessage } from "../../../lib/sensors-analytics"
@@ -68,24 +69,8 @@ export function QueueProcessor() {
       try {
         // Build message parts from queued item
         const parts: any[] = [
-          ...(item.images || []).map((img) => ({
-            type: "data-image" as const,
-            data: {
-              url: img.url,
-              mediaType: img.mediaType,
-              filename: img.filename,
-              base64Data: img.base64Data,
-            },
-          })),
-          ...(item.files || []).map((f) => ({
-            type: "data-file" as const,
-            data: {
-              url: f.url,
-              mediaType: f.mediaType,
-              filename: f.filename,
-              size: f.size,
-            },
-          })),
+          ...(item.images || []).map(buildImagePart),
+          ...(item.files || []).map(buildFilePart),
         ]
 
         if (item.message) {

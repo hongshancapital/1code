@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog"
+import { File as FileIcon } from "lucide-react"
 import { AgentImageItem } from "./agent-image-item"
 import { RenderFileMentions, extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
 import { useSearchHighlight, useSearchQuery } from "../search"
@@ -22,8 +23,25 @@ interface AgentUserMessageBubbleProps {
       url?: string
     }
   }>
+  fileParts?: Array<{
+    data?: {
+      filename?: string
+      mediaType?: string
+      size?: number
+      localPath?: string
+      tempPath?: string
+    }
+  }>
   /** If true, renders only images and text - no TextMentionBlocks (they're rendered by parent) */
   skipTextMentionBlocks?: boolean
+}
+
+/** Format file size for display */
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return ""
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 // Helper function to highlight text in DOM using TreeWalker
@@ -114,6 +132,7 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
   messageId,
   textContent,
   imageParts = [],
+  fileParts = [],
   skipTextMentionBlocks = false,
 }: AgentUserMessageBubbleProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -214,6 +233,23 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
               })()}
             </div>
           )}
+          {/* Show attached files */}
+          {fileParts.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {fileParts.map((file, idx) => (
+                <div
+                  key={`${messageId}-file-${idx}`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 border rounded-lg text-xs text-muted-foreground"
+                >
+                  <FileIcon className="size-3.5 shrink-0" />
+                  <span className="truncate max-w-[200px]">{file.data?.filename || "file"}</span>
+                  {file.data?.size ? (
+                    <span className="text-muted-foreground/60 shrink-0">{formatFileSize(file.data.size)}</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
           {/* Show text mentions (quote/diff) as blocks above text bubble - only if not rendered by parent */}
           {!skipTextMentionBlocks && textMentions.length > 0 && (
             <TextMentionBlocks mentions={textMentions} />
@@ -240,7 +276,7 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
                 <div className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none bg-linear-to-t from-[hsl(var(--input-background))] to-transparent rounded-b-xl" />
               )}
             </div>
-          ) : (imageParts.length > 0 || textMentions.length > 0) && !skipTextMentionBlocks ? (
+          ) : (imageParts.length > 0 || fileParts.length > 0 || textMentions.length > 0) && !skipTextMentionBlocks ? (
             // Show "Using X" summary when no text but have attachments rendered inline
             <div className="bg-input-background border px-3 py-2 rounded-xl text-sm text-muted-foreground italic">
               {(() => {
@@ -249,6 +285,11 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
                 // Count images
                 if (imageParts.length > 0) {
                   parts.push(imageParts.length === 1 ? "image" : `${imageParts.length} images`)
+                }
+
+                // Count files
+                if (fileParts.length > 0) {
+                  parts.push(fileParts.length === 1 ? "file" : `${fileParts.length} files`)
                 }
 
                 // Count text mentions by type

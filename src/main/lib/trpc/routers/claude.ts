@@ -1111,6 +1111,13 @@ export const claudeRouter = router({
           .optional(),
         maxThinkingTokens: z.number().optional(), // Enable extended thinking
         images: z.array(imageAttachmentSchema).optional(), // Image attachments
+        files: z.array(z.object({
+          filename: z.string(),
+          mediaType: z.string().optional(),
+          size: z.number().optional(),
+          localPath: z.string().optional(),
+          tempPath: z.string().optional(),
+        })).optional(), // Non-image file attachments (metadata only)
         historyEnabled: z.boolean().optional(),
         offlineModeEnabled: z.boolean().optional(), // Whether offline mode (Ollama) is enabled in settings
 askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in seconds (0 = no timeout)
@@ -1242,9 +1249,10 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
             // Check if last message is already this user message (avoid duplicate)
             const lastMsg = existingMessages[existingMessages.length - 1]
+            const lastMsgTextPart = lastMsg?.parts?.find((p: any) => p.type === "text")
             const isDuplicate =
               lastMsg?.role === "user" &&
-              lastMsg?.parts?.[0]?.text === input.prompt
+              (lastMsgTextPart?.text === input.prompt || lastMsg?.parts?.[0]?.text === input.prompt)
 
             // 2. Create user message and save BEFORE streaming (skip if duplicate)
             let userMessage: any
@@ -1254,10 +1262,41 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
               userMessage = lastMsg
               messagesToSave = existingMessages
             } else {
+              // Build complete user message parts (images, files, then text)
+              const userParts: any[] = []
+              if (input.images && input.images.length > 0) {
+                for (const img of input.images) {
+                  userParts.push({
+                    type: "data-image",
+                    data: {
+                      base64Data: img.base64Data,
+                      mediaType: img.mediaType,
+                      filename: img.filename,
+                    },
+                  })
+                }
+              }
+              if (input.files && input.files.length > 0) {
+                for (const f of input.files) {
+                  userParts.push({
+                    type: "data-file",
+                    data: {
+                      filename: f.filename,
+                      mediaType: f.mediaType,
+                      size: f.size,
+                      localPath: f.localPath,
+                      tempPath: f.tempPath,
+                    },
+                  })
+                }
+              }
+              userParts.push({ type: "text", text: input.prompt })
+
               userMessage = {
                 id: crypto.randomUUID(),
                 role: "user",
-                parts: [{ type: "text", text: input.prompt }],
+                parts: userParts,
+                createdAt: new Date().toISOString(),
               }
               messagesToSave = [...existingMessages, userMessage]
 
@@ -2804,6 +2843,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   role: "assistant",
                   parts,
                   metadata,
+                  createdAt: new Date().toISOString(),
                 }
                 const finalMessages = [...messagesToSave, assistantMessage]
                 const finalMessagesJson = JSON.stringify(finalMessages)
@@ -2927,6 +2967,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 role: "assistant",
                 parts,
                 metadata,
+                createdAt: new Date().toISOString(),
               }
 
               // Log for debugging rollback issues

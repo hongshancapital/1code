@@ -4,6 +4,7 @@ import { memo, useMemo } from "react"
 import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
 import { RotateCcw } from "lucide-react"
+import dayjs from "dayjs"
 import {
   messageAtomFamily,
   assistantIdsForUserMsgAtomFamily,
@@ -15,6 +16,13 @@ import {
 import { MemoizedAssistantMessages } from "./messages-list"
 import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
 import { AgentImageItem } from "../ui/agent-image-item"
+
+function formatMessageTime(date: Date | string | undefined): string | null {
+  if (!date) return null
+  const d = dayjs(date)
+  if (!d.isValid()) return null
+  return d.isSame(dayjs(), "day") ? d.format("HH:mm") : d.format("M/D HH:mm")
+}
 
 // ============================================================================
 // ISOLATED MESSAGE GROUP (LAYER 4)
@@ -48,6 +56,7 @@ interface IsolatedMessageGroupProps {
     messageId: string
     textContent: string
     imageParts: any[]
+    fileParts?: any[]
     skipTextMentionBlocks?: boolean
   }>
   ToolCallComponent: React.ComponentType<{
@@ -116,6 +125,8 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
 
   const imageParts =
     userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
+  const fileParts =
+    userMsg?.parts?.filter((p: any) => p.type === "data-file") || []
 
   // Extract text mentions (quote/diff) to render separately above sticky block
   // NOTE: useMemo must be called before any early returns to follow Rules of Hooks
@@ -149,15 +160,15 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
     onRetryMessage
 
   // Check if this is an image-only message (no text content and no text mentions)
-  const isImageOnlyMessage = imageParts.length > 0 && !textContent.trim() && textMentions.length === 0
+  const isImageOnlyMessage = imageParts.length > 0 && !textContent.trim() && textMentions.length === 0 && fileParts.length === 0
 
-  // Check if this is an attachment-only message (no text but has images or text mentions)
-  const isAttachmentOnlyMessage = !textContent.trim() && (imageParts.length > 0 || textMentions.length > 0)
+  // Check if this is an attachment-only message (no text but has images, files, or text mentions)
+  const isAttachmentOnlyMessage = !textContent.trim() && (imageParts.length > 0 || fileParts.length > 0 || textMentions.length > 0)
 
   return (
     <MessageGroupWrapper isLastGroup={isLastGroup}>
       {/* All attachments in one row - NOT sticky (only when there's also text) */}
-      {((!isImageOnlyMessage && imageParts.length > 0) || textMentions.length > 0) && (
+      {((!isImageOnlyMessage && imageParts.length > 0) || fileParts.length > 0 || textMentions.length > 0) && (
         <div className="mb-2 pointer-events-auto flex flex-wrap items-end gap-1.5">
           {imageParts.length > 0 && !isImageOnlyMessage && (() => {
             const allImages = imageParts
@@ -199,6 +210,9 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
                 if (imageParts.length > 0) {
                   parts.push(imageParts.length === 1 ? "image" : `${imageParts.length} images`)
                 }
+                if (fileParts.length > 0) {
+                  parts.push(fileParts.length === 1 ? "file" : `${fileParts.length} files`)
+                }
                 const quoteCount = textMentions.filter(m => m.type === "quote" || m.type === "pasted").length
                 const codeCount = textMentions.filter(m => m.type === "diff").length
                 if (quoteCount > 0) {
@@ -217,8 +231,18 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
             messageId={userMsgId}
             textContent={textContent}
             imageParts={isImageOnlyMessage ? imageParts : []}
+            fileParts={fileParts}
             skipTextMentionBlocks={!isImageOnlyMessage}
           />
+        )}
+
+        {/* Timestamp */}
+        {userMsg.createdAt && (
+          <div className="flex justify-start mt-1 px-1">
+            <span className="text-[10px] text-muted-foreground/40">
+              {formatMessageTime(userMsg.createdAt)}
+            </span>
+          </div>
         )}
 
         {/* Cloning indicator */}

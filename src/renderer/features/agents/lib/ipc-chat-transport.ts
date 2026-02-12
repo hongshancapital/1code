@@ -194,6 +194,16 @@ type FileReference = {
 // 5MB threshold — images larger than this are sent as file references instead of inline base64
 const MAX_IMAGE_SIZE_FOR_INLINE = 5 * 1024 * 1024
 
+
+// File attachment type for DB persistence (no content, just metadata)
+type FileAttachment = {
+  filename: string
+  mediaType?: string
+  size?: number
+  localPath?: string
+  tempPath?: string
+}
+
 export class IPCChatTransport implements ChatTransport<UIMessage> {
   constructor(private config: IPCChatTransportConfig) {}
 
@@ -201,7 +211,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     messages: UIMessage[]
     abortSignal?: AbortSignal
   }): Promise<ReadableStream<UIMessageChunk>> {
-    // Extract prompt and images from last user message
+    // Extract prompt, images, and files from last user message
     const lastUser = [...options.messages]
       .reverse()
       .find((m) => m.role === "user")
@@ -216,6 +226,9 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
       const fileList = allFileRefs.map(f => `- ${f.filename} (${f.localPath})`).join("\n")
       fileHint = `\n\n[The user has attached the following file(s). Use the Read tool to access their contents:\n${fileList}]`
     }
+
+    const images = this.extractImages(lastUser)
+    const files = this.extractFiles(lastUser)
 
     // Get sessionId for resume (server preserves sessionId on abort so
     // the next message can resume with full conversation context)
@@ -379,6 +392,7 @@ askUserQuestionTimeout,
             memoryRecordingEnabled,
             ...((() => { const sp = appStore.get(summaryProviderIdAtom); const sm = appStore.get(summaryModelIdAtom); return sp && sm ? { summaryProviderId: sp, summaryModelId: sm } : {}; })()),
             ...(images.length > 0 && { images }),
+            ...(files.length > 0 && { files }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
             ...(imageConfig && { imageConfig }),
@@ -782,6 +796,7 @@ askUserQuestionTimeout,
     if (msg.parts) {
       const textParts: string[] = []
       const fileContents: string[] = []
+      const fileRefs: string[] = []
 
       for (const p of msg.parts) {
         if (isTextUIPart(p)) {
@@ -791,11 +806,23 @@ askUserQuestionTimeout,
           const data = p.data as { filePath?: string; content?: string }
           const fileName = data.filePath?.split("/").pop() || data.filePath || "file"
           fileContents.push(`\n--- ${fileName} ---\n${data.content ?? ""}`)
+        } else if (isDataUIPart(p) && p.type === "data-file") {
+          // Non-image file attachment - pass file path so AI can read it
+          const data = p.data as { localPath?: string; tempPath?: string; filename?: string; size?: number }
+          const filePath = data.localPath || data.tempPath
+          if (filePath) {
+            const sizeInfo = data.size ? ` (${(data.size / 1024).toFixed(1)}KB)` : ""
+            fileRefs.push(`- ${data.filename || "file"}${sizeInfo}: ${filePath}`)
+          }
         }
       }
 
-      // Combine text and file contents
-      return textParts.join("\n") + fileContents.join("")
+      // Combine text, file contents, and file references
+      let result = textParts.join("\n") + fileContents.join("")
+      if (fileRefs.length > 0) {
+        result += `\n\n[The user has attached the following file(s). Use the Read tool to access their contents:\n${fileRefs.join("\n")}]`
+      }
+      return result
     }
     return ""
   }
@@ -862,6 +889,39 @@ askUserQuestionTimeout,
             filename: data.filename || data.localPath.split("/").pop() || "file",
             mediaType: data.mediaType,
             size: data.size,
+          })
+        }
+      }
+    }
+
+    return files
+  }
+
+  /**
+   * Extract file attachments from message parts
+   * Looks for parts with type "data-file" that have path info
+   */
+  private extractFiles(msg: UIMessage | undefined): FileAttachment[] {
+    if (!msg || !msg.parts) return []
+
+    const files: FileAttachment[] = []
+
+    for (const part of msg.parts) {
+      if (isDataUIPart(part) && part.type === "data-file") {
+        const data = part.data as {
+          filename?: string
+          mediaType?: string
+          size?: number
+          localPath?: string
+          tempPath?: string
+        }
+        if (data.filename) {
+          files.push({
+            filename: data.filename,
+            mediaType: data.mediaType,
+            size: data.size,
+            localPath: data.localPath,
+            tempPath: data.tempPath,
           })
         }
       }

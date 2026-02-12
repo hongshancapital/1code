@@ -9,6 +9,7 @@ export interface UploadedImage {
   localPath?: string // local file path for backend reference (large image fallback)
   base64Data?: string // base64 encoded data for API
   tempPath?: string // disk temp file path for draft persistence
+  localPath?: string // original file disk path (for AI reference)
   isLoading: boolean
   mediaType?: string // MIME type e.g. "image/png", "image/jpeg"
 }
@@ -21,6 +22,7 @@ export interface UploadedFile {
 
   url: string
   tempPath?: string // disk temp file path for draft persistence
+  localPath?: string // original file disk path (for AI reference)
   isLoading: boolean
   size?: number
   type?: string
@@ -103,6 +105,7 @@ export function useAgentsFileUpload(draftKey?: string) {
           console.error("[useAgentsFileUpload] Failed to convert image to base64:", err)
         }
 
+        const localPath = (window as any).webUtils?.getPathForFile?.(file) || (file as any).path
         return {
           id,
           filename,
@@ -111,6 +114,7 @@ export function useAgentsFileUpload(draftKey?: string) {
           base64Data,
           isLoading: false,
           mediaType,
+          localPath: localPath || undefined,
         }
       })
     )
@@ -135,6 +139,7 @@ export function useAgentsFileUpload(draftKey?: string) {
           // non-critical for files
         }
 
+        const localPath = (window as any).webUtils?.getPathForFile?.(file) || (file as any).path
         return {
           id,
           filename: file.name,
@@ -142,6 +147,7 @@ export function useAgentsFileUpload(draftKey?: string) {
           isLoading: false,
           size: file.size,
           type: file.type,
+          localPath: localPath || undefined,
           _base64Data: base64Data, // temporary, used only for disk save below
         } as UploadedFile & { _base64Data?: string }
       })

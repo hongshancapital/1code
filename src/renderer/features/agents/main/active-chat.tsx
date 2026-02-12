@@ -194,6 +194,7 @@ import {
   toQueuedTextContext,
   type AgentQueueItem,
 } from "../lib/queue-utils"
+import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   FileOpenProvider,
@@ -3093,56 +3094,13 @@ const ChatViewInner = memo(function ChatViewInner({
     // Build message parts: images first, then files, then text
     // Small images (< 5MB) are inlined as base64; large images use file path reference
     // Claude API supports up to 8MB inline base64, 5MB leaves reasonable headroom
-    const IMAGE_INLINE_THRESHOLD = 5 * 1024 * 1024 // 5MB
     const parts: any[] = [
       ...currentImages
         .filter((img) => !img.isLoading && img.url)
-        .map((img) => {
-          const sizeBytes = img.base64Data
-            ? Math.ceil((img.base64Data.length * 3) / 4)
-            : 0
-          if (img.base64Data && sizeBytes <= IMAGE_INLINE_THRESHOLD) {
-            // Small image: inline base64 for Claude API
-            return {
-              type: "data-image" as const,
-              data: {
-                url: img.url,
-                mediaType: img.mediaType,
-                filename: img.filename,
-                base64Data: img.base64Data,
-              },
-            }
-          } else if (img.tempPath) {
-            // Large image: pass file path reference
-            const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(1)
-            return {
-              type: "text" as const,
-              text: `[Image attachment: ${img.filename} (${sizeMB}MB) at path: ${img.tempPath}]`,
-            }
-          } else {
-            // Fallback: inline whatever we have
-            return {
-              type: "data-image" as const,
-              data: {
-                url: img.url,
-                mediaType: img.mediaType,
-                filename: img.filename,
-                base64Data: img.base64Data,
-              },
-            }
-          }
-        }),
+        .map(buildImagePart),
       ...currentFiles
         .filter((f) => !f.isLoading && f.url)
-        .map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.type,
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        .map(buildFilePart),
     ]
 
     // Add text contexts as mention tokens
@@ -3186,9 +3144,8 @@ const ChatViewInner = memo(function ChatViewInner({
         // Extract file path from mentionId (file:local:path or file:external:path)
         const filePath = mentionId.replace(/^file:(local|external):/, "")
         parts.push({
-          type: "file-content",
-          filePath,
-          content,
+          type: "data-file-content" as const,
+          data: { filePath, content },
         })
       }
     }
@@ -3284,24 +3241,8 @@ const ChatViewInner = memo(function ChatViewInner({
 
       // Build message parts from queued item
       const parts: any[] = [
-        ...(item.images || []).map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data,
-          },
-        })),
-        ...(item.files || []).map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.mediaType || "application/octet-stream",
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        ...(item.images || []).map(buildImagePart),
+        ...(item.files || []).map(buildFilePart),
       ]
 
       // Add text contexts as mention tokens
@@ -3490,26 +3431,10 @@ const ChatViewInner = memo(function ChatViewInner({
     const parts: any[] = [
       ...currentImages
         .filter((img) => !img.isLoading && img.url)
-        .map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data,
-          },
-        })),
+        .map(buildImagePart),
       ...currentFiles
         .filter((f) => !f.isLoading && f.url)
-        .map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.type || "application/octet-stream",
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        .map(buildFilePart),
     ]
 
     if (finalText) {
