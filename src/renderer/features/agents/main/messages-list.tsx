@@ -15,6 +15,7 @@ import {
 } from "../stores/message-store"
 import { MessageJsonDisplay } from "../ui/message-json-display"
 import { AssistantMessageItem } from "./assistant-message-item"
+import { stripFileAttachmentText } from "../lib/message-utils"
 
 // ============================================================================
 // MESSAGE STORE - External store for fine-grained subscriptions
@@ -820,10 +821,13 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   const isDev = import.meta.env.DEV
 
   // User message data (computed before hooks that depend on it)
-  const rawTextContent = userMsg?.parts
-    ?.filter((p: any) => p.type === "text")
-    .map((p: any) => p.text)
-    .join("\n") || ""
+  // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
+  const rawTextContent = stripFileAttachmentText(
+    userMsg?.parts
+      ?.filter((p: any) => p.type === "text")
+      .map((p: any) => p.text)
+      .join("\n") || ""
+  )
 
   const imageParts = userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
   const fileParts = userMsg?.parts?.filter((p: any) => p.type === "data-file") || []

@@ -54,6 +54,18 @@ export function buildImagePart(img: {
 }
 
 /**
+ * Strip the AI-facing file attachment instruction from display text.
+ * The transport layer injects "[The user has attached...]" into the prompt
+ * for the AI to see, but it should not be visible in the user message bubble.
+ */
+export function stripFileAttachmentText(text: string): string {
+  return text.replace(
+    /\n?\n?\[The user has attached the following file\(s\)\. Use the Read tool to access their contents:\n[^\]]*\]/g,
+    "",
+  )
+}
+
+/**
  * Build a file part for a user message with path information.
  */
 export function buildFilePart(f: {

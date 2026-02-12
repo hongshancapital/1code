@@ -16,12 +16,20 @@ import {
 import { MemoizedAssistantMessages } from "./messages-list"
 import { extractTextMentions, TextMentionBlock } from "../mentions/render-file-mentions"
 import { AgentImageItem } from "../ui/agent-image-item"
+import { stripFileAttachmentText } from "../lib/message-utils"
 
 function formatMessageTime(date: Date | string | undefined): string | null {
   if (!date) return null
   const d = dayjs(date)
   if (!d.isValid()) return null
   return d.isSame(dayjs(), "day") ? d.format("HH:mm") : d.format("M/D HH:mm")
+}
+
+function formatMessageTimeFull(date: Date | string | undefined): string | null {
+  if (!date) return null
+  const d = dayjs(date)
+  if (!d.isValid()) return null
+  return d.format("YYYY/M/D HH:mm:ss")
 }
 
 // ============================================================================
@@ -117,11 +125,13 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
 
   // Extract user message content
   // Note: file-content parts are hidden from UI but sent to agent
-  const rawTextContent =
+  // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
+  const rawTextContent = stripFileAttachmentText(
     userMsg?.parts
       ?.filter((p: any) => p.type === "text")
       .map((p: any) => p.text)
       .join("\n") || ""
+  )
 
   const imageParts =
     userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
@@ -236,15 +246,6 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
           />
         )}
 
-        {/* Timestamp */}
-        {userMsg.createdAt && (
-          <div className="flex justify-start mt-1 px-1">
-            <span className="text-[10px] text-muted-foreground/40">
-              {formatMessageTime(userMsg.createdAt)}
-            </span>
-          </div>
-        )}
-
         {/* Cloning indicator */}
         {shouldShowCloning && (
           <div className="mt-4">
@@ -277,6 +278,18 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
           </div>
         )}
       </div>
+
+      {/* User message timestamp with hover tooltip */}
+      {userMsg.createdAt && (
+        <div className="flex justify-end px-2 -mt-3 mb-1">
+          <span className="relative text-[10px] text-muted-foreground/40 cursor-default group/ts">
+            {formatMessageTime(userMsg.createdAt)}
+            <span className="absolute bottom-full right-0 mb-1 px-2 py-1 text-[10px] bg-popover text-popover-foreground border rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover/ts:opacity-100 transition-opacity duration-150 pointer-events-none">
+              {formatMessageTimeFull(userMsg.createdAt)}
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* Assistant messages - memoized, only re-renders when IDs change */}
       {assistantIds.length > 0 && (
