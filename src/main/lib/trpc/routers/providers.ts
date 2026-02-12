@@ -377,9 +377,9 @@ export async function getProviderCredentials(
 
 // Fallback Anthropic models when API is unavailable
 const ANTHROPIC_FALLBACK_MODELS: ModelInfo[] = [
-  { id: "claude-opus-4-6-20250610", name: "Opus 4.6" },
-  { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
-  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
+  { id: "claude-opus-4-6", name: "Opus 4.6" },
+  { id: "claude-sonnet-4-5", name: "Sonnet 4.5" },
+  { id: "claude-haiku-4-5", name: "Haiku 4.5" },
 ]
 
 /**

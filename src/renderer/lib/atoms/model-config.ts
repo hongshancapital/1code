@@ -361,7 +361,17 @@ export const providerModelsFamily = atomFamily((providerId: string) =>
 )
 
 /**
- * Update models for a specific provider
+ * Strip trailing date suffix (YYYYMMDD) from model ID to get base ID.
+ * e.g. "claude-opus-4-6-20250610" → "claude-opus-4-6"
+ */
+function getBaseModelId(id: string): string {
+  return id.replace(/-\d{8}$/, "")
+}
+
+/**
+ * Update models for a specific provider.
+ * Also reconciles enabledModelsPerProvider: migrates stale IDs
+ * (e.g. dated → non-dated or vice versa) to match the current model list.
  */
 export const updateProviderModelsAtom = atom(
   null,
@@ -371,6 +381,41 @@ export const updateProviderModelsAtom = atom(
       ...current,
       [providerId]: models,
     })
+
+    // Reconcile enabled models: migrate old IDs to current ones
+    const enabledMap = get(enabledModelsPerProviderAtom)
+    const enabledIds = enabledMap[providerId]
+    if (!enabledIds || enabledIds.length === 0) return
+
+    const currentModelIds = new Set(models.map((m) => m.id))
+    // Build base→currentId lookup for fuzzy matching
+    const baseToCurrentId = new Map<string, string>()
+    for (const m of models) {
+      baseToCurrentId.set(getBaseModelId(m.id), m.id)
+    }
+
+    let changed = false
+    const reconciled = enabledIds
+      .map((id) => {
+        // Exact match — keep as-is
+        if (currentModelIds.has(id)) return id
+        // Try base-ID match (dated ↔ non-dated migration)
+        const mapped = baseToCurrentId.get(getBaseModelId(id))
+        if (mapped) {
+          changed = true
+          return mapped
+        }
+        // No match — stale entry, remove
+        changed = true
+        return null
+      })
+      .filter((id): id is string => id !== null)
+
+    // Deduplicate (in case old + new both resolved to the same current ID)
+    const deduped = [...new Set(reconciled)]
+    if (changed || deduped.length !== enabledIds.length) {
+      set(enabledModelsPerProviderAtom, { ...enabledMap, [providerId]: deduped })
+    }
   },
 )
 
