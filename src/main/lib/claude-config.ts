@@ -18,6 +18,7 @@ import { chats, projects } from "./db/schema"
 const configMutex = new Mutex()
 
 export const CLAUDE_CONFIG_PATH = path.join(os.homedir(), ".claude.json")
+export const AGENT_CONFIG_PATH = path.join(os.homedir(), ".agent.json")
 
 export interface McpServerConfig {
   command?: string
@@ -66,6 +67,26 @@ export async function readClaudeConfig(): Promise<ClaudeConfig> {
 export function readClaudeConfigSync(): ClaudeConfig {
   try {
     const content = readFileSync(CLAUDE_CONFIG_PATH, "utf-8")
+    return JSON.parse(content)
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * ~/.agent.json configuration shape
+ */
+export interface AgentJsonConfig {
+  mcpServers?: Record<string, McpServerConfig>
+}
+
+/**
+ * Read ~/.agent.json asynchronously
+ * Returns empty config if file doesn't exist or is invalid
+ */
+export async function readAgentConfig(): Promise<AgentJsonConfig> {
+  try {
+    const content = await fs.readFile(AGENT_CONFIG_PATH, "utf-8")
     return JSON.parse(content)
   } catch {
     return {}

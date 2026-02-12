@@ -27,7 +27,7 @@ import {
   type UIMessageChunk,
 } from "../../claude"
 import { getEnv } from "../../env"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, readAgentConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, memorySessions, modelUsage, observations, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
@@ -994,6 +994,17 @@ export async function getAllMcpConfigHandler() {
         })
         console.log("[MCP] Minimal builtin placeholder added after error")
       }
+    }
+
+    // Agent Config MCPs (from ~/.agent.json)
+    const agentConfig = await readAgentConfig()
+    if (agentConfig.mcpServers && Object.keys(agentConfig.mcpServers).length > 0) {
+      const agentMcpServers = await convertServers(agentConfig.mcpServers, null)
+      groups.push({
+        groupName: "Agent Config",
+        projectPath: null,
+        mcpServers: agentMcpServers,
+      })
     }
 
     // Plugin MCPs (from installed plugins)
