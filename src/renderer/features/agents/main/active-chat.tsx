@@ -1499,14 +1499,15 @@ const ChatViewInner = memo(function ChatViewInner({
   const projectMode = useAtomValue(currentProjectModeAtom)
 
   // Consume pending mentions from external components (e.g. MCP widget in sidebar)
+  // Only the active subchat should process the mention to avoid writing drafts to all subchats
   const [pendingMention, setPendingMention] = useAtom(pendingMentionAtom)
   useEffect(() => {
-    if (pendingMention) {
+    if (pendingMention && isActive) {
       editorRef.current?.insertMention(pendingMention)
       editorRef.current?.focus()
       setPendingMention(null)
     }
-  }, [pendingMention, setPendingMention])
+  }, [pendingMention, setPendingMention, isActive])
 
   // TTS playback rate state (persists across messages and sessions via localStorage)
   const [_ttsPlaybackRate, _setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
