@@ -32,6 +32,7 @@ import { UpdateBanner } from "../../components/update-banner"
 import { RuntimeInitBanner } from "../../components/runtime-init-banner"
 import { WindowsTitleBar } from "../../components/windows-title-bar"
 import { useUpdateChecker } from "../../lib/hooks/use-update-checker"
+import { useTasksIdleNotifier } from "../../lib/hooks/use-tasks-idle-notifier"
 import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
 import { QueueProcessor } from "../agents/components/queue-processor"
 import { useArtifactsListener } from "../cowork/use-artifacts-listener"
@@ -94,6 +95,9 @@ export function AgentsLayout() {
 
   // Check for updates on mount and periodically
   useUpdateChecker()
+
+  // Notify main process when all tasks become idle (for update blocking)
+  useTasksIdleNotifier()
 
   const [sidebarOpen, setSidebarOpen] = useAtom(agentsSidebarOpenAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
