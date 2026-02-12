@@ -1549,33 +1549,6 @@ export const ChatInputArea = memo(function ChatInputArea({
                         </TooltipContent>
                       </Tooltip>
                       <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
-                        {/* Session override indicator */}
-                        {sessionOverride && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs text-yellow-600 dark:text-yellow-400 flex items-center justify-between">
-                              <span>{t("model.sessionOverride")}</span>
-                              <button
-                                className="text-xs text-muted-foreground hover:text-foreground underline"
-                                onClick={() => {
-                                  setSessionOverride(null)
-                                  // Clear per-chat persisted model
-                                  if (parentChatId) {
-                                    setChatModelSelections((prev) => {
-                                      const next = { ...prev }
-                                      delete next[parentChatId]
-                                      return next
-                                    })
-                                  }
-                                  setIsModelDropdownOpen(false)
-                                }}
-                              >
-                                {t("model.resetToDefault")}
-                              </button>
-                            </div>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-
                         {/* Provider sections */}
                         {providers.map((provider: ProviderInfo) => (
                           <ProviderModelSection
