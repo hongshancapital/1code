@@ -81,8 +81,9 @@ export const AgentMessageUsage = memo(function AgentMessageUsage({
         </button>
       </HoverCardTrigger>
       <HoverCardContent
+        side="top"
         sideOffset={4}
-        align="end"
+        align="start"
         className="w-auto pt-2 px-2 pb-0 shadow-xs rounded-lg border-border/50 overflow-hidden"
       >
         <div className="flex flex-col gap-1.5 pb-2">

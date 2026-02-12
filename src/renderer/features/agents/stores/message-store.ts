@@ -835,6 +835,7 @@ export const syncMessagesWithStatusAtom = atom(
           // Deep clone message with new parts array and new part objects
           const clonedMsg = {
             ...msg,
+            createdAt: msg.createdAt || currentAtomValue?.createdAt,
             parts: msg.parts?.map((part: any) => ({ ...part, input: part.input ? { ...part.input } : undefined })),
           }
           set(messageAtomFamily(msg.id), clonedMsg)
