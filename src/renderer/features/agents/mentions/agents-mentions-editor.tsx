@@ -825,6 +825,8 @@ export const AgentsMentionsEditor = memo(
       const isComposingRef = useRef(false)
       // Track if we just finished composing to prevent immediate submission
       const justFinishedComposingRef = useRef(false)
+      // Track last Enter keydown time to prevent rapid re-submission after IME
+      const lastEnterTimeRef = useRef(0)
 
       // Handle IME composition start (e.g., Chinese pinyin input)
       const handleCompositionStart = useCallback((e: React.CompositionEvent) => {
@@ -1106,9 +1108,13 @@ export const AgentsMentionsEditor = memo(
           }
 
           // Prevent submission during IME composition (e.g., Chinese/Japanese/Korean input)
-          // Check both isComposingRef and justFinishedComposingRef to handle timing issues
-          // where compositionend and keydown happen in same event loop
-          if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current && !justFinishedComposingRef.current) {
+          // Check multiple conditions to handle timing issues where compositionend
+          // and keydown happen in the same event loop
+          const isImeActive = isComposingRef.current || justFinishedComposingRef.current
+          // Also check the native isComposing flag as a fallback
+          const isNativeComposing = (e.nativeEvent as KeyboardEvent).isComposing
+
+          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return
