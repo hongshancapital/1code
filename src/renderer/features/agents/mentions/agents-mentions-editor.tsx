@@ -821,9 +821,57 @@ export const AgentsMentionsEditor = memo(
       // Trigger detection timeout ref for cleanup
       const triggerDetectionTimeout = useRef<number | null>(null)
 
+      // Track IME composition state using ref (avoids attribute timing issues)
+      const isComposingRef = useRef(false)
+
+      // Handle IME composition start (e.g., Chinese pinyin input)
+      const handleCompositionStart = useCallback((e: React.CompositionEvent) => {
+        isComposingRef.current = true
+        // Close any open triggers when IME starts
+        if (triggerActive.current) {
+          triggerActive.current = false
+          triggerStartIndex.current = null
+          onCloseTrigger()
+        }
+        if (slashTriggerActive.current) {
+          slashTriggerActive.current = false
+          slashTriggerStartIndex.current = null
+          onCloseSlashTrigger?.()
+        }
+      }, [onCloseTrigger, onCloseSlashTrigger])
+
+      // Handle IME composition end
+      const handleCompositionEnd = useCallback(() => {
+        isComposingRef.current = false
+      }, [])
+
       // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection
-      const handleInput = useCallback(() => {
+      const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
         if (!editorRef.current) return
+
+        // Check if IME composition is in progress (Chinese/Japanese/Korean input)
+        // During composition, we should not trigger @ or / detection
+        // But we still need to update hasContent to hide placeholder
+        if (isComposingRef.current) {
+          // Update placeholder visibility even during IME composition
+          const content = editorRef.current.textContent || ""
+          const newHasContent = !!content
+          setHasContent(newHasContent)
+          onContentChange?.(newHasContent)
+
+          // IME composition in progress: close any open triggers
+          if (triggerActive.current) {
+            triggerActive.current = false
+            triggerStartIndex.current = null
+            onCloseTrigger()
+          }
+          if (slashTriggerActive.current) {
+            slashTriggerActive.current = false
+            slashTriggerStartIndex.current = null
+            onCloseSlashTrigger?.()
+          }
+          return
+        }
 
         // Save undo state with debounce (for typing)
         // This captures state periodically during typing for proper undo
@@ -1621,6 +1669,8 @@ export const AgentsMentionsEditor = memo(
             suppressContentEditableWarning
             spellCheck={false}
             onInput={handleInput}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
             onPaste={(e) => {
               // Save state for undo before paste (immediate, not debounced)
