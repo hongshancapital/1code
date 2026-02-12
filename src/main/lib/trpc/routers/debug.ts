@@ -5,7 +5,7 @@ import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
 import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
-import { existsSync, copyFileSync, mkdirSync } from "fs"
+import { existsSync, copyFileSync, mkdirSync, rmSync, readdirSync, unlinkSync, rmdirSync, statSync } from "fs"
 import { spawn } from "child_process"
 import { EventEmitter } from "events"
 
@@ -93,6 +93,26 @@ let simulateOfflineMode = false
  */
 export function isOfflineSimulated(): boolean {
   return simulateOfflineMode
+}
+
+// Store for last user message debug data
+interface UserMessageDebugData {
+  subChatId: string
+  timestamp: string
+  requestPayload: Record<string, unknown>
+}
+const lastUserMessageDebugData = new Map<string, UserMessageDebugData>()
+
+/**
+ * Store user message debug data for display
+ * This is called from claude router when a user sends a message
+ */
+export function setLastUserMessageDebug(subChatId: string, data: Record<string, unknown>) {
+  lastUserMessageDebugData.set(subChatId, {
+    subChatId,
+    timestamp: new Date().toISOString(),
+    requestPayload: data,
+  })
 }
 
 export const debugRouter = router({
@@ -211,21 +231,25 @@ export const debugRouter = router({
   factoryReset: publicProcedure.mutation(async () => {
     console.log("[Debug] Starting factory reset...")
 
-    // 1. Clear database (projects, chats, sub-chats)
-    const db = getDatabase()
-    db.delete(subChats).run()
-    db.delete(chats).run()
-    db.delete(projects).run()
-    console.log("[Debug] Database cleared")
+    const userDataPath = app.getPath("userData")
+    console.log("[Debug] userData path:", userDataPath)
 
-    // 2. Clear authentication data
+    // 1. Close all database connections
+    try {
+      closeDatabase()
+      console.log("[Debug] Database connection closed")
+    } catch (error) {
+      console.warn("[Debug] Failed to close database:", error)
+    }
+
+    // 2. Clear authentication data before deleting userData
     const authManager = getAuthManager()
     if (authManager) {
       authManager.logout("manual")
       console.log("[Debug] Auth data cleared")
     }
 
-    // 3. Clear session cookies
+    // 3. Clear session cookies before deleting userData
     try {
       const ses = session.fromPartition("persist:main")
       await ses.clearStorageData()
@@ -234,7 +258,29 @@ export const debugRouter = router({
       console.warn("[Debug] Failed to clear session storage:", error)
     }
 
-    // 4. Navigate all windows to login page
+    // 4. Recursively delete userData directory
+    // This clears: database, artifacts, insights, terminal history,
+    // claude-sessions, project icons, and any other app data
+    if (existsSync(userDataPath)) {
+      try {
+        rmSync(userDataPath, { recursive: true, force: true })
+        console.log("[Debug] userData directory deleted")
+      } catch (error) {
+        console.error("[Debug] Failed to delete userData directory:", error)
+        // If full delete fails, try to at least delete data folder
+        const dataPath = join(userDataPath, "data")
+        if (existsSync(dataPath)) {
+          try {
+            rmSync(dataPath, { recursive: true, force: true })
+            console.log("[Debug] data folder deleted as fallback")
+          } catch (err) {
+            console.error("[Debug] Failed to delete data folder:", err)
+          }
+        }
+      }
+    }
+
+    // 5. Navigate all windows to login page
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
       try {
@@ -254,7 +300,8 @@ export const debugRouter = router({
       }
     }
 
-    console.log("[Debug] Factory reset complete")
+    // 7. Database will be re-initialized automatically on next access
+    console.log("[Debug] Factory reset complete - database will reinitialize on demand")
     return { success: true }
   }),
 
@@ -514,4 +561,32 @@ export const debugRouter = router({
     console.log("[Debug] Production database copied to dev environment")
     return { success: true, sourcePath: productionDbPath, targetPath: devDbPath }
   }),
+
+  /**
+   * Get last user message debug data
+   */
+  getLastUserMessage: publicProcedure
+    .input(z.object({ subChatId: z.string().optional() }))
+    .query(({ input }) => {
+      const { subChatId, timestamp, requestPayload } = lastUserMessageDebugData.get(input.subChatId || "latest") || {
+        subChatId: "none",
+        timestamp: "",
+        requestPayload: {},
+      }
+      return {
+        subChatId,
+        timestamp,
+        requestPayload,
+      }
+    }),
+
+  /**
+   * Clear debug data for a specific subChat
+   */
+  clearUserMessageDebug: publicProcedure
+    .input(z.object({ subChatId: z.string() }))
+    .mutation(({ input }) => {
+      lastUserMessageDebugData.delete(input.subChatId)
+      return { success: true }
+    }),
 })
