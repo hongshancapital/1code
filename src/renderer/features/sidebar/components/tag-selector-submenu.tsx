@@ -76,7 +76,7 @@ export function PresetTagIcon({
     <div
       className={cn(
         sizeClasses[size],
-        "rounded flex items-center justify-center shrink-0",
+        "rounded flex items-center justify-center shrink-0 aspect-square",
         className,
       )}
       style={{ backgroundColor: tag.color }}
@@ -118,7 +118,7 @@ export function CustomTagIcon({
       <div
         className={cn(
           sizeClasses[size],
-          "rounded flex items-center justify-center shrink-0",
+          "rounded flex items-center justify-center shrink-0 aspect-square",
           className,
         )}
         style={{ backgroundColor: color }}
@@ -133,7 +133,7 @@ export function CustomTagIcon({
     <div
       className={cn(
         sizeClasses[size],
-        "flex items-center justify-center shrink-0 text-muted-foreground",
+        "flex items-center justify-center shrink-0 text-muted-foreground aspect-square",
         className,
       )}
     >
@@ -211,7 +211,7 @@ export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
                 <ContextMenuItem
                   key={tag.id}
                   className={cn(
-                    "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
+                    "!w-7 !h-7 !min-h-0 !p-0 rounded-md flex items-center justify-center transition-all aspect-square",
                     "hover:scale-110 focus:scale-110",
                     isSelected && "ring-2 ring-primary ring-offset-1",
                   )}
@@ -244,7 +244,7 @@ export const TagSelectorSubmenu = memo(function TagSelectorSubmenu({
                   <ContextMenuItem
                     key={tag.id}
                     className={cn(
-                      "w-7 h-7 p-0 rounded-md flex items-center justify-center transition-all",
+                      "!w-7 !h-7 !min-h-0 !p-0 rounded-md flex items-center justify-center transition-all aspect-square",
                       "hover:scale-110 focus:scale-110",
                       tag.color ? "" : "border border-border",
                       isSelected && "ring-2 ring-primary ring-offset-1",
