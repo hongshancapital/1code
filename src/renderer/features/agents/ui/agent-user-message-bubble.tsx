@@ -9,9 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip"
 import { File as FileIcon } from "lucide-react"
 import { AgentImageItem } from "./agent-image-item"
-import { RenderFileMentions, extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
+import { RenderFileMentions, extractTextMentions, TextMentionBlocks, useFileOpen } from "../mentions/render-file-mentions"
 import { useSearchHighlight, useSearchQuery } from "../search"
 
 interface AgentUserMessageBubbleProps {
@@ -137,6 +142,7 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
 }: AgentUserMessageBubbleProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  const onOpenFile = useFileOpen()
 
   // Extract quote/diff mentions to display above the bubble
   const { textMentions, cleanedText } = useMemo(
@@ -236,18 +242,34 @@ export const AgentUserMessageBubble = memo(function AgentUserMessageBubble({
           {/* Show attached files */}
           {fileParts.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {fileParts.map((file, idx) => (
-                <div
-                  key={`${messageId}-file-${idx}`}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 border rounded-lg text-xs text-muted-foreground"
-                >
-                  <FileIcon className="size-3.5 shrink-0" />
-                  <span className="truncate max-w-[200px]">{file.data?.filename || "file"}</span>
-                  {file.data?.size ? (
-                    <span className="text-muted-foreground/60 shrink-0">{formatFileSize(file.data.size)}</span>
-                  ) : null}
-                </div>
-              ))}
+              {fileParts.map((file, idx) => {
+                const filePath = file.data?.localPath || file.data?.tempPath
+                const isClickable = !!filePath && !!onOpenFile
+                const chip = (
+                  <div
+                    key={`${messageId}-file-${idx}`}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 border rounded-lg text-xs text-muted-foreground",
+                      isClickable && "cursor-pointer hover:bg-muted/80 transition-colors",
+                    )}
+                    onClick={isClickable ? () => onOpenFile(filePath!) : undefined}
+                  >
+                    <FileIcon className="size-3.5 shrink-0" />
+                    <span className="truncate max-w-[200px]">{file.data?.filename || "file"}</span>
+                    {file.data?.size ? (
+                      <span className="text-muted-foreground/60 shrink-0">{formatFileSize(file.data.size)}</span>
+                    ) : null}
+                  </div>
+                )
+                return filePath ? (
+                  <Tooltip key={`${messageId}-file-${idx}`}>
+                    <TooltipTrigger asChild>{chip}</TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[400px] break-all text-xs">
+                      {filePath}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : chip
+              })}
             </div>
           )}
           {/* Show text mentions (quote/diff) as blocks above text bubble - only if not rendered by parent */}
