@@ -850,6 +850,8 @@ export const AgentsMentionsEditor = memo(
         // Mark that we just finished composing to prevent immediate submission
         // This handles the case where compositionend and keydown happen in same event loop
         justFinishedComposingRef.current = true
+        // Also track the time to prevent submission shortly after IME ends
+        lastEnterTimeRef.current = Date.now() + 150 // 150ms buffer
         // Clear the flag after a short delay (one event cycle)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
