@@ -2116,44 +2116,6 @@ export function NewChatForm({
                             })}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      ) : overrideMode === "litellm" ? (
-                        // LiteLLM mode: show LiteLLM indicator with tooltip
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
-                              onClick={() => {
-                                setSettingsActiveTab("models")
-                                setSettingsDialogOpen(true)
-                              }}
-                            >
-                              <ClaudeCodeIcon className="h-3.5 w-3.5" />
-                              <span>{t("model.litellm")}</span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p className="text-xs">{litellmSelectedModel || t("model.noModelSelected")}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : overrideMode === "custom" && hasCustomClaudeConfig ? (
-                        // Custom mode: show Custom indicator with tooltip
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
-                              onClick={() => {
-                                setSettingsActiveTab("models")
-                                setSettingsDialogOpen(true)
-                              }}
-                            >
-                              <ClaudeCodeIcon className="h-3.5 w-3.5" />
-                              <span>{t("model.custom")}</span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p className="text-xs">{normalizedCustomClaudeConfig?.model || t("model.noModelConfigured")}</p>
-                          </TooltipContent>
-                        </Tooltip>
                       ) : (
                         // Default: Unified Provider + Model selector
                         <DropdownMenu
