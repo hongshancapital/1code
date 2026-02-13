@@ -5,16 +5,15 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
+  ChevronUp,
+  Info,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
-  Settings2,
-  Trash2,
-  User,
 } from "lucide-react"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { UsageDetailsDialog } from "./usage-details-dialog"
@@ -27,15 +26,25 @@ import {
   showOfflineModeFeaturesAtom,
   // Unified model config
   activeProviderIdAtom,
+  activeModelIdAtom,
   enabledProviderIdsAtom,
   toggleProviderEnabledAtom,
   updateProviderModelsAtom,
   enabledModelsPerProviderAtom,
   toggleModelEnabledAtom,
+  providerModelsAtom,
+  autoPopulateRecommendedModelsAtom,
+  autoSelectTaskModelsAtom,
   imageProviderIdAtom,
   imageModelIdAtom,
   summaryProviderIdAtom,
   summaryModelIdAtom,
+  agentModeProviderIdAtom,
+  agentModeModelIdAtom,
+  planModeProviderIdAtom,
+  planModeModelIdAtom,
+  researchModeProviderIdAtom,
+  researchModeModelIdAtom,
 } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { Button } from "../../ui/button"
@@ -309,196 +318,6 @@ function AddProviderDialog({
   )
 }
 
-// ============ Provider Detail Panel (right side) ============
-
-function ProviderDetailPanel({
-  provider,
-  isActive,
-  onToggleActive,
-  enabledModelIds,
-  onToggleModel,
-  onEdit,
-  onDelete,
-}: {
-  provider: ProviderInfo
-  isActive: boolean
-  onToggleActive: () => void
-  enabledModelIds: string[]
-  onToggleModel: (modelId: string) => void
-  onEdit?: () => void
-  onDelete?: () => void
-}) {
-  const updateProviderModels = useSetAtom(updateProviderModelsAtom)
-  const [modelSearch, setModelSearch] = useState("")
-
-  // Anthropic: check if OAuth is connected
-  const { data: activeAccount } = trpc.anthropicAccounts.getActive.useQuery(undefined, {
-    enabled: provider.type === "anthropic",
-  })
-  const isAnthropicConnected = !!activeAccount
-
-  // Fetch models
-  const {
-    data: modelsData,
-    isLoading: modelsLoading,
-    refetch: refetchModels,
-  } = trpc.providers.getModels.useQuery(
-    { providerId: provider.id, forceRefresh: false },
-    { enabled: !!provider.id },
-  )
-
-  // Update cache when models are loaded
-  useEffect(() => {
-    if (modelsData?.models) {
-      updateProviderModels({ providerId: provider.id, models: modelsData.models })
-    }
-  }, [modelsData?.models, provider.id, updateProviderModels])
-
-  const models = modelsData?.models || []
-
-  // Search filter
-  const searchLower = modelSearch.toLowerCase()
-  const filteredModels = modelSearch
-    ? models.filter((m) =>
-        m.id.toLowerCase().includes(searchLower) || m.name.toLowerCase().includes(searchLower),
-      )
-    : models
-
-  // Can this provider be toggled active?
-  const canToggle = provider.type === "anthropic" ? isAnthropicConnected : true
-
-  return (
-    <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-      {/* Provider header with enable toggle + actions */}
-      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-        <div className="flex items-center gap-2">
-          <ProviderIcon type={provider.type} id={provider.id} name={provider.name} size={22} />
-          <span className="text-sm font-semibold">{provider.name}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {provider.type === "custom" && (
-            <>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
-                <Settings2 className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={onDelete}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <Switch
-                    checked={isActive}
-                    onCheckedChange={canToggle ? onToggleActive : undefined}
-                    disabled={!canToggle}
-                  />
-                </div>
-              </TooltipTrigger>
-              {!canToggle && provider.type === "anthropic" && (
-                <TooltipContent>请先关联 Anthropic 账户</TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {/* Anthropic OAuth section */}
-        {provider.type === "anthropic" && (
-          <div className="p-4 space-y-4">
-            <OAuthSection />
-          </div>
-        )}
-
-        {/* LiteLLM: show description only, no settings */}
-        {provider.type === "litellm" && (
-          <div className="p-4">
-            <p className="text-sm text-muted-foreground">
-              Hóng 为您提供的内置 LLM 节点
-            </p>
-          </div>
-        )}
-
-        {/* Models section */}
-        <div className="px-4 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">模型</span>
-              <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                {models.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              {models.length > 10 && (
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    value={modelSearch}
-                    onChange={(e) => setModelSearch(e.target.value)}
-                    placeholder="筛选..."
-                    className="h-7 text-xs pl-7 w-36"
-                  />
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => refetchModels()}
-                disabled={modelsLoading}
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", modelsLoading && "animate-spin")} />
-              </Button>
-            </div>
-          </div>
-
-          {modelsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              加载模型列表...
-            </div>
-          ) : modelsData?.error ? (
-            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{modelsData.error}</div>
-          ) : filteredModels.length === 0 ? (
-            <div className="text-sm text-muted-foreground py-6 text-center">暂无可用模型</div>
-          ) : (
-            <div className="space-y-0.5">
-              {filteredModels.map((model) => {
-                const isEnabled = enabledModelIds.length === 0 || enabledModelIds.includes(model.id)
-                return (
-                  <div
-                    key={model.id}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors",
-                      isEnabled ? "bg-primary/10" : "hover:bg-muted/50",
-                    )}
-                    onClick={() => onToggleModel(model.id)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className={cn(
-                        "w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors",
-                        isEnabled ? "bg-primary border-primary" : "border-muted-foreground/30",
-                      )}>
-                        {isEnabled && <Check className="h-3 w-3 text-primary-foreground" />}
-                      </div>
-                      <span className={cn("text-sm truncate", isEnabled && "font-medium")}>
-                        {model.name}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ============ OAuth Section ============
 
 function OAuthSection() {
@@ -525,91 +344,616 @@ function OAuthSection() {
 
   if (activeAccount) {
     return (
-      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <User className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <div className="text-sm font-medium">
-              {activeAccount.displayName || activeAccount.email || t("models.auth.oauth.title")}
-            </div>
-            <div className="text-xs text-muted-foreground">{t("models.auth.oauth.connected")}</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => window.open("https://claude.ai/settings/usage", "_blank")}
-            className="text-muted-foreground"
-          >
-            <ExternalLink className="w-3 h-3 mr-1" />
-            {t("models.usage.viewDetails")}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleConnect}>
-            {t("models.auth.oauth.reconnect")}
-          </Button>
-        </div>
+      <div className="flex items-center gap-3 mt-1">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600">
+          Connected
+        </span>
+        <button
+          onClick={handleConnect}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {t("models.auth.oauth.reconnect")}
+        </button>
       </div>
     )
   }
 
   return (
-    <Button onClick={handleConnect} className="w-full">
+    <Button size="sm" onClick={handleConnect} className="mt-1">
       {t("models.auth.oauth.connect")}
     </Button>
   )
 }
 
-// ============ Provider Management Panel (left + right) ============
+// ============ Configure Models Dialog ============
 
-function ProviderManagementPanel() {
+function ConfigureModelsDialog({
+  open,
+  onOpenChange,
+  provider,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  provider: ProviderInfo
+}) {
+  const updateProviderModels = useSetAtom(updateProviderModelsAtom)
+  const toggleModel = useSetAtom(toggleModelEnabledAtom)
+  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
+  const autoPopulate = useSetAtom(autoPopulateRecommendedModelsAtom)
+  const autoSelectTasks = useSetAtom(autoSelectTaskModelsAtom)
+  const [modelSearch, setModelSearch] = useState("")
+
+  const {
+    data: modelsData,
+    isLoading: modelsLoading,
+    refetch: refetchModels,
+  } = trpc.providers.getModels.useQuery(
+    { providerId: provider.id, forceRefresh: false },
+    { enabled: open && !!provider.id },
+  )
+
+  // Fetch recommended models for auto-population
+  const { data: recommendedData } = trpc.providers.getRecommendedModels.useQuery(
+    { providerId: provider.id },
+    { enabled: open && !!provider.id },
+  )
+
+  useEffect(() => {
+    if (modelsData?.models) {
+      updateProviderModels({ providerId: provider.id, models: modelsData.models })
+    }
+  }, [modelsData?.models, provider.id, updateProviderModels])
+
+  // Auto-populate recommended models on first open (when no models configured yet)
+  useEffect(() => {
+    if (recommendedData?.recommendedChatIds && recommendedData.recommendedChatIds.length > 0) {
+      autoPopulate({ providerId: provider.id, recommendedIds: recommendedData.recommendedChatIds })
+      autoSelectTasks({
+        providerId: provider.id,
+        imageModelId: recommendedData.imageModelId,
+        summaryModelId: recommendedData.summaryModelId,
+      })
+    }
+  }, [recommendedData, provider.id, autoPopulate, autoSelectTasks])
+
+  const models = modelsData?.models || []
+  const enabledModelIds = enabledModelsPerProvider[provider.id] || []
+
+  const searchLower = modelSearch.toLowerCase()
+  const filteredModels = modelSearch
+    ? models.filter((m) =>
+        m.id.toLowerCase().includes(searchLower) || m.name.toLowerCase().includes(searchLower),
+      )
+    : models
+
+  const handleToggleModel = (modelId: string) => {
+    toggleModel({ providerId: provider.id, modelId })
+  }
+
+  const enabledCount = enabledModelIds.length === 0 ? models.length : enabledModelIds.length
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ProviderIcon type={provider.type} id={provider.id} name={provider.name} size={22} />
+            Configure {provider.name} Models
+          </DialogTitle>
+          <DialogDescription>
+            选择要在聊天中使用的模型 ({enabledCount} / {models.length} 已启用)
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-3">
+          {/* Search */}
+          {models.length > 10 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={modelSearch}
+                onChange={(e) => setModelSearch(e.target.value)}
+                placeholder="搜索模型..."
+                className="h-8 text-xs pl-8"
+              />
+            </div>
+          )}
+
+          {/* Model List */}
+          <div className="flex-1 overflow-y-auto border rounded-md">
+            {modelsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                加载模型列表...
+              </div>
+            ) : modelsData?.error ? (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 m-2 rounded-md">{modelsData.error}</div>
+            ) : filteredModels.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-8 text-center">暂无可用模型</div>
+            ) : (
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-muted-foreground font-medium bg-muted/30 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">模型名称</th>
+                    <th className="px-3 py-2 font-medium text-right">启用</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredModels.map((model) => {
+                    const isEnabled = enabledModelIds.length === 0 || enabledModelIds.includes(model.id)
+                    return (
+                      <tr key={model.id} className="group hover:bg-muted/50 transition-colors">
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-foreground text-xs">{model.name}</span>
+                            <span className="text-[11px] text-muted-foreground font-mono">{model.id}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={() => handleToggleModel(model.id)}
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchModels()}
+              disabled={modelsLoading}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", modelsLoading && "animate-spin")} />
+              刷新
+            </Button>
+            <Button size="sm" onClick={() => onOpenChange(false)}>
+              完成
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============ Provider Card ============
+
+function ProviderCard({
+  provider,
+  isEnabled,
+  onToggleEnabled,
+  onConfigureModels,
+  onEdit,
+}: {
+  provider: ProviderInfo
+  isEnabled: boolean
+  onToggleEnabled: () => void
+  onConfigureModels: () => void
+  onEdit?: () => void
+}) {
+  // Anthropic: check connection status
+  const { data: activeAccount } = trpc.anthropicAccounts.getActive.useQuery(undefined, {
+    enabled: provider.type === "anthropic",
+  })
+  const isAnthropicConnected = provider.type === "anthropic" ? !!activeAccount : true
+  const canToggle = provider.type === "anthropic" ? isAnthropicConnected : true
+
+  // Fetch model count for badge
+  const { data: modelsData } = trpc.providers.getModels.useQuery(
+    { providerId: provider.id, forceRefresh: false },
+    { enabled: isEnabled },
+  )
+  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
+  const enabledModelIds = enabledModelsPerProvider[provider.id] || []
+  const totalModels = modelsData?.models?.length || 0
+  const enabledCount = enabledModelIds.length === 0 ? totalModels : enabledModelIds.length
+
+  return (
+    <div className={cn(
+      "rounded-xl border transition-all",
+      isEnabled ? "bg-background border-border" : "bg-muted/30 border-border opacity-80",
+    )}>
+      <div className="flex items-center justify-between p-4">
+        {/* Left: Provider info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">{provider.name}</span>
+            {provider.type === "litellm" && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-primary cursor-pointer hover:underline">
+                <Info className="h-3 w-3" />
+                View supported models
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {provider.type === "anthropic" && "Use your Claude Pro, Max, Team, or Enterprise subscription"}
+            {provider.type === "litellm" && "Connect through a LiteLLM proxy server"}
+            {provider.type === "custom" && provider.name}
+          </p>
+
+          {/* Anthropic: OAuth status */}
+          {provider.type === "anthropic" && <OAuthSection />}
+
+          {/* Enabled model tags (when connected) */}
+          {isEnabled && enabledCount > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(modelsData?.models || [])
+                .filter((m) => enabledModelIds.length === 0 || enabledModelIds.includes(m.id))
+                .slice(0, 4)
+                .map((model) => (
+                  <span
+                    key={model.id}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border"
+                  >
+                    {model.name}
+                  </span>
+                ))}
+              {enabledCount > 4 && (
+                <span className="text-[10px] text-muted-foreground py-0.5">+{enabledCount - 4} more</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          {isEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={onConfigureModels}
+            >
+              Configure Models
+            </Button>
+          )}
+          {provider.type === "custom" && onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Switch
+                    checked={isEnabled}
+                    onCheckedChange={canToggle ? onToggleEnabled : undefined}
+                    disabled={!canToggle}
+                  />
+                </div>
+              </TooltipTrigger>
+              {!canToggle && provider.type === "anthropic" && (
+                <TooltipContent>请先关联 Anthropic 账户</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============ Task Model Dropdown ============
+
+function TaskModelDropdown({
+  providerIdAtom,
+  modelIdAtom,
+  label,
+  description,
+  showUseDefault,
+}: {
+  providerIdAtom: ReturnType<typeof import("jotai").atom<string | null>>
+  modelIdAtom: ReturnType<typeof import("jotai").atom<string | null>>
+  label: string
+  description: string
+  showUseDefault?: boolean
+}) {
+  const [selectedProviderId, setSelectedProviderId] = useAtom(providerIdAtom)
+  const [selectedModelId, setSelectedModelId] = useAtom(modelIdAtom)
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border last:border-b-0">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
+      </div>
+      <TaskModelSelect
+        selectedProviderId={selectedProviderId}
+        selectedModelId={selectedModelId}
+        onSelect={(providerId, modelId) => {
+          setSelectedProviderId(providerId)
+          setSelectedModelId(modelId)
+        }}
+        showUseDefault={showUseDefault}
+      />
+    </div>
+  )
+}
+
+// ============ Task Model Select (reusable dropdown) ============
+
+function TaskModelSelect({
+  selectedProviderId,
+  selectedModelId,
+  onSelect,
+  showUseDefault = true,
+}: {
+  selectedProviderId: string | null
+  selectedModelId: string | null
+  onSelect: (providerId: string | null, modelId: string | null) => void
+  showUseDefault?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [enabledProviderIds] = useAtom(enabledProviderIdsAtom)
+  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
+  const allModelsMap = useAtomValue(providerModelsAtom)
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  const { data: allProviders } = trpc.providers.list.useQuery()
+  const enabledProviders = (allProviders || []).filter((p) => enabledProviderIds.includes(p.id))
+
+  // Build grouped models from Jotai cache (populated by ConfigureModelsDialog)
+  const groupedModels = useMemo(() => {
+    const groups: { provider: { id: string; name: string; type: string }; models: ModelInfo[] }[] = []
+    for (const provider of enabledProviders) {
+      const providerEnabledIds = enabledModelsPerProvider[provider.id] || []
+      const providerModels = allModelsMap?.[provider.id] || []
+      const filtered = providerEnabledIds.length === 0
+        ? providerModels
+        : providerModels.filter((m: ModelInfo) => providerEnabledIds.includes(m.id))
+      if (filtered.length > 0) {
+        groups.push({ provider, models: filtered })
+      }
+    }
+    return groups
+  }, [enabledProviders, enabledModelsPerProvider, allModelsMap])
+
+  // Determine display
+  const isUseDefault = !selectedProviderId && !selectedModelId
+  let displayText = showUseDefault ? "Use Default Model" : "选择模型"
+  let displayBadge: string | null = null
+
+  if (selectedModelId) {
+    // Find model name
+    for (const group of groupedModels) {
+      const found = group.models.find((m) => m.id === selectedModelId)
+      if (found) {
+        displayText = found.name
+        displayBadge = group.provider.name
+        break
+      }
+    }
+    if (displayBadge === null) {
+      displayText = selectedModelId
+    }
+  }
+
+  // Click outside to close
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [isOpen])
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        className="flex items-center gap-1.5 px-3 h-9 text-xs border rounded-md bg-muted/30 hover:bg-muted/50 transition-colors min-w-[200px] justify-between"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <span className={cn("truncate", isUseDefault && !selectedModelId ? "text-muted-foreground" : "text-foreground")}>
+            {displayText}
+          </span>
+          {displayBadge && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded text-[10px] bg-muted text-muted-foreground shrink-0">
+              {displayBadge}
+            </span>
+          )}
+        </div>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-[280px] bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+          <div className="max-h-[300px] overflow-y-auto py-1">
+            {/* Use Default option */}
+            {showUseDefault && (
+              <>
+                <button
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors flex items-center justify-between",
+                    isUseDefault && "bg-primary/5",
+                  )}
+                  onClick={() => {
+                    onSelect(null, null)
+                    setIsOpen(false)
+                  }}
+                >
+                  <span className="text-muted-foreground">Use Default Model</span>
+                  {isUseDefault && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
+                <div className="h-px bg-border mx-2 my-1" />
+              </>
+            )}
+
+            {/* Grouped models */}
+            {groupedModels.map((group) => (
+              <div key={group.provider.id}>
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {group.provider.name}
+                </div>
+                {group.models.map((model) => {
+                  const isSelected = selectedModelId === model.id && selectedProviderId === group.provider.id
+                  return (
+                    <button
+                      key={model.id}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors flex items-center justify-between",
+                        isSelected && "bg-primary/5",
+                      )}
+                      onClick={() => {
+                        onSelect(group.provider.id, model.id)
+                        setIsOpen(false)
+                      }}
+                    >
+                      <span className={cn("truncate", isSelected && "font-medium")}>{model.name}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+
+            {groupedModels.length === 0 && (
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                暂无可用模型，请先启用 Provider 并配置模型
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============ Advanced Model Settings ============
+
+function AdvancedModelSettings() {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      {/* Header */}
+      <button
+        className="w-full flex items-center justify-between p-4 bg-background hover:bg-muted/30 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="text-left">
+          <h4 className="text-sm font-medium text-foreground">Advanced Model Settings</h4>
+          <p className="text-xs text-muted-foreground mt-0.5">Configure models for specific tasks</p>
+        </div>
+        {isExpanded
+          ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        }
+      </button>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="border-t border-border bg-background px-4 pb-4">
+          {/* Default Model Row - using atoms directly */}
+          <DefaultModelRow />
+
+          {/* Agent Mode */}
+          <TaskModelDropdown
+            providerIdAtom={agentModeProviderIdAtom}
+            modelIdAtom={agentModeModelIdAtom}
+            label="Agent Mode"
+            description="Model for autonomous task execution"
+            showUseDefault
+          />
+
+          {/* Plan Mode */}
+          <TaskModelDropdown
+            providerIdAtom={planModeProviderIdAtom}
+            modelIdAtom={planModeModelIdAtom}
+            label="Plan Mode"
+            description="Model for planning and architecture design"
+            showUseDefault
+          />
+
+          {/* Image Generation */}
+          <TaskModelDropdown
+            providerIdAtom={imageProviderIdAtom}
+            modelIdAtom={imageModelIdAtom}
+            label="Image Generation"
+            description="Model for generating images"
+            showUseDefault
+          />
+
+          {/* Research Mode */}
+          <TaskModelDropdown
+            providerIdAtom={researchModeProviderIdAtom}
+            modelIdAtom={researchModeModelIdAtom}
+            label="Research Mode"
+            description="Model for exploration and research tasks"
+            showUseDefault
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Default Model Row - uses activeProvider/activeModel atoms directly
+function DefaultModelRow() {
   const [activeProviderId, setActiveProviderId] = useAtom(activeProviderIdAtom)
+  const [activeModelId, setActiveModelId] = useAtom(activeModelIdAtom)
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold text-foreground">Default Model</span>
+        <span className="text-xs text-muted-foreground">Primary model for general tasks</span>
+      </div>
+      <TaskModelSelect
+        selectedProviderId={activeProviderId}
+        selectedModelId={activeModelId}
+        onSelect={(providerId, modelId) => {
+          setActiveProviderId(providerId || "litellm")
+          setActiveModelId(modelId)
+        }}
+        showUseDefault={false}
+      />
+    </div>
+  )
+}
+
+// ============ Model Sources Panel ============
+
+function ModelSourcesPanel() {
   const [enabledProviderIds] = useAtom(enabledProviderIdsAtom)
   const toggleProviderEnabled = useSetAtom(toggleProviderEnabledAtom)
+  const [activeProviderId, setActiveProviderId] = useAtom(activeProviderIdAtom)
 
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editProvider, setEditProvider] = useState<{
     id: string
     name: string
     baseUrl?: string
   } | null>(null)
+  const [configureProvider, setConfigureProvider] = useState<ProviderInfo | null>(null)
 
   const trpcUtils = trpc.useUtils()
   const { data: providers, isLoading } = trpc.providers.list.useQuery()
   const removeMutation = trpc.providers.removeCustom.useMutation()
 
-  // Auto-select first provider if none selected
-  useEffect(() => {
-    if (providers && providers.length > 0 && !selectedProviderId) {
-      setSelectedProviderId(providers[0].id)
-    }
-  }, [providers, selectedProviderId])
-
-  const selectedProvider = providers?.find((p) => p.id === selectedProviderId)
-
-  // Check if a provider is enabled
   const isProviderEnabled = (id: string) => enabledProviderIds.includes(id)
-
-  const toggleModel = useSetAtom(toggleModelEnabledAtom)
-  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
-
-  const handleToggleModel = (modelId: string) => {
-    if (selectedProviderId) {
-      toggleModel({ providerId: selectedProviderId, modelId })
-    }
-  }
 
   const handleDeleteProvider = async (id: string) => {
     if (!confirm("确定要删除这个 Provider 吗？")) return
     try {
       await removeMutation.mutateAsync({ id })
       await trpcUtils.providers.list.invalidate()
-      if (selectedProviderId === id) {
-        setSelectedProviderId(providers?.[0]?.id || null)
-      }
       if (activeProviderId === id) {
         setActiveProviderId(null)
       }
@@ -620,98 +964,46 @@ function ProviderManagementPanel() {
   }
 
   return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden">
-      <div className="flex h-[420px]">
-        {/* Left: Provider list */}
-        <div className="w-44 border-r flex flex-col shrink-0">
-          {/* Provider list */}
-          <div className="flex-1 overflow-y-auto py-1">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : (providers || []).length === 0 ? (
-              <div className="px-3 py-4 text-xs text-muted-foreground text-center">
-                暂无 Provider
-              </div>
-            ) : (
-              (providers || []).map((p) => {
-                const enabled = isProviderEnabled(p.id)
-                return (
-                  <div
-                    key={p.id}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-2 cursor-pointer transition-colors group",
-                      selectedProviderId === p.id
-                        ? "bg-accent"
-                        : "hover:bg-muted/50",
-                    )}
-                    onClick={() => setSelectedProviderId(p.id)}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <ProviderIcon type={p.type} id={p.id} name={p.name} />
-                      <span className={cn("text-xs font-medium truncate", !enabled && "text-muted-foreground")}>{p.name}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {/* Enabled indicator */}
-                      {enabled && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          {/* Add button */}
-          <div className="p-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-center text-xs h-8"
-              onClick={() => setAddDialogOpen(true)}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              添加
-            </Button>
-          </div>
+    <div className="space-y-3">
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-
-        {/* Right: Provider detail */}
-        {selectedProvider ? (
-          <ProviderDetailPanel
-            provider={selectedProvider}
-            isActive={isProviderEnabled(selectedProvider.id)}
-            onToggleActive={() => {
-              toggleProviderEnabled(selectedProvider.id)
-            }}
-            enabledModelIds={enabledModelsPerProvider[selectedProvider.id] || []}
-            onToggleModel={handleToggleModel}
-            onEdit={selectedProvider.type === "custom" ? async () => {
-              // Fetch detail to get baseUrl for edit dialog
+      ) : (
+        (providers || []).map((provider) => (
+          <ProviderCard
+            key={provider.id}
+            provider={provider}
+            isEnabled={isProviderEnabled(provider.id)}
+            onToggleEnabled={() => toggleProviderEnabled(provider.id)}
+            onConfigureModels={() => setConfigureProvider(provider)}
+            onEdit={provider.type === "custom" ? async () => {
               try {
-                const detail = await trpcUtils.providers.get.fetch({ id: selectedProvider.id })
+                const detail = await trpcUtils.providers.get.fetch({ id: provider.id })
                 setEditProvider({
-                  id: selectedProvider.id,
-                  name: selectedProvider.name,
+                  id: provider.id,
+                  name: provider.name,
                   baseUrl: detail?.baseUrl,
                 })
               } catch {
                 setEditProvider({
-                  id: selectedProvider.id,
-                  name: selectedProvider.name,
+                  id: provider.id,
+                  name: provider.name,
                 })
               }
             } : undefined}
-            onDelete={selectedProvider.type === "custom" ? () => handleDeleteProvider(selectedProvider.id) : undefined}
           />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-            选择一个 Provider 查看详情
-          </div>
-        )}
-      </div>
+        ))
+      )}
+
+      {/* Add Custom Model Button */}
+      <button
+        className="w-full flex items-center justify-center gap-2 h-12 rounded-xl border border-dashed border-border hover:bg-muted/30 transition-colors"
+        onClick={() => setAddDialogOpen(true)}
+      >
+        <Plus className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-medium text-muted-foreground">Add Custom Model</span>
+      </button>
 
       {/* Add/Edit Provider Dialog */}
       <AddProviderDialog
@@ -724,206 +1016,17 @@ function ProviderManagementPanel() {
         }}
         editProvider={editProvider}
       />
-    </div>
-  )
-}
 
-// ============ Image Model Section ============
-
-function ImageModelSection() {
-  const [imageProviderId, setImageProviderId] = useAtom(imageProviderIdAtom)
-  const [imageModelId, setImageModelId] = useAtom(imageModelIdAtom)
-  const [enabledProviderIds] = useAtom(enabledProviderIdsAtom)
-  const [modelListOpen, setModelListOpen] = useState(false)
-
-  const { data: allProviders } = trpc.providers.list.useQuery()
-  const providers = (allProviders || []).filter((p) => enabledProviderIds.includes(p.id))
-
-  const { data: modelsData, isLoading: modelsLoading } = trpc.providers.getModels.useQuery(
-    { providerId: imageProviderId! },
-    { enabled: !!imageProviderId },
-  )
-  const models = modelsData?.models || []
-
-  const selectedProvider = providers.find((p) => p.id === imageProviderId)
-  const selectedModel = models.find((m) => m.id === imageModelId)
-
-  return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden">
-      <div className="p-4 space-y-4">
-        {/* Provider selector */}
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground">Provider</Label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {providers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">请先在上方添加并激活 Provider</p>
-            ) : (
-              providers.map((p) => (
-                <button
-                  key={p.id}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors",
-                    imageProviderId === p.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted/50 text-muted-foreground",
-                  )}
-                  onClick={() => {
-                    if (imageProviderId === p.id) {
-                      setImageProviderId(null)
-                      setImageModelId(null)
-                      setModelListOpen(false)
-                    } else {
-                      setImageProviderId(p.id)
-                      setImageModelId(null)
-                      setModelListOpen(false)
-                    }
-                  }}
-                >
-                  <ProviderIcon type={p.type} id={p.id} name={p.name} size={16} />
-                  {p.name}
-                  {imageProviderId === p.id && <Check className="h-3 w-3" />}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Model selector - collapsible */}
-        {imageProviderId && (
-          <div>
-            <button
-              className="w-full flex items-center justify-between px-3 py-2 text-sm border rounded-md hover:bg-muted/50 transition-colors"
-              onClick={() => setModelListOpen(!modelListOpen)}
-            >
-              <span className={selectedModel ? "text-foreground" : "text-muted-foreground"}>
-                {modelsLoading ? "加载模型..." : selectedModel ? selectedModel.name : "选择模型"}
-              </span>
-              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", modelListOpen && "rotate-180")} />
-            </button>
-
-            {modelListOpen && !modelsLoading && models.length > 0 && (
-              <div className="mt-1 border rounded-md max-h-[200px] overflow-y-auto">
-                {models.map((m) => (
-                  <div
-                    key={m.id}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-1.5 text-sm cursor-pointer transition-colors",
-                      imageModelId === m.id ? "bg-primary/10" : "hover:bg-muted/50",
-                    )}
-                    onClick={() => {
-                      setImageModelId(imageModelId === m.id ? null : m.id)
-                      if (imageModelId !== m.id) setModelListOpen(false)
-                    }}
-                  >
-                    <span className={cn("truncate", imageModelId === m.id && "font-medium")}>{m.name}</span>
-                    {imageModelId === m.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ============ Summary Model Section ============
-
-function SummaryModelSection() {
-  const [summaryProviderId, setSummaryProviderId] = useAtom(summaryProviderIdAtom)
-  const [summaryModelId, setSummaryModelId] = useAtom(summaryModelIdAtom)
-  const [enabledProviderIds] = useAtom(enabledProviderIdsAtom)
-  const [modelListOpen, setModelListOpen] = useState(false)
-
-  const { data: allProviders } = trpc.providers.list.useQuery()
-  const providers = (allProviders || []).filter((p) => enabledProviderIds.includes(p.id))
-
-  const { data: modelsData, isLoading: modelsLoading } = trpc.providers.getModels.useQuery(
-    { providerId: summaryProviderId! },
-    { enabled: !!summaryProviderId },
-  )
-  const models = modelsData?.models || []
-
-  const selectedProvider = providers.find((p) => p.id === summaryProviderId)
-  const selectedModel = models.find((m) => m.id === summaryModelId)
-
-  return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden">
-      <div className="p-4 space-y-4">
-        {/* Provider selector */}
-        <div>
-          <Label className="text-xs font-medium text-muted-foreground">Provider</Label>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {providers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">请先在上方添加并激活 Provider</p>
-            ) : (
-              providers.map((p) => (
-                <button
-                  key={p.id}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors",
-                    summaryProviderId === p.id
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border hover:bg-muted/50 text-muted-foreground",
-                  )}
-                  onClick={() => {
-                    if (summaryProviderId === p.id) {
-                      setSummaryProviderId(null)
-                      setSummaryModelId(null)
-                      setModelListOpen(false)
-                    } else {
-                      setSummaryProviderId(p.id)
-                      setSummaryModelId(null)
-                      setModelListOpen(false)
-                    }
-                  }}
-                >
-                  <ProviderIcon type={p.type} id={p.id} name={p.name} size={16} />
-                  {p.name}
-                  {summaryProviderId === p.id && <Check className="h-3 w-3" />}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Model selector - collapsible */}
-        {summaryProviderId && (
-          <div>
-            <button
-              className="w-full flex items-center justify-between px-3 py-2 text-sm border rounded-md hover:bg-muted/50 transition-colors"
-              onClick={() => setModelListOpen(!modelListOpen)}
-            >
-              <span className={selectedModel ? "text-foreground" : "text-muted-foreground"}>
-                {modelsLoading ? "加载模型..." : selectedModel ? selectedModel.name : "选择模型"}
-              </span>
-              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", modelListOpen && "rotate-180")} />
-            </button>
-
-            {modelListOpen && !modelsLoading && models.length > 0 && (
-              <div className="mt-1 border rounded-md max-h-[200px] overflow-y-auto">
-                {models.map((m) => (
-                  <div
-                    key={m.id}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-1.5 text-sm cursor-pointer transition-colors",
-                      summaryModelId === m.id ? "bg-primary/10" : "hover:bg-muted/50",
-                    )}
-                    onClick={() => {
-                      setSummaryModelId(summaryModelId === m.id ? null : m.id)
-                      if (summaryModelId !== m.id) setModelListOpen(false)
-                    }}
-                  >
-                    <span className={cn("truncate", summaryModelId === m.id && "font-medium")}>{m.name}</span>
-                    {summaryModelId === m.id && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Configure Models Dialog */}
+      {configureProvider && (
+        <ConfigureModelsDialog
+          open={!!configureProvider}
+          onOpenChange={(open) => {
+            if (!open) setConfigureProvider(null)
+          }}
+          provider={configureProvider}
+        />
+      )}
     </div>
   )
 }
@@ -1109,7 +1212,8 @@ function ContributionHeatmap() {
         }
         .animate-slide-in-left { animation: slideInLeft 0.25s ease-out; }
         .animate-slide-in-right { animation: slideInRight 0.25s ease-out; }
-      `}</style>
+      `}
+      </style>
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{totalContributions.toLocaleString()} {t("models.usage.contributions")}</span>
@@ -1402,31 +1506,18 @@ export function AgentsModelsTab() {
         </div>
       )}
 
-      {/* Provider Section */}
+      {/* Model Sources Section */}
       <div className="space-y-2">
         <div className="pb-1">
           <h4 className="text-sm font-medium text-foreground">模型来源</h4>
           <p className="text-xs text-muted-foreground">管理 API 提供商，选择聊天和 Agent 使用的模型</p>
         </div>
-        <ProviderManagementPanel />
+        <ModelSourcesPanel />
       </div>
 
-      {/* Image Model Section */}
+      {/* Advanced Model Settings */}
       <div className="space-y-2">
-        <div className="pb-1">
-          <h4 className="text-sm font-medium text-foreground">生图模型</h4>
-          <p className="text-xs text-muted-foreground">从已激活的 Provider 中选择一个生图模型</p>
-        </div>
-        <ImageModelSection />
-      </div>
-
-      {/* Summary Model Section */}
-      <div className="space-y-2">
-        <div className="pb-1">
-          <h4 className="text-sm font-medium text-foreground">快捷摘要模型</h4>
-          <p className="text-xs text-muted-foreground">用于生成对话名称和提交消息的轻量模型。未配置时使用默认服务。</p>
-        </div>
-        <SummaryModelSection />
+        <AdvancedModelSettings />
       </div>
 
       {/* Usage Statistics Section */}

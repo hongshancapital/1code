@@ -51,7 +51,7 @@ function normalizeApiBaseUrl(url: string): string {
 
 // ============ Model filtering ============
 
-// Models not suitable for use (embeddings, TTS, etc.)
+// Models not suitable for chat use (embeddings, TTS, etc.)
 const MODEL_BLACKLIST = [
   "text-embedding",
   "whisper",
@@ -59,28 +59,239 @@ const MODEL_BLACKLIST = [
   "embedding",
 ]
 
-// Preferred default model patterns in priority order
-const PREFERRED_MODEL_PATTERNS = [
-  /^claude-3-5-sonnet.*$/i,
-  /^claude-sonnet-4-5-\d+$/,
-  /^claude-sonnet-4-\d+$/,
-  /^claude-sonnet.*$/i,
-  /^claude-opus.*$/i,
-  /^claude.*$/i,
-  /^gpt-4.*$/i,
-]
-
 function isBlacklisted(modelId: string): boolean {
   const lower = modelId.toLowerCase()
   return MODEL_BLACKLIST.some((b) => lower.includes(b))
 }
 
-function findDefaultModel(modelIds: string[]): string | null {
-  for (const pattern of PREFERRED_MODEL_PATTERNS) {
-    const match = modelIds.find((id) => pattern.test(id))
-    if (match) return match
+// ============ Smart model filtering (whitelist + excludes) ============
+
+// Whitelist: mainstream chat model prefixes
+const CHAT_MODEL_WHITELIST = [
+  /^claude-/i,       // Claude 全系列
+  /^gpt-/i,          // OpenAI GPT 系列
+  /^o[1234]-/i,      // OpenAI o 系列推理模型
+  /^gemini-/i,       // Google Gemini 系列
+  /^deepseek-/i,     // DeepSeek 系列
+]
+
+// Excludes: models that match whitelist but are not chat models
+const CHAT_MODEL_EXCLUDES = [
+  /-coding$/i,        // Claude coding 变体
+  /-embed/i,          // 嵌入模型
+  /-realtime/i,       // 实时流模型
+]
+
+/**
+ * Filter models for LiteLLM/Custom providers.
+ * Keeps only mainstream chat models, excludes non-chat variants.
+ * Anthropic models are NOT filtered by this (they use the official API list).
+ */
+function filterProviderModels(models: ModelInfo[]): ModelInfo[] {
+  return models.filter((m) => {
+    const id = m.id
+    const whitelisted = CHAT_MODEL_WHITELIST.some((r) => r.test(id))
+    if (!whitelisted) return false
+    const excluded = CHAT_MODEL_EXCLUDES.some((r) => r.test(id))
+    return !excluded
+  })
+}
+
+// ============ Version extraction & sorting ============
+
+/**
+ * Extract version info from model ID for sorting.
+ * Handles multiple naming conventions:
+ * - claude-opus-4-6-20250610    → { major: 4, minor: 6, date: 20250610 }
+ * - claude-sonnet-4-5-20250929  → { major: 4, minor: 5, date: 20250929 }
+ * - claude-3-5-sonnet-20241022  → { major: 3, minor: 5, date: 20241022 }
+ * - gpt-4o-2024-08-06           → { major: 4, minor: 0, date: 20240806 }
+ * - gpt-4.5-preview             → { major: 4, minor: 5, date: 0 }
+ * - gemini-3-pro                → { major: 3, minor: 0, date: 0 }
+ */
+function extractModelVersion(modelId: string): { major: number; minor: number; date: number } {
+  // Try to find an 8-digit date (YYYYMMDD)
+  const dateMatch = modelId.match(/(\d{8})/)
+  const date = dateMatch ? parseInt(dateMatch[1], 10) : 0
+
+  // Try to find date in YYYY-MM-DD format and convert
+  if (!dateMatch) {
+    const dashDate = modelId.match(/(\d{4})-(\d{2})-(\d{2})/)
+    if (dashDate) {
+      return {
+        major: 0,
+        minor: 0,
+        date: parseInt(`${dashDate[1]}${dashDate[2]}${dashDate[3]}`, 10),
+      }
+    }
   }
+
+  // Extract version numbers (the first two numeric segments that look like versions)
+  // Strip the date portion first to avoid confusing date digits with version
+  const withoutDate = dateMatch ? modelId.replace(dateMatch[0], "") : modelId
+  // Match version patterns: "4-6", "4.5", "3-5", standalone digits in model name
+  const versionMatch = withoutDate.match(/(\d+)[.-](\d+)/)
+  if (versionMatch) {
+    return {
+      major: parseInt(versionMatch[1], 10),
+      minor: parseInt(versionMatch[2], 10),
+      date,
+    }
+  }
+
+  // Single version number (e.g., gemini-3-pro)
+  const singleMatch = withoutDate.match(/(\d+)/)
+  if (singleMatch) {
+    return { major: parseInt(singleMatch[1], 10), minor: 0, date }
+  }
+
+  return { major: 0, minor: 0, date }
+}
+
+/**
+ * Sort model IDs by version descending (newest first).
+ */
+function sortByVersionDesc(modelIds: string[]): string[] {
+  return [...modelIds].sort((a, b) => {
+    const va = extractModelVersion(a)
+    const vb = extractModelVersion(b)
+    if (vb.major !== va.major) return vb.major - va.major
+    if (vb.minor !== va.minor) return vb.minor - va.minor
+    return vb.date - va.date
+  })
+}
+
+/**
+ * Find the newest model matching a pattern from a list.
+ */
+function findNewestMatch(modelIds: string[], pattern: RegExp): string | null {
+  const matches = modelIds.filter((id) => pattern.test(id))
+  if (matches.length === 0) return null
+  return sortByVersionDesc(matches)[0]
+}
+
+// ============ Smart model recommendation ============
+
+/**
+ * Find the best default chat model from a list.
+ * Priority: Claude Sonnet (newest) > Claude Opus > Claude Haiku > GPT-4 > Gemini Pro > first available
+ */
+function findDefaultModel(modelIds: string[]): string | null {
+  // Claude Sonnet (primary workhorse — both old and new naming)
+  const sonnet = findNewestMatch(modelIds, /^claude[-_](?:sonnet[-_]|[\d.]+-sonnet)/i)
+  if (sonnet) return sonnet
+
+  // Claude Opus
+  const opus = findNewestMatch(modelIds, /^claude[-_]opus/i)
+  if (opus) return opus
+
+  // Claude Haiku
+  const haiku = findNewestMatch(modelIds, /^claude[-_]haiku/i)
+  if (haiku) return haiku
+
+  // Any other Claude
+  const anyClaude = findNewestMatch(modelIds, /^claude-/i)
+  if (anyClaude) return anyClaude
+
+  // GPT-4 series (including gpt-4o, gpt-4.5, etc.)
+  const gpt4 = findNewestMatch(modelIds, /^gpt-4/i)
+  if (gpt4) return gpt4
+
+  // OpenAI o-series reasoning
+  const oSeries = findNewestMatch(modelIds, /^o[1234]-/i)
+  if (oSeries) return oSeries
+
+  // Gemini Pro
+  const geminiPro = findNewestMatch(modelIds, /^gemini-.*pro/i)
+  if (geminiPro) return geminiPro
+
+  // DeepSeek chat
+  const deepseek = findNewestMatch(modelIds, /^deepseek-chat/i)
+  if (deepseek) return deepseek
+
   return modelIds[0] || null
+}
+
+/**
+ * Find the best image generation model.
+ * Priority: gemini-*-image (exact) > gemini-*-image-preview > dall-e > any with "image"
+ */
+function findImageModel(modelIds: string[]): string | null {
+  // Gemini image — prefer exact match (no suffix) over preview/4k variants
+  const geminiImageExact = findNewestMatch(modelIds, /^gemini-.*image$/i)
+  if (geminiImageExact) return geminiImageExact
+
+  // Gemini image with preview suffix
+  const geminiImagePreview = findNewestMatch(modelIds, /^gemini-.*image-preview$/i)
+  if (geminiImagePreview) return geminiImagePreview
+
+  // Gemini image with any suffix
+  const geminiImageAny = findNewestMatch(modelIds, /^gemini-.*image/i)
+  if (geminiImageAny) return geminiImageAny
+
+  // DALL-E
+  const dalle = findNewestMatch(modelIds, /^dall-e/i)
+  if (dalle) return dalle
+
+  // Fallback: any model with "image" in name
+  const anyImage = modelIds.find((id) => /image/i.test(id))
+  return anyImage || null
+}
+
+/**
+ * Find the best lightweight/summary model.
+ * Priority: Claude Haiku > GPT mini > Flash > Lite > any small model
+ */
+function findSummaryModel(modelIds: string[]): string | null {
+  const haiku = findNewestMatch(modelIds, /haiku/i)
+  if (haiku) return haiku
+
+  const mini = findNewestMatch(modelIds, /mini/i)
+  if (mini) return mini
+
+  const flash = findNewestMatch(modelIds, /flash/i)
+  if (flash) return flash
+
+  const lite = findNewestMatch(modelIds, /lite/i)
+  if (lite) return lite
+
+  return null
+}
+
+/**
+ * Get recommended chat models for a provider (one per series/tier).
+ * Returns a curated list of the newest model from each major series.
+ * This is the "out-of-box" selection for normal users.
+ */
+function findRecommendedChatModels(modelIds: string[]): string[] {
+  const recommended: string[] = []
+
+  // Claude — one per tier (sonnet, opus, haiku)
+  const sonnet = findNewestMatch(modelIds, /^claude[-_](?:sonnet[-_]|[\d.]+-sonnet)/i)
+  if (sonnet) recommended.push(sonnet)
+  const opus = findNewestMatch(modelIds, /^claude[-_]opus/i)
+  if (opus) recommended.push(opus)
+  const haiku = findNewestMatch(modelIds, /^claude[-_]haiku/i)
+  if (haiku) recommended.push(haiku)
+
+  // GPT — newest gpt-4 variant
+  const gpt4 = findNewestMatch(modelIds, /^gpt-4/i)
+  if (gpt4) recommended.push(gpt4)
+
+  // OpenAI o-series
+  const oSeries = findNewestMatch(modelIds, /^o[1234]-/i)
+  if (oSeries) recommended.push(oSeries)
+
+  // Gemini Pro
+  const geminiPro = findNewestMatch(modelIds, /^gemini-.*pro(?!.*image)/i)
+  if (geminiPro) recommended.push(geminiPro)
+
+  // DeepSeek
+  const deepseek = findNewestMatch(modelIds, /^deepseek-chat/i)
+  if (deepseek) recommended.push(deepseek)
+
+  // If nothing matched, return all (don't leave empty)
+  return recommended.length > 0 ? recommended : modelIds.slice(0, 10)
 }
 
 // ============ Anthropic models via official API ============
@@ -215,19 +426,6 @@ async function getAnthropicModels(): Promise<{ models: ModelInfo[]; error: strin
     console.warn("[Anthropic] Failed to fetch models, using fallback:", error)
     return { models: ANTHROPIC_FALLBACK_MODELS, error: null }
   }
-}
-
-// ============ LiteLLM model filtering ============
-
-function filterLitellmModels(models: ModelInfo[]): ModelInfo[] {
-  return models.filter((m) => {
-    const lower = m.id.toLowerCase()
-    // Only keep models containing "claude"
-    if (!lower.includes("claude")) return false
-    // Exclude models ending with "coding"
-    if (lower.endsWith("-coding")) return false
-    return true
-  })
 }
 
 // ============ Types ============
@@ -646,9 +844,9 @@ export const providersRouter = router({
             name: m.id,
           }))
 
-        // LiteLLM: only keep claude models, exclude coding variants
-        if (input.providerId === "litellm") {
-          models = filterLitellmModels(models)
+        // LiteLLM & Custom: smart filter to keep only mainstream chat models
+        if (input.providerId !== "anthropic") {
+          models = filterProviderModels(models)
         }
 
         // Update cache
@@ -756,6 +954,86 @@ export const providersRouter = router({
     )
     .query(async ({ input }) => {
       return getProviderCredentials(input.providerId, input.modelId)
+    }),
+
+  /**
+   * Get recommended models for a provider.
+   * Returns the best model for each task category (chat, image, summary)
+   * plus a curated list of recommended chat models for "out-of-box" experience.
+   */
+  getRecommendedModels: publicProcedure
+    .input(z.object({ providerId: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDatabase()
+      const env = getEnv()
+      let allModels: ModelInfo[] = []
+
+      if (input.providerId === "anthropic") {
+        const result = await getAnthropicModels()
+        allModels = result.models
+      } else {
+        // For LiteLLM/Custom, fetch all models (unfiltered) to find image/summary candidates
+        let baseUrl: string | null = null
+        let apiKey: string | null = null
+
+        if (input.providerId === "litellm") {
+          baseUrl = env.MAIN_VITE_LITELLM_BASE_URL || null
+          apiKey = env.MAIN_VITE_LITELLM_API_KEY || null
+        } else {
+          const provider = db
+            .select()
+            .from(modelProviders)
+            .where(eq(modelProviders.id, input.providerId))
+            .get()
+          if (provider) {
+            baseUrl = provider.baseUrl
+            try { apiKey = decryptApiKey(provider.apiKey) } catch { /* skip */ }
+          }
+        }
+
+        if (baseUrl) {
+          // Try cache first
+          const cached = db
+            .select()
+            .from(cachedModels)
+            .where(eq(cachedModels.providerId, input.providerId))
+            .all()
+
+          if (cached.length > 0) {
+            allModels = cached.map((c) => ({ id: c.modelId, name: c.name }))
+          } else {
+            try {
+              const headers: Record<string, string> = {}
+              if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
+              const apiUrl = normalizeApiBaseUrl(baseUrl)
+              const response = await fetch(`${apiUrl}/models`, {
+                method: "GET",
+                headers,
+                signal: AbortSignal.timeout(10000),
+              })
+              if (response.ok) {
+                const data = await response.json()
+                const rawModels: Array<{ id: string }> = data.data || data.models || []
+                allModels = rawModels
+                  .filter((m) => !isBlacklisted(m.id))
+                  .map((m) => ({ id: m.id, name: m.id }))
+              }
+            } catch { /* skip */ }
+          }
+        }
+      }
+
+      const allIds = allModels.map((m) => m.id)
+      const chatIds = input.providerId === "anthropic"
+        ? allIds
+        : filterProviderModels(allModels).map((m) => m.id)
+
+      return {
+        chatModelId: findDefaultModel(chatIds),
+        imageModelId: findImageModel(allIds),
+        summaryModelId: findSummaryModel(allIds),
+        recommendedChatIds: findRecommendedChatModels(chatIds),
+      }
     }),
 
   /**

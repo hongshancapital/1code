@@ -212,6 +212,84 @@ export const summaryModelIdAtom = atomWithStorage<string | null>(
   { getOnInit: true },
 )
 
+// ============ Agent Mode Model Configuration ============
+
+/**
+ * Agent Mode Provider ID
+ * - null: Use Default Model (activeProviderIdAtom)
+ * - string: Specific provider for agent mode
+ */
+export const agentModeProviderIdAtom = atomWithStorage<string | null>(
+  "models:agent-mode-provider-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+/**
+ * Agent Mode Model ID
+ * - null: Use Default Model (activeModelIdAtom)
+ * - string: Specific model for agent mode
+ */
+export const agentModeModelIdAtom = atomWithStorage<string | null>(
+  "models:agent-mode-model-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+// ============ Plan Mode Model Configuration ============
+
+/**
+ * Plan Mode Provider ID
+ * - null: Use Default Model (activeProviderIdAtom)
+ * - string: Specific provider for plan mode
+ */
+export const planModeProviderIdAtom = atomWithStorage<string | null>(
+  "models:plan-mode-provider-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+/**
+ * Plan Mode Model ID
+ * - null: Use Default Model (activeModelIdAtom)
+ * - string: Specific model for plan mode
+ */
+export const planModeModelIdAtom = atomWithStorage<string | null>(
+  "models:plan-mode-model-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+// ============ Research Mode Model Configuration ============
+
+/**
+ * Research Mode Provider ID
+ * - null: Use Default Model (activeProviderIdAtom)
+ * - string: Specific provider for research mode
+ */
+export const researchModeProviderIdAtom = atomWithStorage<string | null>(
+  "models:research-mode-provider-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+/**
+ * Research Mode Model ID
+ * - null: Use Default Model (activeModelIdAtom)
+ * - string: Specific model for research mode
+ */
+export const researchModeModelIdAtom = atomWithStorage<string | null>(
+  "models:research-mode-model-id",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
 // ============ Legacy aliases (backwards compatibility) ============
 
 /** @deprecated Use activeProviderIdAtom */
@@ -306,6 +384,49 @@ export const availableModelsAtom = atom((get) => {
   const allModels = get(providerModelsAtom)
   return allModels[providerId] || []
 })
+
+// ============ Auto-populate Recommended Models ============
+
+/**
+ * Auto-populate recommended models for a provider.
+ * Only fills when the provider has no enabled models configured yet (first-time setup).
+ * This powers the "out-of-box" experience — users get a curated model list immediately.
+ */
+export const autoPopulateRecommendedModelsAtom = atom(
+  null,
+  (get, set, { providerId, recommendedIds }: { providerId: string; recommendedIds: string[] }) => {
+    const current = get(enabledModelsPerProviderAtom)
+    // Only auto-fill if this provider has NO configured models yet
+    if (!current[providerId] || current[providerId].length === 0) {
+      set(enabledModelsPerProviderAtom, { ...current, [providerId]: recommendedIds })
+    }
+  },
+)
+
+/**
+ * Auto-select task-specific models (image, summary) if not already configured.
+ * Called after fetching recommended models for a provider.
+ * Respects user's manual selections — never overwrites existing choices.
+ */
+export const autoSelectTaskModelsAtom = atom(
+  null,
+  (get, set, { providerId, imageModelId, summaryModelId }: {
+    providerId: string
+    imageModelId: string | null
+    summaryModelId: string | null
+  }) => {
+    // Auto-fill image model only if user hasn't set one
+    if (!get(imageProviderIdAtom) && !get(imageModelIdAtom) && imageModelId) {
+      set(imageProviderIdAtom, providerId)
+      set(imageModelIdAtom, imageModelId)
+    }
+    // Auto-fill summary model only if user hasn't set one
+    if (!get(summaryProviderIdAtom) && !get(summaryModelIdAtom) && summaryModelId) {
+      set(summaryProviderIdAtom, providerId)
+      set(summaryModelIdAtom, summaryModelId)
+    }
+  },
+)
 
 // ============ Migration Support ============
 

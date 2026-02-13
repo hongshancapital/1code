@@ -182,6 +182,17 @@ type ImageAttachment = {
   filename?: string
 }
 
+// File reference for attached files (non-image) and large images
+type FileReference = {
+  localPath: string
+  filename: string
+  mediaType?: string
+  size?: number
+}
+
+// 5MB threshold — images larger than this are sent as file references instead of inline base64
+const MAX_IMAGE_SIZE_FOR_INLINE = 5 * 1024 * 1024
+
 export class IPCChatTransport implements ChatTransport<UIMessage> {
   constructor(private config: IPCChatTransportConfig) {}
 
@@ -194,7 +205,16 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
       .reverse()
       .find((m) => m.role === "user")
     const prompt = this.extractText(lastUser)
-    const images = this.extractImages(lastUser)
+    const { inlineImages: images, largeImageRefs } = this.extractImagesWithThreshold(lastUser)
+    const attachedFiles = this.extractFiles(lastUser)
+
+    // Build file reference hint for AI (non-image files + large images)
+    const allFileRefs = [...attachedFiles, ...largeImageRefs]
+    let fileHint = ""
+    if (allFileRefs.length > 0) {
+      const fileList = allFileRefs.map(f => `- ${f.filename} (${f.localPath})`).join("\n")
+      fileHint = `\n\n[The user has attached the following file(s). Use the Read tool to access their contents:\n${fileList}]`
+    }
 
     // Get sessionId for resume (server preserves sessionId on abort so
     // the next message can resume with full conversation context)
@@ -340,7 +360,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
           {
             subChatId: this.config.subChatId,
             chatId: this.config.chatId,
-            prompt,
+            prompt: prompt + fileHint,
             cwd: this.config.cwd,
             projectPath: this.config.projectPath, // Original project path for MCP config lookup
             mode: currentMode,
@@ -535,7 +555,7 @@ askUserQuestionTimeout,
                 // readyToRetry=false prevents immediate retry - modal sets it to true on OAuth success
                 appStore.set(pendingAuthRetryMessageAtom, {
                   subChatId: this.config.subChatId,
-                  prompt,
+                  prompt: prompt + fileHint,
                   ...(images.length > 0 && { images }),
                   readyToRetry: false,
                 })
@@ -742,28 +762,72 @@ askUserQuestionTimeout,
   }
 
   /**
-   * Extract images from message parts
-   * Looks for parts with type "data-image" that have base64Data
+   * Extract images from message parts with size threshold.
+   * Small images (<5MB base64) are returned inline for direct API transmission.
+   * Large images are returned as file references for AI to read via tools.
    */
-  private extractImages(msg: UIMessage | undefined): ImageAttachment[] {
-    if (!msg || !msg.parts) return []
+  private extractImagesWithThreshold(msg: UIMessage | undefined): {
+    inlineImages: ImageAttachment[]
+    largeImageRefs: FileReference[]
+  } {
+    if (!msg || !msg.parts) return { inlineImages: [], largeImageRefs: [] }
 
-    const images: ImageAttachment[] = []
+    const inlineImages: ImageAttachment[] = []
+    const largeImageRefs: FileReference[] = []
 
     for (const part of msg.parts) {
       // Check for data-image parts with base64 data
       if (isDataUIPart(part) && part.type === "data-image") {
-        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string }
+        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string }
         if (data.base64Data && data.mediaType) {
-          images.push({
-            base64Data: data.base64Data,
+          // Check if image exceeds inline size threshold
+          const estimatedBytes = (data.base64Data.length * 3) / 4
+          if (estimatedBytes > MAX_IMAGE_SIZE_FOR_INLINE && data.localPath) {
+            // Large image — send as file reference instead
+            largeImageRefs.push({
+              localPath: data.localPath,
+              filename: data.filename || "image",
+              mediaType: data.mediaType,
+              size: Math.round(estimatedBytes),
+            })
+          } else {
+            // Small image — send inline as base64
+            inlineImages.push({
+              base64Data: data.base64Data,
+              mediaType: data.mediaType,
+              filename: data.filename,
+            })
+          }
+        }
+      }
+    }
+
+    return { inlineImages, largeImageRefs }
+  }
+
+  /**
+   * Extract non-image file attachments from message parts.
+   * Returns file references (path + metadata) for AI to read via tools.
+   */
+  private extractFiles(msg: UIMessage | undefined): FileReference[] {
+    if (!msg || !msg.parts) return []
+
+    const files: FileReference[] = []
+
+    for (const part of msg.parts) {
+      if (isDataUIPart(part) && part.type === "data-file") {
+        const data = part.data as { localPath?: string; filename?: string; mediaType?: string; size?: number }
+        if (data.localPath) {
+          files.push({
+            localPath: data.localPath,
+            filename: data.filename || data.localPath.split("/").pop() || "file",
             mediaType: data.mediaType,
-            filename: data.filename,
+            size: data.size,
           })
         }
       }
     }
 
-    return images
+    return files
   }
 }
