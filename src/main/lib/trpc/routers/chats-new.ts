@@ -4,10 +4,10 @@
  */
 
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm"
-import { mkdir, rm } from "fs/promises"
+import { mkdir, rm, rename } from "fs/promises"
 import { existsSync } from "fs"
 import { app } from "electron"
-import { join } from "path"
+import { dirname, join } from "path"
 import { z } from "zod"
 import { chats, getDatabase, projects, subChats } from "../../db"
 import { createId } from "../../db/utils"
@@ -872,17 +872,36 @@ const chatsCoreRouter = router({
         .returning()
         .get()
 
-      // --- Clear Session IDs ---
-      // Force Agent SDK to start fresh sessions with the new CWD
-      // Otherwise it tries to resume sessions bound to the old, non-existent path
-      db.update(subChats)
-        .set({ sessionId: null })
-        .where(eq(subChats.chatId, input.chatId))
-        .run()
+      // --- Migrate SDK Session Files ---
+      // Session files live at: {userData}/claude-sessions/{subChatId}/projects/{sanitized_cwd}/
+      // We need to move them so SDK can continue to resume sessions with the new CWD
+      const userDataPath = app.getPath("userData")
+      const sanitize = (p: string) => p.replace(/[/.]/g, "-")
+      const oldSanitized = sanitize(chat.worktreePath)
+      const newSanitized = sanitize(newWorktreePath)
 
-      console.log(
-        `[moveWorktree] Moved worktree for chat ${input.chatId} to ${newWorktreePath} and cleared session IDs`
-      )
+      const chatSubChats = db
+        .select({ id: subChats.id })
+        .from(subChats)
+        .where(eq(subChats.chatId, input.chatId))
+        .all()
+
+      for (const sc of chatSubChats) {
+        const oldDir = join(userDataPath, "claude-sessions", sc.id, "projects", oldSanitized)
+        const newDir = join(userDataPath, "claude-sessions", sc.id, "projects", newSanitized)
+        try {
+          if (existsSync(oldDir) && !existsSync(newDir)) {
+            await mkdir(dirname(newDir), { recursive: true })
+            await rename(oldDir, newDir)
+            console.log(`[moveWorktree] Session dir moved: ${oldSanitized} → ${newSanitized}`)
+          }
+        } catch (err) {
+          console.warn(`[moveWorktree] Failed to move session dir for ${sc.id}:`, err)
+          // Non-fatal: conversation will start fresh if session file is missing
+        }
+      }
+
+      console.log(`[moveWorktree] Moved worktree for chat ${input.chatId} to ${newWorktreePath}`)
 
       // --- Invalidate caches for old path ---
       gitCache.invalidateStatus(chat.worktreePath)
