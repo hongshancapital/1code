@@ -1,7 +1,7 @@
 "use client"
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { AlignJustify, Plus, Zap } from "lucide-react"
+import { AlignJustify, ChevronDown, Plus, Zap } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Button } from "../../../components/ui/button"
@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"
 import {
@@ -68,7 +69,15 @@ import {
   overrideModelModeAtom,
   litellmSelectedModelAtom,
 } from "../../../lib/atoms"
-import { activeModelIdAtom } from "../../../lib/atoms/model-config"
+import {
+  activeModelIdAtom,
+  activeProviderIdAtom,
+  enabledProviderIdsAtom,
+  enabledModelsPerProviderAtom,
+  effectiveLlmSelectionAtom,
+  type ModelInfo,
+  type ProviderInfo,
+} from "../../../lib/atoms/model-config"
 // Desktop uses real tRPC
 import { toast } from "sonner"
 import { trpc } from "../../../lib/trpc"
@@ -160,6 +169,73 @@ function useAvailableModels() {
     isOffline,
     hasOllama: false,
   }
+}
+
+// Provider + Model section component for the dropdown
+// Only shows models that have been enabled in Settings
+function ProviderModelSection({
+  provider,
+  enabledModelIds,
+  isCurrentProvider,
+  currentModelId,
+  onSelectModel,
+}: {
+  provider: ProviderInfo
+  enabledModelIds: string[]
+  isCurrentProvider: boolean
+  currentModelId: string | null
+  onSelectModel: (modelId: string) => void
+}) {
+  const { t } = useTranslation("chat")
+  const { data: modelsData, isLoading } = trpc.providers.getModels.useQuery(
+    { providerId: provider.id },
+  )
+  const allModels = modelsData?.models || []
+  // Filter to only show enabled models (empty list = all enabled)
+  const models = enabledModelIds.length > 0
+    ? allModels.filter((m) => enabledModelIds.includes(m.id))
+    : allModels
+
+  if (!isLoading && models.length === 0) return null
+
+  return (
+    <div className="py-1">
+      {/* Provider header */}
+      <div className="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+        <span>{provider.name}</span>
+        {provider.type === "litellm" && (
+          <span className="text-[10px] bg-muted px-1 rounded">LiteLLM</span>
+        )}
+        {provider.type === "custom" && (
+          <span className="text-[10px] bg-muted px-1 rounded">Custom</span>
+        )}
+      </div>
+
+      {/* Models list */}
+      {isLoading ? (
+        <div className="px-2 py-1 text-xs text-muted-foreground">{t("model.loading")}</div>
+      ) : (
+        models.map((model: ModelInfo) => {
+          const isSelected = isCurrentProvider && currentModelId === model.id
+          return (
+            <DropdownMenuItem
+              key={model.id}
+              onClick={() => onSelectModel(model.id)}
+              className="gap-2 justify-between pl-4"
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{model.name}</span>
+              </div>
+              {isSelected && (
+                <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </DropdownMenuItem>
+          )
+        })
+      )}
+    </div>
+  )
 }
 
 interface NewChatFormProps {
@@ -290,6 +366,38 @@ export function NewChatForm({
     () =>
       availableModels.models.find((m) => m.id === lastSelectedModelId) || availableModels.models[0],
   )
+
+  // Unified model config - for new chat form we use effective selection directly
+  const effectiveSelection = useAtomValue(effectiveLlmSelectionAtom)
+  const setActiveProviderId = useSetAtom(activeProviderIdAtom)
+  const enabledProviderIds = useAtomValue(enabledProviderIdsAtom)
+  const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
+
+  // Fetch enabled providers list
+  const { data: allProviders } = trpc.providers.list.useQuery()
+  const providers = useMemo(() => {
+    return (allProviders || []).filter((p: ProviderInfo) => enabledProviderIds.includes(p.id))
+  }, [allProviders, enabledProviderIds])
+
+  // Fetch models for the effective provider to get current model name
+  const { data: modelsData } = trpc.providers.getModels.useQuery(
+    { providerId: effectiveSelection.providerId },
+    { enabled: !!effectiveSelection.providerId },
+  )
+  const providerModels = modelsData?.models || []
+
+  // Get current provider name
+  const currentProvider = providers.find((p: ProviderInfo) => p.id === effectiveSelection.providerId)
+  const currentProviderName = currentProvider?.name || effectiveSelection.providerId
+
+  // Get enabled models for this provider (empty list = all enabled)
+  const currentProviderEnabledModels = enabledModelsPerProvider[effectiveSelection.providerId] || []
+
+  // Validate model: must be in provider's enabled models list (not stale localStorage value)
+  const rawModelId = effectiveSelection.modelId || null
+  const currentModelId = rawModelId && (currentProviderEnabledModels.length === 0 || currentProviderEnabledModels.includes(rawModelId)) ? rawModelId : null
+  const currentModel = currentModelId ? providerModels.find((m: ModelInfo) => m.id === currentModelId) : null
+  const currentModelName = currentModel?.name || (currentModelId ? currentModelId : "选择模型")
 
   // Sync selectedModel when atom value changes (e.g., after localStorage hydration)
   useEffect(() => {
@@ -2047,50 +2155,61 @@ export function NewChatForm({
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        // Default: show Claude model selector
+                        // Default: Unified Provider + Model selector
                         <DropdownMenu
                           open={isModelDropdownOpen}
                           onOpenChange={setIsModelDropdownOpen}
                         >
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-[background-color,color] duration-150 ease-out rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
-                            >
-                              <ClaudeCodeIcon className="h-3.5 w-3.5" />
-                              <span>
-                                {selectedModel?.name}{" "}
-                                <span className="text-muted-foreground">4.5</span>
-                              </span>
-                              <IconChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-[200px]">
-                            {availableModels.models.map((model) => {
-                              const isSelected = selectedModel?.id === model.id
-                              return (
-                                <DropdownMenuItem
-                                  key={model.id}
-                                  onClick={() => {
-                                    setSelectedModel(model)
-                                    setLastSelectedModelId(model.id)
-                                    // Sync to unified model config so new chats use this model
-                                    setActiveModelId(model.id)
-                                  }}
-                                  className="gap-2 justify-between"
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50 outline-offset-2 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70"
                                 >
-                                  <div className="flex items-center gap-1.5">
-                                    <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                    <span>
-                                      {model.name}{" "}
-                                      <span className="text-muted-foreground">4.5</span>
-                                    </span>
-                                  </div>
-                                  {isSelected && (
-                                    <CheckIcon className="h-3.5 w-3.5 shrink-0" />
-                                  )}
-                                </DropdownMenuItem>
-                              )
-                            })}
+                                  <ClaudeCodeIcon className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="truncate max-w-[120px]">
+                                    {currentProviderName}
+                                  </span>
+                                  <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                                </button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {currentModelName}
+                            </TooltipContent>
+                          </Tooltip>
+                          <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
+                            {/* Provider sections */}
+                            {providers.map((provider: ProviderInfo) => (
+                              <ProviderModelSection
+                                key={provider.id}
+                                provider={provider}
+                                enabledModelIds={enabledModelsPerProvider[provider.id] || []}
+                                isCurrentProvider={provider.id === effectiveSelection.providerId}
+                                currentModelId={currentModelId}
+                                onSelectModel={(modelId) => {
+                                  // Persist globally: update default provider/model for new chats
+                                  setActiveProviderId(provider.id)
+                                  setActiveModelId(modelId)
+                                  // Also update legacy state for compatibility
+                                  setLastSelectedModelId(modelId)
+                                  setIsModelDropdownOpen(false)
+                                }}
+                              />
+                            ))}
+
+                            <DropdownMenuSeparator />
+                            {/* Settings link */}
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSettingsActiveTab("models")
+                                setSettingsDialogOpen(true)
+                                setIsModelDropdownOpen(false)
+                              }}
+                              className="text-muted-foreground"
+                            >
+                              <span className="text-xs">{t("model.manageProviders")}</span>
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
