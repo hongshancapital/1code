@@ -417,7 +417,7 @@ export const ArchivePopover = memo(function ArchivePopover({ trigger }: ArchiveP
       setSelectedIndex(
         (prev) => (prev - 1 + filteredChats.length) % filteredChats.length,
       )
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault()
       const chat = filteredChats[selectedIndex]
       if (chat) {

@@ -103,7 +103,7 @@ export function DevicePresetsBar({
             onChange={handleWidthInputChange}
             onBlur={handleWidthBlur}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.currentTarget.blur()
               }
             }}

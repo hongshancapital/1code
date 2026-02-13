@@ -114,7 +114,7 @@ function RuntimeRow({
               className="w-[200px] h-7 text-xs"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave()
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) handleSave()
                 if (e.key === "Escape") handleCancel()
               }}
             />

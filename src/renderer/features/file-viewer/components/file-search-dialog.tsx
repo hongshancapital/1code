@@ -135,7 +135,7 @@ export const FileSearchDialog = memo(function FileSearchDialog({
       } else if (e.key === "ArrowUp") {
         e.preventDefault()
         setSelectedIndex((prev) => (prev - 1 + allItems.length) % allItems.length)
-      } else if (e.key === "Enter") {
+      } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
         e.preventDefault()
         const file = allItems[selectedIndex]
         if (file) {

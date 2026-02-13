@@ -138,6 +138,7 @@ export function CreateBranchDialog({
               onKeyDown={(e) => {
                 if (
                   e.key === "Enter" &&
+                  !e.nativeEvent.isComposing &&
                   branchName.trim() &&
                   !createBranchMutation.isPending
                 ) {

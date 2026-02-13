@@ -303,7 +303,7 @@ export function ClaudeLoginModal() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && authCode.trim()) {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && authCode.trim()) {
       handleSubmitCode()
     }
   }

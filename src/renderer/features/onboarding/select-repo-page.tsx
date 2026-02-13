@@ -153,7 +153,7 @@ export function SelectRepoPage() {
                 value={githubUrl}
                 onChange={(e) => setGithubUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && githubUrl.trim()) {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && githubUrl.trim()) {
                     handleCloneFromGitHub()
                   }
                 }}

@@ -75,7 +75,7 @@ export function InlineEdit({
   }, [isEditing]) // Removed onSave from deps - using ref instead
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault()
       e.stopPropagation()
       onSaveRef.current()

@@ -475,7 +475,7 @@ export function FileTreePanel({
 
   // Handle enter key for content search
   const handleContentSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       handleContentSearch()
     }
   }, [handleContentSearch])

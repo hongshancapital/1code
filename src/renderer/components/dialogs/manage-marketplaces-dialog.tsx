@@ -176,7 +176,7 @@ export function ManageMarketplacesDialog({
                 value={newGitUrl}
                 onChange={(e) => setNewGitUrl(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAdd()
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) handleAdd()
                 }}
                 className="flex-1"
                 disabled={isAdding}

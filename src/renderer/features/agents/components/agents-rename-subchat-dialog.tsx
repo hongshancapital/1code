@@ -57,7 +57,7 @@ export function AgentsRenameSubChatDialog({
         event.preventDefault()
         handleClose()
       }
-      if (event.key === "Enter" && !event.shiftKey) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault()
         handleSave()
       }

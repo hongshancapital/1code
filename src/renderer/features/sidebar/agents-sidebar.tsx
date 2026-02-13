@@ -3614,7 +3614,7 @@ export function AgentsSidebar({
                     setFocusedChatIndex((prev) => prev === -1 ? filteredChats.length - 1 : Math.max(prev - 1, 0))
                     return
                   }
-                  if (e.key === "Enter" && focusedChatIndex >= 0) {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && focusedChatIndex >= 0) {
                     e.preventDefault()
                     const focusedChat = filteredChats[focusedChatIndex]
                     if (focusedChat) {

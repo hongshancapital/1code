@@ -1195,7 +1195,7 @@ export function AgentsSubChatsSidebar({
                   return
                 }
 
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                   e.preventDefault()
                   if (focusedChatIndex >= 0) {
                     const focusedChat = filteredSubChats[focusedChatIndex]

@@ -252,7 +252,7 @@ export function BrowserToolbar({
         setSelectedAutocompleteIndex((prev) => (prev > 0 ? prev - 1 : -1))
         return
       }
-      if (e.key === "Enter" && selectedAutocompleteIndex >= 0) {
+      if (e.key === "Enter" && !e.nativeEvent.isComposing && selectedAutocompleteIndex >= 0) {
         e.preventDefault()
         const selected = autocompleteSuggestions[selectedAutocompleteIndex]
         if (selected) {
@@ -265,7 +265,7 @@ export function BrowserToolbar({
       }
     }
 
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       const trimmed = inputValue.trim()
       if (!trimmed) return
 

@@ -109,7 +109,7 @@ export function ApiKeyOnboardingPage() {
   }
 
   const handleApiKeyKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && apiKey.trim()) {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && apiKey.trim()) {
       submitApiKey(apiKey)
     }
   }
