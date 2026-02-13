@@ -35,4 +35,5 @@ electron.vite.config.*.mjs
 resources/bin/
 .hong/
 
-.claude
+.claude/
+.claude/settings.local.json
