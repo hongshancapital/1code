@@ -103,6 +103,13 @@ export const browserPendingScreenshotAtomFamily = atomFamily((_chatId: string) =
   atom<string | null>(null) // base64 data URL
 )
 
+/** Pending navigation URL - per chat
+ * When set, BrowserSidebar will navigate to this URL and clear the atom.
+ * Used by external components to trigger browser navigation without direct access to webview. */
+export const browserPendingNavigationAtomFamily = atomFamily((_chatId: string) =>
+  atom<string | null>(null)
+)
+
 /** Browser dev mode - per chat, persisted */
 export const browserDevModeAtomFamily = atomFamily((chatId: string) =>
   atomWithStorage<boolean>(`browser-dev-mode-${chatId}`, false)

@@ -27,6 +27,7 @@ import {
   browserDevToolsOpenAtomFamily,
   browserDevicePresetAtomFamily,
   browserZoomAtomFamily,
+  browserPendingNavigationAtomFamily,
   ZOOM_QUICK_LEVELS,
   zoomIn as zoomInLevel,
   zoomOut as zoomOutLevel,
@@ -102,6 +103,9 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
   // DevTools state
   const [devToolsOpen, setDevToolsOpen] = useAtom(browserDevToolsOpenAtomFamily(chatId))
+
+  // Pending navigation (for external components to trigger navigation)
+  const [pendingNavigation, setPendingNavigation] = useAtom(browserPendingNavigationAtomFamily(chatId))
 
   // Device emulation
   const [devicePresetId] = useAtom(browserDevicePresetAtomFamily(chatId))
@@ -1433,6 +1437,17 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       webview.src = url
     }
   }, [webviewReady, url])
+
+  // Handle pending navigation from external components (e.g., file preview opening HTML files)
+  useEffect(() => {
+    if (!pendingNavigation || !webviewReady) return
+
+    // Navigate to the pending URL
+    navigate(pendingNavigation)
+
+    // Clear the pending navigation
+    setPendingNavigation(null)
+  }, [pendingNavigation, webviewReady, navigate, setPendingNavigation])
 
   // Update project history when favicon changes (may arrive after did-finish-load)
   useEffect(() => {
