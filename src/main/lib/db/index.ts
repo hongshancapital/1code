@@ -193,6 +193,22 @@ export function initDatabase() {
     console.log("[DB] Anthropic accounts tables check:", error.message)
   }
 
+  // Ensure claude_code_credentials table exists (legacy, deprecated but still referenced)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS claude_code_credentials (
+        id TEXT PRIMARY KEY DEFAULT 'default' NOT NULL,
+        oauth_token TEXT NOT NULL,
+        connected_at INTEGER,
+        user_id TEXT
+      )
+    `)
+    console.log("[DB] Claude code credentials table ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Claude code credentials table check:", error.message)
+  }
+
   // Ensure workspace_tags tables exist (for grouping feature)
   try {
     sqlite.exec(`
@@ -464,6 +480,7 @@ export function initDatabase() {
         base_url TEXT NOT NULL,
         api_key TEXT NOT NULL,
         is_enabled INTEGER DEFAULT 1,
+        manual_models TEXT,
         created_at INTEGER,
         updated_at INTEGER
       )
@@ -486,6 +503,17 @@ export function initDatabase() {
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] Model providers tables check:", error.message)
+  }
+
+  // Ensure manual_models column exists on model_providers (for providers without /models API)
+  try {
+    sqlite.exec(`ALTER TABLE model_providers ADD COLUMN manual_models TEXT`)
+    console.log("[DB] Added manual_models column to model_providers")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] manual_models column check:", error.message)
+    }
   }
 
   // Ensure automations tables exist (for automation engine)

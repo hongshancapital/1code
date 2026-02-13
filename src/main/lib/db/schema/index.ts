@@ -549,6 +549,9 @@ export const modelProviders = sqliteTable(
     apiKey: text("api_key").notNull(),
     // Whether this provider is enabled
     isEnabled: integer("is_enabled", { mode: "boolean" }).default(true),
+    // Manual model list for providers without /models endpoint
+    // JSON array of model IDs, e.g. ["claude-3-5-sonnet", "claude-3-opus"]
+    manualModels: text("manual_models"),
     // Timestamps
     createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
       () => new Date(),

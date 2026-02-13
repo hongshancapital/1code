@@ -154,11 +154,12 @@ function AddProviderDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  editProvider?: { id: string; name: string; baseUrl?: string } | null
+  editProvider?: { id: string; name: string; baseUrl?: string; manualModels?: string[] } | null
 }) {
   const [name, setName] = useState("")
   const [baseUrl, setBaseUrl] = useState("")
   const [apiKey, setApiKey] = useState("")
+  const [manualModelsText, setManualModelsText] = useState("")
   const [isValidating, setIsValidating] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -169,19 +170,42 @@ function AddProviderDialog({
 
   const isEditing = !!editProvider
 
+  // Log for debugging
+  useEffect(() => {
+    if (open && editProvider) {
+      console.log("[AddProviderDialog] editProvider:", editProvider)
+    }
+  }, [open, editProvider])
+
   useEffect(() => {
     if (open && editProvider) {
       setName(editProvider.name)
       setBaseUrl(editProvider.baseUrl || "")
       setApiKey("")
+      // Parse manual models - handle both array and string formats
+      const models = editProvider.manualModels
+      if (Array.isArray(models)) {
+        setManualModelsText(models.join("\n"))
+      } else {
+        setManualModelsText("")
+      }
       setValidationError(null)
     } else if (open) {
       setName("")
       setBaseUrl("")
       setApiKey("")
+      setManualModelsText("")
       setValidationError(null)
     }
   }, [open, editProvider])
+
+  // Parse manual models from textarea (one per line)
+  const parseManualModels = (): string[] => {
+    return manualModelsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+  }
 
   const handleTest = async () => {
     if (!baseUrl || !apiKey) return
@@ -194,7 +218,13 @@ function AddProviderDialog({
       if (result.success) {
         toast.success(`连接成功，发现 ${result.modelCount} 个模型`)
       } else {
-        setValidationError(result.error || "连接失败")
+        // If /models fails but we have manual models, that's OK
+        const manualModels = parseManualModels()
+        if (manualModels.length > 0) {
+          toast.success("API 连接正常（将使用手动配置的模型列表）")
+        } else {
+          setValidationError(result.error || "连接失败")
+        }
       }
     } catch {
       setValidationError("连接测试失败")
@@ -209,6 +239,8 @@ function AddProviderDialog({
       return
     }
 
+    const manualModels = parseManualModels()
+
     setIsValidating(true)
 
     try {
@@ -218,6 +250,7 @@ function AddProviderDialog({
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           ...(apiKey && { apiKey }),
+          manualModels: manualModels.length > 0 ? manualModels : null,
         })
         toast.success("Provider 更新成功")
       } else {
@@ -231,7 +264,8 @@ function AddProviderDialog({
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           apiKey: apiKey.trim(),
-          skipValidation: false,
+          skipValidation: manualModels.length > 0, // Skip if manual models provided
+          manualModels: manualModels.length > 0 ? manualModels : undefined,
         })
 
         if (!result.success) {
@@ -244,6 +278,10 @@ function AddProviderDialog({
       }
 
       await trpcUtils.providers.list.invalidate()
+      // Also invalidate getModels cache for this provider so Configure Models shows updated list
+      if (isEditing && editProvider) {
+        await trpcUtils.providers.getModels.invalidate({ providerId: editProvider.id })
+      }
       onOpenChange(false)
     } catch {
       toast.error(isEditing ? "更新失败" : "添加失败")
@@ -294,6 +332,34 @@ function AddProviderDialog({
               placeholder={isEditing ? "••••••••" : "sk-..."}
               className="mt-1"
             />
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-1.5">
+              手动模型列表
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>适用于不支持 /models 接口的 API。每行一个模型 ID，如 claude-3-5-sonnet-20241022</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="text-xs text-muted-foreground font-normal">(可选)</span>
+            </Label>
+            <textarea
+              value={manualModelsText}
+              onChange={(e) => setManualModelsText(e.target.value)}
+              placeholder={"每行输入一个模型 ID，例如：\nclaude-3-5-sonnet-20241022\nclaude-3-opus-20240229"}
+              className="mt-1 w-full h-24 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 font-mono"
+            />
+            {manualModelsText && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                已配置 {parseManualModels().length} 个模型
+              </p>
+            )}
           </div>
 
           {validationError && (
@@ -490,9 +556,17 @@ function ConfigureModelsDialog({
                 加载模型列表...
               </div>
             ) : modelsData?.error ? (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 m-2 rounded-md">{modelsData.error}</div>
+              <div className="p-3 m-2 space-y-2">
+                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{modelsData.error}</div>
+                <p className="text-xs text-muted-foreground">
+                  如果此 API 不支持 /models 接口，可以点击 Provider 旁的编辑按钮手动配置模型列表。
+                </p>
+              </div>
             ) : filteredModels.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">暂无可用模型</div>
+              <div className="text-sm text-muted-foreground py-8 text-center">
+                暂无可用模型
+                <p className="text-xs mt-1">点击刷新按钮重新获取，或编辑 Provider 手动配置模型列表</p>
+              </div>
             ) : (
               <table className="w-full text-left text-sm">
                 <thead className="text-xs text-muted-foreground font-medium bg-muted sticky top-0 z-10 border-b border-border">
@@ -1170,6 +1244,7 @@ function ModelSourcesPanel() {
     id: string
     name: string
     baseUrl?: string
+    manualModels?: string[]
   } | null>(null)
   const [configureProvider, setConfigureProvider] = useState<ProviderInfo | null>(null)
 
@@ -1210,12 +1285,15 @@ function ModelSourcesPanel() {
             onEdit={provider.type === "custom" ? async () => {
               try {
                 const detail = await trpcUtils.providers.get.fetch({ id: provider.id })
+                console.log("[ModelSourcesPanel.onEdit] Provider detail:", detail)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,
                   baseUrl: detail?.baseUrl,
+                  manualModels: detail?.manualModels,
                 })
-              } catch {
+              } catch (e) {
+                console.error("[ModelSourcesPanel.onEdit] Failed to fetch provider:", e)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,
