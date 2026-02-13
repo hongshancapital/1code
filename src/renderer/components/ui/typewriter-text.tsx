@@ -24,33 +24,34 @@ export const TypewriterText = memo(function TypewriterText({
 }: TypewriterTextProps) {
   const [isTyping, setIsTyping] = useState(false)
   const [typedLength, setTypedLength] = useState(0)
-  const [hasAnimated, setHasAnimated] = useState(false)
   const prevIdRef = useRef(id)
-  // Store the initial text when first mounted - this is usually the first message
-  const initialTextRef = useRef(text)
+  // Track the last animated text to detect real changes
+  const lastAnimatedTextRef = useRef<string | null>(null)
 
   // Reset state when id changes
   useEffect(() => {
     if (id !== prevIdRef.current) {
       setIsTyping(false)
       setTypedLength(0)
-      setHasAnimated(false)
-      initialTextRef.current = text
+      lastAnimatedTextRef.current = null
       prevIdRef.current = id
     }
   }, [id, text])
 
-  // Detect when text CHANGES from initial value - trigger typewriter
+  // Detect when text CHANGES - trigger typewriter for new text
   useEffect(() => {
-    if (hasAnimated) return
+    // Skip if not just created or text is empty/placeholder
+    if (!isJustCreated || !text || text === placeholder) return
 
-    const textChanged = text !== initialTextRef.current
-    if (isJustCreated && textChanged) {
-      setIsTyping(true)
-      setTypedLength(1) // Start with first character visible
-      setHasAnimated(true)
-    }
-  }, [text, isJustCreated, hasAnimated])
+    // Skip if we're already typing this text or already animated this exact text
+    if (isTyping || text === lastAnimatedTextRef.current) return
+
+    // Text changed to something new - trigger typewriter
+    console.log("[TypewriterText] Text changed, triggering typewriter:", { id, text, lastAnimated: lastAnimatedTextRef.current })
+    setIsTyping(true)
+    setTypedLength(1)
+    lastAnimatedTextRef.current = text
+  }, [text, isJustCreated, isTyping, placeholder, id])
 
   // Typewriter animation
   useEffect(() => {
@@ -65,15 +66,6 @@ export const TypewriterText = memo(function TypewriterText({
       setIsTyping(false)
     }
   }, [isTyping, typedLength, text])
-
-  // If isJustCreated and showPlaceholder and we haven't animated yet AND text is empty - show placeholder
-  // Important: if text already has a value, show it immediately (don't wait for animation)
-  const hasRealName = text && text !== placeholder && text !== initialTextRef.current
-  const isWaitingForName = isJustCreated && showPlaceholder && !hasAnimated && !hasRealName
-
-  if (isWaitingForName && !text) {
-    return <span className={cn("text-muted-foreground/50", className)}>{placeholder}</span>
-  }
 
   // Show placeholder for empty text
   if (!text || text === placeholder) {

@@ -56,9 +56,16 @@ export async function callSummaryAIWithUsage(
   }
 
   try {
-    if (providerId === "anthropic") {
+    // Detect API format: use Anthropic format for native Anthropic or Anthropic-compatible endpoints
+    const isAnthropicFormat = providerId === "anthropic" ||
+      credentials.baseUrl.includes("/anthropic") ||
+      credentials.baseUrl.includes("api.anthropic.com")
+
+    if (isAnthropicFormat) {
+      console.log("[SummaryAI] Using Anthropic API format for:", credentials.baseUrl)
       return await callAnthropicAPI(credentials, systemPrompt, userMessage, maxTokens)
     }
+    console.log("[SummaryAI] Using OpenAI-compatible API format for:", credentials.baseUrl)
     return await callOpenAICompatibleAPI(credentials, systemPrompt, userMessage, maxTokens)
   } catch (error) {
     console.warn("[SummaryAI] Call failed:", (error as Error).message)

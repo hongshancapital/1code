@@ -217,8 +217,16 @@ export const api = {
       useMutation: () => {
         const mutation = trpc.chats.generateSubChatName.useMutation()
         return {
-          mutateAsync: async (args: { userMessage: string }) => {
-            return mutation.mutateAsync({ userMessage: args.userMessage })
+          mutateAsync: async (args: {
+            userMessage: string
+            summaryProviderId?: string
+            summaryModelId?: string
+            subChatId?: string
+            chatId?: string
+            projectId?: string
+            isFirstSubChat?: boolean
+          }) => {
+            return mutation.mutateAsync(args)
           },
           isPending: mutation.isPending,
         }

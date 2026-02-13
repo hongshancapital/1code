@@ -160,9 +160,9 @@ currentProjectModeAtom,
   pendingMentionAtom,
   suppressInputFocusAtom,
   diffHasPendingChangesAtomFamily,
-  pendingAINameSubChatsAtom,
-  setPendingAIName,
-  clearPendingAIName,
+  unconfirmedNameSubChatsAtom,
+  markNameUnconfirmed,
+  confirmName,
   type AgentMode,
   type SelectedCommit,
   type CachedParsedDiffFile,
@@ -1533,6 +1533,9 @@ const ChatViewInner = memo(function ChatViewInner({
   // tRPC utils for cache invalidation
   const utils = api.useUtils()
 
+  // For confirming name on manual rename (stop shimmer)
+  const setUnconfirmedNameSubChats = useSetAtom(unconfirmedNameSubChatsAtom)
+
   // Get sub-chat name from store
   const subChatName = useAgentSubChatStore(
     (state) => state.allSubChats.find((sc) => sc.id === subChatId)?.name || "",
@@ -1567,6 +1570,8 @@ const ChatViewInner = memo(function ChatViewInner({
           subChatId,
           name: newName,
         })
+        // User manually renamed - confirm the name (stop shimmer if any)
+        confirmName(setUnconfirmedNameSubChats, subChatId)
       } catch {
         // Revert on error (toast shown by mutation onError)
         useAgentSubChatStore
@@ -1574,7 +1579,7 @@ const ChatViewInner = memo(function ChatViewInner({
           .updateSubChatName(subChatId, subChatNameRef.current || "New Chat")
       }
     },
-    [subChatId],
+    [subChatId, setUnconfirmedNameSubChats],
   )
 
   // Plan mode state (per-subChat using atomFamily)
@@ -3996,6 +4001,9 @@ export function ChatView({
   const [selectedTeamId] = useAtom(selectedTeamIdAtom)
   const [selectedModelId] = useAtom(lastSelectedModelIdAtom)
 
+  // tRPC utils for optimistic cache updates (must be defined early - used in useEffect below)
+  const utils = api.useUtils()
+
   // Get active sub-chat ID from store for mode tracking (reactive)
   const activeSubChatIdForMode = useAgentSubChatStore((state) => state.activeSubChatId)
   // Use per-subChat mode atom - falls back to "agent" if no active sub-chat
@@ -4018,6 +4026,7 @@ export function ChatView({
     normalizeCustomClaudeConfig(customClaudeConfig)
   const hasCustomClaudeConfig = Boolean(normalizedCustomClaudeConfig)
   const setLoadingSubChats = useSetAtom(loadingSubChatsAtom)
+  const setUnconfirmedNameSubChats = useSetAtom(unconfirmedNameSubChatsAtom)
   const unseenChanges = useAtomValue(agentsUnseenChangesAtom)
   const setUnseenChanges = useSetAtom(agentsUnseenChangesAtom)
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom)
@@ -4145,6 +4154,53 @@ export function ChatView({
     })
     return cleanup
   }, [setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
+
+  // Listen for AI-generated sub-chat name from backend (success or failure)
+  useEffect(() => {
+    if (!window.desktopApi.onSubChatAINameReady) return
+    const cleanup = window.desktopApi.onSubChatAINameReady((data) => {
+      console.log("[active-chat] AI name confirmed via IPC:", data)
+      // Confirm the name (stop shimmer) - this happens for both AI success and AI failure
+      confirmName(setUnconfirmedNameSubChats, data.subChatId)
+      // Update the sub-chat name in the store
+      useAgentSubChatStore.getState().updateSubChatName(data.subChatId, data.name)
+      // Optimistic update for sub-chat in single chat query
+      utils.agents.getAgentChat.setData(
+        { chatId: data.chatId },
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            subChats: old.subChats.map((sc: { id: string; name: string }) =>
+              sc.id === data.subChatId ? { ...sc, name: data.name } : sc,
+            ),
+          }
+        },
+      )
+      // If it's the first sub-chat, also update the parent chat name
+      if (data.isFirstSubChat && data.chatId) {
+        // Update sidebar list
+        utils.agents.getAgentChats.setData(
+          { teamId: selectedTeamId },
+          (old: { id: string; name: string | null }[] | undefined) => {
+            if (!old) return old
+            return old.map((c) =>
+              c.id === data.chatId ? { ...c, name: data.name } : c,
+            )
+          },
+        )
+        // Update single chat header
+        utils.agents.getAgentChat.setData(
+          { chatId: data.chatId },
+          (old) => {
+            if (!old) return old
+            return { ...old, name: data.name }
+          },
+        )
+      }
+    })
+    return cleanup
+  }, [setUnconfirmedNameSubChats, utils.agents.getAgentChat, utils.agents.getAgentChats, selectedTeamId])
 
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
@@ -4586,9 +4642,6 @@ export function ChatView({
     })
     clearSubChatUnseen(setSubChatStatus, activeSubChatId)
   }, [activeSubChatId, setSubChatUnseenChanges, setSubChatStatus])
-
-  // tRPC utils for optimistic cache updates
-  const utils = api.useUtils()
 
   // tRPC mutations for renaming
   const renameSubChatMutation = api.agents.renameSubChat.useMutation()
@@ -6554,11 +6607,15 @@ Make sure to preserve all functionality from both branches when resolving confli
             },
           )
         },
-        // Refresh after delay to pick up AI-generated name from backend
-        onRefreshForAIName: () => {
-          console.log("[auto-rename] Invalidating queries to pick up AI name...")
-          utils.agents.getAgentChat.invalidate({ chatId })
-          utils.agents.getAgentChats.invalidate({ teamId: selectedTeamId })
+        // Name confirmation callbacks
+        onNameUnconfirmed: () => {
+          console.log("[auto-rename] Marking name as unconfirmed (shimmer) for subChatId:", subChatId)
+          markNameUnconfirmed(setUnconfirmedNameSubChats, subChatId)
+        },
+        onNameConfirmed: () => {
+          // Fallback: called by timeout if IPC never arrives
+          console.log("[auto-rename] Fallback: confirming name for subChatId:", subChatId)
+          confirmName(setUnconfirmedNameSubChats, subChatId)
         },
       })
     },
@@ -6573,6 +6630,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       utils.agents.getAgentChats,
       utils.agents.getAgentChat,
       chatProject?.id,
+      setUnconfirmedNameSubChats,
     ],
   )
 

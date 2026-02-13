@@ -6,16 +6,34 @@ interface AutoRenameParams {
   parentChatId: string
   userMessage: string
   isFirstSubChat: boolean
+  /** Get fallback name immediately, backend will async generate AI name */
   generateName: (userMessage: string) => Promise<{ name: string }>
   renameSubChat: (input: { subChatId: string; name: string }) => Promise<void>
   renameChat: (input: { chatId: string; name: string }) => Promise<void>
   updateSubChatName: (subChatId: string, name: string) => void
   updateChatName: (chatId: string, name: string) => void
+  /** Called when name becomes unconfirmed (start shimmer) */
+  onNameUnconfirmed?: () => void
+  /** Called when name is confirmed (stop shimmer) - fallback if IPC never arrives */
+  onNameConfirmed?: () => void
 }
 
 /**
  * Auto-rename a sub-chat (and optionally parent chat) based on the user's first message.
- * Generates a name via LLM, then retries renaming until the chat exists in DB.
+ *
+ * Flow:
+ * 1. Mark name as unconfirmed (start shimmer)
+ * 2. Call generateName → immediately returns fallback (truncated message)
+ * 3. Set fallback name via renameSubChat (with retry for DB timing)
+ * 4. Backend async generates AI name and sends IPC event when done
+ * 5. IPC handler confirms the name (stops shimmer)
+ *
+ * Name confirmation happens via:
+ * - AI success: IPC event with AI-generated name
+ * - AI failure: IPC event with fallback name (backend confirms it)
+ * - User rename: Separate handler confirms name
+ * - Timeout fallback: If nothing happens in 15s, confirm anyway
+ *
  * Fire-and-forget - doesn't block chat streaming.
  */
 export async function autoRenameAgentChat({
@@ -28,21 +46,27 @@ export async function autoRenameAgentChat({
   renameChat,
   updateSubChatName,
   updateChatName,
+  onNameUnconfirmed,
+  onNameConfirmed,
 }: AutoRenameParams) {
   console.log("[auto-rename] Called with:", { subChatId, parentChatId, userMessage: userMessage.slice(0, 50), isFirstSubChat })
 
+  // Mark name as unconfirmed immediately (start shimmer)
+  onNameUnconfirmed?.()
+
   try {
-    // 1. Generate name from LLM via tRPC
-    console.log("[auto-rename] Calling generateName...")
+    // 1. Get fallback name immediately (backend kicks off async AI generation)
+    console.log("[auto-rename] Calling generateName (returns fallback, AI runs in background)...")
     const { name } = await generateName(userMessage)
-    console.log("[auto-rename] Generated name:", name)
+    console.log("[auto-rename] Got fallback name:", name)
 
     if (!name || name === "New Chat") {
-      console.log("[auto-rename] Skipping - generic name")
-      return // Don't rename if we got a generic name
+      console.log("[auto-rename] Skipping - generic name, confirming immediately")
+      onNameConfirmed?.()
+      return
     }
 
-    // 2. Retry loop with delays [0, 3000, 5000, 5000]ms
+    // 2. Retry loop to set fallback name (DB might not have the record yet)
     const delays = [0, 3_000, 5_000, 5_000]
 
     for (let attempt = 0; attempt < delays.length; attempt++) {
@@ -51,34 +75,39 @@ export async function autoRenameAgentChat({
       }
 
       try {
-        // Rename sub-chat
-        console.log(`[auto-rename] Attempt ${attempt + 1}: renaming subChat ${subChatId} to "${name}"`)
+        console.log(`[auto-rename] Attempt ${attempt + 1}: setting fallback name "${name}"`)
         await renameSubChat({ subChatId, name })
-        console.log(`[auto-rename] renameSubChat succeeded`)
         updateSubChatName(subChatId, name)
-        console.log(`[auto-rename] updateSubChatName succeeded`)
 
-        // Also rename parent chat if this is the first sub-chat
         if (isFirstSubChat) {
-          console.log(`[auto-rename] Renaming parent chat ${parentChatId}`)
           await renameChat({ chatId: parentChatId, name })
           updateChatName(parentChatId, name)
-          console.log(`[auto-rename] Parent chat renamed`)
         }
 
-        console.log(`[auto-rename] ✓ Rename complete!`)
-        return // Success!
+        console.log(`[auto-rename] ✓ Fallback name set!`)
+        break
       } catch (err) {
-        // NOT_FOUND or other error - retry
         console.warn(`[auto-rename] Attempt ${attempt + 1} failed:`, (err as Error).message || err)
         if (attempt === delays.length - 1) {
-          console.error(
-            `[auto-rename] Failed to rename after ${delays.length} attempts`,
-          )
+          console.error(`[auto-rename] Failed to set fallback name after ${delays.length} attempts`)
         }
       }
     }
+
+    // 3. Wait for IPC event to confirm name (AI success or failure)
+    // Shimmer will be stopped by the IPC handler, not here
+    console.log("[auto-rename] Fallback name set, waiting for name confirmation via IPC...")
+
+    // Fallback: if IPC never arrives in 15s, confirm the name anyway
+    // This handles edge cases where backend doesn't send IPC
+    setTimeout(() => {
+      console.log("[auto-rename] Fallback timeout: confirming name after 15s")
+      onNameConfirmed?.()
+    }, 15_000)
+
   } catch (error) {
     console.error("[auto-rename] Auto-rename failed:", error)
+    // Confirm name on error (stop shimmer)
+    onNameConfirmed?.()
   }
 }

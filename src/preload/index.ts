@@ -232,6 +232,23 @@ contextBridge.exposeInMainWorld("desktopApi", {
     return () => ipcRenderer.removeListener("shortcut:new-agent", handler)
   },
 
+  // AI-generated sub-chat name ready event
+  onSubChatAINameReady: (callback: (data: {
+    subChatId: string
+    chatId?: string
+    name: string
+    isFirstSubChat?: boolean
+  }) => void) => {
+    const handler = (_event: unknown, data: {
+      subChatId: string
+      chatId?: string
+      name: string
+      isFirstSubChat?: boolean
+    }) => callback(data)
+    ipcRenderer.on("sub-chat:ai-name-ready", handler)
+    return () => ipcRenderer.removeListener("sub-chat:ai-name-ready", handler)
+  },
+
   // File change events (from Claude Write/Edit tools)
   onFileChanged: (callback: (data: {
     filePath: string
@@ -498,6 +515,8 @@ export interface DesktopApi {
   onReauthenticating: (callback: () => void) => () => void
   // Shortcuts
   onShortcutNewAgent: (callback: () => void) => () => void
+  // AI-generated sub-chat name ready
+  onSubChatAINameReady: (callback: (data: { subChatId: string; chatId?: string; name: string; isFirstSubChat?: boolean }) => void) => () => void
   // File changes
   onFileChanged: (callback: (data: { filePath: string; type: string; subChatId: string }) => void) => () => void
   // Git status changes (from file watcher)

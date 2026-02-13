@@ -5,6 +5,7 @@
 
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
+import { BrowserWindow } from "electron"
 import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"
 import { applyRollbackStash } from "../../git/stash"
 import { publicProcedure, router } from "../index"
@@ -483,7 +484,11 @@ export const subChatsRouter = router({
 
   /**
    * Generate a name for a sub-chat using AI
-   * Priority: configured summary AI → hongshan.com API → local fallback
+   *
+   * New flow for better UX:
+   * 1. Immediately return fallback name (truncated user message)
+   * 2. Kick off async AI generation in background
+   * 3. If AI succeeds, update DB directly (frontend will see update via query invalidation)
    */
   generateSubChatName: publicProcedure
     .input(z.object({
@@ -493,79 +498,156 @@ export const subChatsRouter = router({
       subChatId: z.string().optional(),
       chatId: z.string().optional(),
       projectId: z.string().optional(),
+      isFirstSubChat: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      // 1. Try configured summary AI provider
-      if (input.summaryProviderId && input.summaryModelId) {
-        try {
-          const { callSummaryAIWithUsage } = await import("./summary-ai")
-          const startTime = Date.now()
-          const result = await callSummaryAIWithUsage(
-            input.summaryProviderId,
-            input.summaryModelId,
-            "Generate a short, descriptive name for a chat conversation based on the user's first message. " +
-            "The name should be concise (max 25 characters), in the same language as the message. " +
-            "Return ONLY the name, nothing else. No quotes, no punctuation at the end.",
-            input.userMessage,
-          )
-          if (result?.text) {
-            console.log("[generateSubChatName] Summary AI generated:", result.text)
-            // Record usage
-            if (result.usage && input.subChatId && input.chatId && input.projectId) {
-              try {
-                const db = getDatabase()
-                const totalTokens = result.usage.inputTokens + result.usage.outputTokens
-                db.insert(modelUsage).values({
-                  subChatId: input.subChatId,
-                  chatId: input.chatId,
-                  projectId: input.projectId,
-                  model: result.usage.model,
-                  inputTokens: result.usage.inputTokens,
-                  outputTokens: result.usage.outputTokens,
-                  totalTokens,
-                  source: "auto-name",
-                  durationMs: Date.now() - startTime,
-                }).run()
-              } catch (usageErr) {
-                console.warn("[generateSubChatName] Failed to record usage:", (usageErr as Error).message)
-              }
-            }
-            return { name: result.text }
-          }
-        } catch (error) {
-          console.warn("[generateSubChatName] Summary AI failed, falling back:", (error as Error).message)
-        }
-      }
+      const fallbackName = getFallbackName(input.userMessage)
 
-      // 2. Fall back to hongshan.com API
-      try {
-        const { getDeviceInfo } = await import("../../device-id")
-        const deviceInfo = getDeviceInfo()
-        const apiUrl = "https://cowork.hongshan.com"
+      console.log("[generateSubChatName] Returning fallback immediately:", fallbackName)
 
-        const response = await fetch(
-          `${apiUrl}/api/agents/sub-chat/generate-name`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-device-id": deviceInfo.deviceId,
-              "x-device-platform": deviceInfo.platform,
-              "x-app-version": deviceInfo.appVersion,
-            },
-            body: JSON.stringify({ userMessage: input.userMessage }),
-          },
-        )
+      // Kick off async AI generation (fire-and-forget)
+      generateNameWithAI(input, fallbackName).catch((err) => {
+        console.warn("[generateSubChatName] Background AI generation failed:", err)
+      })
 
-        if (!response.ok) {
-          return { name: getFallbackName(input.userMessage) }
-        }
-
-        const data = await response.json()
-        return { name: data.name || getFallbackName(input.userMessage) }
-      } catch (error) {
-        console.warn("[generateSubChatName] API fallback failed:", (error as Error).message)
-        return { name: getFallbackName(input.userMessage) }
-      }
+      return { name: fallbackName }
     }),
 })
+
+/**
+ * Background task to generate name with AI and update DB if successful
+ */
+async function generateNameWithAI(
+  input: {
+    userMessage: string
+    summaryProviderId?: string
+    summaryModelId?: string
+    subChatId?: string
+    chatId?: string
+    projectId?: string
+    isFirstSubChat?: boolean
+  },
+  fallbackName: string,
+) {
+  let aiName: string | null = null
+
+  // 1. Try configured summary AI provider
+  if (input.summaryProviderId && input.summaryModelId) {
+    console.log("[generateSubChatName:bg] Trying Summary AI provider...")
+    try {
+      const { callSummaryAIWithUsage } = await import("./summary-ai")
+      const startTime = Date.now()
+      const result = await callSummaryAIWithUsage(
+        input.summaryProviderId,
+        input.summaryModelId,
+        "Generate a short, descriptive name for a chat conversation based on the user's first message. " +
+        "The name should be concise (max 25 characters), in the same language as the message. " +
+        "Return ONLY the name, nothing else. No quotes, no punctuation at the end.",
+        input.userMessage,
+      )
+      if (result?.text) {
+        aiName = result.text
+        console.log("[generateSubChatName:bg] Summary AI generated:", aiName, `(${Date.now() - startTime}ms)`)
+
+        // Record usage
+        if (result.usage && input.subChatId && input.chatId && input.projectId) {
+          try {
+            const db = getDatabase()
+            const totalTokens = result.usage.inputTokens + result.usage.outputTokens
+            db.insert(modelUsage).values({
+              subChatId: input.subChatId,
+              chatId: input.chatId,
+              projectId: input.projectId,
+              model: result.usage.model,
+              inputTokens: result.usage.inputTokens,
+              outputTokens: result.usage.outputTokens,
+              totalTokens,
+              source: "auto-name",
+              durationMs: Date.now() - startTime,
+            }).run()
+          } catch (usageErr) {
+            console.warn("[generateSubChatName:bg] Failed to record usage:", (usageErr as Error).message)
+          }
+        }
+      } else {
+        console.warn("[generateSubChatName:bg] Summary AI returned empty result")
+      }
+    } catch (error) {
+      console.warn("[generateSubChatName:bg] Summary AI failed:", (error as Error).message)
+    }
+  }
+
+  // 2. Try hongshan.com API if no AI name yet
+  if (!aiName) {
+    console.log("[generateSubChatName:bg] Trying hongshan.com API...")
+    try {
+      const { getDeviceInfo } = await import("../../device-id")
+      const deviceInfo = getDeviceInfo()
+      const apiUrl = "https://cowork.hongshan.com"
+
+      const response = await fetch(
+        `${apiUrl}/api/agents/sub-chat/generate-name`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-device-id": deviceInfo.deviceId,
+            "x-device-platform": deviceInfo.platform,
+            "x-app-version": deviceInfo.appVersion,
+          },
+          body: JSON.stringify({ userMessage: input.userMessage }),
+        },
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.name && data.name !== fallbackName) {
+          aiName = data.name
+          console.log("[generateSubChatName:bg] hongshan.com API returned:", aiName)
+        }
+      } else {
+        console.warn("[generateSubChatName:bg] hongshan.com API returned:", response.status)
+      }
+    } catch (error) {
+      console.warn("[generateSubChatName:bg] hongshan.com API failed:", (error as Error).message)
+    }
+  }
+
+  // 3. Determine final name (AI or fallback)
+  const finalName = aiName || fallbackName
+
+  // 4. Update DB if we got a better name from AI
+  if (aiName && aiName !== fallbackName && input.subChatId) {
+    console.log("[generateSubChatName:bg] Updating sub-chat name in DB:", aiName)
+    const db = getDatabase()
+
+    // Update sub-chat name
+    db.update(subChats)
+      .set({ name: aiName, updatedAt: new Date() })
+      .where(eq(subChats.id, input.subChatId))
+      .run()
+
+    // Also update parent chat if this is the first sub-chat
+    if (input.isFirstSubChat && input.chatId) {
+      console.log("[generateSubChatName:bg] Also updating parent chat name:", aiName)
+      db.update(chats)
+        .set({ name: aiName, updatedAt: new Date() })
+        .where(eq(chats.id, input.chatId))
+        .run()
+    }
+  }
+
+  // 5. Always notify frontend via IPC (both success and failure)
+  // This allows frontend to stop shimmer and confirm the name
+  if (input.subChatId) {
+    console.log("[generateSubChatName:bg] Sending IPC event to frontend, name:", finalName, aiName ? "(AI)" : "(fallback)")
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send("sub-chat:ai-name-ready", {
+        subChatId: input.subChatId,
+        chatId: input.chatId,
+        name: finalName,
+        isFirstSubChat: input.isFirstSubChat,
+      })
+    })
+  }
+}

@@ -7,6 +7,9 @@ import {
   agentsSubChatUnseenChangesAtom,
   agentsSubChatsSidebarModeAtom,
   pendingUserQuestionsAtom,
+  unconfirmedNameSubChatsAtom,
+  confirmName,
+  justCreatedIdsAtom,
 } from "../atoms"
 import {
   widgetVisibilityAtomFamily,
@@ -51,6 +54,7 @@ import { SearchCombobox } from "../../../components/ui/search-combobox"
 import { SubChatContextMenu } from "./sub-chat-context-menu"
 import { formatTimeAgo } from "../utils/format-time-ago"
 import { SubChatHoverPreview } from "./sub-chat-hover-preview"
+import { TypewriterText } from "../../../components/ui/typewriter-text"
 
 interface DiffStats {
   fileCount: number
@@ -207,6 +211,7 @@ export function SubChatSelector({
     }))
   )
   const [loadingSubChats] = useAtom(loadingSubChatsAtom)
+  const justCreatedIds = useAtomValue(justCreatedIdsAtom)
   const subChatUnseenChanges = useAtomValue(agentsSubChatUnseenChangesAtom)
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom)
   const [subChatsSidebarMode, setSubChatsSidebarMode] = useAtom(
@@ -346,12 +351,15 @@ export function SubChatSelector({
   const [editName, setEditName] = useState("")
   const [editLoading, setEditLoading] = useState(false)
 
+  const setUnconfirmedNameSubChats = useSetAtom(unconfirmedNameSubChatsAtom)
   const renameMutation = api.agents.renameSubChat.useMutation({
     onSuccess: (_, variables) => {
       // Update local store
       useAgentSubChatStore
         .getState()
         .updateSubChatName(variables.subChatId, variables.name)
+      // User manually renamed - confirm the name (stop shimmer if any)
+      confirmName(setUnconfirmedNameSubChats, variables.subChatId)
     },
     onError: (error) => {
       // Show helpful error message (like Canvas)
@@ -807,7 +815,13 @@ export function SubChatSelector({
                             }}
                             className="relative z-0 text-left flex-1 min-w-0 pr-1 overflow-hidden block whitespace-nowrap"
                           >
-                            {subChat.name || "New Chat"}
+                            <TypewriterText
+                              text={subChat.name || ""}
+                              placeholder="New Chat"
+                              id={subChat.id}
+                              isJustCreated={justCreatedIds.has(subChat.id)}
+                              showPlaceholder={true}
+                            />
                           </span>
                         )}
 

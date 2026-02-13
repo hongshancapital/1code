@@ -168,6 +168,40 @@ export const clearLoading = (
   })
 }
 
+// Sub-chats with unconfirmed names (shimmer effect on title)
+// Name is "unconfirmed" until one of:
+// 1. AI summary succeeds and name is updated
+// 2. AI summary fails and fallback name becomes final
+// 3. User manually renames the chat
+export const unconfirmedNameSubChatsAtom = atom<Set<string>>(new Set())
+
+// Helper to mark sub-chat name as unconfirmed (start shimmer)
+export const markNameUnconfirmed = (
+  setter: (fn: (prev: Set<string>) => Set<string>) => void,
+  subChatId: string,
+) => {
+  setter((prev) => {
+    if (prev.has(subChatId)) return prev
+    const next = new Set(prev)
+    next.add(subChatId)
+    return next
+  })
+}
+
+// Helper to confirm sub-chat name (stop shimmer)
+// Call when: AI succeeds, AI fails (fallback confirmed), or user renames
+export const confirmName = (
+  setter: (fn: (prev: Set<string>) => Set<string>) => void,
+  subChatId: string,
+) => {
+  setter((prev) => {
+    if (!prev.has(subChatId)) return prev
+    const next = new Set(prev)
+    next.delete(subChatId)
+    return next
+  })
+}
+
 // Persisted preferences for agents page
 export type SavedRepo = {
   id: string
