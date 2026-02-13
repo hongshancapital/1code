@@ -830,8 +830,7 @@ export const AgentsMentionsEditor = memo(
       const isComposingRef = useRef(false)
       // Track if we just finished composing to prevent immediate submission
       const justFinishedComposingRef = useRef(false)
-      // Track last Enter keydown time to prevent rapid re-submission after IME
-      const lastEnterTimeRef = useRef(0)
+
 
       // Handle IME composition start (e.g., Chinese pinyin input)
       const handleCompositionStart = useCallback(() => {
@@ -847,8 +846,6 @@ export const AgentsMentionsEditor = memo(
         // Mark that we just finished composing to prevent immediate submission
         // This handles the case where compositionend and keydown happen in same event loop
         justFinishedComposingRef.current = true
-        // Also track the time to prevent submission shortly after IME ends
-        lastEnterTimeRef.current = Date.now() + 150 // 150ms buffer
         // Clear the flag after a short delay (one event cycle)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -1079,10 +1076,6 @@ export const AgentsMentionsEditor = memo(
         if (nativeEvent.inputType === "insertCompositionText") {
           isComposingRef.current = true
           justFinishedComposingRef.current = false
-          lastEnterTimeRef.current = Date.now() + 150
-        } else if (nativeEvent.inputType === "insertText" && isComposingRef.current) {
-          // Regular text insertion after IME ended - still block Enter for a bit
-          lastEnterTimeRef.current = Date.now() + 150
         }
       }, [])
 
@@ -1151,10 +1144,8 @@ export const AgentsMentionsEditor = memo(
           const isImeActive = isComposingRef.current || justFinishedComposingRef.current
           // Also check the native isComposing flag as a fallback
           const isNativeComposing = (e.nativeEvent as KeyboardEvent).isComposing
-          // Also check if we're within the IME buffer time after composition
-          const inImeBuffer = Date.now() < lastEnterTimeRef.current
 
-          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing && !inImeBuffer) {
+          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return
