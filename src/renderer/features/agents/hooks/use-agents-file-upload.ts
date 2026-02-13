@@ -9,7 +9,6 @@ export interface UploadedImage {
   localPath?: string // local file path for backend reference (large image fallback)
   base64Data?: string // base64 encoded data for API
   tempPath?: string // disk temp file path for draft persistence
-  localPath?: string // original file disk path (for AI reference)
   isLoading: boolean
   mediaType?: string // MIME type e.g. "image/png", "image/jpeg"
 }
@@ -19,10 +18,7 @@ export interface UploadedFile {
   filename: string
   url: string // blob URL for preview only
   localPath?: string // local file path for backend reference
-
-  url: string
   tempPath?: string // disk temp file path for draft persistence
-  localPath?: string // original file disk path (for AI reference)
   isLoading: boolean
   size?: number
   type?: string
@@ -105,29 +101,17 @@ export function useAgentsFileUpload(draftKey?: string) {
           console.error("[useAgentsFileUpload] Failed to convert image to base64:", err)
         }
 
-        const localPath = (window as any).webUtils?.getPathForFile?.(file) || (file as any).path
         return {
           id,
           filename,
           url,
-          localPath,
+          localPath: localPath || undefined,
           base64Data,
           isLoading: false,
           mediaType,
-          localPath: localPath || undefined,
         }
       })
     )
-
-    const newFiles: UploadedFile[] = otherFiles.map((file) => ({
-      id: crypto.randomUUID(),
-      filename: file.name,
-      url: URL.createObjectURL(file),
-      localPath: (window as any).webUtils?.getPathForFile?.(file) || (file as any).path,
-      isLoading: false,
-      size: file.size,
-      type: file.type,
-    }))
 
     const newFiles: UploadedFile[] = await Promise.all(
       otherFiles.map(async (file) => {

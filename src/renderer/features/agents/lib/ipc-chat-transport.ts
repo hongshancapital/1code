@@ -229,9 +229,6 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
       fileHint = `\n\n[The user has attached the following file(s). Use the Read tool to access their contents:\n${fileList}]`
     }
 
-    const images = this.extractImages(lastUser)
-    const files = this.extractFiles(lastUser)
-
     // Get sessionId for resume (server preserves sessionId on abort so
     // the next message can resume with full conversation context)
     const lastAssistant = [...options.messages]
@@ -846,8 +843,6 @@ askUserQuestionTimeout,
     for (const part of msg.parts) {
       // Check for data-image parts with base64 data
       if (isDataUIPart(part) && part.type === "data-image") {
-        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string }
-
         const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string; tempPath?: string }
         if (data.base64Data && data.mediaType) {
           // Check if image exceeds inline size threshold
