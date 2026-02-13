@@ -859,6 +859,16 @@ export const AgentsMentionsEditor = memo(
             justFinishedComposingRef.current = false
           })
         })
+
+        // After IME composition ends, re-trigger @ and / detection
+        // This allows "@pencil" typed via IME to trigger mention dropdown
+        // Use setTimeout to ensure the composed text is fully committed to DOM
+        setTimeout(() => {
+          if (editorRef.current) {
+            // Dispatch a synthetic input event to trigger detection
+            editorRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+          }
+        }, 0)
       }, [])
 
       // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection

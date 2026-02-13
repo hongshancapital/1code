@@ -1072,7 +1072,9 @@ export const AgentsFileMention = memo(function AgentsFileMention({
           )
           break
         case "Enter":
-          if (e.shiftKey) return
+          // Skip if IME is composing (Chinese/Japanese/Korean input)
+          // Let IME handle Enter to confirm the composed text first
+          if (e.shiftKey || e.isComposing) return
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
