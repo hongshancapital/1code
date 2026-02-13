@@ -283,6 +283,9 @@ contextBridge.exposeInMainWorld("desktopApi", {
   scanVSCodeThemes: () => ipcRenderer.invoke("vscode:scan-themes"),
   loadVSCodeTheme: (themePath: string) => ipcRenderer.invoke("vscode:load-theme", themePath),
 
+  // Task idle notification (for update blocking)
+  notifyTasksIdle: (idle: boolean) => ipcRenderer.send("hong:tasks-idle-changed", idle),
+
   // Browser automation (for AI agent browser control)
   browserReady: (ready: boolean) => ipcRenderer.send("browser:ready", ready),
   browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) =>
@@ -511,6 +514,8 @@ export interface DesktopApi {
   saveFile: (options: { base64Data: string; filename: string; filters?: { name: string; extensions: string[] }[] }) => Promise<{ success: boolean; filePath?: string }>
   // Memory router: deep link navigation
   onNavigateRoute: (callback: (route: { chatId: string; subChatId?: string; messageId?: string; highlight?: string; timestamp: number }) => void) => () => void
+  // Task idle notification
+  notifyTasksIdle: (idle: boolean) => void
   // Browser automation
   browserReady: (ready: boolean) => void
   browserResult: (id: string, result: { success: boolean; data?: unknown; error?: string }) => void
