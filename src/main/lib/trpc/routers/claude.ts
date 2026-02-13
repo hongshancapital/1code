@@ -24,26 +24,6 @@ import {
   PLAN_MODE_BLOCKED_TOOLS,
   CHAT_MODE_BLOCKED_TOOLS,
   type UIMessageChunk,
-} from "../../claude"
-import { getEnv } from "../../env"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, readAgentConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
-import { chats, claudeCodeCredentials, getDatabase, memorySessions, modelUsage, observations, subChats } from "../../db"
-import { createRollbackStash } from "../../git/stash"
-import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
-import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
-import { publicProcedure, router } from "../index"
-import { buildAgentsOption } from "./agent-utils"
-import { computePreviewStatsFromMessages } from "./chat-helpers"
-import { getEnabledPlugins, getApprovedPluginMcpServers, revokePluginMcpApproval } from "./claude-settings"
-import { discoverInstalledPlugins, discoverPluginMcpServers, removePluginMcpServer } from "../../plugins"
-import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
-import { getAuthManager } from "../../../index"
-import { getCachedRuntimeEnvironment } from "./runner"
-import { memoryHooks } from "../../memory"
-import { createBrowserMcpServer, browserManager } from "../../browser"
-import { createImageGenMcpServer } from "../../mcp/image-gen-server"
-import { createImageProcessMcpServer } from "../../mcp/image-process-server"
-
 } from "../../claude";
 import { getEnv } from "../../env";
 import {
@@ -4293,29 +4273,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
     }),
 
   updateMcpServer: publicProcedure
-    .input(z.object({
-      name: z.string(),
-      scope: z.enum(["global", "project", "plugin"]),
-      projectPath: z.string().optional(),
-      newName: z.string().regex(/^[a-zA-Z0-9_-]+$/).optional(),
-      command: z.string().optional(),
-      args: z.array(z.string()).optional(),
-      env: z.record(z.string()).optional(),
-      url: z.string().url().optional(),
-      authType: z.enum(["none", "oauth", "bearer"]).optional(),
-      bearerToken: z.string().optional(),
-      disabled: z.boolean().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      // Plugin servers cannot be updated via ~/.claude.json
-      if (input.scope === "plugin") {
-        throw new Error("Plugin MCP servers cannot be modified directly. Remove and re-add through plugin settings.")
-      }
-
-      const config = await readClaudeConfig()
-      const projectPath = input.scope === "project" ? input.projectPath : undefined
-
-    .input(
+.input(
       z.object({
         name: z.string(),
         scope: z.enum(["global", "project"]),
@@ -4408,34 +4366,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
     }),
 
   removeMcpServer: publicProcedure
-    .input(z.object({
-      name: z.string(),
-      scope: z.enum(["global", "project", "plugin"]),
-      projectPath: z.string().optional(),
-      pluginSource: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      // Plugin servers: remove from the plugin's .mcp.json file
-      if (input.scope === "plugin") {
-        if (!input.pluginSource) {
-          throw new Error(`Plugin source is required for plugin scope`)
-        }
-        // Remove the server entry from the plugin's .mcp.json
-        await removePluginMcpServer(input.pluginSource, input.name)
-        // Also revoke approval so it doesn't linger in settings.json
-        const identifier = `${input.pluginSource}:${input.name}`
-        try {
-          await revokePluginMcpApproval(identifier)
-        } catch {
-          // Ignore — approval may not exist
-        }
-        return { success: true }
-      }
-
-      const config = await readClaudeConfig()
-      const projectPath = input.scope === "project" ? input.projectPath : undefined
-
-    .input(
+.input(
       z.object({
         name: z.string(),
         scope: z.enum(["global", "project"]),
@@ -4469,22 +4400,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
     }),
 
   setMcpBearerToken: publicProcedure
-    .input(z.object({
-      name: z.string(),
-      scope: z.enum(["global", "project", "plugin"]),
-      projectPath: z.string().optional(),
-      token: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      // Plugin servers cannot have bearer tokens set via ~/.claude.json
-      if (input.scope === "plugin") {
-        throw new Error("Cannot set bearer token on plugin MCP servers")
-      }
-
-      const config = await readClaudeConfig()
-      const projectPath = input.scope === "project" ? input.projectPath : undefined
-
-    .input(
+.input(
       z.object({
         name: z.string(),
         scope: z.enum(["global", "project"]),

@@ -391,7 +391,7 @@ askUserQuestionTimeout,
             memoryRecordingEnabled,
             ...((() => { const sp = appStore.get(summaryProviderIdAtom); const sm = appStore.get(summaryModelIdAtom); return sp && sm ? { summaryProviderId: sp, summaryModelId: sm } : {}; })()),
             ...(images.length > 0 && { images }),
-            ...(files.length > 0 && { files }),
+            ...(attachedFiles.length > 0 && { files: attachedFiles }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
             ...(imageConfig && { imageConfig }),
@@ -871,38 +871,8 @@ askUserQuestionTimeout,
   }
 
   /**
-   * Extract non-image file attachments from message parts.
-   * Returns file references (path + metadata) for AI to read via tools.
-   */
-  private extractFiles(msg: UIMessage | undefined): FileReference[] {
-    if (!msg || !msg.parts) return []
-
-    const files: FileReference[] = []
-
-    for (const part of msg.parts) {
-      if (isDataUIPart(part) && part.type === "data-file") {
-        const data = part.data as { localPath?: string; filename?: string; mediaType?: string; size?: number }
-        if (data.localPath) {
-          files.push({
-            localPath: data.localPath,
-            filename: data.filename || data.localPath.split("/").pop() || "file",
-            mediaType: data.mediaType,
-            size: data.size,
-
-            filename: data.filename,
-            localPath: data.localPath,
-            tempPath: data.tempPath,
-          })
-        }
-      }
-    }
-
-    return files
-  }
-
-  /**
-   * Extract file attachments from message parts
-   * Looks for parts with type "data-file" that have path info
+   * Extract file attachments from message parts.
+   * Looks for parts with type "data-file" that have path info.
    */
   private extractFiles(msg: UIMessage | undefined): FileAttachment[] {
     if (!msg || !msg.parts) return []
