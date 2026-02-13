@@ -12,6 +12,8 @@ import {
   useState,
   createElement,
   memo,
+  forwardRef,
+  useImperativeHandle,
 } from "react"
 import { flushSync, createPortal } from "react-dom"
 import { createRoot } from "react-dom/client"
@@ -124,6 +126,13 @@ interface AgentsFileMentionProps {
   showingSkillsList?: boolean
   showingAgentsList?: boolean
   showingToolsList?: boolean
+}
+
+// Ref handle for AgentsFileMention
+export interface AgentsFileMentionHandle {
+  // Check if searchText matches any option and handle accordingly
+  // Returns: "selected" if exact match found and selected, "partial" if partial match, "none" if no match
+  checkAndSelect: (searchText: string) => "selected" | "partial" | "none"
 }
 
 // Category navigation options (shown on root view)
@@ -713,7 +722,7 @@ function renderTooltipContent(option: FileMentionOption) {
 }
 
 // Memoized to prevent re-renders when parent re-renders
-export const AgentsFileMention = memo(function AgentsFileMention({
+export const AgentsFileMention = memo(forwardRef<AgentsFileMentionHandle, AgentsFileMentionProps>(function AgentsFileMention({
   isOpen,
   onClose,
   onSelect,
@@ -729,7 +738,7 @@ export const AgentsFileMention = memo(function AgentsFileMention({
   showingSkillsList = false,
   showingAgentsList = false,
   showingToolsList = false,
-}: AgentsFileMentionProps) {
+}, ref) {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const placementRef = useRef<"above" | "below" | null>(null)
@@ -1008,6 +1017,44 @@ export const AgentsFileMention = memo(function AgentsFileMention({
     return [...changedFileOptions, ...availableCategoryOptions]
   }, [showingFilesList, showingSkillsList, showingAgentsList, showingToolsList, debouncedSearchText, changedFileOptions, repoFileOptions, skillOptions, agentOptions, toolOptions, hasOnlyFiles, availableCategoryOptions])
 
+  // Expose ref methods for IME integration
+  useImperativeHandle(ref, () => ({
+    // Check if searchText matches any option and handle accordingly
+    // Returns: "selected" if exact match found and selected, "partial" if partial match, "none" if no match
+    checkAndSelect: (searchText: string) => {
+      if (!searchText) return "none"
+
+      const lowerSearch = searchText.toLowerCase()
+
+      // Find non-category options only
+      const matchableOptions = options.filter(opt => opt.type !== "category")
+
+      if (matchableOptions.length === 0) return "none"
+
+      // Check for exact match (case-insensitive) on label or filename
+      const exactMatch = matchableOptions.find(opt => {
+        const label = opt.label.toLowerCase()
+        // For files, also check the filename part of the path
+        const filename = opt.path ? opt.path.split('/').pop()?.toLowerCase() : ""
+        return label === lowerSearch || filename === lowerSearch
+      })
+
+      if (exactMatch) {
+        onSelect(exactMatch)
+        return "selected"
+      }
+
+      // Check if any option starts with or contains the search text (partial match)
+      const hasPartialMatch = matchableOptions.some(opt => {
+        const label = opt.label.toLowerCase()
+        const filename = opt.path ? opt.path.split('/').pop()?.toLowerCase() : ""
+        return label.includes(lowerSearch) || filename?.includes(lowerSearch)
+      })
+
+      return hasPartialMatch ? "partial" : "none"
+    }
+  }), [options, onSelect])
+
   // Track previous values for smarter selection reset
   const prevIsOpenRef = useRef(isOpen)
   const prevSearchRef = useRef(debouncedSearchText)
@@ -1072,7 +1119,9 @@ export const AgentsFileMention = memo(function AgentsFileMention({
           )
           break
         case "Enter":
-          if (e.shiftKey) return
+          // Skip if IME is composing (Chinese/Japanese/Korean input)
+          // Let IME handle Enter to confirm the composed text first
+          if (e.shiftKey || e.isComposing) return
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
@@ -1352,5 +1401,5 @@ export const AgentsFileMention = memo(function AgentsFileMention({
     </TooltipProvider>,
     document.body
   )
-})
+}))
 

@@ -92,6 +92,7 @@ export const api = {
                 ...sc,
                 created_at: sc.createdAt,
                 updated_at: sc.updatedAt,
+                manually_renamed: sc.manuallyRenamed,
                 messages: parsedMessages,
                 stream_id: null,
               }

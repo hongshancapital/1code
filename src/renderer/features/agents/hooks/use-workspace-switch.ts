@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
 import { useAgentSubChatStore, type SubChatMeta } from "../stores/sub-chat-store"
 import { appStore } from "../../../lib/jotai-store"
-import { currentSubChatIdAtom, messageIdsAtom } from "../stores/message-store"
+import { currentSubChatIdAtom, messageIdsAtom, isMessagesSyncedAtom } from "../stores/message-store"
 import { subChatModeAtomFamily } from "../atoms"
 
 /**
@@ -36,6 +36,7 @@ export function useWorkspaceSwitch(chatId: string) {
 
     if (!isFirstMount) {
       // 2. Jotai: 重置消息 atoms（新 tab 的 ChatDataSync 会填充）
+      appStore.set(isMessagesSyncedAtom, false) // Guard: prevent shouldShowRetry during loading gap
       appStore.set(currentSubChatIdAtom, "default")
       appStore.set(messageIdsAtom, [])
 

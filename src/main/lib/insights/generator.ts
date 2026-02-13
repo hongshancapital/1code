@@ -4,19 +4,20 @@
  * Agent 可以读取导出的数据文件来获取更详细的信息
  */
 
-import { eq } from "drizzle-orm"
-import { getDatabase, insights } from "../db"
-import { getBundledClaudeBinaryPath, buildClaudeEnv, getClaudeQuery } from "../claude"
-import type { InsightStats, ReportType } from "./types"
+import { eq } from "drizzle-orm";
+import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
+import { getDatabase, insights } from "../db";
+import { getBundledClaudeBinaryPath, buildClaudeEnv } from "../claude";
+import type { InsightStats, ReportType } from "./types";
 
 /**
  * 认证配置类型（与 insights.ts 保持一致）
  */
 export interface AuthConfig {
-  type: "oauth" | "litellm" | "apikey" | "custom"
-  token?: string
-  baseUrl?: string
-  model?: string
+  type: "oauth" | "litellm" | "apikey" | "custom";
+  token?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
 /**
@@ -28,16 +29,22 @@ export interface AuthConfig {
 export function buildAgentSystemPrompt(
   userName?: string,
   language: string = "zh",
-  personalPreferences?: string
+  personalPreferences?: string,
 ): string {
-  const isZh = language === "zh" || language.startsWith("zh")
-  const greeting = userName ? (isZh ? `${userName}` : userName) : (isZh ? "朋友" : "friend")
+  const isZh = language === "zh" || language.startsWith("zh");
+  const greeting = userName
+    ? isZh
+      ? `${userName}`
+      : userName
+    : isZh
+      ? "朋友"
+      : "friend";
 
   const userContext = personalPreferences
-    ? (isZh
-        ? `\n用户偏好：${personalPreferences}`
-        : `\nUser preferences: ${personalPreferences}`)
-    : ""
+    ? isZh
+      ? `\n用户偏好：${personalPreferences}`
+      : `\nUser preferences: ${personalPreferences}`
+    : "";
 
   if (isZh) {
     return `你是${greeting}的 AI 工作伙伴，像一位贴心的同事和导师。你的任务是回顾${greeting}这段时间的工作，给予温暖的鼓励和真诚的建议。
@@ -94,7 +101,7 @@ ${userContext}
 2. **具体有力**：引用实际工作内容，不说空话
 3. **鼓励为主**：肯定成果，建议委婉
 4. **避免冷数据**：不要强调 token 数量、API 调用次数、费用等
-5. **语言**：必须使用中文输出`
+5. **语言**：必须使用中文输出`;
   } else {
     return `You are ${greeting}'s AI work companion, like a thoughtful colleague and mentor. Your task is to review ${greeting}'s recent work and provide warm encouragement and genuine suggestions.
 ${userContext}
@@ -150,7 +157,7 @@ A detailed HTML report containing:
 2. **Specific and powerful**: Reference actual work content, no empty words
 3. **Encouragement first**: Affirm achievements, give gentle suggestions
 4. **Avoid cold data**: Don't emphasize token counts, API calls, costs, etc.
-5. **Language**: Must output in English`
+5. **Language**: Must output in English`;
   }
 }
 
@@ -158,9 +165,9 @@ A detailed HTML report containing:
  * 用户配置类型
  */
 export interface UserConfig {
-  preferredName?: string
-  personalPreferences?: string
-  language?: string // "zh" | "en" | "system"
+  preferredName?: string;
+  personalPreferences?: string;
+  language?: string; // "zh" | "en" | "system"
 }
 
 /**
@@ -169,12 +176,12 @@ export interface UserConfig {
 function buildPrompt(
   stats: InsightStats,
   reportType: ReportType,
-  language: string = "zh"
+  language: string = "zh",
 ): string {
-  const isZh = language === "zh" || language.startsWith("zh")
+  const isZh = language === "zh" || language.startsWith("zh");
 
   if (isZh) {
-    const period = reportType === "daily" ? "昨天" : "上周"
+    const period = reportType === "daily" ? "昨天" : "上周";
     return `请回顾我${period}的工作，生成一份温暖的工作报告。
 
 首先，请读取当前目录下的文件：
@@ -184,9 +191,9 @@ function buildPrompt(
 时间范围: ${stats.period.start} 至 ${stats.period.end}
 
 请按照系统提示的格式输出，包含 ===SUMMARY=== 和 ===DETAIL=== 两部分。
-记住：重点是我做了什么工作、取得了什么成果，而不是使用了多少 token。`
+记住：重点是我做了什么工作、取得了什么成果，而不是使用了多少 token。`;
   } else {
-    const period = reportType === "daily" ? "yesterday" : "last week"
+    const period = reportType === "daily" ? "yesterday" : "last week";
     return `Please review my work from ${period} and generate a warm work report.
 
 First, read the files in the current directory:
@@ -196,7 +203,7 @@ First, read the files in the current directory:
 Time range: ${stats.period.start} to ${stats.period.end}
 
 Please output according to the format in the system prompt, including ===SUMMARY=== and ===DETAIL=== sections.
-Remember: Focus on what work I did and what I achieved, not how many tokens I used.`
+Remember: Focus on what work I did and what I achieved, not how many tokens I used.`;
   }
 }
 
@@ -204,18 +211,22 @@ Remember: Focus on what work I did and what I achieved, not how many tokens I us
  * 更新进度信息到数据库
  * 使用 error 字段临时存储进度（JSON 格式）
  */
-function updateProgress(db: ReturnType<typeof getDatabase>, reportId: string, progress: {
-  step: string
-  detail?: string
-  toolCalls?: string[]
-}) {
+function updateProgress(
+  db: ReturnType<typeof getDatabase>,
+  reportId: string,
+  progress: {
+    step: string;
+    detail?: string;
+    toolCalls?: string[];
+  },
+) {
   db.update(insights)
     .set({
       error: JSON.stringify(progress),
       updatedAt: new Date(),
     })
     .where(eq(insights.id, reportId))
-    .run()
+    .run();
 }
 
 /**
@@ -226,19 +237,19 @@ function extractToolInfo(msg: any): string | null {
   if (msg.type === "assistant" && msg.message?.content) {
     for (const block of msg.message.content) {
       if (block.type === "tool_use") {
-        const toolName = block.name || "unknown"
-        const input = block.input || {}
+        const toolName = block.name || "unknown";
+        const input = block.input || {};
         // 提取文件路径等关键信息
         if (input.file_path) {
-          return `${toolName}: ${input.file_path}`
+          return `${toolName}: ${input.file_path}`;
         }
         if (input.path) {
-          return `${toolName}: ${input.path}`
+          return `${toolName}: ${input.path}`;
         }
         if (input.command) {
-          return `${toolName}: ${input.command.slice(0, 50)}...`
+          return `${toolName}: ${input.command.slice(0, 50)}...`;
         }
-        return toolName
+        return toolName;
       }
     }
   }
@@ -247,25 +258,27 @@ function extractToolInfo(msg: any): string | null {
   if (msg.type === "user" && msg.message?.content) {
     for (const block of msg.message.content) {
       if (block.type === "tool_result") {
-        return null // tool_result 不需要单独显示
+        return null; // tool_result 不需要单独显示
       }
     }
   }
 
-  return null
+  return null;
 }
 
 /**
  * 解析 Agent 输出，提取 SUMMARY 和 DETAIL 部分
  */
 function parseAgentOutput(output: string): { summary: string; detail: string } {
-  const summaryMatch = output.match(/===SUMMARY===([\s\S]*?)(?:===DETAIL===|$)/)
-  const detailMatch = output.match(/===DETAIL===([\s\S]*)$/)
+  const summaryMatch = output.match(
+    /===SUMMARY===([\s\S]*?)(?:===DETAIL===|$)/,
+  );
+  const detailMatch = output.match(/===DETAIL===([\s\S]*)$/);
 
-  const summary = summaryMatch?.[1]?.trim() || ""
-  const detail = detailMatch?.[1]?.trim() || ""
+  const summary = summaryMatch?.[1]?.trim() || "";
+  const detail = detailMatch?.[1]?.trim() || "";
 
-  return { summary, detail }
+  return { summary, detail };
 }
 
 /**
@@ -274,80 +287,98 @@ function parseAgentOutput(output: string): { summary: string; detail: string } {
 export async function generateInsightReport(
   reportId: string,
   authConfig: AuthConfig, // 认证配置（支持 OAuth、LiteLLM、API Key）
-  userConfig?: UserConfig // 用户配置（名称、偏好、语言）
+  userConfig?: UserConfig, // 用户配置（名称、偏好、语言）
 ): Promise<{ summary: string; reportHtml: string; reportMarkdown: string }> {
-  const db = getDatabase()
+  const db = getDatabase();
 
   // 获取报告记录
-  const report = db.select().from(insights).where(eq(insights.id, reportId)).get()
+  const report = db
+    .select()
+    .from(insights)
+    .where(eq(insights.id, reportId))
+    .get();
 
   if (!report) {
-    throw new Error("Report not found")
+    throw new Error("Report not found");
   }
 
   if (!report.dataDir) {
-    throw new Error("Report data directory not found")
+    throw new Error("Report data directory not found");
   }
 
   // 注意：状态已在 router 中更新为 generating
   // 更新初始进度
-  updateProgress(db, reportId, { step: "loading_sdk", detail: "正在加载 Claude SDK..." })
+  updateProgress(db, reportId, {
+    step: "loading_sdk",
+    detail: "正在加载 Claude SDK...",
+  });
 
   try {
-    const stats = JSON.parse(report.statsJson) as InsightStats
+    const stats = JSON.parse(report.statsJson) as InsightStats;
     // 确定语言设置
-    const language = userConfig?.language === "system"
-      ? "zh" // 系统语言默认用中文
-      : (userConfig?.language || "zh")
-    const prompt = buildPrompt(stats, report.reportType as ReportType, language)
+    const language =
+      userConfig?.language === "system"
+        ? "zh" // 系统语言默认用中文
+        : userConfig?.language || "zh";
+    const prompt = buildPrompt(
+      stats,
+      report.reportType as ReportType,
+      language,
+    );
 
     // 构建个性化系统提示
     const systemPrompt = buildAgentSystemPrompt(
       userConfig?.preferredName,
       language,
-      userConfig?.personalPreferences
-    )
+      userConfig?.personalPreferences,
+    );
 
-    console.log("[Insights] Starting Agent generation in:", report.dataDir)
-    console.log("[Insights] User config:", userConfig)
+    console.log("[Insights] Starting Agent generation in:", report.dataDir);
+    console.log("[Insights] User config:", userConfig);
 
     // 获取 Claude Agent SDK
-    const claudeQuery = await getClaudeQuery()
+    const claudeQuery = await getClaudeQuery();
 
     // 更新进度：启动会话
-    updateProgress(db, reportId, { step: "starting_session", detail: "正在启动 Agent 会话..." })
+    updateProgress(db, reportId, {
+      step: "starting_session",
+      detail: "正在启动 Agent 会话...",
+    });
 
     // 构建环境变量（根据认证类型设置不同的环境变量）
-    const customEnv: Record<string, string> = {}
+    const customEnv: Record<string, string> = {};
 
     if (authConfig.type === "oauth") {
       // Claude Code OAuth 使用专用环境变量
       if (authConfig.token) {
-        customEnv.CLAUDE_CODE_OAUTH_TOKEN = authConfig.token
+        customEnv.CLAUDE_CODE_OAUTH_TOKEN = authConfig.token;
       }
-      console.log("[Insights] Using OAuth auth")
+      console.log("[Insights] Using OAuth auth");
     } else if (authConfig.type === "litellm" || authConfig.type === "custom") {
       // LiteLLM 和 Custom 都使用 ANTHROPIC_AUTH_TOKEN 和 ANTHROPIC_BASE_URL
       if (authConfig.token) {
-        customEnv.ANTHROPIC_AUTH_TOKEN = authConfig.token
+        customEnv.ANTHROPIC_AUTH_TOKEN = authConfig.token;
       }
       if (authConfig.baseUrl) {
-        customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl
+        customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl;
       }
-      console.log(`[Insights] Using ${authConfig.type} auth, baseUrl:`, authConfig.baseUrl)
+      console.log(
+        `[Insights] Using ${authConfig.type} auth, baseUrl:`,
+        authConfig.baseUrl,
+      );
     } else if (authConfig.type === "apikey") {
       // API Key 使用 ANTHROPIC_API_KEY
       if (authConfig.token) {
-        customEnv.ANTHROPIC_API_KEY = authConfig.token
+        customEnv.ANTHROPIC_API_KEY = authConfig.token;
       }
       if (authConfig.baseUrl) {
-        customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl
+        customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl;
       }
-      console.log("[Insights] Using API Key auth")
+      console.log("[Insights] Using API Key auth");
     }
 
-    const claudeEnv = buildClaudeEnv({ customEnv })
-    console.log("[Insights] Claude env built for auth type:", authConfig.type)
+    const claudeEnv = buildClaudeEnv({ customEnv });
+    console.log("[Insights] Claude env built for auth type:", authConfig.type);
 
     // 启动 Agent 会话
     const queryOptions = {
@@ -362,44 +393,47 @@ export async function generateInsightReport(
         // 限制 Agent 只能读取文件，不能执行其他操作
         maxTurns: 8, // 增加 turn 数以允许更多文件读取
       },
-    }
+    };
 
     // 收集 Agent 输出
-    let reportMarkdown = ""
-    let hasError = false
-    let errorMessage = ""
-    const toolCalls: string[] = []
-    let turnCount = 0
+    let reportMarkdown = "";
+    let hasError = false;
+    let errorMessage = "";
+    const toolCalls: string[] = [];
+    let turnCount = 0;
 
     for await (const msg of claudeQuery(queryOptions)) {
       // 提取工具调用信息
-      const toolInfo = extractToolInfo(msg)
+      const toolInfo = extractToolInfo(msg);
       if (toolInfo) {
-        toolCalls.push(toolInfo)
+        toolCalls.push(toolInfo);
         updateProgress(db, reportId, {
           step: "executing",
           detail: toolInfo,
           toolCalls: toolCalls.slice(-5), // 只保留最近 5 个
-        })
-        console.log("[Insights] Tool call:", toolInfo)
+        });
+        console.log("[Insights] Tool call:", toolInfo);
       }
 
       // 处理不同类型的消息
       if (msg.type === "assistant" && msg.message?.content) {
         for (const block of msg.message.content) {
           if (block.type === "text" && block.text) {
-            reportMarkdown += block.text
+            reportMarkdown += block.text;
             // 更新进度：正在生成
-            if (reportMarkdown.length > 0 && reportMarkdown.length % 500 < 100) {
+            if (
+              reportMarkdown.length > 0 &&
+              reportMarkdown.length % 500 < 100
+            ) {
               updateProgress(db, reportId, {
                 step: "generating",
                 detail: `正在生成报告... (${reportMarkdown.length} 字符)`,
                 toolCalls: toolCalls.slice(-5),
-              })
+              });
             }
           }
         }
-        turnCount++
+        turnCount++;
       }
 
       // 处理 system init 消息
@@ -407,29 +441,30 @@ export async function generateInsightReport(
         updateProgress(db, reportId, {
           step: "agent_ready",
           detail: "Agent 已就绪，开始分析数据...",
-        })
+        });
       }
 
       // 处理错误
       if (msg.type === "error" || msg.error) {
-        hasError = true
-        errorMessage = typeof msg.error === "string"
-          ? msg.error
-          : msg.error?.message || "Unknown error"
-        console.error("[Insights] Agent error:", errorMessage)
+        hasError = true;
+        errorMessage =
+          typeof msg.error === "string"
+            ? msg.error
+            : msg.error?.message || "Unknown error";
+        console.error("[Insights] Agent error:", errorMessage);
       }
 
       // 处理结束
       if (msg.type === "result" && msg.result) {
         // 如果有最终结果，使用它
         if (typeof msg.result === "string") {
-          reportMarkdown = msg.result
+          reportMarkdown = msg.result;
         }
       }
     }
 
     if (hasError && !reportMarkdown) {
-      throw new Error(errorMessage || "Agent generation failed")
+      throw new Error(errorMessage || "Agent generation failed");
     }
 
     // 清理报告内容（移除可能的代码块标记）
@@ -437,23 +472,26 @@ export async function generateInsightReport(
       .replace(/^```markdown\n?/i, "")
       .replace(/^```html\n?/i, "")
       .replace(/\n?```$/i, "")
-      .trim()
+      .trim();
 
     if (!fullOutput) {
-      throw new Error("Agent did not generate any content")
+      throw new Error("Agent did not generate any content");
     }
 
-    console.log("[Insights] Agent generation completed, length:", fullOutput.length)
+    console.log(
+      "[Insights] Agent generation completed, length:",
+      fullOutput.length,
+    );
 
     // 解析输出，提取 SUMMARY 和 DETAIL
-    const { summary, detail } = parseAgentOutput(fullOutput)
+    const { summary, detail } = parseAgentOutput(fullOutput);
 
-    console.log("[Insights] Parsed - Summary:", summary.slice(0, 100), "...")
-    console.log("[Insights] Parsed - Detail length:", detail.length)
+    console.log("[Insights] Parsed - Summary:", summary.slice(0, 100), "...");
+    console.log("[Insights] Parsed - Detail length:", detail.length);
 
     // 如果没有解析出格式化输出，fallback 到原始输出
-    const finalSummary = summary || fullOutput.slice(0, 200)
-    const finalDetail = detail || fullOutput
+    const finalSummary = summary || fullOutput.slice(0, 200);
+    const finalDetail = detail || fullOutput;
 
     // 更新报告为完成状态（清除进度信息）
     db.update(insights)
@@ -467,15 +505,15 @@ export async function generateInsightReport(
         updatedAt: new Date(),
       })
       .where(eq(insights.id, reportId))
-      .run()
+      .run();
 
     return {
       summary: finalSummary,
       reportHtml: finalDetail,
       reportMarkdown: fullOutput,
-    }
+    };
   } catch (error) {
-    console.error("[Insights] Agent generation error:", error)
+    console.error("[Insights] Agent generation error:", error);
 
     // 更新为失败状态
     db.update(insights)
@@ -485,9 +523,9 @@ export async function generateInsightReport(
         updatedAt: new Date(),
       })
       .where(eq(insights.id, reportId))
-      .run()
+      .run();
 
-    throw error
+    throw error;
   }
 }
 
@@ -496,10 +534,10 @@ export async function generateInsightReport(
  */
 function formatNumber(num: number): string {
   if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M"
+    return (num / 1000000).toFixed(1) + "M";
   }
   if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "K"
+    return (num / 1000).toFixed(1) + "K";
   }
-  return num.toString()
+  return num.toString();
 }

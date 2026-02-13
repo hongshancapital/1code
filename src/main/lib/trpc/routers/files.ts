@@ -1,7 +1,8 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
-import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises"
-import { join, relative, basename, posix } from "node:path"
+import { readdir, stat, readFile, writeFile, mkdir, rm } from "node:fs/promises"
+import { join, relative, basename, posix, extname } from "node:path"
+import { createHash } from "node:crypto"
 import { spawn } from "node:child_process"
 import { platform } from "node:os"
 import { app } from "electron"
@@ -932,4 +933,130 @@ export const filesRouter = router({
         throw error
       }
     }),
+
+  // ── Draft Attachment Persistence ──────────────────────────────────────
+
+  /**
+   * Save a draft attachment (image/file) to disk.
+   * Returns the tempPath for later retrieval.
+   */
+  saveDraftAttachment: publicProcedure
+    .input(
+      z.object({
+        draftKey: z.string(),
+        attachmentId: z.string(),
+        filename: z.string(),
+        base64Data: z.string(),
+        mediaType: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { draftKey, attachmentId, filename, base64Data, mediaType } = input
+      const draftsDir = join(
+        app.getPath("userData"),
+        "draft-attachments",
+        sanitizeDraftKey(draftKey)
+      )
+      await mkdir(draftsDir, { recursive: true })
+
+      const ext = extname(filename).slice(1) || mediaType.split("/")[1] || "bin"
+      const contentHash = createHash("sha256").update(base64Data).digest("hex").slice(0, 16)
+      const safeFilename = `${contentHash}.${ext}`
+      const tempPath = join(draftsDir, safeFilename)
+
+      const buffer = Buffer.from(base64Data, "base64")
+      await writeFile(tempPath, buffer)
+
+      return { tempPath, size: buffer.length }
+    }),
+
+  /**
+   * Read a draft attachment from disk.
+   * Returns base64 data or null if file was already cleaned up.
+   */
+  readDraftAttachment: publicProcedure
+    .input(z.object({ tempPath: z.string() }))
+    .query(async ({ input }) => {
+      const allowedBase = join(app.getPath("userData"), "draft-attachments")
+      if (!input.tempPath.startsWith(allowedBase)) {
+        throw new Error("Invalid attachment path")
+      }
+
+      try {
+        const buffer = await readFile(input.tempPath)
+        return { base64Data: buffer.toString("base64"), size: buffer.length }
+      } catch {
+        return null
+      }
+    }),
+
+  /**
+   * Cleanup all draft attachments for a given draftKey.
+   */
+  cleanupDraftAttachments: publicProcedure
+    .input(z.object({ draftKey: z.string() }))
+    .mutation(async ({ input }) => {
+      const draftsDir = join(
+        app.getPath("userData"),
+        "draft-attachments",
+        sanitizeDraftKey(input.draftKey)
+      )
+      try {
+        await rm(draftsDir, { recursive: true, force: true })
+      } catch { /* ignore */ }
+      return { success: true }
+    }),
+
+  /**
+   * Cleanup stale draft attachment directories (older than 7 days).
+   * Called on app startup.
+   */
+  cleanupStaleDraftAttachments: publicProcedure.mutation(async () => {
+    await cleanupStaleDraftAttachmentDirs()
+    return { success: true }
+  }),
 })
+
+// ── Draft attachment helpers ────────────────────────────────────────────
+
+function sanitizeDraftKey(key: string): string {
+  return key.replace(/[:/\\?*"<>|]/g, "_")
+}
+
+function sanitizeFilename(name: string, fallbackExt: string): string {
+  const sanitized = name.replace(/[/\\?*"<>|:]/g, "_").slice(0, 100)
+  return sanitized || `attachment.${fallbackExt}`
+}
+
+/**
+ * Standalone cleanup function for stale draft attachment directories.
+ * Called on app startup from index.ts.
+ */
+export async function cleanupStaleDraftAttachmentDirs(): Promise<void> {
+  const baseDir = join(app.getPath("userData"), "draft-attachments")
+  const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+  try {
+    const entries = await readdir(baseDir, { withFileTypes: true })
+    const now = Date.now()
+    let cleaned = 0
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const dirPath = join(baseDir, entry.name)
+      try {
+        const dirStat = await stat(dirPath)
+        if (now - dirStat.mtimeMs > MAX_AGE_MS) {
+          await rm(dirPath, { recursive: true, force: true })
+          cleaned++
+        }
+      } catch { /* skip individual dir errors */ }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[files] Cleaned up ${cleaned} stale draft attachment dirs`)
+    }
+  } catch {
+    /* baseDir doesn't exist yet — nothing to clean */
+  }
+}

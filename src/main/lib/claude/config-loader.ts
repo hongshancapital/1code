@@ -15,6 +15,7 @@
 import type { AuthManager } from "../../auth-manager"
 import {
   readClaudeConfig,
+  readAgentConfig,
   getProjectMcpServers,
   resolveProjectPathFromWorktree,
   type McpServerConfig,
@@ -152,6 +153,19 @@ export class ClaudeConfigLoader {
       }
     }
 
+    return result
+  }
+
+  /**
+   * Load MCP servers from ~/.agent.json
+   */
+  async loadAgentJsonMcpServers(): Promise<Record<string, McpServerWithMeta>> {
+    const config = await readAgentConfig()
+    if (!config.mcpServers) return {}
+    const result: Record<string, McpServerWithMeta> = {}
+    for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+      result[name] = { ...serverConfig, _source: "agent-json" } as McpServerWithMeta
+    }
     return result
   }
 
@@ -341,16 +355,17 @@ export class ClaudeConfigLoader {
     override?: ConfigOverride
   ): Promise<LoadedConfig> {
     // Load all MCP servers in parallel
-    const [globalServers, projectServers, pluginServers, builtinServer] = await Promise.all([
+    const [globalServers, projectServers, pluginServers, agentJsonServers, builtinServer] = await Promise.all([
       this.loadGlobalMcpServers(),
       this.loadProjectMcpServers(context.cwd),
       context.includePlugins !== false ? this.loadPluginMcpServers() : Promise.resolve({}),
+      this.loadAgentJsonMcpServers(),
       context.includeBuiltin !== false && authManager
         ? this.loadBuiltinMcpServer(authManager)
         : Promise.resolve(null),
     ])
 
-    // Merge MCP servers with priority: builtin < plugins < global < project
+    // Merge MCP servers with priority: builtin < plugins < agent.json < global < project
     let mcpServers: Record<string, McpServerWithMeta> = {}
 
     // 1. Builtin (lowest priority)
@@ -361,10 +376,13 @@ export class ClaudeConfigLoader {
     // 2. Plugin servers
     mcpServers = { ...mcpServers, ...pluginServers }
 
-    // 3. Global servers
+    // 3. Agent.json servers
+    mcpServers = { ...mcpServers, ...agentJsonServers }
+
+    // 4. Global servers
     mcpServers = { ...mcpServers, ...globalServers }
 
-    // 4. Project servers (highest priority)
+    // 5. Project servers (highest priority)
     mcpServers = { ...mcpServers, ...projectServers }
 
     // Apply override

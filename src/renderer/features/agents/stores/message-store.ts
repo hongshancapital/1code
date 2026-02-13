@@ -97,6 +97,11 @@ export const isRollingBackAtom = atom<boolean>(false)
 // Current subChatId - used to isolate caches per chat
 export const currentSubChatIdAtom = atom<string>("default")
 
+// Whether messages have been synced after a workspace switch.
+// Set to false during workspace transition, true after first successful sync.
+// Used to prevent showing "No response received" / Retry during the loading gap.
+export const isMessagesSyncedAtom = atom<boolean>(true)
+
 // Last message ID - derived (uses stable messageIdsAtom)
 export const lastMessageIdAtom = atom((get) => {
   const ids = get(messageIdsAtom)
@@ -830,6 +835,7 @@ export const syncMessagesWithStatusAtom = atom(
           // Deep clone message with new parts array and new part objects
           const clonedMsg = {
             ...msg,
+            createdAt: msg.createdAt || currentAtomValue?.createdAt,
             parts: msg.parts?.map((part: any) => ({ ...part, input: part.input ? { ...part.input } : undefined })),
           }
           set(messageAtomFamily(msg.id), clonedMsg)
@@ -859,6 +865,11 @@ export const syncMessagesWithStatusAtom = atom(
       set(streamingMessageIdAtom, lastId)
     } else {
       set(streamingMessageIdAtom, null)
+    }
+
+    // Mark messages as synced — clears the loading guard after workspace switch
+    if (!get(isMessagesSyncedAtom)) {
+      set(isMessagesSyncedAtom, true)
     }
 
     const duration = performance.now() - _syncStart

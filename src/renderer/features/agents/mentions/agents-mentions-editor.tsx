@@ -88,6 +88,10 @@ type AgentsMentionsEditorProps = {
   // Input history navigation (ArrowUp/ArrowDown)
   onHistoryUp?: (currentValue: string) => string | null // Navigate to older history
   onHistoryDown?: () => string | null // Navigate to newer history or draft
+  // IME integration: called when IME confirms input while @ trigger is active
+  // searchText: the final search text after @ (from DOM after IME confirms)
+  // Returns: "selected" if exact match found and selected, "partial" if partial match (keep dropdown), "none" if no match
+  onImeConfirm?: (searchText: string) => "selected" | "partial" | "none"
 }
 
 // Append text to element (no styling in input, ultrathink only in sent messages)
@@ -519,6 +523,7 @@ export const AgentsMentionsEditor = memo(
         onBlur,
         onHistoryUp,
         onHistoryDown,
+        onImeConfirm,
       },
       ref,
     ) {
@@ -821,13 +826,82 @@ export const AgentsMentionsEditor = memo(
       // Trigger detection timeout ref for cleanup
       const triggerDetectionTimeout = useRef<number | null>(null)
 
-      // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection
-      const handleInput = useCallback(() => {
-        if (!editorRef.current) return
+      // Track IME composition state using ref (avoids attribute timing issues)
+      const isComposingRef = useRef(false)
+      // Track if we just finished composing to prevent immediate submission
+      const justFinishedComposingRef = useRef(false)
+      // Track last Enter keydown time to prevent rapid re-submission after IME
+      const lastEnterTimeRef = useRef(0)
 
-        // Save undo state with debounce (for typing)
-        // This captures state periodically during typing for proper undo
-        debouncedSaveUndoState()
+      // Handle IME composition start (e.g., Chinese pinyin input)
+      const handleCompositionStart = useCallback(() => {
+        isComposingRef.current = true
+        justFinishedComposingRef.current = false
+        // Don't close triggers - let search continue during IME composition
+        // The dropdown will update as user types pinyin
+      }, [])
+
+      // Handle IME composition end
+      const handleCompositionEnd = useCallback(() => {
+        isComposingRef.current = false
+        // Mark that we just finished composing to prevent immediate submission
+        // This handles the case where compositionend and keydown happen in same event loop
+        justFinishedComposingRef.current = true
+        // Also track the time to prevent submission shortly after IME ends
+        lastEnterTimeRef.current = Date.now() + 150 // 150ms buffer
+        // Clear the flag after a short delay (one event cycle)
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            justFinishedComposingRef.current = false
+          })
+        })
+
+        // If @ trigger is active, check if we should auto-select
+        if (triggerActive.current && triggerStartIndex.current !== null && onImeConfirm) {
+          // Use setTimeout to ensure DOM is updated with composed text
+          setTimeout(() => {
+            if (!editorRef.current || !triggerActive.current || triggerStartIndex.current === null) return
+
+            // Get the final search text from DOM (after @ symbol)
+            const sel = window.getSelection()
+            const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+            const { textBeforeCursor, atIndex } = walkTreeOnce(editorRef.current, range)
+
+            // Extract text after @ for the current trigger
+            const finalSearchText = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ""
+
+            // Check if dropdown has an exact match for the final text
+            const result = onImeConfirm(finalSearchText)
+
+            if (result === "selected") {
+              // Exact match found and selected - close trigger
+              // The insertMention will handle removing the @ and search text
+              triggerActive.current = false
+              triggerStartIndex.current = null
+            } else if (result === "partial") {
+              // Partial match - keep dropdown open, let user continue
+              // Trigger an input event to update the search
+              editorRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+            } else {
+              // No match - close dropdown and let the IME text stay
+              triggerActive.current = false
+              triggerStartIndex.current = null
+              onCloseTrigger()
+            }
+          }, 0)
+        } else {
+          // No active trigger, just re-run detection in case @ was typed during IME
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+            }
+          }, 0)
+        }
+      }, [onImeConfirm, onCloseTrigger])
+
+      // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection
+      const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+        if (!editorRef.current) return
 
         // Update placeholder visibility and notify parent IMMEDIATELY (cheap operation)
         // Use textContent without trim() so placeholder hides even with just spaces
@@ -835,6 +909,15 @@ export const AgentsMentionsEditor = memo(
         const newHasContent = !!content
         setHasContent(newHasContent)
         onContentChange?.(newHasContent)
+
+        // During IME composition, still update search but don't close triggers
+        // This allows real-time search as user types pinyin
+        const duringIme = isComposingRef.current
+
+        // Save undo state with debounce (for typing) - skip during IME
+        if (!duringIme) {
+          debouncedSaveUndoState()
+        }
 
         // Skip expensive trigger detection for very large text
         // This prevents UI freeze when pasting large content
@@ -987,6 +1070,22 @@ export const AgentsMentionsEditor = memo(
         }
       }, [])
 
+      // Handle beforeinput - this fires before the input is actually committed
+      // Useful for detecting IME composition reliably via inputType
+      const handleBeforeInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+        const nativeEvent = e.nativeEvent as InputEvent
+        // When IME is composing, inputType will be "insertCompositionText"
+        // This is more reliable than compositionstart/end events for Enter handling
+        if (nativeEvent.inputType === "insertCompositionText") {
+          isComposingRef.current = true
+          justFinishedComposingRef.current = false
+          lastEnterTimeRef.current = Date.now() + 150
+        } else if (nativeEvent.inputType === "insertText" && isComposingRef.current) {
+          // Regular text insertion after IME ended - still block Enter for a bit
+          lastEnterTimeRef.current = Date.now() + 150
+        }
+      }, [])
+
       // Handle keydown
       const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -1047,7 +1146,15 @@ export const AgentsMentionsEditor = memo(
           }
 
           // Prevent submission during IME composition (e.g., Chinese/Japanese/Korean input)
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          // Check multiple conditions to handle timing issues where compositionend
+          // and keydown happen in the same event loop
+          const isImeActive = isComposingRef.current || justFinishedComposingRef.current
+          // Also check the native isComposing flag as a fallback
+          const isNativeComposing = (e.nativeEvent as KeyboardEvent).isComposing
+          // Also check if we're within the IME buffer time after composition
+          const inImeBuffer = Date.now() < lastEnterTimeRef.current
+
+          if (e.key === "Enter" && !e.shiftKey && !isImeActive && !isNativeComposing && !inImeBuffer) {
             if (triggerActive.current || slashTriggerActive.current) {
               // Let dropdown handle Enter
               return
@@ -1620,7 +1727,10 @@ export const AgentsMentionsEditor = memo(
             contentEditable={!disabled}
             suppressContentEditableWarning
             spellCheck={false}
+            onBeforeInput={handleBeforeInput}
             onInput={handleInput}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onKeyDown={handleKeyDown}
             onPaste={(e) => {
               // Save state for undo before paste (immediate, not debounced)

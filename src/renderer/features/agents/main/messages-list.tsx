@@ -1,19 +1,25 @@
 "use client"
 
-import { useAtomValue } from "jotai"
+import { useState } from "react"
+import { useAtom, useAtomValue } from "jotai"
 import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
-import { RotateCcw } from "lucide-react"
-import { showMessageJsonAtom } from "../atoms"
+import { RotateCcw, ChevronDown, ChevronRight, Code, Copy, Check } from "lucide-react"
+import { showMessageJsonAtom, showDebugRequestAtom } from "../atoms"
 import { extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
 import {
   chatStatusAtom,
   isLastMessageAtomFamily,
   isStreamingAtom,
+  currentSubChatIdAtom,
   messageAtomFamily,
+  isMessagesSyncedAtom,
 } from "../stores/message-store"
 import { MessageJsonDisplay } from "../ui/message-json-display"
 import { AssistantMessageItem } from "./assistant-message-item"
+import { stripFileAttachmentText } from "../lib/message-utils"
+import { trpc } from "../../../lib/trpc"
+import { toast } from "sonner"
 
 // ============================================================================
 // MESSAGE STORE - External store for fine-grained subscriptions
@@ -759,6 +765,7 @@ interface SimpleIsolatedGroupProps {
     messageId: string
     textContent: string
     imageParts: any[]
+    fileParts?: any[]
     skipTextMentionBlocks?: boolean
   }>
   ToolCallComponent: React.ComponentType<{
@@ -813,16 +820,80 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   // Subscribe to this specific user message and its assistant IDs
   const { userMsg, assistantMsgIds, isLastGroup } = useUserMessageWithAssistants(userMsgId)
   const { isStreaming } = useStreamingStatus()
+  const isMessagesSynced = useAtomValue(isMessagesSyncedAtom)
   const showMessageJson = useAtomValue(showMessageJsonAtom)
+  const showDebugRequest = useAtomValue(showDebugRequestAtom)
   const isDev = import.meta.env.DEV
 
+  // Debug data state - only shown when showDebugRequest is enabled
+  const [expandedDebugSections, setExpandedDebugSections] = useState<Set<string>>(new Set())
+  const [copiedDebugJson, setCopiedDebugJson] = useState(false)
+
+  // Query debug data for this subChat
+  const { data: debugData } = trpc.debug.getLastUserMessage.useQuery(
+    { subChatId },
+    { enabled: showDebugRequest && !!subChatId }
+  )
+
+  // Debug logs
+  console.log('[Debug Display] showDebugRequest:', showDebugRequest)
+  console.log('[Debug Display] subChatId:', subChatId)
+  console.log('[Debug Display] debugData:', debugData)
+
+  const toggleDebugSection = (section: string) => {
+    setExpandedDebugSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  }
+
+  const handleCopyDebugJson = async () => {
+    if (debugData?.requestPayload) {
+      await navigator.clipboard.writeText(JSON.stringify(debugData.requestPayload, null, 2))
+      setCopiedDebugJson(true)
+      toast.success("Debug request data copied")
+      setTimeout(() => setCopiedDebugJson(false), 2000)
+    }
+  }
+
+  const formatDebugValue = (value: unknown): string => {
+    if (value === undefined || value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number") return String(value)
+    if (typeof value === "boolean") return value ? "true" : "false"
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "[]"
+      return `[${value.length} items]`
+    }
+    if (typeof value === "object") {
+      const keys = Object.keys(value)
+      if (keys.length === 0) return "{}"
+      return `{${keys.length} keys}`
+    }
+    return String(value)
+  }
+
   // User message data (computed before hooks that depend on it)
-  const rawTextContent = userMsg?.parts
-    ?.filter((p: any) => p.type === "text")
-    .map((p: any) => p.text)
-    .join("\n") || ""
+  // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
+  // and extracts file metadata as fallback for old messages without data-file parts
+  const { cleanedText: rawTextContent, parsedFiles } = stripFileAttachmentText(
+    userMsg?.parts
+      ?.filter((p: any) => p.type === "text")
+      .map((p: any) => p.text)
+      .join("\n") || ""
+  )
 
   const imageParts = userMsg?.parts?.filter((p: any) => p.type === "data-image") || []
+  const dbFileParts = userMsg?.parts?.filter((p: any) => p.type === "data-file") || []
+  // Use DB data-file parts if available, otherwise reconstruct from parsed text
+  const fileParts = dbFileParts.length > 0
+    ? dbFileParts
+    : parsedFiles.map((f) => ({ type: "data-file", data: { filename: f.filename, size: f.size, localPath: f.localPath } }))
 
   // IMPORTANT: All hooks must be called BEFORE any early returns (Rules of Hooks)
   // Extract text mentions (quote/diff) to render separately above sticky block
@@ -851,22 +922,25 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   // - No assistant response received
   // - Not currently streaming
   // - Not a sandbox setup issue (cloning or error)
+  // - Messages have been synced (not in workspace switch loading gap)
   const shouldShowRetry =
     isLastGroup &&
     assistantMsgIds.length === 0 &&
     !isStreaming &&
+    isMessagesSynced &&
     sandboxSetupStatus === "ready" &&
     onRetryMessage
 
   return (
     <MessageGroupComponent>
       {/* Attachments - NOT sticky */}
-      {imageParts.length > 0 && (
+      {(imageParts.length > 0 || fileParts.length > 0) && (
         <div className="mb-2 pointer-events-auto">
           <UserBubbleComponent
             messageId={userMsg.id}
             textContent=""
             imageParts={imageParts}
+            fileParts={fileParts}
             skipTextMentionBlocks
           />
         </div>
@@ -885,7 +959,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
         className={`[&>div]:mb-4! pointer-events-auto sticky z-10 ${stickyTopClass}`}
       >
         {/* Show "Using X" summary when no text but have attachments */}
-        {!textContent.trim() && (imageParts.length > 0 || textMentions.length > 0) ? (
+        {!textContent.trim() && (imageParts.length > 0 || fileParts.length > 0 || textMentions.length > 0) ? (
           <div className="flex justify-start drop-shadow-[0_10px_20px_hsl(var(--background))]" data-user-bubble>
             <div className="flex flex-col gap-2 w-full">
               <div className="bg-input-background border px-3 py-2 rounded-xl text-sm text-muted-foreground italic">
@@ -893,6 +967,9 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
                   const parts: string[] = []
                   if (imageParts.length > 0) {
                     parts.push(imageParts.length === 1 ? "image" : `${imageParts.length} images`)
+                  }
+                  if (fileParts.length > 0) {
+                    parts.push(fileParts.length === 1 ? "file" : `${fileParts.length} files`)
                   }
                   const quoteCount = textMentions.filter(m => m.type === "quote" || m.type === "pasted").length
                   const codeCount = textMentions.filter(m => m.type === "diff").length
@@ -912,6 +989,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
             messageId={userMsg.id}
             textContent={textContent}
             imageParts={[]}
+            fileParts={fileParts}
             skipTextMentionBlocks
           />
         )}
@@ -950,6 +1028,146 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
       {isDev && showMessageJson && (
         <div className="pointer-events-auto mt-1 mb-2">
           <MessageJsonDisplay message={userMsg} label="User" />
+        </div>
+      )}
+
+      {/* Debug Request display - shown when showDebugRequest is enabled */}
+      {showDebugRequest && debugData?.requestPayload && (
+        <div className="pointer-events-auto mt-1 mb-2">
+          <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
+            {/* Header with timestamp */}
+            <div className="flex items-center justify-between p-3 border-b border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <Code className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Debug Request Payload
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground font-mono">
+                {debugData.timestamp || "-"}
+              </span>
+            </div>
+
+            {/* Collapsible sections */}
+            <div className="divide-y divide-blue-200 dark:divide-blue-800">
+              {Object.entries(debugData.requestPayload).map(([key, value]) => {
+                const isExpanded = expandedDebugSections.has(key)
+                const isArray = Array.isArray(value)
+                const isObject = typeof value === "object" && value !== null && !isArray
+                const isEmptyArray = isArray && value.length === 0
+                const isEmptyObject = isObject && Object.keys(value).length === 0
+                const isSimpleValue = !isArray && !isObject
+
+                return (
+                  <div key={key} className="border-b border-blue-200 dark:border-blue-800 last:border-b-0">
+                    <button
+                      onClick={() => toggleDebugSection(key)}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      <span className="text-sm font-medium">{key}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {isSimpleValue ? (
+                            <span className="font-mono bg-background px-2 py-0.5 rounded">
+                              {formatDebugValue(value)}
+                            </span>
+                          ) : isArray ? (
+                            <span className="font-mono text-blue-600 dark:text-blue-400">
+                              Array[{value.length}]
+                            </span>
+                          ) : isObject ? (
+                            <span className="font-mono text-purple-600 dark:text-purple-400">
+                              Object{"{"}{Object.keys(value).length}{"}"}
+                            </span>
+                          ) : (
+                            <span className="font-mono">null</span>
+                          )}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div className="p-3 bg-background border-t border-blue-200 dark:border-blue-800 max-h-[500px] overflow-y-auto">
+                        {isSimpleValue ? (
+                          <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                            {formatDebugValue(value)}
+                          </pre>
+                        ) : isArray ? (
+                          <div>
+                            {isEmptyArray ? (
+                              <p className="text-xs text-muted-foreground italic">Empty array</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {(value as unknown[]).map((item, idx) => (
+                                  <div key={idx} className="border rounded bg-muted/20 p-2">
+                                    <div className="text-xs font-mono text-muted-foreground mb-1">
+                                      [{idx}]
+                                    </div>
+                                    <pre className="text-xs font-mono whitespace-pre-wrap break-all overflow-x-auto">
+                                      {typeof item === "object"
+                                        ? JSON.stringify(item, null, 2)
+                                        : formatDebugValue(item)}
+                                    </pre>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : isObject ? (
+                          <div>
+                            {isEmptyObject ? (
+                              <p className="text-xs text-muted-foreground italic">Empty object</p>
+                            ) : (
+                              <div className="grid gap-2 text-xs font-mono">
+                                {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+                                  <div key={k} className="flex gap-2">
+                                    <span className="text-blue-600 dark:text-blue-400 min-w-24">{k}:</span>
+                                    <span className="text-muted-foreground break-all">
+                                      {typeof v === "object"
+                                        ? JSON.stringify(v, null, 2)
+                                        : formatDebugValue(v)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <pre className="text-xs font-mono">null</pre>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Copy button */}
+            <div className="p-3 border-t border-blue-200 dark:border-blue-800">
+              <button
+                onClick={handleCopyDebugJson}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              >
+                {copiedDebugJson ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy Full JSON
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

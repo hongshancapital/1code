@@ -154,11 +154,12 @@ function AddProviderDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  editProvider?: { id: string; name: string; baseUrl?: string } | null
+  editProvider?: { id: string; name: string; baseUrl?: string; manualModels?: string[] } | null
 }) {
   const [name, setName] = useState("")
   const [baseUrl, setBaseUrl] = useState("")
   const [apiKey, setApiKey] = useState("")
+  const [manualModelsText, setManualModelsText] = useState("")
   const [isValidating, setIsValidating] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -169,19 +170,42 @@ function AddProviderDialog({
 
   const isEditing = !!editProvider
 
+  // Log for debugging
+  useEffect(() => {
+    if (open && editProvider) {
+      console.log("[AddProviderDialog] editProvider:", editProvider)
+    }
+  }, [open, editProvider])
+
   useEffect(() => {
     if (open && editProvider) {
       setName(editProvider.name)
       setBaseUrl(editProvider.baseUrl || "")
       setApiKey("")
+      // Parse manual models - handle both array and string formats
+      const models = editProvider.manualModels
+      if (Array.isArray(models)) {
+        setManualModelsText(models.join("\n"))
+      } else {
+        setManualModelsText("")
+      }
       setValidationError(null)
     } else if (open) {
       setName("")
       setBaseUrl("")
       setApiKey("")
+      setManualModelsText("")
       setValidationError(null)
     }
   }, [open, editProvider])
+
+  // Parse manual models from textarea (one per line)
+  const parseManualModels = (): string[] => {
+    return manualModelsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+  }
 
   const handleTest = async () => {
     if (!baseUrl || !apiKey) return
@@ -194,7 +218,13 @@ function AddProviderDialog({
       if (result.success) {
         toast.success(`连接成功，发现 ${result.modelCount} 个模型`)
       } else {
-        setValidationError(result.error || "连接失败")
+        // If /models fails but we have manual models, that's OK
+        const manualModels = parseManualModels()
+        if (manualModels.length > 0) {
+          toast.success("API 连接正常（将使用手动配置的模型列表）")
+        } else {
+          setValidationError(result.error || "连接失败")
+        }
       }
     } catch {
       setValidationError("连接测试失败")
@@ -209,6 +239,8 @@ function AddProviderDialog({
       return
     }
 
+    const manualModels = parseManualModels()
+
     setIsValidating(true)
 
     try {
@@ -218,6 +250,7 @@ function AddProviderDialog({
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           ...(apiKey && { apiKey }),
+          manualModels: manualModels.length > 0 ? manualModels : null,
         })
         toast.success("Provider 更新成功")
       } else {
@@ -231,7 +264,8 @@ function AddProviderDialog({
           name: name.trim(),
           baseUrl: baseUrl.trim(),
           apiKey: apiKey.trim(),
-          skipValidation: false,
+          skipValidation: manualModels.length > 0, // Skip if manual models provided
+          manualModels: manualModels.length > 0 ? manualModels : undefined,
         })
 
         if (!result.success) {
@@ -244,6 +278,10 @@ function AddProviderDialog({
       }
 
       await trpcUtils.providers.list.invalidate()
+      // Also invalidate getModels cache for this provider so Configure Models shows updated list
+      if (isEditing && editProvider) {
+        await trpcUtils.providers.getModels.invalidate({ providerId: editProvider.id })
+      }
       onOpenChange(false)
     } catch {
       toast.error(isEditing ? "更新失败" : "添加失败")
@@ -294,6 +332,34 @@ function AddProviderDialog({
               placeholder={isEditing ? "••••••••" : "sk-..."}
               className="mt-1"
             />
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-1.5">
+              手动模型列表
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>适用于不支持 /models 接口的 API。每行一个模型 ID，如 claude-3-5-sonnet-20241022</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="text-xs text-muted-foreground font-normal">(可选)</span>
+            </Label>
+            <textarea
+              value={manualModelsText}
+              onChange={(e) => setManualModelsText(e.target.value)}
+              placeholder={"每行输入一个模型 ID，例如：\nclaude-3-5-sonnet-20241022\nclaude-3-opus-20240229"}
+              className="mt-1 w-full h-24 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 font-mono"
+            />
+            {manualModelsText && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                已配置 {parseManualModels().length} 个模型
+              </p>
+            )}
           </div>
 
           {validationError && (
@@ -426,6 +492,29 @@ function ConfigureModelsDialog({
       )
     : models
 
+  const groupedModels = useMemo(() => {
+    const groups: Record<string, ModelInfo[]> = {}
+    filteredModels.forEach((m) => {
+      let groupName = "General"
+      if (m.id.includes("/")) {
+        groupName = m.id.split("/")[0]
+      } else {
+        const match = m.id.match(/^([a-zA-Z0-9]+)[-:]/)
+        if (match) {
+          groupName = match[1]
+        } else if (m.id.includes("-")) {
+          groupName = m.id.split("-")[0]
+        }
+      }
+      groupName = groupName.charAt(0).toUpperCase() + groupName.slice(1)
+      if (!groups[groupName]) groups[groupName] = []
+      groups[groupName].push(m)
+    })
+    return groups
+  }, [filteredModels])
+
+  const sortedGroupKeys = useMemo(() => Object.keys(groupedModels).sort(), [groupedModels])
+
   const handleToggleModel = (modelId: string) => {
     toggleModel({ providerId: provider.id, modelId })
   }
@@ -467,37 +556,53 @@ function ConfigureModelsDialog({
                 加载模型列表...
               </div>
             ) : modelsData?.error ? (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 m-2 rounded-md">{modelsData.error}</div>
+              <div className="p-3 m-2 space-y-2">
+                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{modelsData.error}</div>
+                <p className="text-xs text-muted-foreground">
+                  如果此 API 不支持 /models 接口，可以点击 Provider 旁的编辑按钮手动配置模型列表。
+                </p>
+              </div>
             ) : filteredModels.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">暂无可用模型</div>
+              <div className="text-sm text-muted-foreground py-8 text-center">
+                暂无可用模型
+                <p className="text-xs mt-1">点击刷新按钮重新获取，或编辑 Provider 手动配置模型列表</p>
+              </div>
             ) : (
               <table className="w-full text-left text-sm">
-                <thead className="text-xs text-muted-foreground font-medium bg-muted/30 sticky top-0">
+                <thead className="text-xs text-muted-foreground font-medium bg-muted sticky top-0 z-10 border-b border-border">
                   <tr>
                     <th className="px-3 py-2 font-medium">模型名称</th>
                     <th className="px-3 py-2 font-medium text-right">启用</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredModels.map((model) => {
-                    const isEnabled = enabledModelIds.length === 0 || enabledModelIds.includes(model.id)
-                    return (
-                      <tr key={model.id} className="group hover:bg-muted/50 transition-colors">
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-foreground text-xs">{model.name}</span>
-                            <span className="text-[11px] text-muted-foreground font-mono">{model.id}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={() => handleToggleModel(model.id)}
-                          />
-                        </td>
-                      </tr>
-                    )
-                  })}
+                <tbody>
+                  {sortedGroupKeys.map((group) => (
+                    <React.Fragment key={group}>
+                      {sortedGroupKeys.length > 1 && (
+                        <tr className="bg-muted sticky top-8 z-10 border-b border-border">
+                          <td colSpan={2} className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            {group}
+                          </td>
+                        </tr>
+                      )}
+                      {groupedModels[group]?.map((model) => {
+                        const isEnabled = enabledModelIds.length === 0 || enabledModelIds.includes(model.id)
+                        return (
+                          <tr key={model.id} className="group hover:bg-muted/50 transition-colors">
+                            <td className="px-3 py-2.5">
+                              <span className="font-medium text-foreground text-xs">{model.name}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <Switch
+                                checked={isEnabled}
+                                onCheckedChange={() => handleToggleModel(model.id)}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </React.Fragment>
+                  ))}
                 </tbody>
               </table>
             )}
@@ -540,6 +645,7 @@ function ProviderCard({
   onConfigureModels: () => void
   onEdit?: () => void
 }) {
+  const { t } = useTranslation("settings")
   // Anthropic: check connection status
   const { data: activeAccount } = trpc.anthropicAccounts.getActive.useQuery(undefined, {
     enabled: provider.type === "anthropic",
@@ -548,10 +654,19 @@ function ProviderCard({
   const canToggle = provider.type === "anthropic" ? isAnthropicConnected : true
 
   // Fetch model count for badge
-  const { data: modelsData } = trpc.providers.getModels.useQuery(
+  const { data: modelsData, isLoading: isModelsLoading } = trpc.providers.getModels.useQuery(
     { providerId: provider.id, forceRefresh: false },
     { enabled: isEnabled },
   )
+  const updateProviderModels = useSetAtom(updateProviderModelsAtom)
+
+  // Sync models to atom when fetched (to ensure they are available for dropdowns)
+  useEffect(() => {
+    if (modelsData?.models) {
+      updateProviderModels({ providerId: provider.id, models: modelsData.models })
+    }
+  }, [modelsData?.models, provider.id, updateProviderModels])
+
   const enabledModelsPerProvider = useAtomValue(enabledModelsPerProviderAtom)
   const enabledModelIds = enabledModelsPerProvider[provider.id] || []
   const totalModels = modelsData?.models?.length || 0
@@ -565,42 +680,50 @@ function ProviderCard({
       <div className="flex items-center justify-between p-4">
         {/* Left: Provider info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-foreground">{provider.name}</span>
-            {provider.type === "litellm" && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-primary cursor-pointer hover:underline">
-                <Info className="h-3 w-3" />
-                View supported models
-              </span>
+            {provider.type === "custom" && onEdit && (
+              <button
+                onClick={onEdit}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {provider.type === "anthropic" && "Use your Claude Pro, Max, Team, or Enterprise subscription"}
-            {provider.type === "litellm" && "Connect through a LiteLLM proxy server"}
-            {provider.type === "custom" && provider.name}
+            {provider.type === "anthropic" && t("models.auth.oauth.description")}
+            {provider.type === "litellm" && t("models.auth.litellm.description")}
+            {provider.type === "custom" && t("models.auth.custom.title")}
           </p>
 
           {/* Anthropic: OAuth status */}
           {provider.type === "anthropic" && <OAuthSection />}
 
           {/* Enabled model tags (when connected) */}
-          {isEnabled && enabledCount > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {(modelsData?.models || [])
-                .filter((m) => enabledModelIds.length === 0 || enabledModelIds.includes(m.id))
-                .slice(0, 4)
-                .map((model) => (
-                  <span
-                    key={model.id}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border"
-                  >
-                    {model.name}
-                  </span>
-                ))}
-              {enabledCount > 4 && (
-                <span className="text-[10px] text-muted-foreground py-0.5">+{enabledCount - 4} more</span>
-              )}
-            </div>
+          {isEnabled && (
+            isModelsLoading ? (
+              <div className="mt-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              </div>
+            ) : enabledCount > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {(modelsData?.models || [])
+                  .filter((m) => enabledModelIds.length === 0 || enabledModelIds.includes(m.id))
+                  .slice(0, 4)
+                  .map((model) => (
+                    <span
+                      key={model.id}
+                      className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border"
+                    >
+                      {model.name}
+                    </span>
+                  ))}
+                {enabledCount > 4 && (
+                  <span className="text-[10px] text-muted-foreground py-0.5">+{enabledCount - 4} more</span>
+                )}
+              </div>
+            )
           )}
         </div>
 
@@ -615,14 +738,6 @@ function ProviderCard({
             >
               Configure Models
             </Button>
-          )}
-          {provider.type === "custom" && onEdit && (
-            <button
-              onClick={onEdit}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
           )}
           <TooltipProvider>
             <Tooltip>
@@ -835,16 +950,205 @@ function TaskModelSelect({
   )
 }
 
+// ============ Image Model Select ============
+
+function ImageModelSelect({
+  selectedProviderId,
+  selectedModelId,
+  onSelect,
+  showUseDefault = true,
+}: {
+  selectedProviderId: string | null
+  selectedModelId: string | null
+  onSelect: (providerId: string | null, modelId: string | null) => void
+  showUseDefault?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const allModelsMap = useAtomValue(providerModelsAtom)
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
+
+  const { data: allProviders } = trpc.providers.list.useQuery()
+
+  // Build grouped models - iterate all providers and find image models
+  // Ignores "enabled models" checkbox configuration
+  const groupedModels = useMemo(() => {
+    const groups: { provider: { id: string; name: string; type: string }; models: ModelInfo[] }[] = []
+
+    for (const provider of (allProviders || [])) {
+      // Skip if provider has no models loaded yet
+      const providerModels = allModelsMap?.[provider.id] || []
+      if (providerModels.length === 0) continue
+
+      // Filter for image models
+      const imageModels = providerModels.filter((m) => isImageModel(m.id))
+
+      if (imageModels.length > 0) {
+        groups.push({ provider, models: imageModels })
+      }
+    }
+    return groups
+  }, [allProviders, allModelsMap])
+
+  // Determine display
+  const isUseDefault = !selectedProviderId && !selectedModelId
+  let displayText = showUseDefault ? "Use Default Model" : "选择模型"
+  let displayBadge: string | null = null
+
+  if (selectedModelId) {
+    // Find model name
+    for (const group of groupedModels) {
+      const found = group.models.find((m) => m.id === selectedModelId)
+      if (found) {
+        displayText = found.name
+        displayBadge = group.provider.name
+        break
+      }
+    }
+    // Fallback if model not found in filtered list (e.g. manually set or not an image model anymore)
+    if (displayBadge === null && selectedModelId) {
+      displayText = selectedModelId
+    }
+  }
+
+  // Click outside to close
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [isOpen])
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        className="flex items-center gap-1.5 px-3 h-9 text-xs border rounded-md bg-muted/30 hover:bg-muted/50 transition-colors min-w-[200px] justify-between"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <span className={cn("truncate", isUseDefault && !selectedModelId ? "text-muted-foreground" : "text-foreground")}>
+            {displayText}
+          </span>
+          {displayBadge && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded text-[10px] bg-muted text-muted-foreground shrink-0">
+              {displayBadge}
+            </span>
+          )}
+        </div>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 z-50 w-[280px] bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+          <div className="max-h-[300px] overflow-y-auto py-1">
+            {/* Use Default option */}
+            {showUseDefault && (
+              <>
+                <button
+                  className={cn(
+                    "w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors flex items-center justify-between",
+                    isUseDefault && "bg-primary/5",
+                  )}
+                  onClick={() => {
+                    onSelect(null, null)
+                    setIsOpen(false)
+                  }}
+                >
+                  <span className="text-muted-foreground">Use Default Model</span>
+                  {isUseDefault && <Check className="h-3.5 w-3.5 text-primary" />}
+                </button>
+                <div className="h-px bg-border mx-2 my-1" />
+              </>
+            )}
+
+            {/* Grouped models */}
+            {groupedModels.map((group) => (
+              <div key={group.provider.id}>
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {group.provider.name}
+                </div>
+                {group.models.map((model) => {
+                  const isSelected = selectedModelId === model.id && selectedProviderId === group.provider.id
+                  return (
+                    <button
+                      key={model.id}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors flex items-center justify-between",
+                        isSelected && "bg-primary/5",
+                      )}
+                      onClick={() => {
+                        onSelect(group.provider.id, model.id)
+                        setIsOpen(false)
+                      }}
+                    >
+                      <span className={cn("truncate", isSelected && "font-medium")}>{model.name}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+
+            {groupedModels.length === 0 && (
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                没有找到图片生成模型
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ============ Advanced Model Settings ============
+
+function ImageModelDropdown({
+  providerIdAtom,
+  modelIdAtom,
+  label,
+  description,
+  showUseDefault,
+}: {
+  providerIdAtom: ReturnType<typeof import("jotai").atom<string | null>>
+  modelIdAtom: ReturnType<typeof import("jotai").atom<string | null>>
+  label: string
+  description: string
+  showUseDefault?: boolean
+}) {
+  const [selectedProviderId, setSelectedProviderId] = useAtom(providerIdAtom)
+  const [selectedModelId, setSelectedModelId] = useAtom(modelIdAtom)
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border last:border-b-0">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">{description}</span>
+      </div>
+      <ImageModelSelect
+        selectedProviderId={selectedProviderId}
+        selectedModelId={selectedModelId}
+        onSelect={(providerId, modelId) => {
+          setSelectedProviderId(providerId)
+          setSelectedModelId(modelId)
+        }}
+        showUseDefault={showUseDefault}
+      />
+    </div>
+  )
+}
 
 function AdvancedModelSettings() {
   const [isExpanded, setIsExpanded] = useState(false)
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="rounded-xl border border-border">
       {/* Header */}
       <button
-        className="w-full flex items-center justify-between p-4 bg-background hover:bg-muted/30 transition-colors"
+        className="w-full flex items-center justify-between p-4 rounded-xl bg-background hover:bg-muted/30 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="text-left">
@@ -882,7 +1186,7 @@ function AdvancedModelSettings() {
           />
 
           {/* Image Generation */}
-          <TaskModelDropdown
+          <ImageModelDropdown
             providerIdAtom={imageProviderIdAtom}
             modelIdAtom={imageModelIdAtom}
             label="Image Generation"
@@ -890,12 +1194,12 @@ function AdvancedModelSettings() {
             showUseDefault
           />
 
-          {/* Research Mode */}
+          {/* Summary Model */}
           <TaskModelDropdown
-            providerIdAtom={researchModeProviderIdAtom}
-            modelIdAtom={researchModeModelIdAtom}
-            label="Research Mode"
-            description="Model for exploration and research tasks"
+            providerIdAtom={summaryProviderIdAtom}
+            modelIdAtom={summaryModelIdAtom}
+            label="Summary Model"
+            description="Fast model for summaries, chat titles, and memory processing"
             showUseDefault
           />
         </div>
@@ -940,6 +1244,7 @@ function ModelSourcesPanel() {
     id: string
     name: string
     baseUrl?: string
+    manualModels?: string[]
   } | null>(null)
   const [configureProvider, setConfigureProvider] = useState<ProviderInfo | null>(null)
 
@@ -980,12 +1285,15 @@ function ModelSourcesPanel() {
             onEdit={provider.type === "custom" ? async () => {
               try {
                 const detail = await trpcUtils.providers.get.fetch({ id: provider.id })
+                console.log("[ModelSourcesPanel.onEdit] Provider detail:", detail)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,
                   baseUrl: detail?.baseUrl,
+                  manualModels: detail?.manualModels,
                 })
-              } catch {
+              } catch (e) {
+                console.error("[ModelSourcesPanel.onEdit] Failed to fetch provider:", e)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,
@@ -1032,6 +1340,18 @@ function ModelSourcesPanel() {
 }
 
 // ============ Helper functions ============
+
+function isImageModel(modelId: string): boolean {
+  const lower = modelId.toLowerCase()
+  return (
+    lower.includes("image") ||
+    lower.includes("dall-e") ||
+    lower.includes("midjourney") ||
+    lower.includes("flux") ||
+    lower.includes("stable-diffusion") ||
+    lower.includes("sdxl")
+  )
+}
 
 function formatTokenCount(tokens: number): string {
   if (!tokens) return "0"
@@ -1139,11 +1459,11 @@ function ContributionHeatmap() {
   }
 
   const levelColors = [
-    "bg-muted/30",
-    "bg-emerald-900/50",
-    "bg-emerald-700/70",
-    "bg-emerald-500/80",
-    "bg-emerald-400",
+    "bg-primary/10",
+    "bg-primary/30",
+    "bg-primary/50",
+    "bg-primary/70",
+    "bg-primary",
   ]
 
   const easterEggEmojis = ["🔥", "💸", "🤯", "💰", "🚀", "⚡", "🌟", "💎"]
@@ -1263,7 +1583,7 @@ function ContributionHeatmap() {
                     return (
                       <div
                         key={dayIndex}
-                        className={`w-[10px] h-[10px] rounded-[2px] ${levelColors[0]} cursor-default`}
+                        className="w-[10px] h-[10px] rounded-[2px] bg-primary/5 cursor-default"
                       />
                     )
                   }

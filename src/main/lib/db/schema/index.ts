@@ -52,6 +52,8 @@ export const chats = sqliteTable("chats", {
     () => new Date(),
   ),
   archivedAt: integer("archived_at", { mode: "timestamp" }),
+  // User manually renamed this chat - disable auto-rename if true
+  manuallyRenamed: integer("manually_renamed", { mode: "boolean" }).default(false),
   // Worktree fields (for git isolation per chat)
   worktreePath: text("worktree_path"),
   branch: text("branch"),
@@ -92,6 +94,8 @@ export const subChats = sqliteTable("sub_chats", {
   // Pre-computed flag for pending plan approval (avoids parsing messages)
   // True when mode="plan" AND messages contain completed ExitPlanMode tool
   hasPendingPlan: integer("has_pending_plan", { mode: "boolean" }).default(false),
+  // User manually renamed this sub-chat - disable auto-rename if true
+  manuallyRenamed: integer("manually_renamed", { mode: "boolean" }).default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),
@@ -545,6 +549,9 @@ export const modelProviders = sqliteTable(
     apiKey: text("api_key").notNull(),
     // Whether this provider is enabled
     isEnabled: integer("is_enabled", { mode: "boolean" }).default(true),
+    // Manual model list for providers without /models endpoint
+    // JSON array of model IDs, e.g. ["claude-3-5-sonnet", "claude-3-opus"]
+    manualModels: text("manual_models"),
     // Timestamps
     createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
       () => new Date(),

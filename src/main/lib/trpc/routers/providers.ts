@@ -22,18 +22,55 @@ import { getEnv } from "../../env"
 
 // ============ Encryption helpers ============
 
+// Encryption format marker for new double-base64 format
+const ENCRYPTED_V2_PREFIX = "v2:"
+
 function encryptApiKey(key: string): string {
+  // First encode as base64 to handle any non-ASCII characters safely
+  const base64Key = Buffer.from(key, "utf-8").toString("base64")
   if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(key).toString("base64")
+    return ENCRYPTED_V2_PREFIX + base64Key
   }
-  return safeStorage.encryptString(key).toString("base64")
+  return ENCRYPTED_V2_PREFIX + safeStorage.encryptString(base64Key).toString("base64")
 }
 
 function decryptApiKey(encrypted: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(encrypted, "base64").toString("utf-8")
+  // Check if it's the new v2 format (double base64)
+  if (encrypted.startsWith(ENCRYPTED_V2_PREFIX)) {
+    const data = encrypted.slice(ENCRYPTED_V2_PREFIX.length)
+    let base64Key: string
+    if (!safeStorage.isEncryptionAvailable()) {
+      base64Key = data
+    } else {
+      base64Key = safeStorage.decryptString(Buffer.from(data, "base64"))
+    }
+    return Buffer.from(base64Key, "base64").toString("utf-8")
   }
-  return safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+
+  // Legacy format: directly encrypted string (no double base64)
+  let decrypted: string
+  if (!safeStorage.isEncryptionAvailable()) {
+    decrypted = Buffer.from(encrypted, "base64").toString("utf-8")
+  } else {
+    decrypted = safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+  }
+
+  // Check if the result looks like base64 (intermediate format from buggy code)
+  // Valid API keys contain alphanumeric, dots, dashes, underscores - not padding '='
+  // If it looks like base64, try decoding it once more
+  if (/^[A-Za-z0-9+/]+=*$/.test(decrypted) && decrypted.length > 20) {
+    try {
+      const maybeKey = Buffer.from(decrypted, "base64").toString("utf-8")
+      // If decoded successfully and looks like a valid key (printable ASCII), use it
+      if (/^[\x20-\x7E]+$/.test(maybeKey) && maybeKey.length > 10) {
+        return maybeKey
+      }
+    } catch {
+      // Not base64, use decrypted as-is
+    }
+  }
+
+  return decrypted
 }
 
 // ============ URL helpers ============
@@ -77,13 +114,12 @@ const CHAT_MODEL_WHITELIST = [
 
 // Excludes: models that match whitelist but are not chat models
 const CHAT_MODEL_EXCLUDES = [
-  /-coding$/i,        // Claude coding 变体
   /-embed/i,          // 嵌入模型
   /-realtime/i,       // 实时流模型
 ]
 
 /**
- * Filter models for LiteLLM/Custom providers.
+ * Filter models for LiteLLM/Custom providers
  * Keeps only mainstream chat models, excludes non-chat variants.
  * Anthropic models are NOT filtered by this (they use the official API list).
  */
@@ -377,9 +413,9 @@ export async function getProviderCredentials(
 
 // Fallback Anthropic models when API is unavailable
 const ANTHROPIC_FALLBACK_MODELS: ModelInfo[] = [
-  { id: "claude-opus-4-6-20250610", name: "Opus 4.6" },
-  { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
-  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
+  { id: "claude-opus-4-6", name: "Opus 4.6" },
+  { id: "claude-sonnet-4-5", name: "Sonnet 4.5" },
+  { id: "claude-haiku-4-5", name: "Haiku 4.5" },
 ]
 
 /**
@@ -538,18 +574,32 @@ export const providersRouter = router({
 
       if (!provider) return null
 
+      // Parse manual models
+      let manualModels: string[] | undefined
+      if (provider.manualModels) {
+        try {
+          manualModels = JSON.parse(provider.manualModels)
+          console.log(`[Providers.get] Parsed manualModels for ${input.id}:`, manualModels)
+        } catch (e) {
+          console.error(`[Providers.get] Failed to parse manualModels for ${input.id}:`, e, provider.manualModels)
+        }
+      } else {
+        console.log(`[Providers.get] No manualModels for ${input.id}, raw value:`, provider.manualModels)
+      }
+
       return {
         id: provider.id,
         type: "custom" as const,
         name: provider.name,
         baseUrl: provider.baseUrl,
         isEnabled: provider.isEnabled ?? true,
+        manualModels,
       }
     }),
 
   /**
    * Add a custom provider
-   * Validates connection by testing /models endpoint
+   * Validates connection by testing /models endpoint (unless manual models provided)
    */
   addCustom: publicProcedure
     .input(
@@ -558,14 +608,19 @@ export const providersRouter = router({
         baseUrl: z.string().url(),
         apiKey: z.string().min(1),
         skipValidation: z.boolean().default(false),
+        // Manual model list for providers without /models endpoint
+        manualModels: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ input }) => {
       const normalizedUrl = input.baseUrl.replace(/\/+$/, "")
       const apiUrl = normalizeApiBaseUrl(normalizedUrl)
 
+      // If manual models provided, skip /models validation
+      const hasManualModels = input.manualModels && input.manualModels.length > 0
+
       // Validate connection unless skipped
-      if (!input.skipValidation) {
+      if (!input.skipValidation && !hasManualModels) {
         try {
           const headers: Record<string, string> = {
             "Content-Type": "application/json",
@@ -599,6 +654,9 @@ export const providersRouter = router({
       const db = getDatabase()
       const id = createId()
 
+      const manualModelsJson = hasManualModels ? JSON.stringify(input.manualModels) : null
+      console.log(`[Providers.addCustom] Saving provider ${input.name} with manualModels:`, manualModelsJson)
+
       db.insert(modelProviders)
         .values({
           id,
@@ -608,9 +666,11 @@ export const providersRouter = router({
           baseUrl: normalizedUrl,
           apiKey: encryptApiKey(input.apiKey),
           isEnabled: true,
+          manualModels: manualModelsJson,
         })
         .run()
 
+      console.log(`[Providers.addCustom] Provider ${id} saved successfully`)
       return { success: true, id }
     }),
 
@@ -625,6 +685,8 @@ export const providersRouter = router({
         baseUrl: z.string().url().optional(),
         apiKey: z.string().optional(),
         isEnabled: z.boolean().optional(),
+        // Manual model list for providers without /models endpoint
+        manualModels: z.array(z.string()).optional().nullable(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -640,7 +702,13 @@ export const providersRouter = router({
       if (input.apiKey !== undefined)
         updates.apiKey = encryptApiKey(input.apiKey)
       if (input.isEnabled !== undefined) updates.isEnabled = input.isEnabled
+      // null clears manual models, undefined keeps existing
+      if (input.manualModels !== undefined) {
+        updates.manualModels = input.manualModels ? JSON.stringify(input.manualModels) : null
+        console.log(`[Providers.updateCustom] Updating manualModels for ${input.id}:`, updates.manualModels)
+      }
 
+      console.log(`[Providers.updateCustom] Updating provider ${input.id} with:`, Object.keys(updates))
       db.update(modelProviders)
         .set(updates)
         .where(eq(modelProviders.id, input.id))
@@ -748,9 +816,10 @@ export const providersRouter = router({
         }
       }
 
-      // Determine base URL and API key
+      // Determine base URL, API key, and manual models
       let baseUrl: string | null = null
       let apiKey: string | null = null
+      let manualModels: string[] | null = null
 
       if (input.providerId === "litellm") {
         baseUrl = env.MAIN_VITE_LITELLM_BASE_URL || null
@@ -772,10 +841,55 @@ export const providersRouter = router({
         } catch {
           return { models: [], defaultModelId: null, error: "Failed to decrypt API key" }
         }
+
+        // Parse manual models if present
+        if (provider.manualModels) {
+          try {
+            manualModels = JSON.parse(provider.manualModels)
+          } catch {
+            // Ignore parse error
+          }
+        }
       }
 
       if (!baseUrl) {
         return { models: [], defaultModelId: null, error: "Provider not configured" }
+      }
+
+      // If manual models are configured, use them directly (no API call needed)
+      if (manualModels && manualModels.length > 0) {
+        console.log(`[Providers] Using manual models for ${input.providerId}:`, manualModels)
+        const models: ModelInfo[] = manualModels.map((id) => ({
+          id,
+          name: id,
+        }))
+
+        // Update cache with manual models
+        try {
+          db.delete(cachedModels)
+            .where(eq(cachedModels.providerId, input.providerId))
+            .run()
+
+          for (const m of models) {
+            db.insert(cachedModels)
+              .values({
+                id: createId(),
+                providerId: input.providerId,
+                modelId: m.id,
+                name: m.name,
+                category: "llm",
+              })
+              .run()
+          }
+        } catch {
+          // Cache write failed, non-critical
+        }
+
+        return {
+          models,
+          defaultModelId: findDefaultModel(models.map((m) => m.id)),
+          error: null,
+        }
       }
 
       // Check cache (5 minutes)
@@ -836,18 +950,15 @@ export const providersRouter = router({
 
         const rawModels: Array<{ id: string }> = data.data || data.models || []
 
-        // Filter blacklisted models, then apply provider-specific filters
-        let models: ModelInfo[] = rawModels
+        // Filter blacklisted models (embeddings, TTS, etc.)
+        // Note: We no longer apply whitelist filtering for custom providers,
+        // allowing users to see all available chat models from their provider.
+        const models: ModelInfo[] = rawModels
           .filter((m) => !isBlacklisted(m.id))
           .map((m) => ({
             id: m.id,
             name: m.id,
           }))
-
-        // LiteLLM & Custom: smart filter to keep only mainstream chat models
-        if (input.providerId !== "anthropic") {
-          models = filterProviderModels(models)
-        }
 
         // Update cache
         try {

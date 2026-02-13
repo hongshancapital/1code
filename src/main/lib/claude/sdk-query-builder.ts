@@ -25,7 +25,7 @@ import type {
  */
 export interface SdkQueryOptions {
   prompt: string | AsyncIterable<unknown>
-  options: {
+  options?: {
     abortController?: AbortController
     cwd?: string
     systemPrompt?: SystemPromptConfig

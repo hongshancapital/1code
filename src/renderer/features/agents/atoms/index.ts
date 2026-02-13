@@ -1039,6 +1039,14 @@ export const showMessageJsonAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
+// Show debug request payload in chat (original claudeQuery content)
+export const showDebugRequestAtom = atomWithStorage<boolean>(
+  "agents:showDebugRequest",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
 // ============================================
 // ENABLED WIDGETS (Feature Configuration)
 // ============================================

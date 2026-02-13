@@ -26,6 +26,11 @@ import {
   browserReactGrabAvailableAtomFamily,
   browserDevToolsOpenAtomFamily,
   browserDevicePresetAtomFamily,
+  browserZoomAtomFamily,
+  browserPendingNavigationAtomFamily,
+  ZOOM_QUICK_LEVELS,
+  zoomIn as zoomInLevel,
+  zoomOut as zoomOutLevel,
   DEVICE_PRESETS,
 } from "./atoms"
 import {
@@ -99,11 +104,24 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   // DevTools state
   const [devToolsOpen, setDevToolsOpen] = useAtom(browserDevToolsOpenAtomFamily(chatId))
 
+  // Pending navigation (for external components to trigger navigation)
+  const [pendingNavigation, setPendingNavigation] = useAtom(browserPendingNavigationAtomFamily(chatId))
+
   // Device emulation
   const [devicePresetId] = useAtom(browserDevicePresetAtomFamily(chatId))
   const currentDevice = DEVICE_PRESETS.find(d => d.id === devicePresetId) || DEVICE_PRESETS[0]
   const isEmulatingDevice = currentDevice.id !== "responsive" && currentDevice.width > 0
   const prevDeviceRef = useRef<string | null>(null)
+
+  // Zoom level
+  const [zoomLevel, setZoomLevel] = useAtom(browserZoomAtomFamily(chatId))
+  const zoomLevelRef = useRef(zoomLevel)
+  zoomLevelRef.current = zoomLevel
+
+  // Track fit mode - whether we're in auto-fit mode
+  const [fitMode, setFitMode] = useState(false)
+  const fitModeRef = useRef(false)
+  fitModeRef.current = fitMode
   // Ref for callbacks in event handlers
   const onElementSelectRef = useRef(onElementSelect)
   onElementSelectRef.current = onElementSelect
@@ -1204,6 +1222,25 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         setBrowserActive(true)
       }
 
+      // Re-apply zoom on page load (especially for auto-fit mode)
+      if (fitModeRef.current) {
+        try {
+          const container = webview.parentElement
+          if (container) {
+            const containerWidth = container.clientWidth
+            const pageWidth = await webview.executeJavaScript("document.documentElement.scrollWidth") as number
+
+            if (pageWidth > 0 && containerWidth > 0) {
+              const newZoom = (containerWidth / pageWidth) * 0.95
+              const clamped = Math.max(0.25, Math.min(5.0, newZoom))
+              setZoomLevel(clamped)
+            }
+          }
+        } catch (error) {
+          console.error("[BrowserSidebar] Failed to re-apply fit width:", error)
+        }
+      }
+
       // Update page title
       let pageTitle = ""
       try {
@@ -1401,6 +1438,17 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     }
   }, [webviewReady, url])
 
+  // Handle pending navigation from external components (e.g., file preview opening HTML files)
+  useEffect(() => {
+    if (!pendingNavigation || !webviewReady) return
+
+    // Navigate to the pending URL
+    navigate(pendingNavigation)
+
+    // Clear the pending navigation
+    setPendingNavigation(null)
+  }, [pendingNavigation, webviewReady, navigate, setPendingNavigation])
+
   // Update project history when favicon changes (may arrive after did-finish-load)
   useEffect(() => {
     if (!favicon || !url || url === "about:blank") return
@@ -1589,6 +1637,116 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     }
   }, [selectorActive, setSelectorActive, webviewReady])
 
+  // Handle zoom controls - apply actual page zoom via CSS transform on body
+  const handleZoomIn = useCallback(() => {
+    const nextZoom = zoomInLevel(zoomLevelRef.current)
+    setZoomLevel(nextZoom)
+  }, [setZoomLevel])
+
+  const handleZoomOut = useCallback(() => {
+    const prevZoom = zoomOutLevel(zoomLevelRef.current)
+    setZoomLevel(prevZoom)
+  }, [setZoomLevel])
+
+  const handleZoomReset = useCallback(() => {
+    setZoomLevel(1.0)
+  }, [setZoomLevel])
+
+  // Fit to width - toggle auto-fit mode or reset to 100%
+  const handleFitWidth = useCallback(async () => {
+    const webview = webviewRef.current
+    if (!webview || !webviewReady) return
+
+    if (fitModeRef.current) {
+      // If already in fit mode, reset to 100%
+      setFitMode(false)
+      setZoomLevel(1.0)
+      return
+    }
+
+    try {
+      // Get webview container's available width
+      const container = webview.parentElement
+      if (!container) return
+
+      const containerWidth = container.clientWidth
+
+      // Get actual page width (scrollWidth represents full content width)
+      const pageWidth = await webview.executeJavaScript("document.documentElement.scrollWidth") as number
+
+      if (pageWidth > 0 && containerWidth > 0) {
+        // Calculate zoom to fit width (use 95% for some margin)
+        const newZoom = (containerWidth / pageWidth) * 0.95
+        // Clamp to reasonable range
+        const clamped = Math.max(0.25, Math.min(5.0, newZoom))
+        setFitMode(true)
+        setZoomLevel(clamped)
+      }
+    } catch (error) {
+      console.error("[BrowserSidebar] Failed to fit width:", error)
+    }
+  }, [webviewReady, setFitMode, setZoomLevel])
+
+  // Recalculate fit zoom on resize when in auto-fit mode
+  useEffect(() => {
+    if (!fitMode || !webviewReady) return
+
+    const webview = webviewRef.current
+    if (!webview) return
+
+    let resizeTimeout: NodeJS.Timeout | null = null
+
+    const handleResize = () => {
+      // Debounce resize events
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+      resizeTimeout = setTimeout(async () => {
+        try {
+          const container = webview.parentElement
+          if (!container) return
+
+          const containerWidth = container.clientWidth
+          const pageWidth = await webview.executeJavaScript("document.documentElement.scrollWidth") as number
+
+          if (pageWidth > 0 && containerWidth > 0) {
+            const newZoom = (containerWidth / pageWidth) * 0.95
+            const clamped = Math.max(0.25, Math.min(5.0, newZoom))
+            setZoomLevel(clamped)
+          }
+        } catch (error) {
+          console.error("[BrowserSidebar] Failed to recalculate fit width on resize:", error)
+        }
+      }, 150) // 150ms debounce
+    }
+
+    window.addEventListener("resize", handleResize)
+    return () => {
+      window.removeEventListener("resize", handleResize)
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+    }
+  }, [fitMode, webviewReady, setZoomLevel])
+
+  // Apply zoom when zoom level changes - use CSS transform on body inside webview
+  useEffect(() => {
+    const webview = webviewRef.current
+    if (!webview || !webviewReady) return
+
+    // Apply CSS transform to body element inside webview
+    webview.executeJavaScript(`
+      (function() {
+        const zoom = ${zoomLevel};
+        document.body.style.transform = 'scale(' + zoom + ')';
+        document.body.style.transformOrigin = 'left top';
+        document.body.style.width = (100 / zoom) + '%';
+      })()
+    `).catch((err) => {
+      console.error("[BrowserSidebar] Failed to apply zoom:", err)
+    })
+  }, [zoomLevel, webviewReady])
+
   return (
     <div className={cn("flex flex-col h-full bg-background", className)}>
       <BrowserToolbar
@@ -1601,6 +1759,8 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         title={title}
         favicon={favicon}
         devToolsOpen={devToolsOpen}
+        zoomLevel={zoomLevel}
+        fitMode={fitMode}
         onBack={handleBack}
         onForward={handleForward}
         onReload={handleReload}
@@ -1611,6 +1771,11 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         onClearCache={handleClearCache}
         onToggleDevTools={handleToggleDevTools}
         onToggleReactGrab={handleToggleReactGrab}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onZoomReset={handleZoomReset}
+        onFitWidth={handleFitWidth}
+        onZoomSet={setZoomLevel}
       />
 
       <div className="relative flex-1 flex flex-col min-h-0">

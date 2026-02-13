@@ -4,6 +4,7 @@ import type {
   UploadedFile,
 } from "../hooks/use-agents-file-upload"
 import type { SelectedTextContext, DiffTextContext } from "./queue-utils"
+import { trpcClient } from "../../../lib/trpc"
 
 // Constants
 export const DRAFTS_STORAGE_KEY = "agent-drafts-global"
@@ -91,18 +92,20 @@ if (typeof window !== "undefined") {
   })
 }
 
-// Types for persisted attachments
+// Types for persisted attachments (new format: tempPath reference)
 export interface DraftImage {
   id: string
   filename: string
-  base64Data: string
+  tempPath?: string      // disk temp file path (preferred)
+  base64Data?: string    // legacy fallback (inline base64)
   mediaType: string
 }
 
 export interface DraftFile {
   id: string
   filename: string
-  base64Data: string
+  tempPath?: string      // disk temp file path (preferred)
+  base64Data?: string    // legacy fallback (inline base64)
   size?: number
   type?: string
 }
@@ -280,7 +283,7 @@ export function saveSubChatDraft(
   saveGlobalDrafts(globalDrafts)
 }
 
-// Clear sub-chat draft (also revokes any blob URLs)
+// Clear sub-chat draft (also revokes any blob URLs and cleans up disk files)
 export function clearSubChatDraft(chatId: string, subChatId: string): void {
   const globalDrafts = loadGlobalDrafts()
   const key = getSubChatDraftKey(chatId, subChatId)
@@ -296,6 +299,11 @@ export function clearSubChatDraft(chatId: string, subChatId: string): void {
 
   delete globalDrafts[key]
   saveGlobalDrafts(globalDrafts)
+
+  // Async cleanup of disk files (fire-and-forget)
+  trpcClient.files.cleanupDraftAttachments
+    .mutate({ draftKey: key })
+    .catch((err) => console.warn("[drafts] Failed to cleanup disk files:", err))
 }
 
 // Build drafts cache from localStorage (for sidebar display)
@@ -459,37 +467,31 @@ async function blobUrlToBase64(blobUrl: string): Promise<string> {
 }
 
 /**
- * Convert UploadedImage to DraftImage (filter out images without base64)
+ * Convert UploadedImage to DraftImage for persistence.
+ * Prefers tempPath (lightweight), falls back to base64Data (legacy).
  */
 export function toDraftImage(img: UploadedImage): DraftImage | null {
-  if (!img.base64Data) return null
+  if (!img.tempPath && !img.base64Data) return null
   return {
     id: img.id,
     filename: img.filename,
-    base64Data: img.base64Data,
+    ...(img.tempPath ? { tempPath: img.tempPath } : { base64Data: img.base64Data }),
     mediaType: img.mediaType || "image/png",
   }
 }
 
 /**
- * Convert UploadedFile to DraftFile (requires async conversion)
+ * Convert UploadedFile to DraftFile for persistence (now synchronous).
+ * Prefers tempPath (lightweight), falls back to base64Data if available.
  */
-export async function toDraftFile(
-  file: UploadedFile
-): Promise<DraftFile | null> {
-  if (!file.url) return null
-  try {
-    const base64Data = await blobUrlToBase64(file.url)
-    return {
-      id: file.id,
-      filename: file.filename,
-      base64Data,
-      size: file.size,
-      type: file.type,
-    }
-  } catch (err) {
-    console.error("[drafts] Failed to convert file to base64:", err)
-    return null
+export function toDraftFile(file: UploadedFile): DraftFile | null {
+  if (!file.tempPath) return null // files without tempPath cannot be persisted synchronously
+  return {
+    id: file.id,
+    filename: file.filename,
+    tempPath: file.tempPath,
+    size: file.size,
+    type: file.type,
   }
 }
 
@@ -554,18 +556,35 @@ export function revokeAllDraftBlobUrls(): void {
 }
 
 /**
- * Restore UploadedImage from DraftImage (creates blob URL)
- * Tracks blob URL for cleanup to prevent memory leaks
+ * Restore UploadedImage from DraftImage.
+ * Supports both new format (tempPath → read from disk) and legacy format (inline base64).
+ * Tracks blob URL for cleanup to prevent memory leaks.
  */
-export function fromDraftImage(draft: DraftImage): UploadedImage | null {
-  if (!draft.base64Data) return null
+export async function fromDraftImage(draft: DraftImage): Promise<UploadedImage | null> {
   try {
-    const byteCharacters = atob(draft.base64Data)
-    const byteNumbers: number[] = []
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    let base64Data: string | undefined
+    let tempPath: string | undefined
+
+    if (draft.tempPath) {
+      // New format: read from disk
+      const result = await trpcClient.files.readDraftAttachment.query({
+        tempPath: draft.tempPath,
+      })
+      if (!result) return null
+      base64Data = result.base64Data
+      tempPath = draft.tempPath
+    } else if (draft.base64Data) {
+      // Legacy format: inline base64
+      base64Data = draft.base64Data
+    } else {
+      return null
     }
-    const byteArray = new Uint8Array(byteNumbers)
+
+    const byteCharacters = atob(base64Data!)
+    const byteArray = new Uint8Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteArray[i] = byteCharacters.charCodeAt(i)
+    }
     const blob = new Blob([byteArray], { type: draft.mediaType })
     const url = URL.createObjectURL(blob)
 
@@ -577,7 +596,8 @@ export function fromDraftImage(draft: DraftImage): UploadedImage | null {
       id: draft.id,
       filename: draft.filename,
       url,
-      base64Data: draft.base64Data,
+      base64Data,
+      tempPath,
       mediaType: draft.mediaType,
       isLoading: false,
     }
@@ -588,18 +608,35 @@ export function fromDraftImage(draft: DraftImage): UploadedImage | null {
 }
 
 /**
- * Restore UploadedFile from DraftFile (creates blob URL)
- * Tracks blob URL for cleanup to prevent memory leaks
+ * Restore UploadedFile from DraftFile.
+ * Supports both new format (tempPath → read from disk) and legacy format (inline base64).
+ * Tracks blob URL for cleanup to prevent memory leaks.
  */
-export function fromDraftFile(draft: DraftFile): UploadedFile | null {
-  if (!draft.base64Data) return null
+export async function fromDraftFile(draft: DraftFile): Promise<UploadedFile | null> {
   try {
-    const byteCharacters = atob(draft.base64Data)
-    const byteNumbers: number[] = []
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    let base64Data: string | undefined
+    let tempPath: string | undefined
+
+    if (draft.tempPath) {
+      // New format: read from disk
+      const result = await trpcClient.files.readDraftAttachment.query({
+        tempPath: draft.tempPath,
+      })
+      if (!result) return null
+      base64Data = result.base64Data
+      tempPath = draft.tempPath
+    } else if (draft.base64Data) {
+      // Legacy format: inline base64
+      base64Data = draft.base64Data
+    } else {
+      return null
     }
-    const byteArray = new Uint8Array(byteNumbers)
+
+    const byteCharacters = atob(base64Data!)
+    const byteArray = new Uint8Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteArray[i] = byteCharacters.charCodeAt(i)
+    }
     const blob = new Blob([byteArray], {
       type: draft.type || "application/octet-stream",
     })
@@ -613,6 +650,7 @@ export function fromDraftFile(draft: DraftFile): UploadedFile | null {
       id: draft.id,
       filename: draft.filename,
       url,
+      tempPath,
       size: draft.size,
       type: draft.type,
       isLoading: false,
@@ -668,37 +706,43 @@ export interface FullDraftData {
 }
 
 /**
- * Get full sub-chat draft including attachments and text contexts
+ * Get full sub-chat draft including attachments and text contexts.
+ * Now async because restoring attachments may require reading from disk.
  */
-export function getSubChatDraftFull(
+export async function getSubChatDraftFull(
   chatId: string,
   subChatId: string
-): FullDraftData | null {
+): Promise<FullDraftData | null> {
   const globalDrafts = loadGlobalDrafts()
   const key = getSubChatDraftKey(chatId, subChatId)
   const draft = globalDrafts[key] as DraftContent | undefined
 
   if (!draft) return null
 
+  // Restore attachments in parallel (async: may read from disk)
+  const [images, files] = await Promise.all([
+    Promise.all(
+      (draft.images ?? []).map(fromDraftImage)
+    ).then((results) => results.filter((img): img is UploadedImage => img !== null)),
+    Promise.all(
+      (draft.files ?? []).map(fromDraftFile)
+    ).then((results) => results.filter((f): f is UploadedFile => f !== null)),
+  ])
+
   return {
     text: draft.text || null,
-    images:
-      draft.images
-        ?.map(fromDraftImage)
-        .filter((img): img is UploadedImage => img !== null) ?? [],
-    files:
-      draft.files
-        ?.map(fromDraftFile)
-        .filter((f): f is UploadedFile => f !== null) ?? [],
+    images,
+    files,
     textContexts: draft.textContexts?.map(fromDraftTextContext) ?? [],
     diffTextContexts: draft.diffTextContexts?.map(fromDraftDiffTextContext) ?? [],
   }
 }
 
 /**
- * Save sub-chat draft with attachments (async version)
+ * Save sub-chat draft with attachments (synchronous — only stores tempPath references).
+ * Falls back to inline base64 for images that haven't been persisted to disk yet.
  */
-export async function saveSubChatDraftWithAttachments(
+export function saveSubChatDraftWithAttachments(
   chatId: string,
   subChatId: string,
   text: string,
@@ -708,7 +752,7 @@ export async function saveSubChatDraftWithAttachments(
     textContexts?: SelectedTextContext[]
     diffTextContexts?: DiffTextContext[]
   }
-): Promise<{ success: boolean; error?: string }> {
+): { success: boolean; error?: string } {
   const globalDrafts = loadGlobalDrafts()
   const key = getSubChatDraftKey(chatId, subChatId)
 
@@ -725,17 +769,16 @@ export async function saveSubChatDraftWithAttachments(
     return { success: true }
   }
 
-  // Convert attachments to persistable format
+  // Convert attachments to persistable format (synchronous — uses tempPath or base64)
   const draftImages =
     options?.images
       ?.map(toDraftImage)
       .filter((img): img is DraftImage => img !== null) ?? []
 
-  const draftFiles = options?.files
-    ? await Promise.all(options.files.map(toDraftFile)).then((results) =>
-        results.filter((f): f is DraftFile => f !== null)
-      )
-    : []
+  const draftFiles =
+    options?.files
+      ?.map(toDraftFile)
+      .filter((f): f is DraftFile => f !== null) ?? []
 
   const draftTextContexts = options?.textContexts?.map(toDraftTextContext) ?? []
   const draftDiffTextContexts = options?.diffTextContexts?.map(toDraftDiffTextContext) ?? []
@@ -749,7 +792,7 @@ export async function saveSubChatDraftWithAttachments(
     ...(draftDiffTextContexts.length > 0 && { diffTextContexts: draftDiffTextContexts }),
   }
 
-  // Check storage limits before saving
+  // Storage limit check — only relevant when using inline base64 fallback
   if (wouldExceedStorageLimit(draft)) {
     console.warn(
       "[drafts] Storage limit would be exceeded, skipping attachment persistence"

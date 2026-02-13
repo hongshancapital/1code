@@ -78,6 +78,20 @@
       "when": 1770600000000,
       "tag": "0015_add_usage_source",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1770700000000,
+      "tag": "0016_add_manually_renamed",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1770911737202,
+      "tag": "0017_typical_thor_girl",
+      "breakpoints": true
     }
   ]
 }

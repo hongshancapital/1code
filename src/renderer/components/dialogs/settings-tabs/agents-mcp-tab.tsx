@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
 import { selectedProjectAtom, settingsMcpSidebarWidthAtom } from "../../../features/agents/atoms"
-import { agentsSettingsDialogActiveTabAtom, disabledMcpServersAtom } from "../../../lib/atoms"
+import { agentsSettingsDialogActiveTabAtom, disabledMcpServersAtom, sessionInfoAtom, type MCPServer, type MCPServerStatus } from "../../../lib/atoms"
 import {
   AddMcpServerDialog,
   EditMcpServerDialog,
@@ -374,6 +374,8 @@ export function AgentsMcpTab() {
   const selectedProject = useAtomValue(selectedProjectAtom)
   const setSettingsActiveTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const [disabledServersMap, setDisabledServersMap] = useAtom(disabledMcpServersAtom)
+  const setSessionInfo = useSetAtom(sessionInfoAtom)
+  const trpcUtils = trpc.useUtils()
 
   // Get disabled servers for current project
   const projectPath = selectedProject?.path || ""
@@ -576,6 +578,42 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
     }
   }, [handleRefresh])
 
+  // Sync Settings MCP data → sessionInfoAtom (Widget's data source)
+  useEffect(() => {
+    if (!allMcpConfig?.groups) return
+
+    const allServers: MCPServer[] = []
+    const allTools: string[] = []
+
+    for (const group of allMcpConfig.groups) {
+      for (const server of group.mcpServers) {
+        allServers.push({
+          name: server.name,
+          status: server.status as MCPServerStatus,
+        })
+        if (server.tools) {
+          for (const tool of server.tools) {
+            const toolName = typeof tool === "string" ? tool : tool.name
+            allTools.push(`mcp__${server.name}__${toolName}`)
+          }
+        }
+      }
+    }
+
+    setSessionInfo((prev) => ({
+      tools: allTools.length > 0 ? allTools : (prev?.tools || []),
+      mcpServers: allServers,
+      plugins: prev?.plugins || [],
+      skills: prev?.skills || [],
+    }))
+  }, [allMcpConfig?.groups, setSessionInfo])
+
+  // Invalidate tRPC cache on unmount so next open gets fresh data
+  useEffect(() => {
+    return () => {
+      trpcUtils.claude.getAllMcpConfig.invalidate()
+    }
+  }, [trpcUtils])
 
   const handleAuth = async (serverName: string, projectPath: string | null) => {
     try {

@@ -35,8 +35,8 @@ import {
 } from "./lib/cli"
 import { cleanupGitWatchers } from "./lib/git/watcher"
 import { AutomationEngine } from "./lib/automation/engine"
-import { ensureInboxProject } from "./lib/automation/inbox-project"
 import { migrateOldPlaygroundSubChats } from "./lib/playground/migrate-playground"
+import { cleanupStaleDraftAttachmentDirs } from "./lib/trpc/routers/files"
 import { cancelAllPendingOAuth, handleMcpOAuthCallback } from "./lib/mcp-auth"
 import {
   createMainWindow,
@@ -908,6 +908,11 @@ if (gotTheLock) {
       console.error("[App] Failed to initialize database:", error)
     }
 
+    // Cleanup stale draft attachment files (older than 7 days)
+    cleanupStaleDraftAttachmentDirs().catch((err) => {
+      console.warn("[App] Failed to cleanup stale draft attachments:", err)
+    })
+
     // Migrate old playground format to new independent format
     try {
       const { migrated, skipped } = await migrateOldPlaygroundSubChats()
@@ -920,7 +925,6 @@ if (gotTheLock) {
 
     // Initialize AutomationEngine
     try {
-      await ensureInboxProject()
       await AutomationEngine.getInstance().initialize()
       console.log("[App] AutomationEngine initialized")
     } catch (error) {

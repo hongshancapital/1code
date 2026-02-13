@@ -13,45 +13,55 @@
  * - Pluggable output channels
  * - Factory methods for common scenarios
  */
-
-import type { AuthManager } from "../../auth-manager"
-import { getClaudeQuery } from "./sdk-loader"
-import { getBundledClaudeBinaryPath } from "./env"
-import { ClaudeConfigLoader, getConfigLoader } from "./config-loader"
-import { PromptBuilder, getPromptBuilder, ChatPromptStrategy, AutomationPromptStrategy, InsightsPromptStrategy, WorkerPromptStrategy } from "./prompt-builder"
-import { createQueryBuilder } from "./sdk-query-builder"
-import { createPolicy, createAutomationPolicy, AllowAllPolicy } from "./policies"
-import { BufferChannel, CompositeChannel } from "./output-channel"
+import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { AuthManager } from "../../auth-manager";
+import { getBundledClaudeBinaryPath } from "./env";
+import { ClaudeConfigLoader, getConfigLoader } from "./config-loader";
+import {
+  PromptBuilder,
+  getPromptBuilder,
+  ChatPromptStrategy,
+  AutomationPromptStrategy,
+  InsightsPromptStrategy,
+  WorkerPromptStrategy,
+} from "./prompt-builder";
+import { createQueryBuilder } from "./sdk-query-builder";
+import {
+  createPolicy,
+  createAutomationPolicy,
+  AllowAllPolicy,
+} from "./policies";
+import { BufferChannel, CompositeChannel } from "./output-channel";
 import type {
   EngineRequest,
   EngineEvent,
   ConfigOverride,
   PromptStrategy,
-} from "./engine-types"
+} from "./engine-types";
 
 /**
  * ClaudeEngine - Core engine for running Claude Agent SDK
  */
 export class ClaudeEngine {
-  private configLoader: ClaudeConfigLoader
-  private promptBuilder: PromptBuilder
-  private claudeBinaryPath?: string
+  private configLoader: ClaudeConfigLoader;
+  private promptBuilder: PromptBuilder;
+  private claudeBinaryPath?: string;
 
   constructor(options?: {
-    configLoader?: ClaudeConfigLoader
-    promptBuilder?: PromptBuilder
-    claudeBinaryPath?: string
+    configLoader?: ClaudeConfigLoader;
+    promptBuilder?: PromptBuilder;
+    claudeBinaryPath?: string;
   }) {
-    this.configLoader = options?.configLoader || getConfigLoader()
-    this.promptBuilder = options?.promptBuilder || getPromptBuilder()
-    this.claudeBinaryPath = options?.claudeBinaryPath
+    this.configLoader = options?.configLoader || getConfigLoader();
+    this.promptBuilder = options?.promptBuilder || getPromptBuilder();
+    this.claudeBinaryPath = options?.claudeBinaryPath;
   }
 
   /**
    * Set the Claude binary path
    */
   setClaudeBinaryPath(path: string): void {
-    this.claudeBinaryPath = path
+    this.claudeBinaryPath = path;
   }
 
   /**
@@ -61,109 +71,109 @@ export class ClaudeEngine {
    * @returns AsyncIterable of engine events
    */
   async *run(request: EngineRequest): AsyncIterable<EngineEvent> {
-    // 1. Load configuration with override support
+    // Load configuration with override support
     const config = await this.configLoader.getConfig(
       request.context,
       request.authManager,
-      request.configOverride
-    )
+      request.configOverride,
+    );
 
-    // 2. Build system prompt
+    // Build system prompt
     const systemPrompt = await this.promptBuilder.buildSystemPrompt(
       request.promptStrategy,
-      request.context.cwd
-    )
+      request.context.cwd,
+    );
 
-    // 3. Build SDK query options
+    // Build SDK query options
     const builder = createQueryBuilder()
       .setPrompt(request.prompt)
       .setSystemPrompt(systemPrompt)
       .setMcpServers(config.mcpServers)
       .setCwd(request.context.cwd)
-      .setMode(request.mode || "agent")
+      .setMode(request.mode || "agent");
 
     // Set Claude binary path
-    const binaryPath = this.claudeBinaryPath || getBundledClaudeBinaryPath()
+    const binaryPath = this.claudeBinaryPath || getBundledClaudeBinaryPath();
     if (binaryPath) {
-      builder.setClaudeBinaryPath(binaryPath)
+      builder.setClaudeBinaryPath(binaryPath);
     }
 
     // Set model if provided
     if (request.model) {
-      builder.setModel(request.model)
+      builder.setModel(request.model);
     }
 
     // Set agents if provided
     if (request.agents && Object.keys(request.agents).length > 0) {
-      builder.setAgents(request.agents)
+      builder.setAgents(request.agents);
     }
 
     // Set session for resume
     if (request.sessionId) {
-      builder.setSessionId(request.sessionId)
+      builder.setSessionId(request.sessionId);
     }
 
     // Set tool permission policy
     if (request.policy) {
-      builder.setToolPermissionPolicy(request.policy)
+      builder.setToolPermissionPolicy(request.policy);
     }
 
     // Build query options
-    const queryOptions = builder.build()
+    const queryOptions = builder.build();
 
-    // 4. Get Claude SDK query function
-    const claudeQuery = await getClaudeQuery()
-
-    // 5. Run the query and yield events
+    // Run the query and yield events
     try {
-      const stream = claudeQuery(queryOptions)
+      const stream = claudeQuery(queryOptions);
 
-      let sessionId: string | undefined
-      const stats: Record<string, unknown> = {}
+      let sessionId: string | undefined;
+      const stats: Record<string, unknown> = {};
 
       for await (const message of stream) {
         // Extract session ID from messages
         if (message.session_id) {
-          sessionId = message.session_id
+          sessionId = message.session_id;
         }
 
         // Emit message to output channel
         if (request.outputChannel) {
-          request.outputChannel.onMessage(message)
+          request.outputChannel.onMessage(message);
         }
 
         // Yield message event
-        yield { type: "message", chunk: message } as EngineEvent
+        yield { type: "message", chunk: message } as EngineEvent;
 
         // Track tool calls
-        if (message.type === "tool-output-available" && request.outputChannel?.onToolCall) {
+        if (
+          message.type === "tool-output-available" &&
+          request.outputChannel?.onToolCall
+        ) {
           request.outputChannel.onToolCall(
             message.toolName || "unknown",
             message.input,
-            message.output
-          )
+            message.output,
+          );
         }
 
         // Collect stats from finish message
         if (message.type === "finish" && message.messageMetadata) {
-          Object.assign(stats, message.messageMetadata)
+          Object.assign(stats, message.messageMetadata);
         }
       }
 
       // Complete
       if (request.outputChannel?.onComplete) {
-        request.outputChannel.onComplete({ sessionId, stats })
+        request.outputChannel.onComplete({ sessionId, stats });
       }
 
-      yield { type: "complete", sessionId, stats } as EngineEvent
+      yield { type: "complete", sessionId, stats } as EngineEvent;
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error))
+      const err = error instanceof Error ? error : new Error(String(error));
 
       if (request.outputChannel?.onError) {
-        request.outputChannel.onError(err)
+        request.outputChannel.onError(err);
       }
 
-      yield { type: "error", error: err } as EngineEvent
+      yield { type: "error", error: err } as EngineEvent;
     }
   }
 
@@ -175,17 +185,17 @@ export class ClaudeEngine {
    * @returns Final result with text, session ID, and stats
    */
   async runToCompletion(request: EngineRequest): Promise<{
-    text: string
-    sessionId?: string
-    stats?: Record<string, unknown>
-    errors: Error[]
+    text: string;
+    sessionId?: string;
+    stats?: Record<string, unknown>;
+    errors: Error[];
   }> {
-    const buffer = new BufferChannel()
+    const buffer = new BufferChannel();
 
     // Add buffer to existing output channel if present
     const outputChannel = request.outputChannel
       ? new CompositeChannel([request.outputChannel, buffer])
-      : buffer
+      : buffer;
 
     // Run the query
     for await (const _event of this.run({ ...request, outputChannel })) {
@@ -197,7 +207,7 @@ export class ClaudeEngine {
       sessionId: buffer.getResult()?.sessionId,
       stats: buffer.getResult()?.stats as Record<string, unknown> | undefined,
       errors: buffer.getErrors(),
-    }
+    };
   }
 }
 
@@ -210,7 +220,7 @@ export class ClaudeEngine {
  * TODO: Inject chat-specific defaults (e.g. default configOverride, output channels)
  */
 export function createChatEngine(): ClaudeEngine {
-  return new ClaudeEngine()
+  return new ClaudeEngine();
 }
 
 /**
@@ -218,7 +228,7 @@ export function createChatEngine(): ClaudeEngine {
  * TODO: Inject automation-specific defaults (e.g. restricted MCP set, no plugins)
  */
 export function createAutomationEngine(): ClaudeEngine {
-  return new ClaudeEngine()
+  return new ClaudeEngine();
 }
 
 /**
@@ -226,7 +236,7 @@ export function createAutomationEngine(): ClaudeEngine {
  * TODO: Inject insights-specific defaults (e.g. no MCP tools, read-only)
  */
 export function createInsightsEngine(): ClaudeEngine {
-  return new ClaudeEngine()
+  return new ClaudeEngine();
 }
 
 /**
@@ -234,7 +244,7 @@ export function createInsightsEngine(): ClaudeEngine {
  * TODO: Inject worker-specific defaults (e.g. configOverride, custom prompt strategy)
  */
 export function createWorkerEngine(): ClaudeEngine {
-  return new ClaudeEngine()
+  return new ClaudeEngine();
 }
 
 // ============================================================================
@@ -245,26 +255,26 @@ export function createWorkerEngine(): ClaudeEngine {
  * Create a chat request
  */
 export function createChatRequest(options: {
-  prompt: string
-  cwd: string
-  userProfile?: { preferredName?: string; personalPreferences?: string }
-  mode?: "plan" | "agent"
-  sessionId?: string
-  model?: string
-  authManager?: AuthManager
-  isPlayground?: boolean
-  isOllama?: boolean
+  prompt: string;
+  cwd: string;
+  userProfile?: { preferredName?: string; personalPreferences?: string };
+  mode?: "plan" | "agent";
+  sessionId?: string;
+  model?: string;
+  authManager?: AuthManager;
+  isPlayground?: boolean;
+  isOllama?: boolean;
 }): EngineRequest {
   const strategy: PromptStrategy = {
     ...ChatPromptStrategy,
     userProfile: options.userProfile,
-  }
+  };
 
   const policy = createPolicy({
     mode: options.mode || "agent",
     isPlayground: options.isPlayground || false,
     isOllama: options.isOllama || false,
-  })
+  });
 
   return {
     prompt: options.prompt,
@@ -279,18 +289,18 @@ export function createChatRequest(options: {
     sessionId: options.sessionId,
     model: options.model,
     mode: options.mode,
-  }
+  };
 }
 
 /**
  * Create an automation request
  */
 export function createAutomationRequest(options: {
-  prompt: string
-  cwd: string
-  model?: string
-  authManager?: AuthManager
-  configOverride?: ConfigOverride
+  prompt: string;
+  cwd: string;
+  model?: string;
+  authManager?: AuthManager;
+  configOverride?: ConfigOverride;
 }): EngineRequest {
   return {
     prompt: options.prompt,
@@ -305,43 +315,43 @@ export function createAutomationRequest(options: {
     authManager: options.authManager,
     model: options.model,
     mode: "agent",
-  }
+  };
 }
 
 /**
  * Create an insights request
  */
 export function createInsightsRequest(options: {
-  prompt: string
-  cwd: string
-  model?: string
-  authManager?: AuthManager
+  prompt: string;
+  cwd: string;
+  model?: string;
+  authManager?: AuthManager;
 }): EngineRequest {
   return {
     prompt: options.prompt,
     promptStrategy: InsightsPromptStrategy,
     context: {
       cwd: options.cwd,
-      includeBuiltin: false,  // Insights don't need MCP tools
+      includeBuiltin: false, // Insights don't need MCP tools
       includePlugins: false,
     },
     policy: new AllowAllPolicy(),
     authManager: options.authManager,
     model: options.model,
     mode: "agent",
-  }
+  };
 }
 
 /**
  * Create a worker request
  */
 export function createWorkerRequest(options: {
-  prompt: string
-  cwd: string
-  model?: string
-  authManager?: AuthManager
-  configOverride?: ConfigOverride
-  customPromptStrategy?: PromptStrategy
+  prompt: string;
+  cwd: string;
+  model?: string;
+  authManager?: AuthManager;
+  configOverride?: ConfigOverride;
+  customPromptStrategy?: PromptStrategy;
 }): EngineRequest {
   return {
     prompt: options.prompt,
@@ -356,11 +366,11 @@ export function createWorkerRequest(options: {
     authManager: options.authManager,
     model: options.model,
     mode: "agent",
-  }
+  };
 }
 
 // ============================================================================
 // Default Export
 // ============================================================================
 
-export default ClaudeEngine
+export default ClaudeEngine;

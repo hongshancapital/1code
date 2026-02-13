@@ -131,6 +131,7 @@ const ERROR_TOAST_CONFIG: Record<
   // SDK_ERROR and other unknown errors use chunk.errorText for description
 }
 
+import i18n from "../../../lib/i18n"
 import type { MCPServer, SessionInfo } from "../../../lib/atoms"
 import type { PendingUserQuestion } from "../atoms"
 import type { BackgroundTaskStatus } from "../types/background-task"
@@ -163,7 +164,7 @@ interface StreamChunk {
   outputFile?: string
   // Error fields
   errorText?: string
-  debugInfo?: { category?: string }
+  debugInfo?: { category?: string; providerType?: string }
 }
 
 type IPCChatTransportConfig = {
@@ -180,6 +181,8 @@ type ImageAttachment = {
   base64Data: string
   mediaType: string
   filename?: string
+  localPath?: string
+  tempPath?: string
 }
 
 // File reference for attached files (non-image) and large images
@@ -193,6 +196,16 @@ type FileReference = {
 // 5MB threshold — images larger than this are sent as file references instead of inline base64
 const MAX_IMAGE_SIZE_FOR_INLINE = 5 * 1024 * 1024
 
+
+// File attachment type for DB persistence (no content, just metadata)
+type FileAttachment = {
+  filename: string
+  mediaType?: string
+  size?: number
+  localPath?: string
+  tempPath?: string
+}
+
 export class IPCChatTransport implements ChatTransport<UIMessage> {
   constructor(private config: IPCChatTransportConfig) {}
 
@@ -200,7 +213,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     messages: UIMessage[]
     abortSignal?: AbortSignal
   }): Promise<ReadableStream<UIMessageChunk>> {
-    // Extract prompt and images from last user message
+    // Extract prompt, images, and files from last user message
     const lastUser = [...options.messages]
       .reverse()
       .find((m) => m.role === "user")
@@ -378,6 +391,7 @@ askUserQuestionTimeout,
             memoryRecordingEnabled,
             ...((() => { const sp = appStore.get(summaryProviderIdAtom); const sm = appStore.get(summaryModelIdAtom); return sp && sm ? { summaryProviderId: sp, summaryModelId: sm } : {}; })()),
             ...(images.length > 0 && { images }),
+            ...(files.length > 0 && { files }),
             ...(disabledMcpServers.length > 0 && { disabledMcpServers }),
             ...(userProfile && { userProfile }),
             ...(imageConfig && { imageConfig }),
@@ -572,10 +586,12 @@ askUserQuestionTimeout,
               // Handle errors - show toast to user FIRST before anything else
               if (chunk.type === "error") {
                 const category = chunk.debugInfo?.category || "UNKNOWN"
+                const providerType = chunk.debugInfo?.providerType
 
                 // Detailed SDK error logging for debugging
                 console.error(`[SDK ERROR] ========================================`)
                 console.error(`[SDK ERROR] Category: ${category}`)
+                console.error(`[SDK ERROR] Provider: ${providerType}`)
                 console.error(`[SDK ERROR] Error text: ${chunk.errorText}`)
                 console.error(`[SDK ERROR] Chat ID: ${this.config.chatId}`)
                 console.error(`[SDK ERROR] SubChat ID: ${this.config.subChatId}`)
@@ -593,6 +609,7 @@ askUserQuestionTimeout,
                   {
                     tags: {
                       errorCategory: category,
+                      providerType: providerType || "unknown",
                       mode: currentMode,
                     },
                     extra: {
@@ -608,6 +625,7 @@ askUserQuestionTimeout,
                 const errorDetails = [
                   `Error: ${chunk.errorText || "Unknown error"}`,
                   `Category: ${category}`,
+                  `Provider: ${providerType || "unknown"}`,
                   `Chat ID: ${this.config.chatId}`,
                   `SubChat ID: ${this.config.subChatId}`,
                   `CWD: ${this.config.cwd}`,
@@ -616,27 +634,61 @@ askUserQuestionTimeout,
                   chunk.debugInfo ? `Debug Info: ${JSON.stringify(chunk.debugInfo, null, 2)}` : null,
                 ].filter(Boolean).join("\n")
 
-                // Show toast based on error category
-                const config = ERROR_TOAST_CONFIG[category]
-                const title = config?.title || "Claude error"
-                // Use config description if set, otherwise fall back to errorText
-                const rawDescription = config?.description || chunk.errorText || "An unexpected error occurred"
-                // Truncate long descriptions for toast (keep first 300 chars)
-                const description = rawDescription.length > 300
-                  ? rawDescription.slice(0, 300) + "..."
-                  : rawDescription
+                // ── Anthropic auth/permission errors → show login modal + auto-retry ──
+                const ANTHROPIC_REAUTH_CATEGORIES = new Set([
+                  "AUTH_FAILED_SDK",
+                  "INVALID_API_KEY_SDK",
+                  "INVALID_API_KEY",
+                  "AUTH_FAILURE",
+                  "USAGE_POLICY_VIOLATION",
+                ])
+                if (providerType === "anthropic" && ANTHROPIC_REAUTH_CATEGORIES.has(category)) {
+                  appStore.set(pendingAuthRetryMessageAtom, {
+                    subChatId: this.config.subChatId,
+                    prompt,
+                    ...(images.length > 0 && { images }),
+                    readyToRetry: false,
+                  })
+                  appStore.set(agentsLoginModalOpenAtom, true)
+                  console.log(`[SD] R:AUTH_ERR sub=${subId} cat=${category}`)
+                  controller.error(new Error("Authentication required"))
+                  return
+                }
 
-                toast.error(title, {
-                  description,
-                  duration: 12000,
-                  action: {
-                    label: "Copy Error",
-                    onClick: () => {
-                      navigator.clipboard.writeText(errorDetails)
-                      toast.success("Error details copied to clipboard")
+                // ── LiteLLM errors → toast with office network / VPN hint ──
+                if (providerType === "litellm") {
+                  toast.error(i18n.t("toast:error.litellmConnection"), {
+                    description: i18n.t("toast:error.litellmConnectionDesc"),
+                    duration: 15000,
+                    action: {
+                      label: "Copy Error",
+                      onClick: () => {
+                        navigator.clipboard.writeText(errorDetails)
+                        toast.success("Error details copied to clipboard")
+                      },
                     },
-                  },
-                })
+                  })
+                } else {
+                  // ── Other errors (custom, ollama, unknown) → standard toast ──
+                  const config = ERROR_TOAST_CONFIG[category]
+                  const title = config?.title || "Claude error"
+                  const rawDescription = config?.description || chunk.errorText || "An unexpected error occurred"
+                  const description = rawDescription.length > 300
+                    ? rawDescription.slice(0, 300) + "..."
+                    : rawDescription
+
+                  toast.error(title, {
+                    description,
+                    duration: 12000,
+                    action: {
+                      label: "Copy Error",
+                      onClick: () => {
+                        navigator.clipboard.writeText(errorDetails)
+                        toast.success("Error details copied to clipboard")
+                      },
+                    },
+                  })
+                }
               }
 
               // Try to enqueue, but don't crash if stream is already closed
@@ -743,6 +795,7 @@ askUserQuestionTimeout,
     if (msg.parts) {
       const textParts: string[] = []
       const fileContents: string[] = []
+      const fileRefs: string[] = []
 
       for (const p of msg.parts) {
         if (isTextUIPart(p)) {
@@ -752,11 +805,23 @@ askUserQuestionTimeout,
           const data = p.data as { filePath?: string; content?: string }
           const fileName = data.filePath?.split("/").pop() || data.filePath || "file"
           fileContents.push(`\n--- ${fileName} ---\n${data.content ?? ""}`)
+        } else if (isDataUIPart(p) && p.type === "data-file") {
+          // Non-image file attachment - pass file path so AI can read it
+          const data = p.data as { localPath?: string; tempPath?: string; filename?: string; size?: number }
+          const filePath = data.localPath || data.tempPath
+          if (filePath) {
+            const sizeInfo = data.size ? ` (${(data.size / 1024).toFixed(1)}KB)` : ""
+            fileRefs.push(`- ${data.filename || "file"}${sizeInfo}: ${filePath}`)
+          }
         }
       }
 
-      // Combine text and file contents
-      return textParts.join("\n") + fileContents.join("")
+      // Combine text, file contents, and file references
+      let result = textParts.join("\n") + fileContents.join("")
+      if (fileRefs.length > 0) {
+        result += `\n\n[The user has attached the following file(s). Use the Read tool to access their contents:\n${fileRefs.join("\n")}]`
+      }
+      return result
     }
     return ""
   }
@@ -778,7 +843,7 @@ askUserQuestionTimeout,
     for (const part of msg.parts) {
       // Check for data-image parts with base64 data
       if (isDataUIPart(part) && part.type === "data-image") {
-        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string }
+        const data = part.data as { base64Data?: string; mediaType?: string; filename?: string; localPath?: string; tempPath?: string }
         if (data.base64Data && data.mediaType) {
           // Check if image exceeds inline size threshold
           const estimatedBytes = (data.base64Data.length * 3) / 4
@@ -823,6 +888,43 @@ askUserQuestionTimeout,
             filename: data.filename || data.localPath.split("/").pop() || "file",
             mediaType: data.mediaType,
             size: data.size,
+
+            filename: data.filename,
+            localPath: data.localPath,
+            tempPath: data.tempPath,
+          })
+        }
+      }
+    }
+
+    return files
+  }
+
+  /**
+   * Extract file attachments from message parts
+   * Looks for parts with type "data-file" that have path info
+   */
+  private extractFiles(msg: UIMessage | undefined): FileAttachment[] {
+    if (!msg || !msg.parts) return []
+
+    const files: FileAttachment[] = []
+
+    for (const part of msg.parts) {
+      if (isDataUIPart(part) && part.type === "data-file") {
+        const data = part.data as {
+          filename?: string
+          mediaType?: string
+          size?: number
+          localPath?: string
+          tempPath?: string
+        }
+        if (data.filename) {
+          files.push({
+            filename: data.filename,
+            mediaType: data.mediaType,
+            size: data.size,
+            localPath: data.localPath,
+            tempPath: data.tempPath,
           })
         }
       }

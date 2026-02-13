@@ -89,6 +89,7 @@
     "clsx": "^2.1.1",
     "color-name": "^2.1.0",
     "date-fns": "^3.6.0",
+    "dayjs": "^1.11.19",
     "diff": "^8.0.3",
     "docx-preview": "^0.3.7",
     "drizzle-orm": "^0.45.1",

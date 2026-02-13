@@ -83,14 +83,14 @@ function UsageTable({ data, columns }: UsageTableProps) {
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border border-primary/20 rounded-lg overflow-hidden shadow-sm">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50">
+        <thead className="bg-primary/10">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-4 py-2 text-left font-medium text-muted-foreground"
+                className="px-4 py-2.5 text-left font-medium text-primary border-b border-primary/20"
               >
                 {col.label}
               </th>
@@ -101,10 +101,10 @@ function UsageTable({ data, columns }: UsageTableProps) {
           {data.map((row, i) => (
             <tr
               key={i}
-              className="border-t border-border hover:bg-muted/30 transition-colors"
+              className="border-b border-primary/10 hover:bg-primary/5 transition-colors last:border-b-0"
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-2">
+                <td key={col.key} className="px-4 py-2.5 text-foreground/90">
                   {col.format
                     ? col.format(row[col.key])
                     : row[col.key] || col.fallback || "-"}

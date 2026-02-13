@@ -29,12 +29,14 @@ import {
   editorDirtyAtom,
   resetEditorStateAtom,
 } from "../atoms"
-import { isDesktopAtom, isFullscreenAtom } from "../../../lib/atoms"
+import { isDesktopAtom, isFullscreenAtom, betaBrowserEnabledAtom } from "../../../lib/atoms"
 import {
   setTrafficLightRequestAtom,
   removeTrafficLightRequestAtom,
   TRAFFIC_LIGHT_PRIORITIES,
 } from "../../../lib/atoms/traffic-light"
+import { selectedAgentChatIdAtom } from "../../agents/atoms"
+import { browserPendingNavigationAtomFamily, browserVisibleAtomFamily } from "../../browser-sidebar/atoms"
 
 // File types that support editing
 const EDITABLE_EXTENSIONS = new Set([
@@ -79,6 +81,12 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
 
+  // Beta browser feature support for HTML files
+  const betaBrowserEnabled = useAtomValue(betaBrowserEnabledAtom)
+  const selectedChatId = useAtomValue(selectedAgentChatIdAtom)
+  const setBrowserPendingNavigation = useSetAtom(browserPendingNavigationAtomFamily(selectedChatId || ""))
+  const setBrowserVisible = useSetAtom(browserVisibleAtomFamily(selectedChatId || ""))
+
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const [pendingCloseAction, setPendingCloseAction] = useState<(() => void) | null>(null)
 
@@ -103,6 +111,27 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
 
     return () => removeTrafficLightRequest("file-preview")
   }, [open, displayMode, isDesktop, isFullscreen, setTrafficLightRequest, removeTrafficLightRequest])
+
+  // Handle HTML files with beta browser: open in built-in browser instead of preview dialog
+  useEffect(() => {
+    if (!filePath || !betaBrowserEnabled || !selectedChatId) return
+
+    // Check if file is HTML
+    const ext = filePath.split(".").pop()?.toLowerCase() || ""
+    const isHtmlFile = ext === "html" || ext === "htm"
+
+    if (isHtmlFile) {
+      // Convert to file:// URL and trigger navigation in browser
+      const fileUrl = `file://${filePath}`
+      setBrowserPendingNavigation(fileUrl)
+      setBrowserVisible(true)
+
+      // Clear the preview path to close the dialog (if it was about to open)
+      setFilePath(null)
+      setScrollToLine(null)
+      setHighlightText(null)
+    }
+  }, [filePath, betaBrowserEnabled, selectedChatId, setBrowserPendingNavigation, setBrowserVisible, setFilePath, setScrollToLine, setHighlightText])
 
   // Use cross-platform path split
   const pathParts = filePath?.split(/[\\/]/) || []

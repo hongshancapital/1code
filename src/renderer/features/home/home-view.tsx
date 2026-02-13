@@ -6,10 +6,10 @@ import {
   agentsSidebarOpenAtom,
   agentsMobileViewModeAtom,
 } from "../agents/atoms"
-import { betaAutomationsEnabledAtom, isDesktopAtom, isFullscreenAtom } from "../../lib/atoms"
+import { isDesktopAtom, isFullscreenAtom } from "../../lib/atoms"
 import { trpc } from "../../lib/trpc"
 import { IconSpinner } from "../../components/ui/icons"
-import { MessageCircle, Inbox as InboxIcon, Zap, AlignJustify } from "lucide-react"
+import { MessageCircle, AlignJustify } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { useCallback, useMemo } from "react"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
@@ -52,35 +52,12 @@ export function HomeView() {
   const isDesktop = useAtomValue(isDesktopAtom)
   const isFullscreen = useAtomValue(isFullscreenAtom)
 
-  // Beta features flag
-  const automationsEnabled = useAtomValue(betaAutomationsEnabledAtom)
-
   // Typing greeting
   const { displayText, isTyping } = useTypingGreeting(35, 300)
-
-  // Fetch automations for stats (only if enabled)
-  const { data: automations, isLoading: automationsLoading } = trpc.automations.list.useQuery(
-    undefined,
-    { enabled: automationsEnabled }
-  )
 
   // Fetch recent chats
   const { data: allChats, isLoading: chatsLoading } = trpc.chats.list.useQuery()
   const recentChats = useMemo(() => (allChats || []).slice(0, 5), [allChats])
-
-  // Fetch recent inbox items (only if automations enabled)
-  const { data: inboxData, isLoading: inboxLoading } = trpc.automations.getInboxChats.useQuery(
-    { limit: 5 },
-    { enabled: automationsEnabled }
-  )
-
-  // Calculate stats
-  const automationStats = useMemo(() => {
-    if (!automations) return { total: 0, enabled: 0 }
-    const total = automations.length
-    const enabled = automations.filter((a) => a.isEnabled).length
-    return { total, enabled }
-  }, [automations])
 
   // Calculate recent activity stats (last 7 days)
   const activityStats = useMemo(() => {
@@ -102,14 +79,6 @@ export function HomeView() {
       setSidebarOpen(true)
     }
   }, [isMobile, setDesktopView, setMobileViewMode, setSidebarOpen])
-
-  const handleOpenInbox = useCallback(() => {
-    setDesktopView("inbox")
-  }, [setDesktopView])
-
-  const handleOpenAutomations = useCallback(() => {
-    setDesktopView("automations")
-  }, [setDesktopView])
 
   const handleOpenChat = useCallback((chatId: string) => {
     navigateToChat(chatId)
@@ -169,10 +138,7 @@ export function HomeView() {
       <div className="flex-1 overflow-y-auto px-4 md:px-6">
         <div className={isMobile ? "max-w-full" : "max-w-3xl mx-auto"}>
           {/* Stats Cards */}
-          <div className={cn(
-            "grid gap-3 mb-8",
-            automationsEnabled ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2"
-          )}>
+          <div className="grid gap-3 mb-8 grid-cols-2">
             <div className="p-4 rounded-xl border border-border bg-background">
               <div className="text-2xl font-semibold">{activityStats.totalChats}</div>
               <div className="text-xs text-muted-foreground">{t("stats.recentChats")}</div>
@@ -181,25 +147,10 @@ export function HomeView() {
               <div className="text-2xl font-semibold text-primary">{activityStats.recentChats}</div>
               <div className="text-xs text-muted-foreground">{t("stats.last7Days")}</div>
             </div>
-            {automationsEnabled && (
-              <>
-                <div className="p-4 rounded-xl border border-border bg-background">
-                  <div className="text-2xl font-semibold">{automationStats.total}</div>
-                  <div className="text-xs text-muted-foreground">{t("stats.totalAutomations")}</div>
-                </div>
-                <div className="p-4 rounded-xl border border-border bg-background">
-                  <div className="text-2xl font-semibold text-green-500">{automationStats.enabled}</div>
-                  <div className="text-xs text-muted-foreground">{t("stats.active")}</div>
-                </div>
-              </>
-            )}
           </div>
 
           {/* Recent Activity */}
-          <div className={cn(
-            "grid gap-6",
-            automationsEnabled ? "md:grid-cols-2" : "md:grid-cols-1"
-          )}>
+          <div className="grid gap-6 md:grid-cols-1">
             {/* Recent Chats */}
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -236,108 +187,7 @@ export function HomeView() {
                 )}
               </div>
             </div>
-
-            {/* Recent Inbox Items (only if automations enabled) */}
-            {automationsEnabled && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-medium">{t("sections.inbox")}</h2>
-                  <button
-                    onClick={handleOpenInbox}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {t("actions.viewAll")}
-                  </button>
-                </div>
-                <div className="rounded-xl border border-border bg-background overflow-hidden">
-                  {inboxLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <IconSpinner className="h-5 w-5" />
-                    </div>
-                  ) : inboxData?.chats && inboxData.chats.length > 0 ? (
-                    <div className="divide-y divide-border">
-                      {inboxData.chats.slice(0, 5).map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={handleOpenInbox}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-foreground/5 transition-colors text-left"
-                        >
-                          <InboxIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm truncate">{item.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {item.automationName} &bull; {item.createdAt ? formatDistanceToNow(new Date(item.createdAt)) : ""}
-                            </div>
-                          </div>
-                          <span className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded",
-                            item.status === "success" ? "bg-green-500/10 text-green-600" :
-                            item.status === "failed" ? "bg-red-500/10 text-red-600" :
-                            "bg-muted text-muted-foreground"
-                          )}>
-                            {item.status}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-                      <InboxIcon className="h-8 w-8 text-border mb-2" />
-                      <p className="text-sm text-muted-foreground">{t("empty.inboxItems")}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
-
-          {/* Automations Section (only if enabled) */}
-          {automationsEnabled && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium">{t("sections.automations")}</h2>
-                <button
-                  onClick={handleOpenAutomations}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {t("actions.viewAll")}
-                </button>
-              </div>
-              <div className="rounded-xl border border-border bg-background overflow-hidden">
-                {automationsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <IconSpinner className="h-5 w-5" />
-                  </div>
-                ) : automations && automations.length > 0 ? (
-                  <div className="divide-y divide-border">
-                    {automations.slice(0, 3).map((automation) => (
-                      <button
-                        key={automation.id}
-                        onClick={handleOpenAutomations}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-foreground/5 transition-colors text-left"
-                      >
-                        <Zap className={cn(
-                          "h-4 w-4 shrink-0",
-                          automation.isEnabled ? "text-orange-500" : "text-muted-foreground"
-                        )} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm truncate">{automation.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {automation.isEnabled ? t("stats.active") : t("stats.paused")}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-                    <Zap className="h-8 w-8 text-border mb-2" />
-                    <p className="text-sm text-muted-foreground">{t("empty.automations")}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

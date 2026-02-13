@@ -142,7 +142,7 @@
         "noModels": "No models available. Check LiteLLM configuration."
       },
       "custom": {
-        "title": "Custom API",
+        "title": "Custom Model",
         "description": "Use a custom API endpoint with your own credentials",
         "baseUrl": "Base URL",
         "baseUrlPlaceholder": "https://api.anthropic.com",

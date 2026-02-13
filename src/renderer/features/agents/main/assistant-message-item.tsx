@@ -3,6 +3,7 @@
 import { useAtomValue } from "jotai"
 import { ListTree } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
+import dayjs from "dayjs"
 
 import { CollapseIcon, ExpandIcon, IconTextUndo } from "../../../components/ui/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
@@ -38,6 +39,13 @@ import {
 } from "../ui/message-action-buttons"
 import { useFileOpen } from "../mentions"
 import { MemoizedTextPart } from "./memoized-text-part"
+
+function formatMessageTime(date: Date | string | undefined): string | null {
+  if (!date) return null
+  const d = dayjs(date)
+  if (!d.isValid()) return null
+  return d.isSame(dayjs(), "day") ? d.format("HH:mm") : d.format("M/D HH:mm")
+}
 
 // Helper to safely extract error text from a part object
 function getErrorText(part: Record<string, unknown>): string | undefined {
@@ -761,8 +769,13 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
                 <IconTextUndo className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
             )}
+            <AgentMessageUsage metadata={msgMetadata} isStreaming={isStreaming} isMobile={isMobile} />
           </div>
-          <AgentMessageUsage metadata={msgMetadata} isStreaming={isStreaming} isMobile={isMobile} />
+          {message.createdAt && (
+            <span className="text-[10px] text-muted-foreground/40">
+              {formatMessageTime(message.createdAt)}
+            </span>
+          )}
         </div>
       )}
 

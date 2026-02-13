@@ -141,13 +141,13 @@ import {
   pendingPlanApprovalsAtom,
   pendingPrMessageAtom,
   pendingReviewMessageAtom,
-  pendingBranchRenameMessageAtom,
   pendingUserQuestionsAtom,
   planEditRefetchTriggerAtomFamily,
   planSidebarOpenAtomFamily,
   QUESTIONS_SKIPPED_MESSAGE,
   selectedAgentChatIdAtom,
   selectedCommitAtom,
+  diffActiveTabAtom,
   selectedDiffFilePathAtom,
   selectedProjectAtom,
   setLoading,
@@ -194,6 +194,7 @@ import {
   toQueuedTextContext,
   type AgentQueueItem,
 } from "../lib/queue-utils"
+import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   FileOpenProvider,
@@ -644,15 +645,26 @@ const DiffSidebarContent = memo(function DiffSidebarContent({
 
   // Active tab state (Changes/History)
   const [activeTab, setActiveTab] = useState<"changes" | "history">("changes")
+  const [globalActiveTab, setGlobalActiveTab] = useAtom(diffActiveTabAtom)
+
+  // Sync from global atom (set by git-activity-badges) to local state
+  useEffect(() => {
+    if (globalActiveTab !== activeTab) {
+      setActiveTab(globalActiveTab)
+    }
+  }, [globalActiveTab])
 
   // Register the reset function so handleCloseDiff can reset to "changes" tab before closing
   // This prevents React 19 ref cleanup issues with HistoryView's ContextMenu components
   useEffect(() => {
-    resetActiveTabRef.current = () => setActiveTab("changes")
+    resetActiveTabRef.current = () => {
+      setActiveTab("changes")
+      setGlobalActiveTab("changes")
+    }
     return () => {
       resetActiveTabRef.current = null
     }
-  }, [resetActiveTabRef])
+  }, [resetActiveTabRef, setGlobalActiveTab])
 
   // Selected commit for History tab
   const [selectedCommit, setSelectedCommit] = useAtom(selectedCommitAtom)
@@ -1488,14 +1500,15 @@ const ChatViewInner = memo(function ChatViewInner({
   const projectMode = useAtomValue(currentProjectModeAtom)
 
   // Consume pending mentions from external components (e.g. MCP widget in sidebar)
+  // Only the active subchat should process the mention to avoid writing drafts to all subchats
   const [pendingMention, setPendingMention] = useAtom(pendingMentionAtom)
   useEffect(() => {
-    if (pendingMention) {
+    if (pendingMention && isActive) {
       editorRef.current?.insertMention(pendingMention)
       editorRef.current?.focus()
       setPendingMention(null)
     }
-  }, [pendingMention, setPendingMention])
+  }, [pendingMention, setPendingMention, isActive])
 
   // TTS playback rate state (persists across messages and sessions via localStorage)
   const [_ttsPlaybackRate, _setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
@@ -1644,7 +1657,9 @@ const ChatViewInner = memo(function ChatViewInner({
     isUploading,
     setImagesFromDraft,
     setFilesFromDraft,
-  } = useAgentsFileUpload()
+  } = useAgentsFileUpload(
+    parentChatId ? `${parentChatId}:${subChatId}` : undefined
+  )
 
   // Listen for browser screenshots to add to chat input
   const browserPendingScreenshotAtom = useMemo(
@@ -1764,45 +1779,54 @@ const ChatViewInner = memo(function ChatViewInner({
   // Restore draft when subChatId changes (switching between sub-chats)
   const prevSubChatIdForDraftRef = useRef<string | null>(null)
   useEffect(() => {
-    // Restore full draft (text + attachments + text contexts) for new sub-chat
-    const savedDraft = parentChatId
-      ? getSubChatDraftFull(parentChatId, subChatId)
-      : null
+    let cancelled = false
 
-    if (savedDraft) {
-      // Restore text
-      if (savedDraft.text) {
-        editorRef.current?.setValue(savedDraft.text)
-      } else {
+    async function restoreDraft() {
+      // Restore full draft (text + attachments + text contexts) for new sub-chat
+      const savedDraft = parentChatId
+        ? await getSubChatDraftFull(parentChatId, subChatId)
+        : null
+
+      if (cancelled) return
+
+      if (savedDraft) {
+        // Restore text
+        if (savedDraft.text) {
+          editorRef.current?.setValue(savedDraft.text)
+        } else {
+          editorRef.current?.clear()
+        }
+        // Restore images
+        if (savedDraft.images.length > 0) {
+          setImagesFromDraft(savedDraft.images)
+        } else {
+          clearAll()
+        }
+        // Restore files
+        if (savedDraft.files.length > 0) {
+          setFilesFromDraft(savedDraft.files)
+        }
+        // Restore text contexts
+        if (savedDraft.textContexts.length > 0) {
+          setTextContextsFromDraft(savedDraft.textContexts)
+        } else {
+          clearTextContexts()
+        }
+      } else if (
+        prevSubChatIdForDraftRef.current &&
+        prevSubChatIdForDraftRef.current !== subChatId
+      ) {
+        // Clear everything when switching to a sub-chat with no draft
         editorRef.current?.clear()
-      }
-      // Restore images
-      if (savedDraft.images.length > 0) {
-        setImagesFromDraft(savedDraft.images)
-      } else {
         clearAll()
-      }
-      // Restore files
-      if (savedDraft.files.length > 0) {
-        setFilesFromDraft(savedDraft.files)
-      }
-      // Restore text contexts
-      if (savedDraft.textContexts.length > 0) {
-        setTextContextsFromDraft(savedDraft.textContexts)
-      } else {
         clearTextContexts()
       }
-    } else if (
-      prevSubChatIdForDraftRef.current &&
-      prevSubChatIdForDraftRef.current !== subChatId
-    ) {
-      // Clear everything when switching to a sub-chat with no draft
-      editorRef.current?.clear()
-      clearAll()
-      clearTextContexts()
+
+      prevSubChatIdForDraftRef.current = subChatId
     }
 
-    prevSubChatIdForDraftRef.current = subChatId
+    restoreDraft()
+    return () => { cancelled = true }
   }, [
     subChatId,
     parentChatId,
@@ -2066,24 +2090,6 @@ const ChatViewInner = memo(function ChatViewInner({
       })
     }
   }, [pendingConflictMessage, isStreaming, isActive, sendMessage, setPendingConflictMessage])
-
-  // Watch for pending branch rename message and send it
-  const [pendingBranchRename, setPendingBranchRename] = useAtom(
-    pendingBranchRenameMessageAtom,
-  )
-
-  useEffect(() => {
-    if (pendingBranchRename && !isStreaming) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingBranchRename(null)
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: pendingBranchRename }],
-      })
-    }
-  }, [pendingBranchRename, isStreaming, sendMessage, setPendingBranchRename])
 
   // Handle pending "Build plan" from sidebar (atom - effect is defined after handleApprovePlan)
   const [pendingBuildPlanSubChatId, setPendingBuildPlanSubChatId] = useAtom(
@@ -2808,7 +2814,7 @@ const ChatViewInner = memo(function ChatViewInner({
     ) {
       hasTriggeredAutoGenerateRef.current = true
       // Trigger rename for pre-populated initial message (from createAgentChat)
-      if (!hasTriggeredRenameRef.current && isFirstSubChat) {
+      if (!hasTriggeredRenameRef.current) {
         const firstMsg = messages[0]
         if (firstMsg?.role === "user") {
           const textPart = firstMsg.parts?.find((p: any) => p.type === "text")
@@ -3086,30 +3092,15 @@ const ChatViewInner = memo(function ChatViewInner({
     }
 
     // Build message parts: images first, then files, then text
-    // Include base64Data for API transmission
+    // Small images (< 5MB) are inlined as base64; large images use file path reference
+    // Claude API supports up to 8MB inline base64, 5MB leaves reasonable headroom
     const parts: any[] = [
       ...currentImages
         .filter((img) => !img.isLoading && img.url)
-        .map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data, // Include base64 data for Claude API
-          },
-        })),
+        .map(buildImagePart),
       ...currentFiles
         .filter((f) => !f.isLoading && f.url)
-        .map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.type,
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        .map(buildFilePart),
     ]
 
     // Add text contexts as mention tokens
@@ -3153,9 +3144,8 @@ const ChatViewInner = memo(function ChatViewInner({
         // Extract file path from mentionId (file:local:path or file:external:path)
         const filePath = mentionId.replace(/^file:(local|external):/, "")
         parts.push({
-          type: "file-content",
-          filePath,
-          content,
+          type: "data-file-content" as const,
+          data: { filePath, content },
         })
       }
     }
@@ -3251,24 +3241,8 @@ const ChatViewInner = memo(function ChatViewInner({
 
       // Build message parts from queued item
       const parts: any[] = [
-        ...(item.images || []).map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data,
-          },
-        })),
-        ...(item.files || []).map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.mediaType || "application/octet-stream",
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        ...(item.images || []).map(buildImagePart),
+        ...(item.files || []).map(buildFilePart),
       ]
 
       // Add text contexts as mention tokens
@@ -3457,26 +3431,10 @@ const ChatViewInner = memo(function ChatViewInner({
     const parts: any[] = [
       ...currentImages
         .filter((img) => !img.isLoading && img.url)
-        .map((img) => ({
-          type: "data-image" as const,
-          data: {
-            url: img.url,
-            mediaType: img.mediaType,
-            filename: img.filename,
-            base64Data: img.base64Data,
-          },
-        })),
+        .map(buildImagePart),
       ...currentFiles
         .filter((f) => !f.isLoading && f.url)
-        .map((f) => ({
-          type: "data-file" as const,
-          data: {
-            url: f.url,
-            mediaType: f.type || "application/octet-stream",
-            filename: f.filename,
-            size: f.size,
-          },
-        })),
+        .map(buildFilePart),
     ]
 
     if (finalText) {
@@ -6453,6 +6411,13 @@ Make sure to preserve all functionality from both branches when resolving confli
       const firstSubChatId = getFirstSubChatId(agentSubChats)
       const isFirst = firstSubChatId === subChatId
 
+      // Get the sub-chat to check manuallyRenamed flag
+      const subChat = agentSubChats.find(sc => sc.id === subChatId)
+      if (subChat?.manually_renamed) {
+        console.log("[auto-rename] Skipping - user has manually renamed this sub-chat")
+        return
+      }
+
       autoRenameAgentChat({
         subChatId,
         parentChatId: chatId,
@@ -6467,10 +6432,12 @@ Make sure to preserve all functionality from both branches when resolving confli
           })
         },
         renameSubChat: async (input) => {
-          await renameSubChatMutation.mutateAsync(input)
+          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
+          await renameSubChatMutation.mutateAsync({ ...input, skipManuallyRenamed: true })
         },
         renameChat: async (input) => {
-          await renameChatMutation.mutateAsync(input)
+          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
+          await renameChatMutation.mutateAsync({ ...input, skipManuallyRenamed: true })
         },
         updateSubChatName: (subChatIdToUpdate, name) => {
           // Update local store

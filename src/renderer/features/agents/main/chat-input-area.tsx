@@ -72,6 +72,7 @@ import {
   AgentsFileMention,
   AgentsMentionsEditor,
   type AgentsMentionsEditorHandle,
+  type AgentsFileMentionHandle,
   type FileMentionOption,
 } from "../mentions"
 import { AgentContextIndicator, type MessageTokenData } from "../ui/agent-context-indicator"
@@ -461,6 +462,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   const [showMentionDropdown, setShowMentionDropdown] = useState(false)
   const [mentionSearchText, setMentionSearchText] = useState("")
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
+  const mentionDropdownRef = useRef<AgentsFileMentionHandle>(null)
 
   // Mention dropdown subpage navigation state
   const [showingFilesList, setShowingFilesList] = useState(false)
@@ -636,8 +638,47 @@ export const ChatInputArea = memo(function ChatInputArea({
   const currentSubChatIdRef = useRef<string>(subChatId)
   const currentChatIdRef = useRef<string | null>(parentChatId)
   const currentDraftTextRef = useRef<string>("")
+  const currentImagesRef = useRef<UploadedImage[]>([])
+  const currentFilesRef = useRef<UploadedFile[]>([])
+  const currentTextContextsRef = useRef<SelectedTextContext[]>([])
+  const currentDiffTextContextsRef = useRef<DiffTextContext[]>([])
   currentSubChatIdRef.current = subChatId
   currentChatIdRef.current = parentChatId
+  currentImagesRef.current = images
+  currentFilesRef.current = files
+  currentTextContextsRef.current = textContexts
+  currentDiffTextContextsRef.current = diffTextContexts ?? []
+
+  // Save full draft on unmount (e.g. workspace switch doesn't trigger blur)
+  useEffect(() => {
+    return () => {
+      const chatId = currentChatIdRef.current
+      const subChatIdValue = currentSubChatIdRef.current
+      const draft = currentDraftTextRef.current
+      const imgs = currentImagesRef.current
+      const fls = currentFilesRef.current
+      const tcs = currentTextContextsRef.current
+      const dtcs = currentDiffTextContextsRef.current
+      if (!chatId) return
+
+      const hasContent =
+        draft.trim() ||
+        imgs.length > 0 ||
+        fls.length > 0 ||
+        tcs.length > 0 ||
+        dtcs.length > 0
+
+      if (hasContent) {
+        // Synchronous — only stores tempPath references in localStorage
+        saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
+          images: imgs,
+          files: fls,
+          textContexts: tcs,
+          diffTextContexts: dtcs,
+        })
+      }
+    }
+  }, [])
 
   // Keyboard shortcut: Cmd+/ to open model selector
   useEffect(() => {
@@ -839,7 +880,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   }, [pendingFileReference, setPendingFileReference, editorRef])
 
   // Save draft on blur (with attachments and text contexts)
-  const handleEditorBlur = useCallback(async () => {
+  const handleEditorBlur = useCallback(() => {
     // Use RAF to avoid React error #185 (max update depth)
     requestAnimationFrame(() => {
       if (isMountedRef.current) {
@@ -864,10 +905,11 @@ export const ChatInputArea = memo(function ChatInputArea({
       (diffTextContexts?.length ?? 0) > 0
 
     if (hasContent) {
-      await saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
+      saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
         images,
         files,
         textContexts,
+        diffTextContexts,
       })
     } else {
       clearSubChatDraft(chatId, subChatIdValue)
@@ -932,6 +974,16 @@ export const ChatInputArea = memo(function ChatInputArea({
     setShowingAgentsList(false)
     setShowingToolsList(false)
   }, [editorRef])
+
+  // IME confirm handler - called when IME composition ends while @ trigger is active
+  // searchText: the final search text after @ (from DOM after IME confirms)
+  // Returns: "selected" if exact match found and selected, "partial" if partial match, "none" if no match
+  const handleImeConfirm = useCallback((searchText: string): "selected" | "partial" | "none" => {
+    if (!showMentionDropdown || !mentionDropdownRef.current) {
+      return "none"
+    }
+    return mentionDropdownRef.current.checkAndSelect(searchText)
+  }, [showMentionDropdown])
 
   // Slash command handlers
   const handleSlashTrigger = useCallback(
@@ -1266,6 +1318,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                   onBlur={handleEditorBlur}
                   onHistoryUp={getHistoryUp}
                   onHistoryDown={getHistoryDown}
+                  onImeConfirm={handleImeConfirm}
                 />
               </div>
               <PromptInputActions className="w-full">
@@ -1509,33 +1562,6 @@ export const ChatInputArea = memo(function ChatInputArea({
                         </TooltipContent>
                       </Tooltip>
                       <DropdownMenuContent align="start" className="w-[280px] max-h-[400px] overflow-y-auto">
-                        {/* Session override indicator */}
-                        {sessionOverride && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs text-yellow-600 dark:text-yellow-400 flex items-center justify-between">
-                              <span>{t("model.sessionOverride")}</span>
-                              <button
-                                className="text-xs text-muted-foreground hover:text-foreground underline"
-                                onClick={() => {
-                                  setSessionOverride(null)
-                                  // Clear per-chat persisted model
-                                  if (parentChatId) {
-                                    setChatModelSelections((prev) => {
-                                      const next = { ...prev }
-                                      delete next[parentChatId]
-                                      return next
-                                    })
-                                  }
-                                  setIsModelDropdownOpen(false)
-                                }}
-                              >
-                                {t("model.resetToDefault")}
-                              </button>
-                            </div>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-
                         {/* Provider sections */}
                         {providers.map((provider: ProviderInfo) => (
                           <ProviderModelSection
@@ -1696,6 +1722,7 @@ export const ChatInputArea = memo(function ChatInputArea({
       {/* File mention dropdown */}
       {/* Desktop: use projectPath for local file search */}
       <AgentsFileMention
+        ref={mentionDropdownRef}
         isOpen={
           showMentionDropdown &&
           (!!projectPath || !!repository || !!sandboxId)

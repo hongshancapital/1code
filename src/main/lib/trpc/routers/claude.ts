@@ -1,20 +1,19 @@
-import { observable } from "@trpc/server/observable"
-import { eq, like, desc } from "drizzle-orm"
-import { app, BrowserWindow, safeStorage } from "electron"
-import * as fs from "fs/promises"
-import { readFileSync } from "fs"
-import * as os from "os"
-import path from "path"
-import { z } from "zod"
-import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
+import { observable } from "@trpc/server/observable";
+import { eq, like, desc } from "drizzle-orm";
+import { app, BrowserWindow, safeStorage } from "electron";
+import * as fs from "fs/promises";
+import { readFileSync } from "fs";
+import * as os from "os";
+import path from "path";
+import { z } from "zod";
+import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
+import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config";
 import {
   buildClaudeEnv,
   checkOfflineFallback,
-  clearClaudeQueryCache,
   clearConfigCache,
   createTransformer,
   getBundledClaudeBinaryPath,
-  getClaudeQuery,
   getConfigLoader,
   getPromptBuilder,
   initializePromptBuilder,
@@ -27,7 +26,7 @@ import {
   type UIMessageChunk,
 } from "../../claude"
 import { getEnv } from "../../env"
-import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
+import { getProjectMcpServers, GLOBAL_MCP_PATH, readClaudeConfig, readAgentConfig, resolveProjectPathFromWorktree, updateMcpServerConfig, removeMcpServerConfig, writeClaudeConfig, type McpServerConfig, type ProjectConfig } from "../../claude-config"
 import { chats, claudeCodeCredentials, getDatabase, memorySessions, modelUsage, observations, subChats } from "../../db"
 import { createRollbackStash } from "../../git/stash"
 import { ensureMcpTokensFresh, fetchMcpTools, fetchMcpToolsStdio, getMcpAuthStatus, startMcpOAuth, type McpToolInfo } from "../../mcp-auth"
@@ -45,83 +44,143 @@ import { createBrowserMcpServer, browserManager } from "../../browser"
 import { createImageGenMcpServer } from "../../mcp/image-gen-server"
 import { createImageProcessMcpServer } from "../../mcp/image-process-server"
 
+} from "../../claude";
+import { getEnv } from "../../env";
+import {
+  getProjectMcpServers,
+  GLOBAL_MCP_PATH,
+  readClaudeConfig,
+  readAgentConfig,
+  resolveProjectPathFromWorktree,
+  updateMcpServerConfig,
+  removeMcpServerConfig,
+  writeClaudeConfig,
+  type McpServerConfig,
+  type ProjectConfig,
+} from "../../claude-config";
+import {
+  chats,
+  claudeCodeCredentials,
+  getDatabase,
+  memorySessions,
+  modelUsage,
+  observations,
+  subChats,
+} from "../../db";
+import { createRollbackStash } from "../../git/stash";
+import {
+  ensureMcpTokensFresh,
+  fetchMcpTools,
+  fetchMcpToolsStdio,
+  getMcpAuthStatus,
+  startMcpOAuth,
+  type McpToolInfo,
+} from "../../mcp-auth";
+import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth";
+import { publicProcedure, router } from "../index";
+import { buildAgentsOption } from "./agent-utils";
+import { computePreviewStatsFromMessages } from "./chat-helpers";
+import {
+  getEnabledPlugins,
+  getApprovedPluginMcpServers,
+} from "./claude-settings";
+import {
+  discoverInstalledPlugins,
+  discoverPluginMcpServers,
+} from "../../plugins";
+import {
+  injectBuiltinMcp,
+  BUILTIN_MCP_NAME,
+  getBuiltinMcpConfig,
+  getBuiltinMcpPlaceholder,
+} from "../../builtin-mcp";
+import { getAuthManager } from "../../../index";
+import { getCachedRuntimeEnvironment } from "./runner";
+import { memoryHooks } from "../../memory";
+import { createBrowserMcpServer, browserManager } from "../../browser";
+import { createImageGenMcpServer } from "../../mcp/image-gen-server";
+import { createImageProcessMcpServer } from "../../mcp/image-process-server";
+import { setLastUserMessageDebug } from "./debug";
+
 /**
  * Type for Claude SDK streaming messages
  * These are the raw messages from the SDK query iterator
  */
 interface SdkStreamMessage {
-  type?: string
-  subtype?: string
-  uuid?: string
-  mcp_servers?: unknown
-  error?: string | { message?: string }
-  session_id?: string
-  cwd?: string
-  tools?: unknown
-  plugins?: unknown
-  permissionMode?: string
+  type?: string;
+  subtype?: string;
+  uuid?: string;
+  mcp_servers?: unknown;
+  error?: string | { message?: string };
+  session_id?: string;
+  cwd?: string;
+  tools?: unknown;
+  plugins?: unknown;
+  permissionMode?: string;
   event?: {
-    type?: string
-    delta?: { type?: string }
-    content_block?: { type?: string }
-  }
+    type?: string;
+    delta?: { type?: string };
+    content_block?: { type?: string };
+  };
   message?: {
-    id?: string
-    content?: Array<{ type?: string; text?: string }>
-  }
-  [key: string]: unknown
+    id?: string;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+  [key: string]: unknown;
 }
 
 /**
  * Per-model usage breakdown for accurate token attribution
  */
 interface ModelUsageEntry {
-  inputTokens: number
-  outputTokens: number
-  costUSD?: number
+  inputTokens: number;
+  outputTokens: number;
+  costUSD?: number;
 }
 
 /**
  * Metadata accumulated during SDK streaming
  */
 interface StreamMetadata {
-  sessionId?: string
-  sdkMessageUuid?: string
-  inputTokens?: number
-  outputTokens?: number
-  cacheCreationInputTokens?: number
-  cacheReadInputTokens?: number
-  totalTokens?: number
-  totalCostUsd?: number
-  modelUsage?: Record<string, ModelUsageEntry>
-  durationMs?: number
+  sessionId?: string;
+  sdkMessageUuid?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+  totalTokens?: number;
+  totalCostUsd?: number;
+  modelUsage?: Record<string, ModelUsageEntry>;
+  durationMs?: number;
 }
 
 /**
  * Input type for AskUserQuestion tool
  */
 interface AskUserQuestionInput {
-  questions?: unknown[]
-  [key: string]: unknown
+  questions?: unknown[];
+  [key: string]: unknown;
 }
 
 /**
  * Response type for tool permission callback
  */
 interface ToolPermissionResponse {
-  behavior: "allow" | "deny"
-  updatedInput?: Record<string, unknown> & { answers?: Record<string, unknown> }
-  message?: string
+  behavior: "allow" | "deny";
+  updatedInput?: Record<string, unknown> & {
+    answers?: Record<string, unknown>;
+  };
+  message?: string;
 }
 
 // UTF-8 safe base64 decoding (atob doesn't support Unicode)
 function base64ToUtf8(base64: string): string {
   try {
-    const binString = atob(base64)
-    const bytes = Uint8Array.from(binString, (char) => char.codePointAt(0)!)
-    return new TextDecoder().decode(bytes)
+    const binString = atob(base64);
+    const bytes = Uint8Array.from(binString, (char) => char.codePointAt(0)!);
+    return new TextDecoder().decode(bytes);
   } catch {
-    return base64 // Return original if decode fails
+    return base64; // Return original if decode fails
   }
 }
 
@@ -129,49 +188,53 @@ function base64ToUtf8(base64: string): string {
  * Parse a diff mention and convert to readable format
  * Format: diff-code:filepath:lineNumber:preview:base64_full_text:base64_comment
  */
-function parseDiffMention(content: string): { text: string; hasComment: boolean } {
-  const parts = content.split(":")
+function parseDiffMention(content: string): {
+  text: string;
+  hasComment: boolean;
+} {
+  const parts = content.split(":");
   if (parts.length < 4) {
-    return { text: content, hasComment: false }
+    return { text: content, hasComment: false };
   }
 
-  const filePath = parts[0] || ""
-  const lineNumber = parts[1] || ""
+  const filePath = parts[0] || "";
+  const lineNumber = parts[1] || "";
   // parts[2] is preview (not needed, we use full text)
-  const encodedText = parts[3] || ""
-  const encodedComment = parts[4] || ""
+  const encodedText = parts[3] || "";
+  const encodedComment = parts[4] || "";
 
-  let fullText = ""
+  let fullText = "";
   try {
     if (encodedText) {
-      fullText = base64ToUtf8(encodedText)
+      fullText = base64ToUtf8(encodedText);
     }
   } catch {
-    fullText = parts[2] || "" // Fallback to preview
+    fullText = parts[2] || ""; // Fallback to preview
   }
 
-  let comment = ""
+  let comment = "";
   try {
     if (encodedComment) {
-      comment = base64ToUtf8(encodedComment)
+      comment = base64ToUtf8(encodedComment);
     }
   } catch {
     // Ignore decode errors for comment
   }
 
-  const fileName = filePath.split("/").pop() || filePath
-  const lineInfo = lineNumber && lineNumber !== "0" ? ` (line ${lineNumber})` : ""
+  const fileName = filePath.split("/").pop() || filePath;
+  const lineInfo =
+    lineNumber && lineNumber !== "0" ? ` (line ${lineNumber})` : "";
 
   if (comment) {
     return {
       text: `[Code Review Comment on ${fileName}${lineInfo}]\nUser's comment: "${comment}"\nReferenced code:\n\`\`\`\n${fullText}\n\`\`\``,
       hasComment: true,
-    }
+    };
   } else {
     return {
       text: `[Code Reference from ${fileName}${lineInfo}]\n\`\`\`\n${fullText}\n\`\`\``,
       hasComment: false,
-    }
+    };
   }
 }
 
@@ -180,22 +243,22 @@ function parseDiffMention(content: string): { text: string; hasComment: boolean 
  * Format: quote:preview:base64_full_text
  */
 function parseQuoteMention(content: string): string {
-  const separatorIdx = content.indexOf(":")
+  const separatorIdx = content.indexOf(":");
   if (separatorIdx === -1) {
-    return `[Quoted text]\n"${content}"`
+    return `[Quoted text]\n"${content}"`;
   }
 
-  const encodedText = content.slice(separatorIdx + 1)
-  let fullText = content.slice(0, separatorIdx) // Default to preview
+  const encodedText = content.slice(separatorIdx + 1);
+  let fullText = content.slice(0, separatorIdx); // Default to preview
   try {
     if (encodedText) {
-      fullText = base64ToUtf8(encodedText)
+      fullText = base64ToUtf8(encodedText);
     }
   } catch {
     // Keep preview as fallback
   }
 
-  return `[Quoted text]\n"${fullText}"`
+  return `[Quoted text]\n"${fullText}"`;
 }
 
 /**
@@ -209,44 +272,47 @@ function parseQuoteMention(content: string): string {
  * - @[folder:local:path] or @[folder:external:path] - folder mentions
  */
 function parseMentions(prompt: string): {
-  cleanedPrompt: string
-  agentMentions: string[]
-  skillMentions: string[]
-  fileMentions: string[]
-  folderMentions: string[]
-  toolMentions: string[]
+  cleanedPrompt: string;
+  agentMentions: string[];
+  skillMentions: string[];
+  fileMentions: string[];
+  folderMentions: string[];
+  toolMentions: string[];
 } {
-  const agentMentions: string[] = []
-  const skillMentions: string[] = []
-  const fileMentions: string[] = []
-  const folderMentions: string[] = []
-  const toolMentions: string[] = []
+  const agentMentions: string[] = [];
+  const skillMentions: string[] = [];
+  const fileMentions: string[] = [];
+  const folderMentions: string[] = [];
+  const toolMentions: string[] = [];
 
   // Match @[prefix:name] pattern
-  const mentionRegex = /@\[(file|folder|skill|agent|tool):([^\]]+)\]/g
-  let match
+  const mentionRegex = /@\[(file|folder|skill|agent|tool):([^\]]+)\]/g;
+  let match;
 
   while ((match = mentionRegex.exec(prompt)) !== null) {
-    const [, type, name] = match
+    const [, type, name] = match;
     switch (type) {
       case "agent":
-        agentMentions.push(name)
-        break
+        agentMentions.push(name);
+        break;
       case "skill":
-        skillMentions.push(name)
-        break
+        skillMentions.push(name);
+        break;
       case "file":
-        fileMentions.push(name)
-        break
+        fileMentions.push(name);
+        break;
       case "folder":
-        folderMentions.push(name)
-        break
+        folderMentions.push(name);
+        break;
       case "tool":
         // Validate: server name (alphanumeric, underscore, hyphen) or full tool id (mcp__server__tool)
-        if (/^[a-zA-Z0-9_-]+$/.test(name) || /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/.test(name)) {
-          toolMentions.push(name)
+        if (
+          /^[a-zA-Z0-9_-]+$/.test(name) ||
+          /^mcp__[a-zA-Z0-9_-]+__[a-zA-Z0-9_-]+$/.test(name)
+        ) {
+          toolMentions.push(name);
         }
-        break
+        break;
     }
   }
 
@@ -255,39 +321,39 @@ function parseMentions(prompt: string): {
   let cleanedPrompt = prompt
     .replace(/@\[agent:[^\]]+\]/g, "")
     .replace(/@\[skill:[^\]]+\]/g, "")
-    .replace(/@\[tool:[^\]]+\]/g, "")
+    .replace(/@\[tool:[^\]]+\]/g, "");
 
   // Convert diff-code mentions to readable format with code review comments
-  const diffMentionRegex = /@\[diff-code:([^\]]+)\]/g
-  const diffContexts: string[] = []
+  const diffMentionRegex = /@\[diff-code:([^\]]+)\]/g;
+  const diffContexts: string[] = [];
   cleanedPrompt = cleanedPrompt.replace(diffMentionRegex, (_, content) => {
-    const { text } = parseDiffMention(content)
-    diffContexts.push(text)
-    return "" // Remove from main text, will be prepended as context
-  })
+    const { text } = parseDiffMention(content);
+    diffContexts.push(text);
+    return ""; // Remove from main text, will be prepended as context
+  });
 
   // Convert quote mentions to readable format
-  const quoteMentionRegex = /@\[quote:([^\]]+)\]/g
-  const quoteContexts: string[] = []
+  const quoteMentionRegex = /@\[quote:([^\]]+)\]/g;
+  const quoteContexts: string[] = [];
   cleanedPrompt = cleanedPrompt.replace(quoteMentionRegex, (_, content) => {
-    const text = parseQuoteMention(content)
-    quoteContexts.push(text)
-    return "" // Remove from main text, will be prepended as context
-  })
+    const text = parseQuoteMention(content);
+    quoteContexts.push(text);
+    return ""; // Remove from main text, will be prepended as context
+  });
 
-  cleanedPrompt = cleanedPrompt.trim()
+  cleanedPrompt = cleanedPrompt.trim();
 
   // Prepend code review comments and quotes as context
-  const contextParts: string[] = []
+  const contextParts: string[] = [];
   if (diffContexts.length > 0) {
-    contextParts.push(diffContexts.join("\n\n"))
+    contextParts.push(diffContexts.join("\n\n"));
   }
   if (quoteContexts.length > 0) {
-    contextParts.push(quoteContexts.join("\n\n"))
+    contextParts.push(quoteContexts.join("\n\n"));
   }
 
   if (contextParts.length > 0) {
-    cleanedPrompt = `${contextParts.join("\n\n")}\n\n${cleanedPrompt}`
+    cleanedPrompt = `${contextParts.join("\n\n")}\n\n${cleanedPrompt}`;
   }
 
   // Transform file mentions to readable paths for the agent
@@ -297,7 +363,7 @@ function parseMentions(prompt: string): {
     .replace(/@\[file:local:([^\]]+)\]/g, "$1")
     .replace(/@\[file:external:([^\]]+)\]/g, "$1")
     .replace(/@\[folder:local:([^\]]+)\]/g, "$1")
-    .replace(/@\[folder:external:([^\]]+)\]/g, "$1")
+    .replace(/@\[folder:external:([^\]]+)\]/g, "$1");
 
   // Add usage hints for mentioned MCP servers or individual tools
   // Names are already validated to contain only safe characters
@@ -306,16 +372,23 @@ function parseMentions(prompt: string): {
       .map((t) => {
         if (t.startsWith("mcp__")) {
           // Individual tool mention (from MCP widget): "Use the mcp__server__tool tool"
-          return `Use the ${t} tool for this request.`
+          return `Use the ${t} tool for this request.`;
         }
         // Server mention (from @ dropdown): "Use tools from the X MCP server"
-        return `Use tools from the ${t} MCP server for this request.`
+        return `Use tools from the ${t} MCP server for this request.`;
       })
-      .join(" ")
-    cleanedPrompt = `${toolHints}\n\n${cleanedPrompt}`
+      .join(" ");
+    cleanedPrompt = `${toolHints}\n\n${cleanedPrompt}`;
   }
 
-  return { cleanedPrompt, agentMentions, skillMentions, fileMentions, folderMentions, toolMentions }
+  return {
+    cleanedPrompt,
+    agentMentions,
+    skillMentions,
+    fileMentions,
+    folderMentions,
+    toolMentions,
+  };
 }
 
 /**
@@ -325,56 +398,121 @@ function parseMentions(prompt: string): {
  */
 const CODE_FILE_EXTENSIONS = new Set([
   // JavaScript/TypeScript
-  ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts",
+  ".js",
+  ".jsx",
+  ".ts",
+  ".tsx",
+  ".mjs",
+  ".cjs",
+  ".mts",
+  ".cts",
   // Python
-  ".py", ".pyw", ".pyi", ".pyc", ".pyo",
+  ".py",
+  ".pyw",
+  ".pyi",
+  ".pyc",
+  ".pyo",
   // Java/Kotlin/Scala
-  ".java", ".kt", ".kts", ".scala", ".sc",
+  ".java",
+  ".kt",
+  ".kts",
+  ".scala",
+  ".sc",
   // C/C++/Objective-C
-  ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx", ".hxx", ".m", ".mm",
+  ".c",
+  ".h",
+  ".cpp",
+  ".hpp",
+  ".cc",
+  ".cxx",
+  ".hxx",
+  ".m",
+  ".mm",
   // C#/F#
-  ".cs", ".fs", ".fsx",
+  ".cs",
+  ".fs",
+  ".fsx",
   // Go
   ".go",
   // Rust
   ".rs",
   // Ruby
-  ".rb", ".rake", ".gemspec",
+  ".rb",
+  ".rake",
+  ".gemspec",
   // PHP
-  ".php", ".phtml", ".php3", ".php4", ".php5", ".phps",
+  ".php",
+  ".phtml",
+  ".php3",
+  ".php4",
+  ".php5",
+  ".phps",
   // Swift
   ".swift",
   // Shell/Scripts
-  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".psm1", ".bat", ".cmd",
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".fish",
+  ".ps1",
+  ".psm1",
+  ".bat",
+  ".cmd",
   // Lua
   ".lua",
   // Perl
-  ".pl", ".pm", ".t",
+  ".pl",
+  ".pm",
+  ".t",
   // R
-  ".r", ".R", ".rmd", ".Rmd",
+  ".r",
+  ".R",
+  ".rmd",
+  ".Rmd",
   // Julia
   ".jl",
   // Haskell
-  ".hs", ".lhs",
+  ".hs",
+  ".lhs",
   // Elixir/Erlang
-  ".ex", ".exs", ".erl", ".hrl",
+  ".ex",
+  ".exs",
+  ".erl",
+  ".hrl",
   // Clojure
-  ".clj", ".cljs", ".cljc", ".edn",
+  ".clj",
+  ".cljs",
+  ".cljc",
+  ".edn",
   // Vue/Svelte (component files)
-  ".vue", ".svelte",
+  ".vue",
+  ".svelte",
   // Config/Definition files (these are code-like)
-  ".json", ".jsonc", ".yaml", ".yml", ".toml", ".ini", ".cfg",
+  ".json",
+  ".jsonc",
+  ".yaml",
+  ".yml",
+  ".toml",
+  ".ini",
+  ".cfg",
   // CSS/Style files
-  ".css", ".scss", ".sass", ".less", ".styl",
+  ".css",
+  ".scss",
+  ".sass",
+  ".less",
+  ".styl",
   // GraphQL
-  ".graphql", ".gql",
+  ".graphql",
+  ".gql",
   // SQL
   ".sql",
   // WebAssembly
-  ".wasm", ".wat",
+  ".wasm",
+  ".wat",
   // Assembly
-  ".asm", ".s",
-])
+  ".asm",
+  ".s",
+]);
 
 /**
  * Check if a file should be tracked as an artifact (deliverable).
@@ -382,19 +520,19 @@ const CODE_FILE_EXTENSIONS = new Set([
  * HTML files are considered deliverables and are included.
  */
 function shouldTrackAsArtifact(filePath: string): boolean {
-  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase()
-  return !CODE_FILE_EXTENSIONS.has(ext)
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+  return !CODE_FILE_EXTENSIONS.has(ext);
 }
 
 /**
  * Artifact context type - represents files or URLs used as context for an artifact
  */
 interface ArtifactContext {
-  type: "file" | "url"
-  filePath?: string
-  toolType?: "Read" | "Glob" | "Grep"
-  url?: string
-  title?: string
+  type: "file" | "url";
+  filePath?: string;
+  toolType?: "Read" | "Glob" | "Grep";
+  url?: string;
+  title?: string;
 }
 
 /**
@@ -402,87 +540,101 @@ interface ArtifactContext {
  * Collects all Read/Glob/Grep/WebFetch/WebSearch tool calls that preceded Write/Edit
  */
 function extractArtifactContexts(parts: any[]): ArtifactContext[] {
-  const contexts: ArtifactContext[] = []
-  const seenFiles = new Set<string>()
-  const seenUrls = new Set<string>()
+  const contexts: ArtifactContext[] = [];
+  const seenFiles = new Set<string>();
+  const seenUrls = new Set<string>();
 
   for (const part of parts) {
     // File read
-    if (part.type === "tool-Read" && part.input?.file_path && part.state === "result") {
-      const filePath = part.input.file_path
+    if (
+      part.type === "tool-Read" &&
+      part.input?.file_path &&
+      part.state === "result"
+    ) {
+      const filePath = part.input.file_path;
       if (!seenFiles.has(filePath)) {
-        seenFiles.add(filePath)
+        seenFiles.add(filePath);
         contexts.push({
           type: "file",
           filePath,
           toolType: "Read",
-        })
+        });
       }
     }
 
     // File search (Glob) - extract matched files from output
     if (part.type === "tool-Glob" && part.state === "result") {
-      const files = Array.isArray(part.output) ? part.output : []
-      for (const file of files.slice(0, 10)) { // Limit to 10 files
+      const files = Array.isArray(part.output) ? part.output : [];
+      for (const file of files.slice(0, 10)) {
+        // Limit to 10 files
         if (typeof file === "string" && !seenFiles.has(file)) {
-          seenFiles.add(file)
+          seenFiles.add(file);
           contexts.push({
             type: "file",
             filePath: file,
             toolType: "Glob",
-          })
+          });
         }
       }
     }
 
     // Content search (Grep)
-    if (part.type === "tool-Grep" && part.input?.path && part.state === "result") {
-      const filePath = part.input.path
+    if (
+      part.type === "tool-Grep" &&
+      part.input?.path &&
+      part.state === "result"
+    ) {
+      const filePath = part.input.path;
       if (!seenFiles.has(filePath)) {
-        seenFiles.add(filePath)
+        seenFiles.add(filePath);
         contexts.push({
           type: "file",
           filePath,
           toolType: "Grep",
-        })
+        });
       }
     }
 
     // Web fetch
-    if (part.type === "tool-WebFetch" && part.input?.url && part.state === "result") {
-      const url = part.input.url
+    if (
+      part.type === "tool-WebFetch" &&
+      part.input?.url &&
+      part.state === "result"
+    ) {
+      const url = part.input.url;
       if (!seenUrls.has(url)) {
-        seenUrls.add(url)
+        seenUrls.add(url);
         contexts.push({
           type: "url",
           url,
-        })
+        });
       }
     }
 
     // Web search - extract URLs from output if available
     if (part.type === "tool-WebSearch" && part.state === "result") {
       // WebSearch output structure may vary, try to extract URLs
-      const output = part.output
+      const output = part.output;
       if (output && typeof output === "object") {
         // Handle array of results
-        const results = Array.isArray(output) ? output : (output.results || [])
-        for (const result of results.slice(0, 5)) { // Limit to 5 URLs
-          const url = result.url || result.link
+        const results = Array.isArray(output) ? output : output.results || [];
+        for (const result of results.slice(0, 5)) {
+          // Limit to 5 URLs
+          const url = result.url || result.link;
           if (url && typeof url === "string" && !seenUrls.has(url)) {
-            seenUrls.add(url)
+            seenUrls.add(url);
             contexts.push({
               type: "url",
               url,
               title: result.title,
-            })
+            });
           }
         }
       }
     }
   }
 
-  return contexts
+  return contexts;
 }
 
 /**
@@ -490,10 +642,10 @@ function extractArtifactContexts(parts: any[]): ArtifactContext[] {
  */
 function decryptToken(encrypted: string): string {
   if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(encrypted, "base64").toString("utf-8")
+    return Buffer.from(encrypted, "base64").toString("utf-8");
   }
-  const buffer = Buffer.from(encrypted, "base64")
-  return safeStorage.decryptString(buffer)
+  const buffer = Buffer.from(encrypted, "base64");
+  return safeStorage.decryptString(buffer);
 }
 
 /**
@@ -502,52 +654,52 @@ function decryptToken(encrypted: string): string {
  */
 function getClaudeCodeToken(): string | null {
   try {
-    const db = getDatabase()
+    const db = getDatabase();
     const cred = db
       .select()
       .from(claudeCodeCredentials)
       .where(eq(claudeCodeCredentials.id, "default"))
-      .get()
+      .get();
 
     if (!cred?.oauthToken) {
-      console.log("[claude] No Claude Code credentials found")
-      return null
+      console.log("[claude] No Claude Code credentials found");
+      return null;
     }
 
-    return decryptToken(cred.oauthToken)
+    return decryptToken(cred.oauthToken);
   } catch (error) {
-    console.error("[claude] Error getting Claude Code token:", error)
-    return null
+    console.error("[claude] Error getting Claude Code token:", error);
+    return null;
   }
 }
 
 // Active sessions for cancellation (onAbort handles stash + abort + restore)
 // Active sessions for cancellation
-const activeSessions = new Map<string, AbortController>()
+const activeSessions = new Map<string, AbortController>();
 
 // workingMcpServers and mcpCacheKey are imported from config-loader (single source of truth)
 
 // Cache for symlinks (track which subChatIds have already set up symlinks)
-const symlinksCreated = new Set<string>()
+const symlinksCreated = new Set<string>();
 
 const pendingToolApprovals = new Map<
   string,
   {
-    subChatId: string
+    subChatId: string;
     resolve: (decision: {
-      approved: boolean
-      message?: string
-      updatedInput?: unknown
-    }) => void
+      approved: boolean;
+      message?: string;
+      updatedInput?: unknown;
+    }) => void;
   }
->()
+>();
 
 // Initialize PromptBuilder with runtime environment provider (lazy init)
-let promptBuilderInitialized = false
+let promptBuilderInitialized = false;
 function ensurePromptBuilderInitialized() {
   if (!promptBuilderInitialized) {
-    initializePromptBuilder(getCachedRuntimeEnvironment)
-    promptBuilderInitialized = true
+    initializePromptBuilder(getCachedRuntimeEnvironment);
+    promptBuilderInitialized = true;
   }
 }
 
@@ -555,39 +707,40 @@ function ensurePromptBuilderInitialized() {
 
 // Check if a cwd is the playground directory (for chat mode)
 function isPlaygroundPath(cwd: string): boolean {
-  const homePath = app.getPath("home")
-  const playgroundPath = path.join(homePath, PLAYGROUND_RELATIVE_PATH)
+  const homePath = app.getPath("home");
+  const playgroundPath = path.join(homePath, PLAYGROUND_RELATIVE_PATH);
   // Normalize paths for comparison (handle Windows path separators)
-  const normalizedCwd = path.normalize(cwd).toLowerCase()
-  const normalizedPlayground = path.normalize(playgroundPath).toLowerCase()
-  return normalizedCwd.startsWith(normalizedPlayground)
+  const normalizedCwd = path.normalize(cwd).toLowerCase();
+  const normalizedPlayground = path.normalize(playgroundPath).toLowerCase();
+  return normalizedCwd.startsWith(normalizedPlayground);
 }
 
 const clearPendingApprovals = (message: string, subChatId?: string) => {
   for (const [toolUseId, pending] of pendingToolApprovals) {
-    if (subChatId && pending.subChatId !== subChatId) continue
-    pending.resolve({ approved: false, message })
-    pendingToolApprovals.delete(toolUseId)
+    if (subChatId && pending.subChatId !== subChatId) continue;
+    pending.resolve({ approved: false, message });
+    pendingToolApprovals.delete(toolUseId);
   }
-}
+};
 
 // Image attachment schema
 const imageAttachmentSchema = z.object({
   base64Data: z.string(),
   mediaType: z.string(), // e.g. "image/png", "image/jpeg"
   filename: z.string().optional(),
-})
+  localPath: z.string().optional(), // Original file path on disk
+  tempPath: z.string().optional(), // Temp copy path (draft-attachments)
+});
 
-export type ImageAttachment = z.infer<typeof imageAttachmentSchema>
+export type ImageAttachment = z.infer<typeof imageAttachmentSchema>;
 
 /**
  * Clear all performance caches (for testing/debugging)
  */
 export function clearClaudeCaches() {
-  clearClaudeQueryCache()
-  symlinksCreated.clear()
-  clearConfigCache() // Clear ClaudeConfigLoader cache
-  console.log("[claude] All caches cleared")
+  symlinksCreated.clear();
+  clearConfigCache(); // Clear ClaudeConfigLoader cache
+  console.log("[claude] All caches cleared");
 }
 
 /**
@@ -600,36 +753,36 @@ export function clearClaudeCaches() {
  * - Local stdio server -> "connected"
  */
 function getServerStatusFromConfig(serverConfig: McpServerConfig): string {
-  const headers = serverConfig.headers as Record<string, string> | undefined
-  const { _oauth: oauth, authType } = serverConfig
+  const headers = serverConfig.headers as Record<string, string> | undefined;
+  const { _oauth: oauth, authType } = serverConfig;
 
   // If authType is explicitly "none", no auth required
   if (authType === "none") {
-    return "connected"
+    return "connected";
   }
 
   // If has Authorization header, it's ready for SDK to use
   if (headers?.Authorization) {
-    return "connected"
+    return "connected";
   }
 
   // If has _oauth but no headers, this is a legacy config that needs re-auth
   // (old format that SDK can't use)
   if (oauth?.accessToken && !headers?.Authorization) {
-    return "needs-auth"
+    return "needs-auth";
   }
 
   // If HTTP server with explicit authType (oauth/bearer), needs auth
-  if (serverConfig.url && (["oauth", "bearer"].includes(authType ?? ""))) {
-    return "needs-auth"
+  if (serverConfig.url && ["oauth", "bearer"].includes(authType ?? "")) {
+    return "needs-auth";
   }
 
   // HTTP server without authType - assume no auth required (public endpoint)
   // Local stdio server - also connected
-  return "connected"
+  return "connected";
 }
 
-const MCP_FETCH_TIMEOUT_MS = 10_000
+const MCP_FETCH_TIMEOUT_MS = 10_000;
 
 /**
  * Warm up MCP server cache by initializing servers for all configured projects
@@ -638,48 +791,56 @@ const MCP_FETCH_TIMEOUT_MS = 10_000
  */
 export async function warmupMcpCache(): Promise<void> {
   try {
-    const warmupStart = Date.now()
+    const warmupStart = Date.now();
 
     // Read ~/.claude.json to get all projects with MCP servers
-    const claudeJsonPath = path.join(os.homedir(), ".claude.json")
-    let config: any
+    const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+    let config: any;
     try {
-      const configContent = readFileSync(claudeJsonPath, "utf-8")
-      config = JSON.parse(configContent)
+      const configContent = readFileSync(claudeJsonPath, "utf-8");
+      config = JSON.parse(configContent);
     } catch {
-      console.log("[MCP Warmup] No ~/.claude.json found or failed to read - skipping warmup")
-      return
+      console.log(
+        "[MCP Warmup] No ~/.claude.json found or failed to read - skipping warmup",
+      );
+      return;
     }
 
     if (!config.projects || Object.keys(config.projects).length === 0) {
-      console.log("[MCP Warmup] No projects configured - skipping warmup")
-      return
+      console.log("[MCP Warmup] No projects configured - skipping warmup");
+      return;
     }
 
     // Find projects with MCP servers (excluding worktrees)
-    const projectsWithMcp: Array<{ path: string; servers: Record<string, McpServerConfig> }> = []
-    for (const [projectPath, projectConfig] of Object.entries(config.projects) as [string, ProjectConfig][]) {
+    const projectsWithMcp: Array<{
+      path: string;
+      servers: Record<string, McpServerConfig>;
+    }> = [];
+    for (const [projectPath, projectConfig] of Object.entries(
+      config.projects,
+    ) as [string, ProjectConfig][]) {
       if (projectConfig?.mcpServers) {
         // Skip worktrees - they're temporary git working directories and inherit MCP from parent
-        if (projectPath.includes("/.hong/worktrees/") || projectPath.includes("\\.hong\\worktrees\\")) {
-          continue
+        if (
+          projectPath.includes("/.hong/worktrees/") ||
+          projectPath.includes("\\.hong\\worktrees\\")
+        ) {
+          continue;
         }
 
         projectsWithMcp.push({
           path: projectPath,
-          servers: projectConfig.mcpServers
-        })
+          servers: projectConfig.mcpServers,
+        });
       }
     }
 
     if (projectsWithMcp.length === 0) {
-      console.log("[MCP Warmup] No MCP servers configured (excluding worktrees) - skipping warmup")
-      return
+      console.log(
+        "[MCP Warmup] No MCP servers configured (excluding worktrees) - skipping warmup",
+      );
+      return;
     }
-
-    // Get SDK
-    const sdk = await import("@anthropic-ai/claude-agent-sdk")
-    const claudeQuery = sdk.query
 
     // Warm up each project
     for (const project of projectsWithMcp) {
@@ -689,7 +850,10 @@ export async function warmupMcpCache(): Promise<void> {
           prompt: "ping",
           options: {
             cwd: project.path,
-            mcpServers: project.servers as Record<string, { command: string; args?: string[]; env?: Record<string, string> }>,
+            mcpServers: project.servers as Record<
+              string,
+              { command: string; args?: string[]; env?: Record<string, string> }
+            >,
             systemPrompt: {
               type: "preset" as const,
               preset: "claude_code" as const,
@@ -699,30 +863,41 @@ export async function warmupMcpCache(): Promise<void> {
             allowDangerouslySkipPermissions: true,
             // Use bundled binary to avoid "spawn node ENOENT" errors
             pathToClaudeCodeExecutable: getBundledClaudeBinaryPath(),
-          }
-        })
+          },
+        });
 
         // Wait for init message with MCP server statuses
-        let gotInit = false
+        let gotInit = false;
         for await (const msg of warmupQuery) {
-          const sdkMsg = msg as SdkStreamMessage
-          if (sdkMsg.type === "system" && sdkMsg.subtype === "init" && sdkMsg.mcp_servers) {
-            gotInit = true
-            break // We only need the init message
+          const sdkMsg = msg as SdkStreamMessage;
+          if (
+            sdkMsg.type === "system" &&
+            sdkMsg.subtype === "init" &&
+            sdkMsg.mcp_servers
+          ) {
+            gotInit = true;
+            break; // We only need the init message
           }
         }
 
         if (!gotInit) {
-          console.warn(`[MCP Warmup] Did not receive init message for ${project.path}`)
+          console.warn(
+            `[MCP Warmup] Did not receive init message for ${project.path}`,
+          );
         }
       } catch (err) {
-        console.error(`[MCP Warmup] Failed to warm up MCP for ${project.path}:`, err)
+        console.error(
+          `[MCP Warmup] Failed to warm up MCP for ${project.path}:`,
+          err,
+        );
       }
     }
 
-    console.log(`[MCP Warmup] Initialized ${projectsWithMcp.length} projects in ${Date.now() - warmupStart}ms`)
+    console.log(
+      `[MCP Warmup] Initialized ${projectsWithMcp.length} projects in ${Date.now() - warmupStart}ms`,
+    );
   } catch (error) {
-    console.error("[MCP Warmup] Warmup failed:", error)
+    console.error("[MCP Warmup] Warmup failed:", error);
   }
 }
 
@@ -730,43 +905,47 @@ export async function warmupMcpCache(): Promise<void> {
  * Fetch tools from an MCP server (HTTP or stdio transport)
  * Times out after 10 seconds to prevent slow MCPs from blocking the cache update
  */
-async function fetchToolsForServer(serverConfig: McpServerConfig): Promise<McpToolInfo[]> {
+async function fetchToolsForServer(
+  serverConfig: McpServerConfig,
+): Promise<McpToolInfo[]> {
   const timeoutPromise = new Promise<McpToolInfo[]>((_, reject) =>
-    setTimeout(() => reject(new Error('Timeout')), MCP_FETCH_TIMEOUT_MS)
-  )
+    setTimeout(() => reject(new Error("Timeout")), MCP_FETCH_TIMEOUT_MS),
+  );
 
   const fetchPromise = (async () => {
     // HTTP transport
     if (serverConfig.url) {
-      const headers = serverConfig.headers as Record<string, string> | undefined
+      const headers = serverConfig.headers as
+        | Record<string, string>
+        | undefined;
       try {
-        return await fetchMcpTools(serverConfig.url, headers)
+        return await fetchMcpTools(serverConfig.url, headers);
       } catch {
-        return []
+        return [];
       }
     }
 
     // Stdio transport
-    const command = serverConfig.command
+    const command = serverConfig.command;
     if (command) {
       try {
         return await fetchMcpToolsStdio({
           command,
           args: serverConfig.args,
           env: serverConfig.env,
-        })
+        });
       } catch {
-        return []
+        return [];
       }
     }
 
-    return []
-  })()
+    return [];
+  })();
 
   try {
-    return await Promise.race([fetchPromise, timeoutPromise])
+    return await Promise.race([fetchPromise, timeoutPromise]);
   } catch {
-    return []
+    return [];
   }
 }
 
@@ -775,73 +954,88 @@ async function fetchToolsForServer(serverConfig: McpServerConfig): Promise<McpTo
  */
 export async function getAllMcpConfigHandler() {
   try {
-    const totalStart = Date.now()
+    const totalStart = Date.now();
 
     // Clear cache before repopulating
-    workingMcpServers.clear()
+    workingMcpServers.clear();
 
-    const config = await readClaudeConfig()
+    const config = await readClaudeConfig();
 
-    const convertServers = async (servers: Record<string, McpServerConfig> | undefined, scope: string | null) => {
-      if (!servers) return []
+    const convertServers = async (
+      servers: Record<string, McpServerConfig> | undefined,
+      scope: string | null,
+    ) => {
+      if (!servers) return [];
 
       const results = await Promise.all(
         Object.entries(servers).map(async ([name, serverConfig]) => {
-          const configObj = serverConfig as Record<string, unknown>
-          let status = getServerStatusFromConfig(serverConfig)
-          const headers = serverConfig.headers as Record<string, string> | undefined
+          const configObj = serverConfig as Record<string, unknown>;
+          let status = getServerStatusFromConfig(serverConfig);
+          const headers = serverConfig.headers as
+            | Record<string, string>
+            | undefined;
 
-          let tools: McpToolInfo[] = []
-          let needsAuth = false
+          let tools: McpToolInfo[] = [];
+          let needsAuth = false;
 
           try {
-            tools = await fetchToolsForServer(serverConfig)
+            tools = await fetchToolsForServer(serverConfig);
           } catch (error) {
-            console.error(`[MCP] Failed to fetch tools for ${name}:`, error)
+            console.error(`[MCP] Failed to fetch tools for ${name}:`, error);
           }
 
-          const cacheKey = mcpCacheKey(scope, name)
+          const cacheKey = mcpCacheKey(scope, name);
           if (tools.length > 0) {
-            status = "connected"
-            workingMcpServers.set(cacheKey, true)
+            status = "connected";
+            workingMcpServers.set(cacheKey, true);
           } else {
-            workingMcpServers.set(cacheKey, false)
+            workingMcpServers.set(cacheKey, false);
             if (serverConfig.url) {
               try {
-                const baseUrl = getMcpBaseUrl(serverConfig.url)
-                const metadata = await fetchOAuthMetadata(baseUrl)
-                needsAuth = !!metadata && !!metadata.authorization_endpoint
+                const baseUrl = getMcpBaseUrl(serverConfig.url);
+                const metadata = await fetchOAuthMetadata(baseUrl);
+                needsAuth = !!metadata && !!metadata.authorization_endpoint;
               } catch {
                 // If probe fails, assume no auth needed
               }
-            } else if (serverConfig.authType === "oauth" || serverConfig.authType === "bearer") {
-              needsAuth = true
+            } else if (
+              serverConfig.authType === "oauth" ||
+              serverConfig.authType === "bearer"
+            ) {
+              needsAuth = true;
             }
 
             if (needsAuth && !headers?.Authorization) {
-              status = "needs-auth"
+              status = "needs-auth";
             } else {
               // No tools and doesn't need auth - server failed to connect or has no tools
-              status = "failed"
+              status = "failed";
             }
           }
 
-          return { name, status, tools, needsAuth, config: configObj }
-        })
-      )
+          return { name, status, tools, needsAuth, config: configObj };
+        }),
+      );
 
-      return results
-    }
+      return results;
+    };
 
     // Build list of all groups to process with timing
     const groupTasks: Array<{
-      groupName: string
-      projectPath: string | null
+      groupName: string;
+      projectPath: string | null;
       promise: Promise<{
-        mcpServers: Array<{ name: string; status: string; tools: McpToolInfo[]; needsAuth: boolean; config: Record<string, unknown>; requiresLogin?: boolean }>
-        duration: number
-      }>
-    }> = []
+        mcpServers: Array<{
+          name: string;
+          status: string;
+          tools: McpToolInfo[];
+          needsAuth: boolean;
+          config: Record<string, unknown>;
+          requiresLogin?: boolean;
+        }>;
+        duration: number;
+      }>;
+    }> = [];
 
     // Global MCPs
     if (config.mcpServers) {
@@ -849,230 +1043,313 @@ export async function getAllMcpConfigHandler() {
         groupName: "Global",
         projectPath: null,
         promise: (async () => {
-          const start = Date.now()
-          const freshServers = await ensureMcpTokensFresh(config.mcpServers!, GLOBAL_MCP_PATH)
-          const mcpServers = await convertServers(freshServers, null) // null = global scope
-          return { mcpServers, duration: Date.now() - start }
-        })()
-      })
+          const start = Date.now();
+          const freshServers = await ensureMcpTokensFresh(
+            config.mcpServers!,
+            GLOBAL_MCP_PATH,
+          );
+          const mcpServers = await convertServers(freshServers, null); // null = global scope
+          return { mcpServers, duration: Date.now() - start };
+        })(),
+      });
     } else {
       groupTasks.push({
         groupName: "Global",
         projectPath: null,
-        promise: Promise.resolve({ mcpServers: [], duration: 0 })
-      })
+        promise: Promise.resolve({ mcpServers: [], duration: 0 }),
+      });
     }
 
     // Project MCPs
     if (config.projects) {
-      for (const [projectPath, projectConfig] of Object.entries(config.projects)) {
-        if (projectConfig.mcpServers && Object.keys(projectConfig.mcpServers).length > 0) {
-          const groupName = path.basename(projectPath) || projectPath
+      for (const [projectPath, projectConfig] of Object.entries(
+        config.projects,
+      )) {
+        if (
+          projectConfig.mcpServers &&
+          Object.keys(projectConfig.mcpServers).length > 0
+        ) {
+          const groupName = path.basename(projectPath) || projectPath;
           groupTasks.push({
             groupName,
             projectPath,
             promise: (async () => {
-              const start = Date.now()
-              const freshServers = await ensureMcpTokensFresh(projectConfig.mcpServers!, projectPath)
-              const mcpServers = await convertServers(freshServers, projectPath) // projectPath = scope
-              return { mcpServers, duration: Date.now() - start }
-            })()
-          })
+              const start = Date.now();
+              const freshServers = await ensureMcpTokensFresh(
+                projectConfig.mcpServers!,
+                projectPath,
+              );
+              const mcpServers = await convertServers(
+                freshServers,
+                projectPath,
+              ); // projectPath = scope
+              return { mcpServers, duration: Date.now() - start };
+            })(),
+          });
         }
       }
     }
 
     // Process all groups in parallel
-    const results = await Promise.all(groupTasks.map(t => t.promise))
+    const results = await Promise.all(groupTasks.map((t) => t.promise));
 
     // Build groups with timing info
     const groupsWithTiming = groupTasks.map((task, i) => ({
       groupName: task.groupName,
       projectPath: task.projectPath,
       mcpServers: results[i].mcpServers,
-      duration: results[i].duration
-    }))
+      duration: results[i].duration,
+    }));
 
     // Log performance (sorted by duration DESC)
-    const totalDuration = Date.now() - totalStart
-    const workingCount = [...workingMcpServers.values()].filter(v => v).length
-    const sortedByDuration = [...groupsWithTiming].sort((a, b) => b.duration - a.duration)
+    const totalDuration = Date.now() - totalStart;
+    const workingCount = [...workingMcpServers.values()].filter(
+      (v) => v,
+    ).length;
+    const sortedByDuration = [...groupsWithTiming].sort(
+      (a, b) => b.duration - a.duration,
+    );
 
-    console.log(`[MCP] Cache updated in ${totalDuration}ms. Working: ${workingCount}/${workingMcpServers.size}`)
+    console.log(
+      `[MCP] Cache updated in ${totalDuration}ms. Working: ${workingCount}/${workingMcpServers.size}`,
+    );
     for (const g of sortedByDuration) {
       if (g.mcpServers.length > 0) {
-        console.log(`[MCP]   ${g.groupName}: ${g.duration}ms (${g.mcpServers.length} servers)`)
+        console.log(
+          `[MCP]   ${g.groupName}: ${g.duration}ms (${g.mcpServers.length} servers)`,
+        );
       }
     }
 
     // Return groups without timing info
-    const groups = groupsWithTiming.map(({ groupName, projectPath, mcpServers }) => ({
-      groupName,
-      projectPath,
-      mcpServers
-    }))
+    const groups = groupsWithTiming.map(
+      ({ groupName, projectPath, mcpServers }) => ({
+        groupName,
+        projectPath,
+        mcpServers,
+      }),
+    );
 
     // Built-in MCP (Hong internal API with Okta auth)
     // Use AuthManager to ensure token is fresh (auto-refreshed if needed)
-    const authManager = getAuthManager()
-    const builtinConfig = await getBuiltinMcpConfig(authManager)
+    const authManager = getAuthManager();
+    const builtinConfig = await getBuiltinMcpConfig(authManager);
 
     if (builtinConfig) {
       // User is authenticated - try to fetch tools from built-in MCP
-      let builtinTools: McpToolInfo[] = []
-      let builtinStatus = "connected"
+      let builtinTools: McpToolInfo[] = [];
+      let builtinStatus = "connected";
 
       try {
-        builtinTools = await fetchMcpTools(builtinConfig.url, builtinConfig.headers)
+        builtinTools = await fetchMcpTools(
+          builtinConfig.url,
+          builtinConfig.headers,
+        );
         if (builtinTools.length === 0) {
-          builtinStatus = "failed"
+          builtinStatus = "failed";
         }
         // Cache the working status
-        const cacheKey = mcpCacheKey(null, BUILTIN_MCP_NAME)
-        workingMcpServers.set(cacheKey, builtinTools.length > 0)
+        const cacheKey = mcpCacheKey(null, BUILTIN_MCP_NAME);
+        workingMcpServers.set(cacheKey, builtinTools.length > 0);
       } catch (error) {
-        console.error(`[MCP] Failed to fetch tools for built-in MCP:`, error)
-        builtinStatus = "failed"
-        workingMcpServers.set(mcpCacheKey(null, BUILTIN_MCP_NAME), false)
+        console.error(`[MCP] Failed to fetch tools for built-in MCP:`, error);
+        builtinStatus = "failed";
+        workingMcpServers.set(mcpCacheKey(null, BUILTIN_MCP_NAME), false);
       }
 
       groups.unshift({
         groupName: "Built-in",
         projectPath: null,
-        mcpServers: [{
-          name: BUILTIN_MCP_NAME,
-          status: builtinStatus,
-          tools: builtinTools,
-          needsAuth: false, // Auth is handled internally via Okta
-          config: {
-            url: builtinConfig.url,
-            type: builtinConfig.type,
-            _builtin: true,
+        mcpServers: [
+          {
+            name: BUILTIN_MCP_NAME,
+            status: builtinStatus,
+            tools: builtinTools,
+            needsAuth: false, // Auth is handled internally via Okta
+            config: {
+              url: builtinConfig.url,
+              type: builtinConfig.type,
+              _builtin: true,
+            },
           },
-        }],
-      })
+        ],
+      });
     } else {
       // User is not authenticated - show placeholder with "needs-login" status
-      console.log("[MCP] User not authenticated, adding builtin placeholder")
+      console.log("[MCP] User not authenticated, adding builtin placeholder");
       try {
-        const placeholder = getBuiltinMcpPlaceholder()
-        console.log("[MCP] Builtin placeholder created:", placeholder.name)
+        const placeholder = getBuiltinMcpPlaceholder();
+        console.log("[MCP] Builtin placeholder created:", placeholder.name);
         groups.unshift({
           groupName: "Built-in",
           projectPath: null,
-          mcpServers: [{
-            name: placeholder.name,
-            status: "needs-login",
-            tools: [],
-            needsAuth: true,
-            requiresLogin: true,
-            config: {
-              url: placeholder.url,
-              _builtin: true,
-              _placeholder: true,
+          mcpServers: [
+            {
+              name: placeholder.name,
+              status: "needs-login",
+              tools: [],
+              needsAuth: true,
+              requiresLogin: true,
+              config: {
+                url: placeholder.url,
+                _builtin: true,
+                _placeholder: true,
+              },
             },
-          }],
-        })
-        console.log("[MCP] Builtin placeholder added to groups, total groups:", groups.length)
+          ],
+        });
+        console.log(
+          "[MCP] Builtin placeholder added to groups, total groups:",
+          groups.length,
+        );
       } catch (error) {
-        console.error("[MCP] Failed to create builtin placeholder:", error)
+        console.error("[MCP] Failed to create builtin placeholder:", error);
         // Still add a minimal placeholder even if getBuiltinMcpPlaceholder fails
         groups.unshift({
           groupName: "Built-in",
           projectPath: null,
-          mcpServers: [{
-            name: BUILTIN_MCP_NAME,
-            status: "needs-login",
-            tools: [],
-            needsAuth: true,
-            requiresLogin: true,
-            config: {
-              _builtin: true,
-              _placeholder: true,
+          mcpServers: [
+            {
+              name: BUILTIN_MCP_NAME,
+              status: "needs-login",
+              tools: [],
+              needsAuth: true,
+              requiresLogin: true,
+              config: {
+                _builtin: true,
+                _placeholder: true,
+              },
             },
-          }],
-        })
-        console.log("[MCP] Minimal builtin placeholder added after error")
+          ],
+        });
+        console.log("[MCP] Minimal builtin placeholder added after error");
       }
     }
 
+    // Agent Config MCPs (from ~/.agent.json)
+    const agentConfig = await readAgentConfig();
+    if (
+      agentConfig.mcpServers &&
+      Object.keys(agentConfig.mcpServers).length > 0
+    ) {
+      const agentMcpServers = await convertServers(
+        agentConfig.mcpServers,
+        null,
+      );
+      groups.push({
+        groupName: "Agent Config",
+        projectPath: null,
+        mcpServers: agentMcpServers,
+      });
+    }
+
     // Plugin MCPs (from installed plugins)
-    const [enabledPluginSources, pluginMcpConfigs, approvedServers] = await Promise.all([
-      getEnabledPlugins(),
-      discoverPluginMcpServers(),
-      getApprovedPluginMcpServers(),
-    ])
+    const [enabledPluginSources, pluginMcpConfigs, approvedServers] =
+      await Promise.all([
+        getEnabledPlugins(),
+        discoverPluginMcpServers(),
+        getApprovedPluginMcpServers(),
+      ]);
 
     for (const pluginConfig of pluginMcpConfigs) {
       // Only show MCP servers from enabled plugins
-      if (!enabledPluginSources.includes(pluginConfig.pluginSource)) continue
+      if (!enabledPluginSources.includes(pluginConfig.pluginSource)) continue;
 
-      const globalServerNames = config.mcpServers ? Object.keys(config.mcpServers) : []
+      const globalServerNames = config.mcpServers
+        ? Object.keys(config.mcpServers)
+        : [];
       if (Object.keys(pluginConfig.mcpServers).length > 0) {
-        const pluginMcpServers = (await Promise.all(
-          Object.entries(pluginConfig.mcpServers).map(async ([name, serverConfig]) => {
-            // Skip servers that have been promoted to ~/.claude.json (e.g., after OAuth)
-            if (globalServerNames.includes(name)) return null
+        const pluginMcpServers = (
+          await Promise.all(
+            Object.entries(pluginConfig.mcpServers).map(
+              async ([name, serverConfig]) => {
+                // Skip servers that have been promoted to ~/.claude.json (e.g., after OAuth)
+                if (globalServerNames.includes(name)) return null;
 
-            const configObj = serverConfig as Record<string, unknown>
-            const identifier = `${pluginConfig.pluginSource}:${name}`
-            const isApproved = approvedServers.includes(identifier)
+                const configObj = serverConfig as Record<string, unknown>;
+                const identifier = `${pluginConfig.pluginSource}:${name}`;
+                const isApproved = approvedServers.includes(identifier);
 
-            if (!isApproved) {
-              return { name, status: "pending-approval", tools: [] as McpToolInfo[], needsAuth: false, config: configObj, isApproved }
-            }
-
-            // Try to get status and tools for approved servers
-            let status = getServerStatusFromConfig(serverConfig)
-            const headers = serverConfig.headers as Record<string, string> | undefined
-            let tools: McpToolInfo[] = []
-            let needsAuth = false
-
-            try {
-              tools = await fetchToolsForServer(serverConfig)
-            } catch (error) {
-              console.error(`[MCP] Failed to fetch tools for plugin ${name}:`, error)
-            }
-
-            if (tools.length > 0) {
-              status = "connected"
-            } else {
-              // Same OAuth detection logic as regular MCP servers
-              if (serverConfig.url) {
-                try {
-                  const baseUrl = getMcpBaseUrl(serverConfig.url)
-                  const metadata = await fetchOAuthMetadata(baseUrl)
-                  needsAuth = !!metadata && !!metadata.authorization_endpoint
-                } catch {
-                  // If probe fails, assume no auth needed
+                if (!isApproved) {
+                  return {
+                    name,
+                    status: "pending-approval",
+                    tools: [] as McpToolInfo[],
+                    needsAuth: false,
+                    config: configObj,
+                    isApproved,
+                  };
                 }
-              } else if (serverConfig.authType === "oauth" || serverConfig.authType === "bearer") {
-                needsAuth = true
-              }
 
-              if (needsAuth && !headers?.Authorization) {
-                status = "needs-auth"
-              } else {
-                status = "failed"
-              }
-            }
+                // Try to get status and tools for approved servers
+                let status = getServerStatusFromConfig(serverConfig);
+                const headers = serverConfig.headers as
+                  | Record<string, string>
+                  | undefined;
+                let tools: McpToolInfo[] = [];
+                let needsAuth = false;
 
-            return { name, status, tools, needsAuth, config: configObj, isApproved }
-          })
-        )).filter((s): s is NonNullable<typeof s> => s !== null)
+                try {
+                  tools = await fetchToolsForServer(serverConfig);
+                } catch (error) {
+                  console.error(
+                    `[MCP] Failed to fetch tools for plugin ${name}:`,
+                    error,
+                  );
+                }
+
+                if (tools.length > 0) {
+                  status = "connected";
+                } else {
+                  // Same OAuth detection logic as regular MCP servers
+                  if (serverConfig.url) {
+                    try {
+                      const baseUrl = getMcpBaseUrl(serverConfig.url);
+                      const metadata = await fetchOAuthMetadata(baseUrl);
+                      needsAuth =
+                        !!metadata && !!metadata.authorization_endpoint;
+                    } catch {
+                      // If probe fails, assume no auth needed
+                    }
+                  } else if (
+                    serverConfig.authType === "oauth" ||
+                    serverConfig.authType === "bearer"
+                  ) {
+                    needsAuth = true;
+                  }
+
+                  if (needsAuth && !headers?.Authorization) {
+                    status = "needs-auth";
+                  } else {
+                    status = "failed";
+                  }
+                }
+
+                return {
+                  name,
+                  status,
+                  tools,
+                  needsAuth,
+                  config: configObj,
+                  isApproved,
+                };
+              },
+            ),
+          )
+        ).filter((s): s is NonNullable<typeof s> => s !== null);
 
         groups.push({
           groupName: `Plugin: ${pluginConfig.pluginSource}`,
           projectPath: null,
           mcpServers: pluginMcpServers,
-        })
+        });
       }
     }
 
-    return { groups }
+    return { groups };
   } catch (error) {
-    console.error("[getAllMcpConfig] Error:", error)
-    return { groups: [], error: String(error) }
+    console.error("[getAllMcpConfig] Error:", error);
+    return { groups: [], error: String(error) };
   }
 }
 
@@ -1100,9 +1377,20 @@ export const claudeRouter = router({
           .optional(),
         maxThinkingTokens: z.number().optional(), // Enable extended thinking
         images: z.array(imageAttachmentSchema).optional(), // Image attachments
+        files: z
+          .array(
+            z.object({
+              filename: z.string(),
+              mediaType: z.string().optional(),
+              size: z.number().optional(),
+              localPath: z.string().optional(),
+              tempPath: z.string().optional(),
+            }),
+          )
+          .optional(), // Non-image file attachments (metadata only)
         historyEnabled: z.boolean().optional(),
         offlineModeEnabled: z.boolean().optional(), // Whether offline mode (Ollama) is enabled in settings
-askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in seconds (0 = no timeout)
+        askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in seconds (0 = no timeout)
         enableTasks: z.boolean().optional(), // Enable task management tools (TodoWrite, Task agents)
         disabledMcpServers: z.array(z.string()).optional(), // MCP servers to disable for this project
         userProfile: z
@@ -1129,56 +1417,58 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
       return observable<UIMessageChunk>((emit) => {
         // Abort any existing session for this subChatId before starting a new one
         // This prevents race conditions if two messages are sent in quick succession
-        const existingController = activeSessions.get(input.subChatId)
+        const existingController = activeSessions.get(input.subChatId);
         if (existingController) {
-          existingController.abort()
+          existingController.abort();
         }
 
-        const abortController = new AbortController()
-        const streamId = crypto.randomUUID()
-        activeSessions.set(input.subChatId, abortController)
+        const abortController = new AbortController();
+        const streamId = crypto.randomUUID();
+        activeSessions.set(input.subChatId, abortController);
 
         // Stream debug logging
-        const subId = input.subChatId.slice(-8) // Short ID for logs
-        const streamStart = Date.now()
-        let chunkCount = 0
-        let lastChunkType = ""
+        const subId = input.subChatId.slice(-8); // Short ID for logs
+        const streamStart = Date.now();
+        let chunkCount = 0;
+        let lastChunkType = "";
         // Shared sessionId for cleanup to save on abort
-        let currentSessionId: string | null = null
-        console.log(`[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`)
+        let currentSessionId: string | null = null;
+        console.log(
+          `[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`,
+        );
 
         // Track if observable is still active (not unsubscribed)
-        let isObservableActive = true
+        let isObservableActive = true;
 
         // Helper to safely emit (no-op if already unsubscribed)
         const safeEmit = (chunk: UIMessageChunk) => {
-          if (!isObservableActive) return false
+          if (!isObservableActive) return false;
           try {
-            emit.next(chunk)
-            return true
+            emit.next(chunk);
+            return true;
           } catch {
-            isObservableActive = false
-            return false
+            isObservableActive = false;
+            return false;
           }
-        }
+        };
 
         // Helper to safely complete (no-op if already closed)
         const safeComplete = () => {
           try {
-            emit.complete()
+            emit.complete();
           } catch {
             // Already completed or closed
           }
-        }
+        };
 
         // Helper to emit error to frontend
         const emitError = (error: unknown, context: string) => {
           const errorMessage =
-            error instanceof Error ? error.message : String(error)
-          const errorStack = error instanceof Error ? error.stack : undefined
+            error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
 
-          console.error(`[claude] ${context}:`, errorMessage)
-          if (errorStack) console.error("[claude] Stack:", errorStack)
+          console.error(`[claude] ${context}:`, errorMessage);
+          if (errorStack) console.error("[claude] Stack:", errorStack);
 
           // Send detailed error to frontend (safely)
           safeEmit({
@@ -1193,62 +1483,106 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 PATH: process.env.PATH?.slice(0, 200),
               },
             }),
-          } as UIMessageChunk)
-        }
+          } as UIMessageChunk);
+        };
 
-        ;(async () => {
+        (async () => {
           try {
             // Ensure PromptBuilder has runtime environment provider
-            ensurePromptBuilderInitialized()
+            ensurePromptBuilderInitialized();
 
-            const db = getDatabase()
+            const db = getDatabase();
 
             // 1. Get existing messages from DB
             const existing = db
               .select()
               .from(subChats)
               .where(eq(subChats.id, input.subChatId))
-              .get()
-            const existingMessages = JSON.parse(existing?.messages || "[]")
-            const existingSessionId = existing?.sessionId || null
+              .get();
+            const existingMessages = JSON.parse(existing?.messages || "[]");
+            const existingSessionId = existing?.sessionId || null;
 
             // Get projectId from chat record (needed for usage tracking)
             const chatRecord = db
               .select({ projectId: chats.projectId })
               .from(chats)
               .where(eq(chats.id, input.chatId))
-              .get()
-            const projectId = chatRecord?.projectId
+              .get();
+            const projectId = chatRecord?.projectId;
 
             // Get resumeSessionAt UUID only if shouldResume flag was set (by rollbackToMessage)
-            const lastAssistantMsg = [...existingMessages].reverse().find(
-              (m: any) => m.role === "assistant"
-            )
+            const lastAssistantMsg = [...existingMessages]
+              .reverse()
+              .find((m: any) => m.role === "assistant");
             const resumeAtUuid = lastAssistantMsg?.metadata?.shouldResume
-              ? (lastAssistantMsg?.metadata?.sdkMessageUuid || null)
-              : null
-            const historyEnabled = input.historyEnabled === true
+              ? lastAssistantMsg?.metadata?.sdkMessageUuid || null
+              : null;
+            const historyEnabled = input.historyEnabled === true;
 
             // Check if last message is already this user message (avoid duplicate)
-            const lastMsg = existingMessages[existingMessages.length - 1]
+            const lastMsg = existingMessages[existingMessages.length - 1];
+            const lastMsgTextPart = lastMsg?.parts?.find(
+              (p: any) => p.type === "text",
+            );
             const isDuplicate =
               lastMsg?.role === "user" &&
-              lastMsg?.parts?.[0]?.text === input.prompt
+              (lastMsgTextPart?.text === input.prompt ||
+                lastMsg?.parts?.[0]?.text === input.prompt);
 
             // 2. Create user message and save BEFORE streaming (skip if duplicate)
-            let userMessage: any
-            let messagesToSave: any[]
+            let userMessage: any;
+            let messagesToSave: any[];
 
             if (isDuplicate) {
-              userMessage = lastMsg
-              messagesToSave = existingMessages
+              userMessage = lastMsg;
+              messagesToSave = existingMessages;
             } else {
+              // Build complete user message parts (images, files, then text)
+              const userParts: any[] = [];
+              if (input.images && input.images.length > 0) {
+                for (const img of input.images) {
+                  // Store a displayable URL for reload (local-file:// or data URL)
+                  // Don't store base64Data in DB to avoid bloat
+                  const displayUrl = img.localPath
+                    ? `local-file://${img.localPath}`
+                    : img.tempPath
+                      ? `local-file://${img.tempPath}`
+                      : `data:${img.mediaType};base64,${img.base64Data}`;
+                  userParts.push({
+                    type: "data-image",
+                    data: {
+                      url: displayUrl,
+                      mediaType: img.mediaType,
+                      filename: img.filename,
+                      localPath: img.localPath,
+                      tempPath: img.tempPath,
+                    },
+                  });
+                }
+              }
+              if (input.files && input.files.length > 0) {
+                for (const f of input.files) {
+                  userParts.push({
+                    type: "data-file",
+                    data: {
+                      filename: f.filename,
+                      mediaType: f.mediaType,
+                      size: f.size,
+                      localPath: f.localPath,
+                      tempPath: f.tempPath,
+                    },
+                  });
+                }
+              }
+              userParts.push({ type: "text", text: input.prompt });
+
               userMessage = {
                 id: crypto.randomUUID(),
                 role: "user",
-                parts: [{ type: "text", text: input.prompt }],
-              }
-              messagesToSave = [...existingMessages, userMessage]
+                parts: userParts,
+                createdAt: new Date().toISOString(),
+              };
+              messagesToSave = [...existingMessages, userMessage];
 
               db.update(subChats)
                 .set({
@@ -1257,23 +1591,25 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   updatedAt: new Date(),
                 })
                 .where(eq(subChats.id, input.subChatId))
-                .run()
+                .run();
             }
 
             // 2.4. Memory hooks: Start session and record user prompt (fire-and-forget)
-            let memorySessionId: string | null = null
-            const promptNumber = existingMessages.filter((m: any) => m.role === "user").length + 1
+            let memorySessionId: string | null = null;
+            const promptNumber =
+              existingMessages.filter((m: any) => m.role === "user").length + 1;
             if (projectId && input.memoryRecordingEnabled !== false) {
               // Sync summary model config for LLM-enhanced observations
               try {
-                const { setSummaryModelConfig } = await import("../../memory/summarizer")
+                const { setSummaryModelConfig } =
+                  await import("../../memory/summarizer");
                 if (input.summaryProviderId && input.summaryModelId) {
                   setSummaryModelConfig({
                     providerId: input.summaryProviderId,
                     modelId: input.summaryModelId,
-                  })
+                  });
                 } else {
-                  setSummaryModelConfig(null)
+                  setSummaryModelConfig(null);
                 }
               } catch {
                 // Summarizer not available, continue with rule-based
@@ -1284,171 +1620,200 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   subChatId: input.subChatId,
                   projectId,
                   chatId: input.chatId,
-                })
+                });
                 if (memorySessionId) {
                   await memoryHooks.onUserPrompt({
                     sessionId: memorySessionId,
                     prompt: input.prompt,
                     promptNumber,
-                  })
+                  });
                 }
               } catch (memErr) {
-                console.error("[Memory] Hook error (onSessionStart/onUserPrompt):", memErr)
+                console.error(
+                  "[Memory] Hook error (onSessionStart/onUserPrompt):",
+                  memErr,
+                );
               }
             }
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
-            let resolvedCustomConfig = input.customConfig
-            if (input.customConfig && !input.customConfig.token && !input.customConfig.baseUrl && input.customConfig.model) {
+            let resolvedCustomConfig = input.customConfig;
+            let isUsingLitellm = false;
+            if (
+              input.customConfig &&
+              !input.customConfig.token &&
+              !input.customConfig.baseUrl &&
+              input.customConfig.model
+            ) {
               // LiteLLM mode: populate from env
-              const env = getEnv()
-              const litellmBaseUrl = env.MAIN_VITE_LITELLM_BASE_URL
-              const litellmApiKey = env.MAIN_VITE_LITELLM_API_KEY
+              isUsingLitellm = true;
+              const env = getEnv();
+              const litellmBaseUrl = env.MAIN_VITE_LITELLM_BASE_URL;
+              const litellmApiKey = env.MAIN_VITE_LITELLM_API_KEY;
 
               if (litellmBaseUrl) {
                 resolvedCustomConfig = {
                   model: input.customConfig.model,
                   token: litellmApiKey || "litellm",
                   baseUrl: litellmBaseUrl.replace(/\/+$/, ""),
-                }
-                console.log(`[SD] Using LiteLLM mode: model=${input.customConfig.model} baseUrl=${litellmBaseUrl}`)
+                };
+                console.log(
+                  `[SD] Using LiteLLM mode: model=${input.customConfig.model} baseUrl=${litellmBaseUrl}`,
+                );
               } else {
                 // LiteLLM not configured, fall back to no custom config
-                console.log(`[SD] LiteLLM mode requested but MAIN_VITE_LITELLM_BASE_URL not configured`)
-                resolvedCustomConfig = undefined
+                console.log(
+                  `[SD] LiteLLM mode requested but MAIN_VITE_LITELLM_BASE_URL not configured`,
+                );
+                resolvedCustomConfig = undefined;
               }
             }
 
             // 2.6. AUTO-FALLBACK: Check internet and switch to Ollama if offline
             // Only check if offline mode is enabled in settings
-            const claudeCodeToken = getClaudeCodeToken()
+            const claudeCodeToken = getClaudeCodeToken();
             const offlineResult = await checkOfflineFallback(
               resolvedCustomConfig,
               claudeCodeToken,
               undefined, // selectedOllamaModel - will be read from customConfig if present
               input.offlineModeEnabled ?? false, // Pass offline mode setting
-            )
+            );
 
             if (offlineResult.error) {
-              emitError(new Error(offlineResult.error), 'Offline mode unavailable')
-              safeEmit({ type: 'finish' } as UIMessageChunk)
-              safeComplete()
-              return
+              emitError(
+                new Error(offlineResult.error),
+                "Offline mode unavailable",
+              );
+              safeEmit({ type: "finish" } as UIMessageChunk);
+              safeComplete();
+              return;
             }
 
             // Use offline config if available
-            const finalCustomConfig = offlineResult.config || resolvedCustomConfig
-            const isUsingOllama = offlineResult.isUsingOllama
+            const finalCustomConfig =
+              offlineResult.config || resolvedCustomConfig;
+            const isUsingOllama = offlineResult.isUsingOllama;
 
             // Offline status is shown in sidebar, no need to emit message here
             // (emitting text-delta without text-start breaks UI text rendering)
 
-            // 3. Get Claude SDK
-            let claudeQuery
-            try {
-              claudeQuery = await getClaudeQuery()
-            } catch (sdkError) {
-              emitError(sdkError, "Failed to load Claude SDK")
-              console.log(`[SD] M:END sub=${subId} reason=sdk_load_error n=${chunkCount}`)
-              safeEmit({ type: "finish" } as UIMessageChunk)
-              safeComplete()
-              return
-            }
-
             const transform = createTransformer({
               emitSdkMessageUuid: historyEnabled,
               isUsingOllama,
-            })
+            });
 
             // 4. Setup accumulation state
-            const parts: any[] = []
-            let currentText = ""
-            let metadata: StreamMetadata = {}
+            const parts: any[] = [];
+            let currentText = "";
+            let metadata: StreamMetadata = {};
 
             // Capture stderr from Claude process for debugging
-            const stderrLines: string[] = []
+            const stderrLines: string[] = [];
 
             // FIX: Merge previous unanswered user messages to prevent context loss on interruption
             // When a user interrupts an ongoing generation, the SDK rolls back to the last assistant message.
             // This causes any intermediate user messages (between the last assistant message and the current one)
             // to be lost from the SDK's context. We must manually merge them into the current prompt.
-            let effectivePrompt = input.prompt
-            const previousUnansweredMessages: string[] = []
+            let effectivePrompt = input.prompt;
+            const previousUnansweredMessages: string[] = [];
 
             // Iterate backwards through existing messages to find continuous user messages at the tail
             // existingMessages does NOT include the current message yet
             for (let i = existingMessages.length - 1; i >= 0; i--) {
-              const msg = existingMessages[i]
-              if (msg.role === 'assistant') break
-              if (msg.role === 'user') {
-                 // Extract text parts
-                 const text = msg.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
-                 if (text && text.trim()) previousUnansweredMessages.unshift(text)
+              const msg = existingMessages[i];
+              if (msg.role === "assistant") break;
+              if (msg.role === "user") {
+                // Extract text parts
+                const text = msg.parts
+                  ?.filter((p: any) => p.type === "text")
+                  .map((p: any) => p.text)
+                  .join("\n");
+                if (text && text.trim())
+                  previousUnansweredMessages.unshift(text);
               }
             }
 
             if (previousUnansweredMessages.length > 0) {
-              console.log(`[claude] Merging ${previousUnansweredMessages.length} previous unanswered messages into prompt`)
+              console.log(
+                `[claude] Merging ${previousUnansweredMessages.length} previous unanswered messages into prompt`,
+              );
               // Join with double newlines to separate distinct messages clearly
-              effectivePrompt = `${previousUnansweredMessages.join('\n\n')}\n\n${input.prompt}`
+              effectivePrompt = `${previousUnansweredMessages.join("\n\n")}\n\n${input.prompt}`;
             }
 
             // Parse mentions from prompt (agents, skills, files, folders)
-            const { cleanedPrompt, agentMentions, skillMentions } = parseMentions(effectivePrompt)
+            const { cleanedPrompt, agentMentions, skillMentions } =
+              parseMentions(effectivePrompt);
 
             // Build agents option for SDK (proper registration via options.agents)
-            const agentsOption = await buildAgentsOption(agentMentions, input.cwd)
+            const agentsOption = await buildAgentsOption(
+              agentMentions,
+              input.cwd,
+            );
 
             // Log if agents were mentioned
             if (agentMentions.length > 0) {
-              console.log(`[claude] Registering agents via SDK:`, Object.keys(agentsOption))
+              console.log(
+                `[claude] Registering agents via SDK:`,
+                Object.keys(agentsOption),
+              );
             }
 
             // Log if skills were mentioned
             if (skillMentions.length > 0) {
-              console.log(`[claude] Skills mentioned:`, skillMentions)
+              console.log(`[claude] Skills mentioned:`, skillMentions);
             }
 
             // Build final prompt with skill instructions if needed
-            let finalPrompt = cleanedPrompt
+            let finalPrompt = cleanedPrompt;
 
             // Handle empty prompt when only mentions are present
             if (!finalPrompt.trim()) {
               if (agentMentions.length > 0 && skillMentions.length > 0) {
-                finalPrompt = `Use the ${agentMentions.join(", ")} agent(s) and invoke the "${skillMentions.join('", "')}" skill(s) using the Skill tool for this task.`
+                finalPrompt = `Use the ${agentMentions.join(", ")} agent(s) and invoke the "${skillMentions.join('", "')}" skill(s) using the Skill tool for this task.`;
               } else if (agentMentions.length > 0) {
-                finalPrompt = `Use the ${agentMentions.join(", ")} agent(s) for this task.`
+                finalPrompt = `Use the ${agentMentions.join(", ")} agent(s) for this task.`;
               } else if (skillMentions.length > 0) {
-                finalPrompt = `Invoke the "${skillMentions.join('", "')}" skill(s) using the Skill tool for this task.`
+                finalPrompt = `Invoke the "${skillMentions.join('", "')}" skill(s) using the Skill tool for this task.`;
               }
             } else if (skillMentions.length > 0) {
               // Append skill instruction to existing prompt
-              finalPrompt = `${finalPrompt}\n\nUse the "${skillMentions.join('", "')}" skill(s) for this task.`
+              finalPrompt = `${finalPrompt}\n\nUse the "${skillMentions.join('", "')}" skill(s) for this task.`;
             }
 
             // Build prompt: if there are images, create an AsyncIterable<SDKUserMessage>
             // Otherwise use simple string prompt
-            let prompt: string | AsyncIterable<any> = finalPrompt
+            let prompt: string | AsyncIterable<any> = finalPrompt;
 
             if (input.images && input.images.length > 0) {
               // Save uploaded images to disk so MCP tools (e.g. edit_image) can access them by path
-              const uploadsDir = path.join(input.cwd, "uploads")
-              await fs.mkdir(uploadsDir, { recursive: true })
-              const savedImagePaths: string[] = []
+              const uploadsDir = path.join(input.cwd, "uploads");
+              await fs.mkdir(uploadsDir, { recursive: true });
+              const savedImagePaths: string[] = [];
               for (const img of input.images) {
                 try {
-                  const extMap: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp" }
-                  const ext = extMap[img.mediaType] || ".png"
+                  const extMap: Record<string, string> = {
+                    "image/png": ".png",
+                    "image/jpeg": ".jpg",
+                    "image/gif": ".gif",
+                    "image/webp": ".webp",
+                  };
+                  const ext = extMap[img.mediaType] || ".png";
                   const baseName = img.filename
-                    ? path.basename(img.filename, path.extname(img.filename)).replace(/[^a-zA-Z0-9._-]/g, "_")
-                    : String(Date.now())
-                  const filename = `upload_${baseName}${ext}`
-                  const filePath = path.join(uploadsDir, filename)
-                  await fs.writeFile(filePath, Buffer.from(img.base64Data, "base64"))
-                  savedImagePaths.push(filePath)
-                  console.log(`[claude] Saved uploaded image to: ${filePath}`)
+                    ? path
+                        .basename(img.filename, path.extname(img.filename))
+                        .replace(/[^a-zA-Z0-9._-]/g, "_")
+                    : String(Date.now());
+                  const filename = `upload_${baseName}${ext}`;
+                  const filePath = path.join(uploadsDir, filename);
+                  await fs.writeFile(
+                    filePath,
+                    Buffer.from(img.base64Data, "base64"),
+                  );
+                  savedImagePaths.push(filePath);
+                  console.log(`[claude] Saved uploaded image to: ${filePath}`);
                 } catch (err) {
-                  console.error(`[claude] Failed to save uploaded image:`, err)
+                  console.error(`[claude] Failed to save uploaded image:`, err);
                 }
               }
 
@@ -1460,17 +1825,18 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                   media_type: img.mediaType,
                   data: img.base64Data,
                 },
-              }))
+              }));
 
               // Add text with saved image paths info so Claude can reference them in MCP tool calls
-              const imagePathsHint = savedImagePaths.length > 0
-                ? `\n\n[System: The uploaded image(s) have been saved to disk at: ${savedImagePaths.join(", ")}. Use these paths if you need to pass them to tools like edit_image.]`
-                : ""
+              const imagePathsHint =
+                savedImagePaths.length > 0
+                  ? `\n\n[System: The uploaded image(s) have been saved to disk at: ${savedImagePaths.join(", ")}. Use these paths if you need to pass them to tools like edit_image.]`
+                  : "";
               if (finalPrompt.trim() || imagePathsHint) {
                 messageContent.push({
                   type: "text" as const,
                   text: (finalPrompt + imagePathsHint).trim(),
-                })
+                });
               }
 
               // Create an async generator that yields a single SDKUserMessage
@@ -1482,10 +1848,10 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                     content: messageContent,
                   },
                   parent_tool_use_id: null,
-                }
+                };
               }
 
-              prompt = createPromptWithImages()
+              prompt = createPromptWithImages();
             }
 
             // Build full environment for Claude SDK (includes HOME, PATH, etc.)
@@ -1497,11 +1863,11 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 },
               }),
               enableTasks: input.enableTasks ?? true,
-            })
+            });
 
             // Debug logging in dev
             if (process.env.NODE_ENV !== "production") {
-              logClaudeEnv(claudeEnv, `[${input.subChatId}] `)
+              logClaudeEnv(claudeEnv, `[${input.subChatId}] `);
             }
 
             // Create isolated config directory per subChat to prevent session contamination
@@ -1511,33 +1877,39 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
             const isolatedConfigDir = path.join(
               app.getPath("userData"),
               "claude-sessions",
-              isUsingOllama ? input.chatId : input.subChatId
-            )
+              isUsingOllama ? input.chatId : input.subChatId,
+            );
 
             // MCP servers to pass to SDK - loaded via ClaudeConfigLoader
-            let mcpServersForSdk: Record<string, any> | undefined
+            let mcpServersForSdk: Record<string, any> | undefined;
 
             // Ensure isolated config dir exists and symlink skills/agents from ~/.claude/
             // This is needed because SDK looks for skills at $CLAUDE_CONFIG_DIR/skills/
             // OPTIMIZATION: Only create symlinks once per subChatId (cached)
             try {
-              await fs.mkdir(isolatedConfigDir, { recursive: true })
+              await fs.mkdir(isolatedConfigDir, { recursive: true });
 
               // Only create symlinks if not already created for this config dir
-              const cacheKey = isUsingOllama ? input.chatId : input.subChatId
+              const cacheKey = isUsingOllama ? input.chatId : input.subChatId;
               if (!symlinksCreated.has(cacheKey)) {
-                const homeClaudeDir = path.join(os.homedir(), ".claude")
-                const skillsSource = path.join(homeClaudeDir, "skills")
-                const skillsTarget = path.join(isolatedConfigDir, "skills")
-                const agentsSource = path.join(homeClaudeDir, "agents")
-                const agentsTarget = path.join(isolatedConfigDir, "agents")
+                const homeClaudeDir = path.join(os.homedir(), ".claude");
+                const skillsSource = path.join(homeClaudeDir, "skills");
+                const skillsTarget = path.join(isolatedConfigDir, "skills");
+                const agentsSource = path.join(homeClaudeDir, "agents");
+                const agentsTarget = path.join(isolatedConfigDir, "agents");
 
                 // Symlink skills directory if source exists and target doesn't
                 try {
-                  const skillsSourceExists = await fs.stat(skillsSource).then(() => true).catch(() => false)
-                  const skillsTargetExists = await fs.lstat(skillsTarget).then(() => true).catch(() => false)
+                  const skillsSourceExists = await fs
+                    .stat(skillsSource)
+                    .then(() => true)
+                    .catch(() => false);
+                  const skillsTargetExists = await fs
+                    .lstat(skillsTarget)
+                    .then(() => true)
+                    .catch(() => false);
                   if (skillsSourceExists && !skillsTargetExists) {
-                    await fs.symlink(skillsSource, skillsTarget, "dir")
+                    await fs.symlink(skillsSource, skillsTarget, "dir");
                   }
                 } catch {
                   // Ignore symlink errors (might already exist or permission issues)
@@ -1545,22 +1917,28 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
                 // Symlink agents directory if source exists and target doesn't
                 try {
-                  const agentsSourceExists = await fs.stat(agentsSource).then(() => true).catch(() => false)
-                  const agentsTargetExists = await fs.lstat(agentsTarget).then(() => true).catch(() => false)
+                  const agentsSourceExists = await fs
+                    .stat(agentsSource)
+                    .then(() => true)
+                    .catch(() => false);
+                  const agentsTargetExists = await fs
+                    .lstat(agentsTarget)
+                    .then(() => true)
+                    .catch(() => false);
                   if (agentsSourceExists && !agentsTargetExists) {
-                    await fs.symlink(agentsSource, agentsTarget, "dir")
+                    await fs.symlink(agentsSource, agentsTarget, "dir");
                   }
                 } catch {
                   // Ignore symlink errors (might already exist or permission issues)
                 }
 
-                symlinksCreated.add(cacheKey)
+                symlinksCreated.add(cacheKey);
               }
 
               // Load MCP servers via ClaudeConfigLoader (unified configuration)
               try {
-                const configLoader = getConfigLoader()
-                const authManager = getAuthManager()
+                const configLoader = getConfigLoader();
+                const authManager = getAuthManager();
                 const loadedConfig = await configLoader.getConfig(
                   {
                     cwd: input.projectPath || input.cwd,
@@ -1570,135 +1948,199 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                     filterNonWorking: true,
                     disabledMcpServers: input.disabledMcpServers,
                   },
-                  authManager
-                )
+                  authManager,
+                );
 
                 if (Object.keys(loadedConfig.mcpServers).length > 0) {
-                  mcpServersForSdk = loadedConfig.mcpServers
+                  mcpServersForSdk = loadedConfig.mcpServers;
                 }
               } catch (configErr) {
-                console.error(`[claude] Failed to load MCP config via ClaudeConfigLoader:`, configErr)
+                console.error(
+                  `[claude] Failed to load MCP config via ClaudeConfigLoader:`,
+                  configErr,
+                );
               }
             } catch (mkdirErr) {
-              console.error(`[claude] Failed to setup isolated config dir:`, mkdirErr)
+              console.error(
+                `[claude] Failed to setup isolated config dir:`,
+                mkdirErr,
+              );
             }
 
             // Check if user has existing API key or proxy configured in their shell environment
             // If so, use that instead of OAuth (allows using custom API proxies)
             // Based on PR #29 by @sa4hnd
-            const hasExistingApiConfig = !!(claudeEnv.ANTHROPIC_API_KEY || claudeEnv.ANTHROPIC_BASE_URL)
+            const hasExistingApiConfig = !!(
+              claudeEnv.ANTHROPIC_API_KEY || claudeEnv.ANTHROPIC_BASE_URL
+            );
 
             if (hasExistingApiConfig) {
-              console.log(`[claude] Using existing CLI config - API_KEY: ${claudeEnv.ANTHROPIC_API_KEY ? "set" : "not set"}, BASE_URL: ${claudeEnv.ANTHROPIC_BASE_URL || "default"}`)
+              console.log(
+                `[claude] Using existing CLI config - API_KEY: ${claudeEnv.ANTHROPIC_API_KEY ? "set" : "not set"}, BASE_URL: ${claudeEnv.ANTHROPIC_BASE_URL || "default"}`,
+              );
             }
 
             // Build final env - only add OAuth token if we have one AND no existing API config
             // Existing CLI config takes precedence over OAuth
             const finalEnv: Record<string, string | undefined> = {
               ...claudeEnv,
-              ...(claudeCodeToken && !hasExistingApiConfig && {
-                CLAUDE_CODE_OAUTH_TOKEN: claudeCodeToken,
-              }),
+              ...(claudeCodeToken &&
+                !hasExistingApiConfig && {
+                  CLAUDE_CODE_OAUTH_TOKEN: claudeCodeToken,
+                }),
               // Re-enable CLAUDE_CONFIG_DIR now that we properly map MCP configs
               CLAUDE_CONFIG_DIR: isolatedConfigDir,
-            }
+            };
 
             // Get bundled Claude binary path
-            const claudeBinaryPath = getBundledClaudeBinaryPath()
+            const claudeBinaryPath = getBundledClaudeBinaryPath();
 
-            const resumeSessionId = input.sessionId || existingSessionId || undefined
+            const resumeSessionId =
+              input.sessionId || existingSessionId || undefined;
 
             // DEBUG: Session resume path tracing
-            const expectedSanitizedCwd = input.cwd.replace(/[/.]/g, "-")
-            const expectedSessionPath = path.join(isolatedConfigDir, "projects", expectedSanitizedCwd, `${resumeSessionId}.jsonl`)
-            console.log(`[claude] ========== SESSION DEBUG ==========`)
-            console.log(`[claude] subChatId: ${input.subChatId}`)
-            console.log(`[claude] cwd: ${input.cwd}`)
-            console.log(`[claude] sanitized cwd (expected): ${expectedSanitizedCwd}`)
-            console.log(`[claude] CLAUDE_CONFIG_DIR: ${isolatedConfigDir}`)
-            console.log(`[claude] Expected session path: ${expectedSessionPath}`)
-            console.log(`[claude] Session ID to resume: ${resumeSessionId}`)
-            console.log(`[claude] Existing sessionId from DB: ${existingSessionId}`)
-            console.log(`[claude] Resume at UUID: ${resumeAtUuid}`)
-            console.log(`[claude] ========== END SESSION DEBUG ==========`)
+            const expectedSanitizedCwd = input.cwd.replace(/[/.]/g, "-");
+            const expectedSessionPath = path.join(
+              isolatedConfigDir,
+              "projects",
+              expectedSanitizedCwd,
+              `${resumeSessionId}.jsonl`,
+            );
+            console.log(`[claude] ========== SESSION DEBUG ==========`);
+            console.log(`[claude] subChatId: ${input.subChatId}`);
+            console.log(`[claude] cwd: ${input.cwd}`);
+            console.log(
+              `[claude] sanitized cwd (expected): ${expectedSanitizedCwd}`,
+            );
+            console.log(`[claude] CLAUDE_CONFIG_DIR: ${isolatedConfigDir}`);
+            console.log(
+              `[claude] Expected session path: ${expectedSessionPath}`,
+            );
+            console.log(`[claude] Session ID to resume: ${resumeSessionId}`);
+            console.log(
+              `[claude] Existing sessionId from DB: ${existingSessionId}`,
+            );
+            console.log(`[claude] Resume at UUID: ${resumeAtUuid}`);
+            console.log(`[claude] ========== END SESSION DEBUG ==========`);
 
-            console.log(`[SD] Query options - cwd: ${input.cwd}, projectPath: ${input.projectPath || "(not set)"}, mcpServers: ${mcpServersForSdk ? Object.keys(mcpServersForSdk).join(", ") : "(none)"}`)
+            console.log(
+              `[SD] Query options - cwd: ${input.cwd}, projectPath: ${input.projectPath || "(not set)"}, mcpServers: ${mcpServersForSdk ? Object.keys(mcpServersForSdk).join(", ") : "(none)"}`,
+            );
             if (finalCustomConfig) {
               const redactedConfig = {
                 ...finalCustomConfig,
                 token: `${finalCustomConfig.token.slice(0, 6)}...`,
-              }
+              };
               if (isUsingOllama) {
-                console.log(`[Ollama] Using offline mode - Model: ${finalCustomConfig.model}, Base URL: ${finalCustomConfig.baseUrl}`)
+                console.log(
+                  `[Ollama] Using offline mode - Model: ${finalCustomConfig.model}, Base URL: ${finalCustomConfig.baseUrl}`,
+                );
               } else {
-                console.log(`[claude] Custom config: ${JSON.stringify(redactedConfig)}`)
+                console.log(
+                  `[claude] Custom config: ${JSON.stringify(redactedConfig)}`,
+                );
               }
             }
 
-            const resolvedModel = finalCustomConfig?.model || input.model
+            const resolvedModel = finalCustomConfig?.model || input.model;
 
             // DEBUG: If using Ollama, test if it's actually responding
             if (isUsingOllama && finalCustomConfig) {
-              console.log('[Ollama Debug] Testing Ollama connectivity...')
+              console.log("[Ollama Debug] Testing Ollama connectivity...");
               try {
-                const testResponse = await fetch(`${finalCustomConfig.baseUrl}/api/tags`, {
-                  signal: AbortSignal.timeout(2000)
-                })
+                const testResponse = await fetch(
+                  `${finalCustomConfig.baseUrl}/api/tags`,
+                  {
+                    signal: AbortSignal.timeout(2000),
+                  },
+                );
                 if (testResponse.ok) {
-                  const data = await testResponse.json()
-                  const models = data.models?.map((m: any) => m.name) || []
-                  console.log('[Ollama Debug] Ollama is responding. Available models:', models)
+                  const data = await testResponse.json();
+                  const models = data.models?.map((m: any) => m.name) || [];
+                  console.log(
+                    "[Ollama Debug] Ollama is responding. Available models:",
+                    models,
+                  );
 
                   if (!models.includes(finalCustomConfig.model)) {
-                    console.error(`[Ollama Debug] WARNING: Model "${finalCustomConfig.model}" not found in Ollama!`)
-                    console.error(`[Ollama Debug] Available models:`, models)
-                    console.error(`[Ollama Debug] This will likely cause the stream to hang or fail silently.`)
+                    console.error(
+                      `[Ollama Debug] WARNING: Model "${finalCustomConfig.model}" not found in Ollama!`,
+                    );
+                    console.error(`[Ollama Debug] Available models:`, models);
+                    console.error(
+                      `[Ollama Debug] This will likely cause the stream to hang or fail silently.`,
+                    );
                   } else {
-                    console.log(`[Ollama Debug] ✓ Model "${finalCustomConfig.model}" is available`)
+                    console.log(
+                      `[Ollama Debug] ✓ Model "${finalCustomConfig.model}" is available`,
+                    );
                   }
                 } else {
-                  console.error('[Ollama Debug] Ollama returned error:', testResponse.status)
+                  console.error(
+                    "[Ollama Debug] Ollama returned error:",
+                    testResponse.status,
+                  );
                 }
               } catch (err) {
-                console.error('[Ollama Debug] Failed to connect to Ollama:', err)
+                console.error(
+                  "[Ollama Debug] Failed to connect to Ollama:",
+                  err,
+                );
               }
             }
 
             // Skip MCP servers entirely in offline mode (Ollama) - they slow down initialization by 60+ seconds
             // Otherwise ensure MCP tokens are fresh before passing to SDK
-            let mcpServersFiltered: Record<string, any> | undefined
+            let mcpServersFiltered: Record<string, any> | undefined;
 
             if (isUsingOllama) {
-              console.log('[Ollama] Skipping MCP servers to speed up initialization')
-              mcpServersFiltered = undefined
+              console.log(
+                "[Ollama] Skipping MCP servers to speed up initialization",
+              );
+              mcpServersFiltered = undefined;
             } else {
               // Refresh MCP tokens (disabled servers already filtered by ConfigLoader)
-              if (mcpServersForSdk && Object.keys(mcpServersForSdk).length > 0) {
-                const lookupPath = input.projectPath || input.cwd
-                mcpServersFiltered = await ensureMcpTokensFresh(mcpServersForSdk, lookupPath)
+              if (
+                mcpServersForSdk &&
+                Object.keys(mcpServersForSdk).length > 0
+              ) {
+                const lookupPath = input.projectPath || input.cwd;
+                mcpServersFiltered = await ensureMcpTokensFresh(
+                  mcpServersForSdk,
+                  lookupPath,
+                );
               } else {
-                mcpServersFiltered = mcpServersForSdk
+                mcpServersFiltered = mcpServersForSdk;
               }
 
               // Always add browser MCP server — tools handle not-ready state internally
               // This ensures browser_navigate can open the panel on demand even if it wasn't open at session start
               try {
-                const browserMcp = await createBrowserMcpServer()
+                const browserMcp = await createBrowserMcpServer();
                 // Set working directory for relative path resolution
                 if (input.cwd) {
-                  browserManager.workingDirectory = input.cwd
+                  browserManager.workingDirectory = input.cwd;
                 }
                 mcpServersFiltered = {
                   ...mcpServersFiltered,
                   browser: browserMcp,
-                }
-                console.log("[Browser MCP] Added browser MCP server (ready:", browserManager.isReady, ")")
+                };
+                console.log(
+                  "[Browser MCP] Added browser MCP server (ready:",
+                  browserManager.isReady,
+                  ")",
+                );
               } catch (err) {
-                console.error("[Browser MCP] Failed to create server:", err)
+                console.error("[Browser MCP] Failed to create server:", err);
               }
 
               // Add image generation MCP server if image config is provided
-              console.log("[Image Gen MCP] imageConfig:", input.imageConfig ? `provider=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "not set")
+              console.log(
+                "[Image Gen MCP] imageConfig:",
+                input.imageConfig
+                  ? `provider=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}`
+                  : "not set",
+              );
               if (input.imageConfig) {
                 try {
                   const imageGenMcp = await createImageGenMcpServer({
@@ -1709,14 +2151,22 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                       apiKey: input.imageConfig.apiKey,
                       model: input.imageConfig.model,
                     },
-                  })
+                  });
                   mcpServersFiltered = {
                     ...mcpServersFiltered,
                     "image-gen": imageGenMcp,
-                  }
-                  console.log("[Image Gen MCP] Added image generation MCP server, all MCP keys:", mcpServersFiltered ? Object.keys(mcpServersFiltered) : "none")
+                  };
+                  console.log(
+                    "[Image Gen MCP] Added image generation MCP server, all MCP keys:",
+                    mcpServersFiltered
+                      ? Object.keys(mcpServersFiltered)
+                      : "none",
+                  );
                 } catch (err) {
-                  console.error("[Image Gen MCP] Failed to create server:", err)
+                  console.error(
+                    "[Image Gen MCP] Failed to create server:",
+                    err,
+                  );
                 }
               }
 
@@ -1725,45 +2175,53 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
                 const imageProcessMcp = await createImageProcessMcpServer({
                   cwd: input.cwd,
                   subChatId: input.subChatId,
-                })
+                });
                 mcpServersFiltered = {
                   ...mcpServersFiltered,
                   "image-process": imageProcessMcp,
-                }
-                console.log("[Image Process MCP] Added image processing MCP server")
+                };
+                console.log(
+                  "[Image Process MCP] Added image processing MCP server",
+                );
               } catch (err) {
-                console.error("[Image Process MCP] Failed to create server:", err)
+                console.error(
+                  "[Image Process MCP] Failed to create server:",
+                  err,
+                );
               }
             }
 
             // Log SDK configuration for debugging
             if (isUsingOllama) {
-              console.log('[Ollama Debug] SDK Configuration:', {
+              console.log("[Ollama Debug] SDK Configuration:", {
                 model: resolvedModel,
                 baseUrl: finalEnv.ANTHROPIC_BASE_URL,
                 cwd: input.cwd,
                 configDir: isolatedConfigDir,
                 hasAuthToken: !!finalEnv.ANTHROPIC_AUTH_TOKEN,
-                tokenPreview: finalEnv.ANTHROPIC_AUTH_TOKEN?.slice(0, 10) + '...',
-              })
-              console.log('[Ollama Debug] Session settings:', {
-                resumeSessionId: resumeSessionId || 'none (first message)',
-                mode: resumeSessionId ? 'resume' : 'continue',
+                tokenPreview:
+                  finalEnv.ANTHROPIC_AUTH_TOKEN?.slice(0, 10) + "...",
+              });
+              console.log("[Ollama Debug] Session settings:", {
+                resumeSessionId: resumeSessionId || "none (first message)",
+                mode: resumeSessionId ? "resume" : "continue",
                 note: resumeSessionId
-                  ? 'Resuming existing session to maintain chat history'
-                  : 'Starting new session with continue mode'
-              })
+                  ? "Resuming existing session to maintain chat history"
+                  : "Starting new session with continue mode",
+              });
             }
 
             // Read AGENTS.md from project root if it exists
-            let agentsMdContent: string | undefined
+            let agentsMdContent: string | undefined;
             try {
-              const agentsMdPath = path.join(input.cwd, "AGENTS.md")
-              agentsMdContent = await fs.readFile(agentsMdPath, "utf-8")
+              const agentsMdPath = path.join(input.cwd, "AGENTS.md");
+              agentsMdContent = await fs.readFile(agentsMdPath, "utf-8");
               if (agentsMdContent.trim()) {
-                console.log(`[claude] Found AGENTS.md at ${agentsMdPath} (${agentsMdContent.length} chars)`)
+                console.log(
+                  `[claude] Found AGENTS.md at ${agentsMdPath} (${agentsMdContent.length} chars)`,
+                );
               } else {
-                agentsMdContent = undefined
+                agentsMdContent = undefined;
               }
             } catch {
               // AGENTS.md doesn't exist or can't be read - that's fine
@@ -1771,118 +2229,142 @@ askUserQuestionTimeout: z.number().optional(), // Timeout for AskUserQuestion in
 
             // For Ollama: embed context AND history directly in prompt
             // Ollama doesn't have server-side sessions, so we must include full history
-            let finalQueryPrompt: string | AsyncIterable<any> = prompt
-            if (isUsingOllama && typeof prompt === 'string') {
+            let finalQueryPrompt: string | AsyncIterable<any> = prompt;
+            if (isUsingOllama && typeof prompt === "string") {
               // Format conversation history from existingMessages (excluding current message)
               // IMPORTANT: Include tool calls info so model knows what files were read/edited
-              let historyText = ''
+              let historyText = "";
               if (existingMessages.length > 0) {
-                const historyParts: string[] = []
+                const historyParts: string[] = [];
                 for (const msg of existingMessages) {
-                  if (msg.role === 'user') {
+                  if (msg.role === "user") {
                     // Extract text from user message parts
-                    const textParts = msg.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text) || []
+                    const textParts =
+                      msg.parts
+                        ?.filter((p: any) => p.type === "text")
+                        .map((p: any) => p.text) || [];
                     if (textParts.length > 0) {
-                      historyParts.push(`User: ${textParts.join('\n')}`)
+                      historyParts.push(`User: ${textParts.join("\n")}`);
                     }
-                  } else if (msg.role === 'assistant') {
+                  } else if (msg.role === "assistant") {
                     // Extract text AND tool calls from assistant message parts
-                    const parts = msg.parts || []
-                    const textParts: string[] = []
-                    const toolSummaries: string[] = []
+                    const parts = msg.parts || [];
+                    const textParts: string[] = [];
+                    const toolSummaries: string[] = [];
 
                     for (const p of parts) {
-                      if (p.type === 'text' && p.text) {
-                        textParts.push(p.text)
-                      } else if (p.type === 'tool_use' || p.type === 'tool-use') {
+                      if (p.type === "text" && p.text) {
+                        textParts.push(p.text);
+                      } else if (
+                        p.type === "tool_use" ||
+                        p.type === "tool-use"
+                      ) {
                         // Include brief tool call info - this is critical for context!
-                        const toolName = p.name || p.tool || 'unknown'
-                        const toolInput = p.input || {}
+                        const toolName = p.name || p.tool || "unknown";
+                        const toolInput = p.input || {};
                         // Extract key info based on tool type
-                        let toolInfo = `[Used ${toolName}`
-                        if (toolName === 'Read' && (toolInput.file_path || toolInput.file)) {
-                          toolInfo += `: ${toolInput.file_path || toolInput.file}`
-                        } else if (toolName === 'Edit' && toolInput.file_path) {
-                          toolInfo += `: ${toolInput.file_path}`
-                        } else if (toolName === 'Write' && toolInput.file_path) {
-                          toolInfo += `: ${toolInput.file_path}`
-                        } else if (toolName === 'Glob' && toolInput.pattern) {
-                          toolInfo += `: ${toolInput.pattern}`
-                        } else if (toolName === 'Grep' && toolInput.pattern) {
-                          toolInfo += `: "${toolInput.pattern}"`
-                        } else if (toolName === 'Bash' && toolInput.command) {
-                          const cmd = String(toolInput.command).slice(0, 50)
-                          toolInfo += `: ${cmd}${toolInput.command.length > 50 ? '...' : ''}`
+                        let toolInfo = `[Used ${toolName}`;
+                        if (
+                          toolName === "Read" &&
+                          (toolInput.file_path || toolInput.file)
+                        ) {
+                          toolInfo += `: ${toolInput.file_path || toolInput.file}`;
+                        } else if (toolName === "Edit" && toolInput.file_path) {
+                          toolInfo += `: ${toolInput.file_path}`;
+                        } else if (
+                          toolName === "Write" &&
+                          toolInput.file_path
+                        ) {
+                          toolInfo += `: ${toolInput.file_path}`;
+                        } else if (toolName === "Glob" && toolInput.pattern) {
+                          toolInfo += `: ${toolInput.pattern}`;
+                        } else if (toolName === "Grep" && toolInput.pattern) {
+                          toolInfo += `: "${toolInput.pattern}"`;
+                        } else if (toolName === "Bash" && toolInput.command) {
+                          const cmd = String(toolInput.command).slice(0, 50);
+                          toolInfo += `: ${cmd}${toolInput.command.length > 50 ? "..." : ""}`;
                         }
-                        toolInfo += ']'
-                        toolSummaries.push(toolInfo)
+                        toolInfo += "]";
+                        toolSummaries.push(toolInfo);
                       }
                     }
 
                     // Combine text and tool summaries
-                    let assistantContent = ''
+                    let assistantContent = "";
                     if (textParts.length > 0) {
-                      assistantContent = textParts.join('\n')
+                      assistantContent = textParts.join("\n");
                     }
                     if (toolSummaries.length > 0) {
                       if (assistantContent) {
-                        assistantContent += '\n' + toolSummaries.join(' ')
+                        assistantContent += "\n" + toolSummaries.join(" ");
                       } else {
-                        assistantContent = toolSummaries.join(' ')
+                        assistantContent = toolSummaries.join(" ");
                       }
                     }
                     if (assistantContent) {
-                      historyParts.push(`Assistant: ${assistantContent}`)
+                      historyParts.push(`Assistant: ${assistantContent}`);
                     }
                   }
                 }
                 if (historyParts.length > 0) {
                   // Limit history to last ~10000 chars to avoid context overflow
-                  let history = historyParts.join('\n\n')
+                  let history = historyParts.join("\n\n");
                   if (history.length > 10000) {
-                    history = '...(earlier messages truncated)...\n\n' + history.slice(-10000)
+                    history =
+                      "...(earlier messages truncated)...\n\n" +
+                      history.slice(-10000);
                   }
                   historyText = `[CONVERSATION HISTORY]
 ${history}
 [/CONVERSATION HISTORY]
 
-`
-                  console.log(`[Ollama] Added ${historyParts.length} messages to history (${history.length} chars)`)
+`;
+                  console.log(
+                    `[Ollama] Added ${historyParts.length} messages to history (${history.length} chars)`,
+                  );
                 }
               }
 
               // Build user profile section for Ollama context
-              let ollamaUserProfile = ""
+              let ollamaUserProfile = "";
               if (input.userProfile) {
-                const { preferredName, personalPreferences } = input.userProfile
-                const profileParts: string[] = []
+                const { preferredName, personalPreferences } =
+                  input.userProfile;
+                const profileParts: string[] = [];
                 if (preferredName?.trim()) {
-                  profileParts.push(`- Preferred name: ${preferredName.trim()}`)
+                  profileParts.push(
+                    `- Preferred name: ${preferredName.trim()}`,
+                  );
                 }
                 if (personalPreferences?.trim()) {
-                  profileParts.push(`- Personal preferences: ${personalPreferences.trim()}`)
+                  profileParts.push(
+                    `- Personal preferences: ${personalPreferences.trim()}`,
+                  );
                 }
                 if (profileParts.length > 0) {
-                  ollamaUserProfile = `\n\n[USER PROFILE]\n${profileParts.join("\n")}\n[/USER PROFILE]`
+                  ollamaUserProfile = `\n\n[USER PROFILE]\n${profileParts.join("\n")}\n[/USER PROFILE]`;
                 }
               }
 
               // Get runtime environment for Ollama context
-              let ollamaRuntimeInfo = ""
+              let ollamaRuntimeInfo = "";
               try {
-                const runtimeEnv = await getCachedRuntimeEnvironment()
+                const runtimeEnv = await getCachedRuntimeEnvironment();
                 if (runtimeEnv.tools.length > 0) {
                   const toolsList = runtimeEnv.tools
-                    .map((t) => `- ${t.category}: ${t.name}${t.version ? ` (${t.version})` : ""}`)
-                    .join("\n")
-                  ollamaRuntimeInfo = `\n\n[RUNTIME]\nAvailable tools:\n${toolsList}\n[/RUNTIME]`
+                    .map(
+                      (t) =>
+                        `- ${t.category}: ${t.name}${t.version ? ` (${t.version})` : ""}`,
+                    )
+                    .join("\n");
+                  ollamaRuntimeInfo = `\n\n[RUNTIME]\nAvailable tools:\n${toolsList}\n[/RUNTIME]`;
                 }
               } catch (e) {
-                console.warn("[Ollama] Failed to get runtime environment:", e)
+                console.warn("[Ollama] Failed to get runtime environment:", e);
               }
 
               const ollamaContext = `[CONTEXT]
-You are a coding assistant in OFFLINE mode (Ollama model: ${resolvedModel || 'unknown'}).
+You are a coding assistant in OFFLINE mode (Ollama model: ${resolvedModel || "unknown"}).
 Project: ${input.projectPath || input.cwd}
 Working directory: ${input.cwd}
 
@@ -1896,23 +2378,27 @@ IMPORTANT: When using tools, use these EXACT parameter names:
 
 When asked about the project, use Glob to find files and Read to examine them.
 Be concise and helpful.
-[/CONTEXT]${ollamaUserProfile}${ollamaRuntimeInfo}${agentsMdContent ? `
+[/CONTEXT]${ollamaUserProfile}${ollamaRuntimeInfo}${
+                agentsMdContent
+                  ? `
 
 [AGENTS.MD]
 ${agentsMdContent}
-[/AGENTS.MD]` : ''}
+[/AGENTS.MD]`
+                  : ""
+              }
 
 ${historyText}[CURRENT REQUEST]
 ${prompt}
-[/CURRENT REQUEST]`
-              finalQueryPrompt = ollamaContext
-              console.log('[Ollama] Context prefix added to prompt')
+[/CURRENT REQUEST]`;
+              finalQueryPrompt = ollamaContext;
+              console.log("[Ollama] Context prefix added to prompt");
             }
 
             // Build memory context (only when enabled, default true)
             // Uses hybrid search (FTS + vector) when prompt is available,
             // with recent sessions as stable context
-            let memoryAppendSection: string | undefined
+            let memoryAppendSection: string | undefined;
             if (input.memoryEnabled !== false && projectId) {
               try {
                 // 1. Always include recent session summaries (stable context)
@@ -1922,31 +2408,41 @@ ${prompt}
                   .where(eq(memorySessions.projectId, projectId))
                   .orderBy(desc(memorySessions.startedAtEpoch))
                   .limit(5)
-                  .all()
+                  .all();
 
                 // 2. Use hybrid search for semantically relevant observations
                 // Falls back to recent observations if search fails
-                let relevantObs: Array<{ type: string; title: string | null; narrative: string | null }> = []
-                const userPrompt = input.prompt?.trim()
+                let relevantObs: Array<{
+                  type: string;
+                  title: string | null;
+                  narrative: string | null;
+                }> = [];
+                const userPrompt = input.prompt?.trim();
                 if (userPrompt && userPrompt.length > 5) {
                   try {
-                    const { hybridSearch } = await import("../../memory/hybrid-search")
+                    const { hybridSearch } =
+                      await import("../../memory/hybrid-search");
                     const searchResults = await hybridSearch({
                       query: userPrompt,
                       projectId,
                       type: "observations",
                       limit: 15,
-                    })
+                    });
                     // Filter out noise: skip "conversation"/"response" type (AI responses) and low-score results
                     relevantObs = searchResults
-                      .filter((r) => r.type === "observation" && r.score > 0.005)
+                      .filter(
+                        (r) => r.type === "observation" && r.score > 0.005,
+                      )
                       .map((r) => ({
                         type: (r as any).observationType || r.type,
                         title: r.title,
                         narrative: r.excerpt,
-                      }))
+                      }));
                   } catch (searchErr) {
-                    console.warn("[Memory] Hybrid search failed, using recent:", searchErr)
+                    console.warn(
+                      "[Memory] Hybrid search failed, using recent:",
+                      searchErr,
+                    );
                   }
                 }
 
@@ -1958,74 +2454,82 @@ ${prompt}
                     .where(eq(observations.projectId, projectId))
                     .orderBy(desc(observations.createdAtEpoch))
                     .limit(30)
-                    .all()
+                    .all();
                   relevantObs = recentObs
-                    .filter((o) => o.type !== "conversation" && o.type !== "response")
+                    .filter(
+                      (o) => o.type !== "conversation" && o.type !== "response",
+                    )
                     .slice(0, 15)
                     .map((o) => ({
                       type: o.type,
                       title: o.title,
                       narrative: o.narrative,
-                    }))
+                    }));
                 }
 
                 // 3. Build context markdown
-                const lines: string[] = []
+                const lines: string[] = [];
                 if (memorySess.length > 0) {
-                  lines.push("## Recent Sessions\n")
+                  lines.push("## Recent Sessions\n");
                   for (const session of memorySess) {
                     if (session.summaryRequest) {
-                      lines.push(`- **${session.summaryRequest}**`)
+                      lines.push(`- **${session.summaryRequest}**`);
                       if (session.summaryLearned) {
-                        lines.push(`  - Learned: ${session.summaryLearned}`)
+                        lines.push(`  - Learned: ${session.summaryLearned}`);
                       }
                       if (session.summaryCompleted) {
-                        lines.push(`  - Completed: ${session.summaryCompleted}`)
+                        lines.push(
+                          `  - Completed: ${session.summaryCompleted}`,
+                        );
                       }
                     }
                   }
-                  lines.push("")
+                  lines.push("");
                 }
                 if (relevantObs.length > 0) {
-                  lines.push("## Recent Observations\n")
+                  lines.push("## Recent Observations\n");
                   for (const o of relevantObs) {
-                    lines.push(`- [${o.type}] ${o.title}`)
+                    lines.push(`- [${o.type}] ${o.title}`);
                     if (o.narrative) {
-                      lines.push(`  > ${o.narrative.slice(0, 200)}`)
+                      lines.push(`  > ${o.narrative.slice(0, 200)}`);
                     }
                   }
                 }
 
-                const content = lines.join("\n")
+                const content = lines.join("\n");
                 if (content.trim()) {
-                  memoryAppendSection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
+                  memoryAppendSection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`;
                 }
               } catch (err) {
-                console.error("[Memory] Failed to generate context:", err)
+                console.error("[Memory] Failed to generate context:", err);
               }
             }
 
             // Build system prompt using PromptBuilder (composable architecture)
-            const promptBuilder = getPromptBuilder()
+            const promptBuilder = getPromptBuilder();
 
             // Collect append sections
-            const appendSections: string[] = []
+            const appendSections: string[] = [];
             if (memoryAppendSection) {
-              appendSections.push(memoryAppendSection)
+              appendSections.push(memoryAppendSection);
             }
 
             // Inject browser context when user is actively browsing
-            if (browserManager.isReady && browserManager.currentUrl && browserManager.currentUrl !== "about:blank") {
-              const browserTitle = browserManager.currentTitle || "Unknown"
-              const browserUrl = browserManager.currentUrl
+            if (
+              browserManager.isReady &&
+              browserManager.currentUrl &&
+              browserManager.currentUrl !== "about:blank"
+            ) {
+              const browserTitle = browserManager.currentTitle || "Unknown";
+              const browserUrl = browserManager.currentUrl;
               appendSections.push(
-`# Active Browser Context
+                `# Active Browser Context
 The user is currently using the built-in browser and viewing:
 - **Page Title**: ${browserTitle}
 - **URL**: ${browserUrl}
 
-If the user needs help with the page content, you can use the browser MCP tools (browser_lock, browser_snapshot, browser_click, browser_fill, browser_screenshot, etc.) to assist them. Remember to call browser_lock before and browser_unlock after using browser tools.`
-              )
+If the user needs help with the page content, you can use the browser MCP tools (browser_lock, browser_snapshot, browser_click, browser_fill, browser_screenshot, etc.) to assist them. Remember to call browser_lock before and browser_unlock after using browser tools.`,
+              );
             }
 
             const systemPromptConfig = await promptBuilder.buildSystemPrompt(
@@ -2038,9 +2542,14 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 userProfile: input.userProfile,
                 ...(appendSections.length > 0 && { appendSections }),
               },
-              input.cwd
-            )
-            console.log('[claude] systemPromptConfig append:', systemPromptConfig.append ? systemPromptConfig.append.slice(0, 200) : 'none')
+              input.cwd,
+            );
+            console.log(
+              "[claude] systemPromptConfig append:",
+              systemPromptConfig.append
+                ? systemPromptConfig.append.slice(0, 200)
+                : "none",
+            );
 
             const queryOptions = {
               prompt: finalQueryPrompt,
@@ -2049,9 +2558,15 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 cwd: input.cwd,
                 systemPrompt: systemPromptConfig,
                 // Register mentioned agents with SDK via options.agents (skip for Ollama - not supported)
-                ...(!isUsingOllama && Object.keys(agentsOption).length > 0 && { agents: agentsOption }),
+                ...(!isUsingOllama &&
+                  Object.keys(agentsOption).length > 0 && {
+                    agents: agentsOption,
+                  }),
                 // Pass filtered MCP servers (only working/unknown ones, skip failed/needs-auth)
-                ...(mcpServersFiltered && Object.keys(mcpServersFiltered).length > 0 && { mcpServers: mcpServersFiltered }),
+                ...(mcpServersFiltered &&
+                  Object.keys(mcpServersFiltered).length > 0 && {
+                    mcpServers: mcpServersFiltered,
+                  }),
                 env: finalEnv,
                 permissionMode:
                   input.mode === "plan"
@@ -2062,7 +2577,9 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 }),
                 includePartialMessages: true,
                 // Load skills from project and user directories (skip for Ollama - not supported)
-                ...(!isUsingOllama && { settingSources: ["project" as const, "user" as const] }),
+                ...(!isUsingOllama && {
+                  settingSources: ["project" as const, "user" as const],
+                }),
                 canUseTool: async (
                   toolName: string,
                   toolInput: Record<string, unknown>,
@@ -2072,54 +2589,82 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   // Local models often use slightly wrong parameter names
                   if (isUsingOllama) {
                     // Read: "file" -> "file_path"
-                    if (toolName === "Read" && toolInput.file && !toolInput.file_path) {
-                      toolInput.file_path = toolInput.file
-                      delete toolInput.file
-                      console.log('[Ollama] Fixed Read tool: file -> file_path')
+                    if (
+                      toolName === "Read" &&
+                      toolInput.file &&
+                      !toolInput.file_path
+                    ) {
+                      toolInput.file_path = toolInput.file;
+                      delete toolInput.file;
+                      console.log(
+                        "[Ollama] Fixed Read tool: file -> file_path",
+                      );
                     }
                     // Write: "file" -> "file_path", "content" is usually correct
-                    if (toolName === "Write" && toolInput.file && !toolInput.file_path) {
-                      toolInput.file_path = toolInput.file
-                      delete toolInput.file
-                      console.log('[Ollama] Fixed Write tool: file -> file_path')
+                    if (
+                      toolName === "Write" &&
+                      toolInput.file &&
+                      !toolInput.file_path
+                    ) {
+                      toolInput.file_path = toolInput.file;
+                      delete toolInput.file;
+                      console.log(
+                        "[Ollama] Fixed Write tool: file -> file_path",
+                      );
                     }
                     // Edit: "file" -> "file_path"
-                    if (toolName === "Edit" && toolInput.file && !toolInput.file_path) {
-                      toolInput.file_path = toolInput.file
-                      delete toolInput.file
-                      console.log('[Ollama] Fixed Edit tool: file -> file_path')
+                    if (
+                      toolName === "Edit" &&
+                      toolInput.file &&
+                      !toolInput.file_path
+                    ) {
+                      toolInput.file_path = toolInput.file;
+                      delete toolInput.file;
+                      console.log(
+                        "[Ollama] Fixed Edit tool: file -> file_path",
+                      );
                     }
                     // Glob: "path" might be passed as "directory" or "dir"
                     if (toolName === "Glob") {
                       if (toolInput.directory && !toolInput.path) {
-                        toolInput.path = toolInput.directory
-                        delete toolInput.directory
-                        console.log('[Ollama] Fixed Glob tool: directory -> path')
+                        toolInput.path = toolInput.directory;
+                        delete toolInput.directory;
+                        console.log(
+                          "[Ollama] Fixed Glob tool: directory -> path",
+                        );
                       }
                       if (toolInput.dir && !toolInput.path) {
-                        toolInput.path = toolInput.dir
-                        delete toolInput.dir
-                        console.log('[Ollama] Fixed Glob tool: dir -> path')
+                        toolInput.path = toolInput.dir;
+                        delete toolInput.dir;
+                        console.log("[Ollama] Fixed Glob tool: dir -> path");
                       }
                     }
                     // Grep: "query" -> "pattern", "directory" -> "path"
                     if (toolName === "Grep") {
                       if (toolInput.query && !toolInput.pattern) {
-                        toolInput.pattern = toolInput.query
-                        delete toolInput.query
-                        console.log('[Ollama] Fixed Grep tool: query -> pattern')
+                        toolInput.pattern = toolInput.query;
+                        delete toolInput.query;
+                        console.log(
+                          "[Ollama] Fixed Grep tool: query -> pattern",
+                        );
                       }
                       if (toolInput.directory && !toolInput.path) {
-                        toolInput.path = toolInput.directory
-                        delete toolInput.directory
-                        console.log('[Ollama] Fixed Grep tool: directory -> path')
+                        toolInput.path = toolInput.directory;
+                        delete toolInput.directory;
+                        console.log(
+                          "[Ollama] Fixed Grep tool: directory -> path",
+                        );
                       }
                     }
                     // Bash: "cmd" -> "command"
-                    if (toolName === "Bash" && toolInput.cmd && !toolInput.command) {
-                      toolInput.command = toolInput.cmd
-                      delete toolInput.cmd
-                      console.log('[Ollama] Fixed Bash tool: cmd -> command')
+                    if (
+                      toolName === "Bash" &&
+                      toolInput.cmd &&
+                      !toolInput.command
+                    ) {
+                      toolInput.command = toolInput.cmd;
+                      delete toolInput.cmd;
+                      console.log("[Ollama] Fixed Bash tool: cmd -> command");
                     }
                   }
 
@@ -2129,7 +2674,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                       return {
                         behavior: "deny" as const,
                         message: `Tool "${toolName}" is not available in chat mode. To work with files, please convert this chat to a workspace (Cowork or Coding mode).`,
-                      }
+                      };
                     }
                   }
 
@@ -2138,116 +2683,122 @@ If the user needs help with the page content, you can use the browser MCP tools 
                       const filePath =
                         typeof toolInput.file_path === "string"
                           ? toolInput.file_path
-                          : ""
+                          : "";
                       if (!/\.md$/i.test(filePath)) {
                         return {
                           behavior: "deny" as const,
                           message:
                             'Only ".md" files can be modified in plan mode.',
-                        }
+                        };
                       }
                     } else if (PLAN_MODE_BLOCKED_TOOLS.has(toolName)) {
                       return {
                         behavior: "deny" as const,
                         message: `Tool "${toolName}" blocked in plan mode.`,
-                      }
+                      };
                     }
                   }
                   if (toolName === "AskUserQuestion") {
-                    const { toolUseID } = options
-                    const askInput = toolInput as AskUserQuestionInput
+                    const { toolUseID } = options;
+                    const askInput = toolInput as AskUserQuestionInput;
                     // Emit to UI (safely in case observer is closed)
                     // Frontend will read the latest timeout setting from its store
                     safeEmit({
                       type: "ask-user-question",
                       toolUseId: toolUseID,
                       questions: askInput.questions,
-                    } as UIMessageChunk)
+                    } as UIMessageChunk);
 
                     // Backend uses a long safety timeout (10 minutes) as a fallback
                     // Frontend controls the actual timeout behavior based on user settings
-                    const SAFETY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+                    const SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
                     // Wait for response (safety timeout protects against hung sessions)
                     const response = await new Promise<{
-                      approved: boolean
-                      message?: string
-                      updatedInput?: unknown
+                      approved: boolean;
+                      message?: string;
+                      updatedInput?: unknown;
                     }>((resolve) => {
                       // Safety timeout - frontend handles actual user-configured timeout
                       const timeoutId = setTimeout(() => {
-                        pendingToolApprovals.delete(toolUseID)
+                        pendingToolApprovals.delete(toolUseID);
                         // Emit chunk to notify UI that the question has timed out
                         // This ensures the pending question dialog is cleared
                         safeEmit({
                           type: "ask-user-question-timeout",
                           toolUseId: toolUseID,
-                        } as UIMessageChunk)
-                        resolve({ approved: false, message: "Timed out" })
-                      }, SAFETY_TIMEOUT_MS)
+                        } as UIMessageChunk);
+                        resolve({ approved: false, message: "Timed out" });
+                      }, SAFETY_TIMEOUT_MS);
 
                       pendingToolApprovals.set(toolUseID, {
                         subChatId: input.subChatId,
                         resolve: (d) => {
-                          if (timeoutId) clearTimeout(timeoutId)
-                          resolve(d)
+                          if (timeoutId) clearTimeout(timeoutId);
+                          resolve(d);
                         },
-                      })
-                    })
+                      });
+                    });
 
                     // Find the tool part in accumulated parts
                     const askToolPart = parts.find(
-                      (p) => p.toolCallId === toolUseID && p.type === "tool-AskUserQuestion"
-                    )
+                      (p) =>
+                        p.toolCallId === toolUseID &&
+                        p.type === "tool-AskUserQuestion",
+                    );
 
                     if (!response.approved) {
                       // Update the tool part with error result for skipped/denied
-                      const errorMessage = response.message || "Skipped"
+                      const errorMessage = response.message || "Skipped";
                       if (askToolPart) {
-                        askToolPart.result = errorMessage
-                        askToolPart.state = "result"
+                        askToolPart.result = errorMessage;
+                        askToolPart.state = "result";
                       }
                       // Emit result to frontend so it updates in real-time
                       safeEmit({
                         type: "ask-user-question-result",
                         toolUseId: toolUseID,
                         result: errorMessage,
-                      } as unknown as UIMessageChunk)
+                      } as unknown as UIMessageChunk);
                       return {
                         behavior: "deny" as const,
                         message: errorMessage,
-                      }
+                      };
                     }
 
                     // Update the tool part with answers result for approved
-                    const answers = (response.updatedInput as ToolPermissionResponse["updatedInput"])?.answers
-                    const answerResult = { answers }
+                    const answers = (
+                      response.updatedInput as ToolPermissionResponse["updatedInput"]
+                    )?.answers;
+                    const answerResult = { answers };
                     if (askToolPart) {
-                      askToolPart.result = answerResult
-                      askToolPart.state = "result"
+                      askToolPart.result = answerResult;
+                      askToolPart.state = "result";
                     }
                     // Emit result to frontend so it updates in real-time
                     safeEmit({
                       type: "ask-user-question-result",
                       toolUseId: toolUseID,
                       result: answerResult,
-                    } as unknown as UIMessageChunk)
+                    } as unknown as UIMessageChunk);
                     return {
                       behavior: "allow" as const,
-                      updatedInput: response.updatedInput as Record<string, unknown> | undefined,
-                    }
+                      updatedInput: response.updatedInput as
+                        | Record<string, unknown>
+                        | undefined,
+                    };
                   }
                   return {
                     behavior: "allow" as const,
                     updatedInput: toolInput,
-                  }
+                  };
                 },
                 stderr: (data: string) => {
-                  stderrLines.push(data)
+                  stderrLines.push(data);
                   if (isUsingOllama) {
-                    console.error("[Ollama stderr]", data)
+                    console.error("[Ollama stderr]", data);
                   } else {
-                    console.error("[claude stderr]", data)
+                    console.error("[claude stderr]", data);
                   }
                 },
                 // Use bundled binary
@@ -2269,181 +2820,290 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   maxThinkingTokens: input.maxThinkingTokens,
                 }),
               },
-            }
+            };
 
             // 5. Run Claude SDK
-            let stream
+            let stream;
             try {
-              stream = claudeQuery(queryOptions)
+              // Save debug data before sending to SDK
+              setLastUserMessageDebug(input.subChatId, {
+                // Request input
+                input: {
+                  subChatId: input.subChatId,
+                  chatId: input.chatId,
+                  prompt: input.prompt,
+                  cwd: input.cwd,
+                  projectPath: input.projectPath,
+                  mode: input.mode,
+                  sessionId: input.sessionId,
+                  model: input.model,
+                  customConfig: input.customConfig,
+                  maxThinkingTokens: input.maxThinkingTokens,
+                  images: input.images?.map((img) => ({
+                    filename: img.filename,
+                    mediaType: img.mediaType,
+                  })),
+                  files: input.files?.map((f) => ({
+                    filename: f.filename,
+                    mediaType: f.mediaType,
+                    size: f.size,
+                  })),
+                  historyEnabled: input.historyEnabled,
+                  offlineModeEnabled: input.offlineModeEnabled,
+                  askUserQuestionTimeout: input.askUserQuestionTimeout,
+                  enableTasks: input.enableTasks,
+                  disabledMcpServers: input.disabledMcpServers,
+                  userProfile: input.userProfile,
+                  skillAwarenessEnabled: input.skillAwarenessEnabled,
+                  memoryEnabled: input.memoryEnabled,
+                  memoryRecordingEnabled: input.memoryRecordingEnabled,
+                  summaryProviderId: input.summaryProviderId,
+                  summaryModelId: input.summaryModelId,
+                  imageConfig: input.imageConfig,
+                },
+                // Processed query options
+                queryOptions: {
+                  prompt: finalQueryPrompt,
+                  systemPrompt: systemPromptConfig,
+                  agents: agentsOption,
+                  mcpServers: mcpServersFiltered
+                    ? {
+                        ...mcpServersFiltered,
+                        // Only show keys to avoid large JSON
+                        _keys: Object.keys(mcpServersFiltered),
+                      }
+                    : undefined,
+                  env: finalEnv,
+                  permissionMode:
+                    input.mode === "plan" ? "plan" : "bypassPermissions",
+                  allowDangerouslySkipPermissions: input.mode !== "plan",
+                  includePartialMessages: true,
+                  settingSources: ["project", "user"],
+                },
+                // Additional context
+                isUsingOllama,
+                isUsingLitellm,
+                finalCustomConfig,
+              });
+              stream = claudeQuery(queryOptions);
             } catch (queryError) {
               console.error(
                 "[CLAUDE] ✗ Failed to create SDK query:",
                 queryError,
-              )
-              emitError(queryError, "Failed to start Claude query")
-              console.log(`[SD] M:END sub=${subId} reason=query_error n=${chunkCount}`)
-              safeEmit({ type: "finish" } as UIMessageChunk)
-              safeComplete()
-              return
+              );
+              emitError(queryError, "Failed to start Claude query");
+              console.log(
+                `[SD] M:END sub=${subId} reason=query_error n=${chunkCount}`,
+              );
+              safeEmit({ type: "finish" } as UIMessageChunk);
+              safeComplete();
+              return;
             }
 
-            let messageCount = 0
-            let firstMessageReceived = false
+            let messageCount = 0;
+            let firstMessageReceived = false;
             // Track last assistant message UUID for rollback support
             // Only assigned to metadata AFTER the stream completes (not during generation)
-            let lastAssistantUuid: string | null = null
-            const streamIterationStart = Date.now()
+            let lastAssistantUuid: string | null = null;
+            const streamIterationStart = Date.now();
 
             // Plan mode: track ExitPlanMode to stop after plan is complete
-            let planCompleted = false
-            let exitPlanModeToolCallId: string | null = null
+            let planCompleted = false;
+            let exitPlanModeToolCallId: string | null = null;
 
             if (isUsingOllama) {
-              console.log(`[Ollama] ===== STARTING STREAM ITERATION =====`)
-              console.log(`[Ollama] Model: ${finalCustomConfig?.model}`)
-              console.log(`[Ollama] Base URL: ${finalCustomConfig?.baseUrl}`)
-              console.log(`[Ollama] Prompt: "${typeof input.prompt === 'string' ? input.prompt.slice(0, 100) : 'N/A'}..."`)
-              console.log(`[Ollama] CWD: ${input.cwd}`)
+              console.log(`[Ollama] ===== STARTING STREAM ITERATION =====`);
+              console.log(`[Ollama] Model: ${finalCustomConfig?.model}`);
+              console.log(`[Ollama] Base URL: ${finalCustomConfig?.baseUrl}`);
+              console.log(
+                `[Ollama] Prompt: "${typeof input.prompt === "string" ? input.prompt.slice(0, 100) : "N/A"}..."`,
+              );
+              console.log(`[Ollama] CWD: ${input.cwd}`);
             }
 
             try {
               for await (const msg of stream) {
                 if (abortController.signal.aborted) {
-                  if (isUsingOllama) console.log(`[Ollama] Stream aborted by user`)
-                  break
+                  if (isUsingOllama)
+                    console.log(`[Ollama] Stream aborted by user`);
+                  break;
                 }
 
-                messageCount++
+                messageCount++;
 
                 // Extra logging for Ollama to diagnose issues
                 if (isUsingOllama) {
-                  const sdkMsgPreview = msg as SdkStreamMessage
-                  console.log(`[Ollama] ===== MESSAGE #${messageCount} =====`)
-                  console.log(`[Ollama] Type: ${sdkMsgPreview.type}`)
-                  console.log(`[Ollama] Subtype: ${sdkMsgPreview.subtype || 'none'}`)
+                  const sdkMsgPreview = msg as SdkStreamMessage;
+                  console.log(`[Ollama] ===== MESSAGE #${messageCount} =====`);
+                  console.log(`[Ollama] Type: ${sdkMsgPreview.type}`);
+                  console.log(
+                    `[Ollama] Subtype: ${sdkMsgPreview.subtype || "none"}`,
+                  );
                   if (sdkMsgPreview.event) {
                     console.log(`[Ollama] Event: ${sdkMsgPreview.event.type}`, {
                       delta_type: sdkMsgPreview.event.delta?.type,
-                      content_block_type: sdkMsgPreview.event.content_block?.type
-                    })
+                      content_block_type:
+                        sdkMsgPreview.event.content_block?.type,
+                    });
                   }
                   if (sdkMsgPreview.message?.content) {
-                    console.log(`[Ollama] Message content blocks:`, sdkMsgPreview.message.content.length)
+                    console.log(
+                      `[Ollama] Message content blocks:`,
+                      sdkMsgPreview.message.content.length,
+                    );
                     sdkMsgPreview.message.content.forEach((block, idx) => {
-                      console.log(`[Ollama]   Block ${idx}: type=${block.type}, text_length=${block.text?.length || 0}`)
-                    })
+                      console.log(
+                        `[Ollama]   Block ${idx}: type=${block.type}, text_length=${block.text?.length || 0}`,
+                      );
+                    });
                   }
                 }
 
                 // Warn if SDK initialization is slow (MCP delay)
                 if (!firstMessageReceived) {
-                  firstMessageReceived = true
-                  const timeToFirstMessage = Date.now() - streamIterationStart
+                  firstMessageReceived = true;
+                  const timeToFirstMessage = Date.now() - streamIterationStart;
                   if (isUsingOllama) {
-                    console.log(`[Ollama] Time to first message: ${timeToFirstMessage}ms`)
+                    console.log(
+                      `[Ollama] Time to first message: ${timeToFirstMessage}ms`,
+                    );
                   }
                   if (timeToFirstMessage > 5000) {
-                    console.warn(`[claude] SDK initialization took ${(timeToFirstMessage / 1000).toFixed(1)}s (MCP servers loading?)`)
+                    console.warn(
+                      `[claude] SDK initialization took ${(timeToFirstMessage / 1000).toFixed(1)}s (MCP servers loading?)`,
+                    );
                   }
                 }
 
                 // Log raw message for debugging
-                logRawClaudeMessage(input.chatId, msg)
+                logRawClaudeMessage(input.chatId, msg);
 
                 // Check for error messages from SDK (error can be embedded in message payload!)
-                const sdkMsg = msg as SdkStreamMessage
+                const sdkMsg = msg as SdkStreamMessage;
                 if (sdkMsg.type === "error" || sdkMsg.error) {
                   // Extract detailed error text from message content if available
                   // This is where the actual error description lives (e.g., "API Error: Claude Code is unable to respond...")
-                  const messageText = sdkMsg.message?.content?.[0]?.text
-                  const errorValue = typeof sdkMsg.error === 'string' ? sdkMsg.error : sdkMsg.error?.message
-                  const sdkError = messageText || errorValue || "Unknown SDK error"
+                  const messageText = sdkMsg.message?.content?.[0]?.text;
+                  const errorValue =
+                    typeof sdkMsg.error === "string"
+                      ? sdkMsg.error
+                      : sdkMsg.error?.message;
+                  const sdkError =
+                    messageText || errorValue || "Unknown SDK error";
 
                   // Detailed SDK error logging in main process
-                  console.error(`[CLAUDE SDK ERROR] ========================================`)
-                  console.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`)
-                  console.error(`[CLAUDE SDK ERROR] Message type: ${sdkMsg.type}`)
-                  console.error(`[CLAUDE SDK ERROR] SubChat ID: ${input.subChatId}`)
-                  console.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`)
-                  console.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`)
-                  console.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`)
-                  console.error(`[CLAUDE SDK ERROR] Session ID: ${sdkMsg.session_id || 'none'}`)
-                  console.error(`[CLAUDE SDK ERROR] Has custom config: ${!!finalCustomConfig}`)
-                  console.error(`[CLAUDE SDK ERROR] Is using Ollama: ${isUsingOllama}`)
-                  console.error(`[CLAUDE SDK ERROR] Model: ${resolvedModel || 'default'}`)
-                  console.error(`[CLAUDE SDK ERROR] Has OAuth token: ${!!claudeCodeToken}`)
-                  console.error(`[CLAUDE SDK ERROR] MCP servers: ${mcpServersFiltered ? Object.keys(mcpServersFiltered).join(', ') : 'none'}`)
-                  console.error(`[CLAUDE SDK ERROR] Full message:`, JSON.stringify(sdkMsg, null, 2))
-                  console.error(`[CLAUDE SDK ERROR] ========================================`)
+                  console.error(
+                    `[CLAUDE SDK ERROR] ========================================`,
+                  );
+                  console.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`);
+                  console.error(
+                    `[CLAUDE SDK ERROR] Message type: ${sdkMsg.type}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] SubChat ID: ${input.subChatId}`,
+                  );
+                  console.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`);
+                  console.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`);
+                  console.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`);
+                  console.error(
+                    `[CLAUDE SDK ERROR] Session ID: ${sdkMsg.session_id || "none"}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] Has custom config: ${!!finalCustomConfig}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] Is using Ollama: ${isUsingOllama}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] Model: ${resolvedModel || "default"}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] Has OAuth token: ${!!claudeCodeToken}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] MCP servers: ${mcpServersFiltered ? Object.keys(mcpServersFiltered).join(", ") : "none"}`,
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] Full message:`,
+                    JSON.stringify(sdkMsg, null, 2),
+                  );
+                  console.error(
+                    `[CLAUDE SDK ERROR] ========================================`,
+                  );
 
                   // Categorize SDK-level errors
                   // Use the raw error code (e.g., "invalid_request") for category matching
-                  const rawErrorCode = sdkMsg.error || ""
-                  let errorCategory = "SDK_ERROR"
+                  const rawErrorCode = sdkMsg.error || "";
+                  let errorCategory = "SDK_ERROR";
                   // Default errorContext to the full error text (which may include detailed message)
-                  let errorContext = sdkError
+                  let errorContext = sdkError;
 
                   if (
                     rawErrorCode === "authentication_failed" ||
                     sdkError.includes("authentication")
                   ) {
-                    errorCategory = "AUTH_FAILED_SDK"
+                    errorCategory = "AUTH_FAILED_SDK";
                     errorContext =
-                      "Authentication failed - not logged into Claude Code CLI"
+                      "Authentication failed - not logged into Claude Code CLI";
                   } else if (
                     String(sdkError).includes("invalid_token") ||
                     String(sdkError).includes("Invalid access token")
                   ) {
-                    errorCategory = "MCP_INVALID_TOKEN"
-                    errorContext = "Invalid access token. Update MCP settings"
+                    errorCategory = "MCP_INVALID_TOKEN";
+                    errorContext = "Invalid access token. Update MCP settings";
                   } else if (
                     rawErrorCode === "invalid_api_key" ||
                     sdkError.includes("api_key")
                   ) {
-                    errorCategory = "INVALID_API_KEY_SDK"
-                    errorContext = "Invalid API key in Claude Code CLI"
+                    errorCategory = "INVALID_API_KEY_SDK";
+                    errorContext = "Invalid API key in Claude Code CLI";
                   } else if (
                     rawErrorCode === "rate_limit_exceeded" ||
                     sdkError.includes("rate")
                   ) {
-                    errorCategory = "RATE_LIMIT_SDK"
-                    errorContext = "Session limit reached"
+                    errorCategory = "RATE_LIMIT_SDK";
+                    errorContext = "Session limit reached";
                   } else if (
                     rawErrorCode === "overloaded" ||
                     sdkError.includes("overload")
                   ) {
-                    errorCategory = "OVERLOADED_SDK"
-                    errorContext = "Claude is overloaded, try again later"
+                    errorCategory = "OVERLOADED_SDK";
+                    errorContext = "Claude is overloaded, try again later";
                   } else if (
                     rawErrorCode === "invalid_request" ||
                     sdkError.includes("Usage Policy") ||
                     sdkError.includes("violate")
                   ) {
                     // Usage Policy violation - keep the full detailed error text
-                    errorCategory = "USAGE_POLICY_VIOLATION"
+                    errorCategory = "USAGE_POLICY_VIOLATION";
                     // errorContext already contains the full message from sdkError
                   }
 
-                  // Emit auth-error for authentication failures, regular error otherwise
-                  if (errorCategory === "AUTH_FAILED_SDK") {
-                    safeEmit({
-                      type: "auth-error",
-                      errorText: errorContext,
-                    } as UIMessageChunk)
-                  } else {
-                    safeEmit({
-                      type: "error",
-                      errorText: errorContext,
-                      debugInfo: {
-                        category: errorCategory,
-                        rawErrorCode,
-                        sessionId: sdkMsg.session_id,
-                        messageId: sdkMsg.message?.id,
-                      },
-                    } as UIMessageChunk)
-                  }
+                  // Compute providerType for frontend error routing
+                  const providerType = isUsingOllama
+                    ? "ollama"
+                    : isUsingLitellm
+                      ? "litellm"
+                      : finalCustomConfig
+                        ? "custom"
+                        : "anthropic";
 
-                  console.log(`[SD] M:END sub=${subId} reason=sdk_error cat=${errorCategory} n=${chunkCount}`)
+                  // Unified error emit - frontend decides how to handle based on providerType + category
+                  safeEmit({
+                    type: "error",
+                    errorText: errorContext,
+                    debugInfo: {
+                      category: errorCategory,
+                      rawErrorCode,
+                      sessionId: sdkMsg.session_id,
+                      messageId: sdkMsg.message?.id,
+                      providerType,
+                    },
+                  } as UIMessageChunk);
+
+                  console.log(
+                    `[SD] M:END sub=${subId} reason=sdk_error cat=${errorCategory} n=${chunkCount}`,
+                  );
                   console.error(`[SD] SDK Error details:`, {
                     errorCategory,
                     errorContext: errorContext.slice(0, 200), // Truncate for log readability
@@ -2451,78 +3111,105 @@ If the user needs help with the page content, you can use the browser MCP tools 
                     sessionId: sdkMsg.session_id,
                     messageId: sdkMsg.message?.id,
                     fullMessage: JSON.stringify(sdkMsg, null, 2),
-                  })
-                  safeEmit({ type: "finish" } as UIMessageChunk)
-                  safeComplete()
-                  return
+                  });
+                  safeEmit({ type: "finish" } as UIMessageChunk);
+                  safeComplete();
+                  return;
                 }
 
                 // Track sessionId for rollback support (available on all messages)
                 if (sdkMsg.session_id) {
-                  metadata.sessionId = sdkMsg.session_id
-                  currentSessionId = sdkMsg.session_id // Share with cleanup
+                  metadata.sessionId = sdkMsg.session_id;
+                  currentSessionId = sdkMsg.session_id; // Share with cleanup
                 }
 
                 // Track UUID from assistant messages for resumeSessionAt
                 if (sdkMsg.type === "assistant" && sdkMsg.uuid) {
-                  lastAssistantUuid = sdkMsg.uuid
+                  lastAssistantUuid = sdkMsg.uuid;
                 }
 
                 // When result arrives, assign the last assistant UUID to metadata
                 // It will be emitted as part of the merged message-metadata chunk below
-                if (sdkMsg.type === "result" && historyEnabled && lastAssistantUuid && !abortController.signal.aborted) {
-                  metadata.sdkMessageUuid = lastAssistantUuid
+                if (
+                  sdkMsg.type === "result" &&
+                  historyEnabled &&
+                  lastAssistantUuid &&
+                  !abortController.signal.aborted
+                ) {
+                  metadata.sdkMessageUuid = lastAssistantUuid;
                 }
 
                 // Debug: Log system messages from SDK
                 if (sdkMsg.type === "system") {
                   // Full log to see all fields including MCP errors
-                  console.log(`[SD] SYSTEM message: subtype=${sdkMsg.subtype}`, JSON.stringify({
-                    cwd: sdkMsg.cwd,
-                    mcp_servers: sdkMsg.mcp_servers,
-                    tools: sdkMsg.tools,
-                    plugins: sdkMsg.plugins,
-                    permissionMode: sdkMsg.permissionMode,
-                  }, null, 2))
+                  console.log(
+                    `[SD] SYSTEM message: subtype=${sdkMsg.subtype}`,
+                    JSON.stringify(
+                      {
+                        cwd: sdkMsg.cwd,
+                        mcp_servers: sdkMsg.mcp_servers,
+                        tools: sdkMsg.tools,
+                        plugins: sdkMsg.plugins,
+                        permissionMode: sdkMsg.permissionMode,
+                      },
+                      null,
+                      2,
+                    ),
+                  );
                 }
 
                 // Transform and emit + accumulate
                 for (const chunk of transform(msg)) {
-                  chunkCount++
-                  lastChunkType = chunk.type
+                  chunkCount++;
+                  lastChunkType = chunk.type;
 
                   // For message-metadata, inject sdkMessageUuid before emitting
                   // so the frontend receives the full merged metadata in one chunk
-                  if (chunk.type === "message-metadata" && metadata.sdkMessageUuid) {
-                    chunk.messageMetadata = { ...chunk.messageMetadata, sdkMessageUuid: metadata.sdkMessageUuid }
+                  if (
+                    chunk.type === "message-metadata" &&
+                    metadata.sdkMessageUuid
+                  ) {
+                    chunk.messageMetadata = {
+                      ...chunk.messageMetadata,
+                      sdkMessageUuid: metadata.sdkMessageUuid,
+                    };
                   }
 
                   // Use safeEmit to prevent throws when observer is closed
                   if (!safeEmit(chunk)) {
                     // Observer closed (user clicked Stop), break out of loop
-                    console.log(`[SD] M:EMIT_CLOSED sub=${subId} type=${chunk.type} n=${chunkCount}`)
-                    break
+                    console.log(
+                      `[SD] M:EMIT_CLOSED sub=${subId} type=${chunk.type} n=${chunkCount}`,
+                    );
+                    break;
                   }
 
                   // Accumulate based on chunk type
                   switch (chunk.type) {
                     case "text-delta":
-                      currentText += chunk.delta
-                      break
+                      currentText += chunk.delta;
+                      break;
                     case "text-end":
                       if (currentText.trim()) {
-                        parts.push({ type: "text", text: currentText })
-                        currentText = ""
+                        parts.push({ type: "text", text: currentText });
+                        currentText = "";
                       }
-                      break
+                      break;
                     case "tool-input-available":
                       // DEBUG: Log tool calls
-                      console.log(`[SD] M:TOOL_CALL sub=${subId} toolName="${chunk.toolName}" mode=${input.mode} callId=${chunk.toolCallId}`)
+                      console.log(
+                        `[SD] M:TOOL_CALL sub=${subId} toolName="${chunk.toolName}" mode=${input.mode} callId=${chunk.toolCallId}`,
+                      );
 
                       // Track ExitPlanMode toolCallId so we can stop when it completes
-                      if (input.mode === "plan" && chunk.toolName === "ExitPlanMode") {
-                        console.log(`[SD] M:PLAN_TOOL_DETECTED sub=${subId} callId=${chunk.toolCallId}`)
-                        exitPlanModeToolCallId = chunk.toolCallId
+                      if (
+                        input.mode === "plan" &&
+                        chunk.toolName === "ExitPlanMode"
+                      ) {
+                        console.log(
+                          `[SD] M:PLAN_TOOL_DETECTED sub=${subId} callId=${chunk.toolCallId}`,
+                        );
+                        exitPlanModeToolCallId = chunk.toolCallId;
                       }
 
                       parts.push({
@@ -2532,219 +3219,274 @@ If the user needs help with the page content, you can use the browser MCP tools 
                         input: chunk.input,
                         state: "call",
                         startedAt: Date.now(),
-                      })
-                      break
+                      });
+                      break;
                     case "tool-output-available":
                       const toolPart = parts.find(
                         (p) =>
                           p.type?.startsWith("tool-") &&
                           p.toolCallId === chunk.toolCallId,
-                      )
+                      );
                       if (toolPart) {
-                        toolPart.result = chunk.output
-                        toolPart.output = chunk.output // Backwards compatibility for the UI that relies on output field
-                        toolPart.state = "result"
+                        toolPart.result = chunk.output;
+                        toolPart.output = chunk.output; // Backwards compatibility for the UI that relies on output field
+                        toolPart.state = "result";
 
                         // Notify renderer about file changes for Write/Edit tools
                         // Only track non-code files as artifacts (HTML is allowed)
-                        if (toolPart.type === "tool-Write" || toolPart.type === "tool-Edit") {
-                          const filePath = toolPart.input?.file_path
+                        if (
+                          toolPart.type === "tool-Write" ||
+                          toolPart.type === "tool-Edit"
+                        ) {
+                          const filePath = toolPart.input?.file_path;
                           if (filePath && shouldTrackAsArtifact(filePath)) {
                             // Extract contexts from all tool calls in this message
-                            const contexts = extractArtifactContexts(parts)
-                            console.log(`[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`)
-                            const windows = BrowserWindow.getAllWindows()
+                            const contexts = extractArtifactContexts(parts);
+                            console.log(
+                              `[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`,
+                            );
+                            const windows = BrowserWindow.getAllWindows();
                             for (const win of windows) {
                               win.webContents.send("file-changed", {
                                 filePath,
                                 type: toolPart.type,
                                 subChatId: input.subChatId,
                                 contexts,
-                              })
+                              });
                             }
                           }
                         }
 
                         // Detect git commit success from Bash output
                         // Format: [branch abc1234] commit message
-                        if (toolPart.type === "tool-Bash" || toolPart.toolName === "Bash") {
-                          const output = typeof chunk.output === "string" ? chunk.output : ""
-                          const commitMatch = output.match(/\[([^\]]+)\s+([a-f0-9]{7,})\]/)
+                        if (
+                          toolPart.type === "tool-Bash" ||
+                          toolPart.toolName === "Bash"
+                        ) {
+                          const output =
+                            typeof chunk.output === "string"
+                              ? chunk.output
+                              : "";
+                          const commitMatch = output.match(
+                            /\[([^\]]+)\s+([a-f0-9]{7,})\]/,
+                          );
                           if (commitMatch) {
-                            const [, branchInfo, commitHash] = commitMatch
-                            console.log(`[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`)
-                            const windows = BrowserWindow.getAllWindows()
+                            const [, branchInfo, commitHash] = commitMatch;
+                            console.log(
+                              `[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`,
+                            );
+                            const windows = BrowserWindow.getAllWindows();
                             for (const win of windows) {
                               win.webContents.send("git-commit-success", {
                                 subChatId: input.subChatId,
                                 commitHash,
                                 branchInfo,
-                              })
+                              });
                             }
                           }
                         }
 
                         // Check if ExitPlanMode just completed - stop the stream
-                        if (exitPlanModeToolCallId && chunk.toolCallId === exitPlanModeToolCallId) {
-                          console.log(`[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, emitting finish`)
-                          planCompleted = true
-                          safeEmit({ type: "finish" } as UIMessageChunk)
+                        if (
+                          exitPlanModeToolCallId &&
+                          chunk.toolCallId === exitPlanModeToolCallId
+                        ) {
+                          console.log(
+                            `[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, emitting finish`,
+                          );
+                          planCompleted = true;
+                          safeEmit({ type: "finish" } as UIMessageChunk);
                         }
 
                         // Memory hook: Record tool output (fire-and-forget)
                         // Extract toolName from type if not set directly (type is "tool-Read", "tool-Edit" etc)
-                        const toolName = toolPart.toolName || toolPart.type?.replace("tool-", "")
-                        console.log(`[Memory] Tool output: toolName=${toolName} memorySessionId=${memorySessionId} projectId=${projectId}`)
+                        const toolName =
+                          toolPart.toolName ||
+                          toolPart.type?.replace("tool-", "");
+                        console.log(
+                          `[Memory] Tool output: toolName=${toolName} memorySessionId=${memorySessionId} projectId=${projectId}`,
+                        );
                         if (memorySessionId && projectId && toolName) {
-                          memoryHooks.onToolOutput({
-                            sessionId: memorySessionId,
-                            projectId,
-                            toolName,
-                            toolInput: toolPart.input,
-                            toolOutput: chunk.output,
-                            toolCallId: chunk.toolCallId,
-                            promptNumber,
-                          }).catch((err) => {
-                            console.error("[Memory] Hook error (onToolOutput):", err)
-                          })
+                          memoryHooks
+                            .onToolOutput({
+                              sessionId: memorySessionId,
+                              projectId,
+                              toolName,
+                              toolInput: toolPart.input,
+                              toolOutput: chunk.output,
+                              toolCallId: chunk.toolCallId,
+                              promptNumber,
+                            })
+                            .catch((err) => {
+                              console.error(
+                                "[Memory] Hook error (onToolOutput):",
+                                err,
+                              );
+                            });
                         }
                       }
-                      break
+                      break;
                     case "message-metadata":
-                      metadata = { ...metadata, ...chunk.messageMetadata }
-                      break
+                      metadata = { ...metadata, ...chunk.messageMetadata };
+                      break;
                     case "system-Compact":
                       // Add system-Compact to parts so it renders in the chat
                       // Find existing part by toolCallId or add new one
                       const existingCompact = parts.find(
-                        (p) => p.type === "system-Compact" && p.toolCallId === chunk.toolCallId
-                      )
+                        (p) =>
+                          p.type === "system-Compact" &&
+                          p.toolCallId === chunk.toolCallId,
+                      );
                       if (existingCompact) {
-                        existingCompact.state = chunk.state
+                        existingCompact.state = chunk.state;
                       } else {
                         parts.push({
                           type: "system-Compact",
                           toolCallId: chunk.toolCallId,
                           state: chunk.state,
-                        })
+                        });
                       }
-                      break
+                      break;
                   }
 
                   // Break from chunk loop if plan is done
                   if (planCompleted) {
-                    console.log(`[SD] M:PLAN_BREAK_CHUNK sub=${subId}`)
-                    break
+                    console.log(`[SD] M:PLAN_BREAK_CHUNK sub=${subId}`);
+                    break;
                   }
                 }
                 // Break from stream loop if observer closed (user clicked Stop)
                 if (!isObservableActive) {
-                  console.log(`[SD] M:OBSERVER_CLOSED_STREAM sub=${subId}`)
-                  break
+                  console.log(`[SD] M:OBSERVER_CLOSED_STREAM sub=${subId}`);
+                  break;
                 }
                 // Break from stream loop if plan completed
                 if (planCompleted) {
-                  console.log(`[SD] M:PLAN_BREAK_STREAM sub=${subId}`)
-                  break
+                  console.log(`[SD] M:PLAN_BREAK_STREAM sub=${subId}`);
+                  break;
                 }
               }
 
               // Warn if stream yielded no messages (offline mode issue)
-              const streamDuration = Date.now() - streamIterationStart
+              const streamDuration = Date.now() - streamIterationStart;
               if (isUsingOllama) {
-                console.log(`[Ollama] ===== STREAM COMPLETED =====`)
-                console.log(`[Ollama] Total messages: ${messageCount}`)
-                console.log(`[Ollama] Duration: ${streamDuration}ms`)
-                console.log(`[Ollama] Chunks emitted: ${chunkCount}`)
+                console.log(`[Ollama] ===== STREAM COMPLETED =====`);
+                console.log(`[Ollama] Total messages: ${messageCount}`);
+                console.log(`[Ollama] Duration: ${streamDuration}ms`);
+                console.log(`[Ollama] Chunks emitted: ${chunkCount}`);
               }
 
               if (messageCount === 0) {
-                console.error(`[claude] Stream yielded no messages - model not responding`)
+                console.error(
+                  `[claude] Stream yielded no messages - model not responding`,
+                );
                 if (isUsingOllama) {
-                  console.error(`[Ollama] ===== DIAGNOSIS =====`)
-                  console.error(`[Ollama] Problem: Stream completed but NO messages received from SDK`)
-                  console.error(`[Ollama] This usually means:`)
-                  console.error(`[Ollama]   1. Ollama doesn't support Anthropic Messages API format (/v1/messages)`)
-                  console.error(`[Ollama]   2. Model failed to start generating (check Ollama logs: ollama logs)`)
-                  console.error(`[Ollama]   3. Network issue between Claude SDK and Ollama`)
-                  console.error(`[Ollama] ===== NEXT STEPS =====`)
-                  console.error(`[Ollama]   1. Check if model works: curl http://localhost:11434/api/generate -d '{"model":"${finalCustomConfig?.model}","prompt":"test"}'`)
-                  console.error(`[Ollama]   2. Check Ollama version supports Messages API`)
-                  console.error(`[Ollama]   3. Try using a proxy that converts Anthropic API → Ollama format`)
+                  console.error(`[Ollama] ===== DIAGNOSIS =====`);
+                  console.error(
+                    `[Ollama] Problem: Stream completed but NO messages received from SDK`,
+                  );
+                  console.error(`[Ollama] This usually means:`);
+                  console.error(
+                    `[Ollama]   1. Ollama doesn't support Anthropic Messages API format (/v1/messages)`,
+                  );
+                  console.error(
+                    `[Ollama]   2. Model failed to start generating (check Ollama logs: ollama logs)`,
+                  );
+                  console.error(
+                    `[Ollama]   3. Network issue between Claude SDK and Ollama`,
+                  );
+                  console.error(`[Ollama] ===== NEXT STEPS =====`);
+                  console.error(
+                    `[Ollama]   1. Check if model works: curl http://localhost:11434/api/generate -d '{"model":"${finalCustomConfig?.model}","prompt":"test"}'`,
+                  );
+                  console.error(
+                    `[Ollama]   2. Check Ollama version supports Messages API`,
+                  );
+                  console.error(
+                    `[Ollama]   3. Try using a proxy that converts Anthropic API → Ollama format`,
+                  );
                 }
               } else if (messageCount === 1 && isUsingOllama) {
-                console.warn(`[Ollama] Only received 1 message (likely just init). No actual content generated.`)
+                console.warn(
+                  `[Ollama] Only received 1 message (likely just init). No actual content generated.`,
+                );
               }
             } catch (streamError) {
               // This catches errors during streaming (like process exit)
-              const err = streamError as Error
-              const stderrOutput = stderrLines.join("\n")
+              const err = streamError as Error;
+              const stderrOutput = stderrLines.join("\n");
 
               if (isUsingOllama) {
-                console.error(`[Ollama] ===== STREAM ERROR =====`)
-                console.error(`[Ollama] Error message: ${err.message}`)
-                console.error(`[Ollama] Error stack:`, err.stack)
-                console.error(`[Ollama] Messages received before error: ${messageCount}`)
+                console.error(`[Ollama] ===== STREAM ERROR =====`);
+                console.error(`[Ollama] Error message: ${err.message}`);
+                console.error(`[Ollama] Error stack:`, err.stack);
+                console.error(
+                  `[Ollama] Messages received before error: ${messageCount}`,
+                );
                 if (stderrOutput) {
-                  console.error(`[Ollama] Claude binary stderr:`, stderrOutput)
+                  console.error(`[Ollama] Claude binary stderr:`, stderrOutput);
                 }
               }
 
               // Build detailed error message with category
-              let errorContext = "Claude streaming error"
-              let errorCategory = "UNKNOWN"
+              let errorContext = "Claude streaming error";
+              let errorCategory = "UNKNOWN";
 
               // Check for session-not-found error in stderr
-              const isSessionNotFound = stderrOutput?.includes("No conversation found with session ID")
+              const isSessionNotFound = stderrOutput?.includes(
+                "No conversation found with session ID",
+              );
 
               if (isSessionNotFound) {
                 // Clear the invalid session ID from database so next attempt starts fresh
-                console.log(`[claude] Session not found - clearing invalid sessionId from database`)
+                console.log(
+                  `[claude] Session not found - clearing invalid sessionId from database`,
+                );
                 db.update(subChats)
                   .set({ sessionId: null })
                   .where(eq(subChats.id, input.subChatId))
-                  .run()
+                  .run();
 
-                errorContext = "Previous session expired. Please try again."
-                errorCategory = "SESSION_EXPIRED"
+                errorContext = "Previous session expired. Please try again.";
+                errorCategory = "SESSION_EXPIRED";
               } else if (err.message?.includes("exited with code")) {
-                errorContext = "Claude Code process crashed"
-                errorCategory = "PROCESS_CRASH"
+                errorContext = "Claude Code process crashed";
+                errorCategory = "PROCESS_CRASH";
               } else if (err.message?.includes("ENOENT")) {
-                errorContext = "Required executable not found in PATH"
-                errorCategory = "EXECUTABLE_NOT_FOUND"
+                errorContext = "Required executable not found in PATH";
+                errorCategory = "EXECUTABLE_NOT_FOUND";
               } else if (
                 err.message?.includes("authentication") ||
                 err.message?.includes("401")
               ) {
-                errorContext = "Authentication failed - check your API key"
-                errorCategory = "AUTH_FAILURE"
+                errorContext = "Authentication failed - check your API key";
+                errorCategory = "AUTH_FAILURE";
               } else if (
                 err.message?.includes("invalid_api_key") ||
                 err.message?.includes("Invalid API Key") ||
                 stderrOutput?.includes("invalid_api_key")
               ) {
-                errorContext = "Invalid API key"
-                errorCategory = "INVALID_API_KEY"
+                errorContext = "Invalid API key";
+                errorCategory = "INVALID_API_KEY";
               } else if (
                 err.message?.includes("rate_limit") ||
                 err.message?.includes("429")
               ) {
-                errorContext = "Session limit reached"
-                errorCategory = "RATE_LIMIT"
+                errorContext = "Session limit reached";
+                errorCategory = "RATE_LIMIT";
               } else if (
                 err.message?.includes("network") ||
                 err.message?.includes("ECONNREFUSED") ||
                 err.message?.includes("fetch failed")
               ) {
-                errorContext = "Network error - check your connection"
-                errorCategory = "NETWORK_ERROR"
+                errorContext = "Network error - check your connection";
+                errorCategory = "NETWORK_ERROR";
               }
 
               // Track error in Sentry (only if app is ready and Sentry is available)
               if (app.isReady() && app.isPackaged) {
                 try {
-                  const Sentry = await import("@sentry/electron/main")
+                  const Sentry = await import("@sentry/electron/main");
                   Sentry.captureException(err, {
                     tags: {
                       errorCategory,
@@ -2757,7 +3499,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                       chatId: input.chatId,
                       subChatId: input.subChatId,
                     },
-                  })
+                  });
                 } catch {
                   // Sentry not available or failed to import - ignore
                 }
@@ -2777,13 +3519,15 @@ If the user needs help with the page content, you can use the browser MCP tools 
                     mode: input.mode,
                     stderr: stderrOutput || "(no stderr captured)",
                   },
-                } as UIMessageChunk)
+                } as UIMessageChunk);
               }
 
               // ALWAYS save accumulated parts before returning (even on abort/error)
-              console.log(`[SD] M:CATCH_SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`)
+              console.log(
+                `[SD] M:CATCH_SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
+              );
               if (currentText.trim()) {
-                parts.push({ type: "text", text: currentText })
+                parts.push({ type: "text", text: currentText });
               }
               if (parts.length > 0) {
                 const assistantMessage = {
@@ -2791,10 +3535,14 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   role: "assistant",
                   parts,
                   metadata,
-                }
-                const finalMessages = [...messagesToSave, assistantMessage]
-                const finalMessagesJson = JSON.stringify(finalMessages)
-                const stats = computePreviewStatsFromMessages(finalMessagesJson, input.mode)
+                  createdAt: new Date().toISOString(),
+                };
+                const finalMessages = [...messagesToSave, assistantMessage];
+                const finalMessagesJson = JSON.stringify(finalMessages);
+                const stats = computePreviewStatsFromMessages(
+                  finalMessagesJson,
+                  input.mode,
+                );
                 db.update(subChats)
                   .set({
                     messages: finalMessagesJson,
@@ -2804,85 +3552,125 @@ If the user needs help with the page content, you can use the browser MCP tools 
                     updatedAt: new Date(),
                   })
                   .where(eq(subChats.id, input.subChatId))
-                  .run()
+                  .run();
                 db.update(chats)
                   .set({ updatedAt: new Date() })
                   .where(eq(chats.id, input.chatId))
-                  .run()
+                  .run();
 
                 // Create snapshot stash for rollback support (on error)
                 if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
-                  await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
+                  await createRollbackStash(input.cwd, metadata.sdkMessageUuid);
                 }
 
                 // Record usage statistics (even on error, if projectId is available)
                 // Prefer per-model breakdown from SDK for accurate model attribution
                 if (!projectId) {
-                  console.warn(`[Usage] Skipping usage recording on error - projectId not found`)
-                } else if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
+                  console.warn(
+                    `[Usage] Skipping usage recording on error - projectId not found`,
+                  );
+                } else if (
+                  metadata.modelUsage &&
+                  Object.keys(metadata.modelUsage).length > 0
+                ) {
                   try {
                     // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
                     const existingUsage = metadata.sdkMessageUuid
-                      ? db.select().from(modelUsage).where(like(modelUsage.messageUuid, `${metadata.sdkMessageUuid}-%`)).get()
-                      : null
+                      ? db
+                          .select()
+                          .from(modelUsage)
+                          .where(
+                            like(
+                              modelUsage.messageUuid,
+                              `${metadata.sdkMessageUuid}-%`,
+                            ),
+                          )
+                          .get()
+                      : null;
 
                     if (!existingUsage) {
-                      for (const [model, usage] of Object.entries(metadata.modelUsage)) {
-                        const totalTokens = usage.inputTokens + usage.outputTokens
-                        db.insert(modelUsage).values({
-                          subChatId: input.subChatId,
-                          chatId: input.chatId,
-                          projectId,
-                          model,
-                          inputTokens: usage.inputTokens,
-                          outputTokens: usage.outputTokens,
-                          totalTokens,
-                          costUsd: usage.costUSD?.toFixed(6),
-                          sessionId: metadata.sessionId,
-                          messageUuid: metadata.sdkMessageUuid ? `${metadata.sdkMessageUuid}-${model}` : undefined,
-                          mode: input.mode,
-                          durationMs: metadata.durationMs,
-                        }).run()
-                        console.log(`[Usage] Recorded ${model} (on error): ${usage.inputTokens} in, ${usage.outputTokens} out`)
+                      for (const [model, usage] of Object.entries(
+                        metadata.modelUsage,
+                      )) {
+                        const totalTokens =
+                          usage.inputTokens + usage.outputTokens;
+                        db.insert(modelUsage)
+                          .values({
+                            subChatId: input.subChatId,
+                            chatId: input.chatId,
+                            projectId,
+                            model,
+                            inputTokens: usage.inputTokens,
+                            outputTokens: usage.outputTokens,
+                            totalTokens,
+                            costUsd: usage.costUSD?.toFixed(6),
+                            sessionId: metadata.sessionId,
+                            messageUuid: metadata.sdkMessageUuid
+                              ? `${metadata.sdkMessageUuid}-${model}`
+                              : undefined,
+                            mode: input.mode,
+                            durationMs: metadata.durationMs,
+                          })
+                          .run();
+                        console.log(
+                          `[Usage] Recorded ${model} (on error): ${usage.inputTokens} in, ${usage.outputTokens} out`,
+                        );
                       }
                     }
                   } catch (usageErr) {
-                    console.error(`[Usage] Failed to record per-model usage:`, usageErr)
+                    console.error(
+                      `[Usage] Failed to record per-model usage:`,
+                      usageErr,
+                    );
                   }
                 } else if (metadata.inputTokens || metadata.outputTokens) {
                   try {
                     // Fallback case uses exact match since messageUuid is stored without model suffix
                     const existingUsage = metadata.sdkMessageUuid
-                      ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
-                      : null
+                      ? db
+                          .select()
+                          .from(modelUsage)
+                          .where(
+                            eq(modelUsage.messageUuid, metadata.sdkMessageUuid),
+                          )
+                          .get()
+                      : null;
 
                     if (!existingUsage) {
-                      db.insert(modelUsage).values({
-                        subChatId: input.subChatId,
-                        chatId: input.chatId,
-                        projectId,
-                        model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
-                        inputTokens: metadata.inputTokens || 0,
-                        outputTokens: metadata.outputTokens || 0,
-                        totalTokens: metadata.totalTokens || 0,
-                        costUsd: metadata.totalCostUsd?.toFixed(6),
-                        sessionId: metadata.sessionId,
-                        messageUuid: metadata.sdkMessageUuid,
-                        mode: input.mode,
-                        durationMs: metadata.durationMs,
-                      }).run()
-                      console.log(`[Usage] Recorded (on error, fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`)
+                      db.insert(modelUsage)
+                        .values({
+                          subChatId: input.subChatId,
+                          chatId: input.chatId,
+                          projectId,
+                          model:
+                            finalCustomConfig?.model ||
+                            "claude-sonnet-4-20250514",
+                          inputTokens: metadata.inputTokens || 0,
+                          outputTokens: metadata.outputTokens || 0,
+                          totalTokens: metadata.totalTokens || 0,
+                          costUsd: metadata.totalCostUsd?.toFixed(6),
+                          sessionId: metadata.sessionId,
+                          messageUuid: metadata.sdkMessageUuid,
+                          mode: input.mode,
+                          durationMs: metadata.durationMs,
+                        })
+                        .run();
+                      console.log(
+                        `[Usage] Recorded (on error, fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`,
+                      );
                     }
                   } catch (usageErr) {
-                    console.error(`[Usage] Failed to record usage:`, usageErr)
+                    console.error(`[Usage] Failed to record usage:`, usageErr);
                   }
                 }
               }
 
-              console.log(`[SD] M:END sub=${subId} reason=stream_error cat=${errorCategory} n=${chunkCount} last=${lastChunkType}`)
-              safeEmit({ type: "finish" } as UIMessageChunk)
-              safeComplete()
-              return
+              console.log(
+                `[SD] M:END sub=${subId} reason=stream_error cat=${errorCategory} n=${chunkCount} last=${lastChunkType}`,
+              );
+              safeEmit({ type: "finish" } as UIMessageChunk);
+              safeComplete();
+              return;
             }
 
             // 6. Check if we got any response
@@ -2890,23 +3678,27 @@ If the user needs help with the page content, you can use the browser MCP tools 
               emitError(
                 new Error("No response received from Claude"),
                 "Empty response",
-              )
-              console.log(`[SD] M:END sub=${subId} reason=no_response n=${chunkCount}`)
-              safeEmit({ type: "finish" } as UIMessageChunk)
-              safeComplete()
-              return
+              );
+              console.log(
+                `[SD] M:END sub=${subId} reason=no_response n=${chunkCount}`,
+              );
+              safeEmit({ type: "finish" } as UIMessageChunk);
+              safeComplete();
+              return;
             }
 
             // 7. Save final messages to DB
             // ALWAYS save accumulated parts, even on abort (so user sees partial responses after reload)
-            console.log(`[SD] M:SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`)
+            console.log(
+              `[SD] M:SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
+            );
 
             // Flush any remaining text
             if (currentText.trim()) {
-              parts.push({ type: "text", text: currentText })
+              parts.push({ type: "text", text: currentText });
             }
 
-            const savedSessionId = metadata.sessionId
+            const savedSessionId = metadata.sessionId;
 
             if (parts.length > 0) {
               const assistantMessage = {
@@ -2914,7 +3706,8 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 role: "assistant",
                 parts,
                 metadata,
-              }
+                createdAt: new Date().toISOString(),
+              };
 
               // Log for debugging rollback issues
               console.log("[SD] Saving assistant message:", {
@@ -2923,11 +3716,14 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 hasSdkMessageUuid: !!metadata.sdkMessageUuid,
                 sdkMessageUuid: metadata.sdkMessageUuid,
                 historyEnabled: input.historyEnabled,
-              })
+              });
 
-              const finalMessages = [...messagesToSave, assistantMessage]
-              const finalMessagesJson = JSON.stringify(finalMessages)
-              const stats = computePreviewStatsFromMessages(finalMessagesJson, input.mode)
+              const finalMessages = [...messagesToSave, assistantMessage];
+              const finalMessagesJson = JSON.stringify(finalMessages);
+              const stats = computePreviewStatsFromMessages(
+                finalMessagesJson,
+                input.mode,
+              );
 
               db.update(subChats)
                 .set({
@@ -2938,7 +3734,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   updatedAt: new Date(),
                 })
                 .where(eq(subChats.id, input.subChatId))
-                .run()
+                .run();
             } else {
               // No assistant response - just clear streamId
               db.update(subChats)
@@ -2948,154 +3744,212 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   updatedAt: new Date(),
                 })
                 .where(eq(subChats.id, input.subChatId))
-                .run()
+                .run();
             }
 
             // Update parent chat timestamp
             db.update(chats)
               .set({ updatedAt: new Date() })
               .where(eq(chats.id, input.chatId))
-              .run()
+              .run();
 
             // Record usage statistics (if we have token data and projectId)
             // Prefer per-model breakdown from SDK for accurate model attribution
-            console.log(`[Usage] metadata at finish:`, JSON.stringify({
-              hasModelUsage: !!metadata.modelUsage,
-              modelUsageKeys: metadata.modelUsage ? Object.keys(metadata.modelUsage) : [],
-              inputTokens: metadata.inputTokens,
-              outputTokens: metadata.outputTokens,
-              totalTokens: metadata.totalTokens,
-              sdkMessageUuid: metadata.sdkMessageUuid,
-              projectId,
-            }))
+            console.log(
+              `[Usage] metadata at finish:`,
+              JSON.stringify({
+                hasModelUsage: !!metadata.modelUsage,
+                modelUsageKeys: metadata.modelUsage
+                  ? Object.keys(metadata.modelUsage)
+                  : [],
+                inputTokens: metadata.inputTokens,
+                outputTokens: metadata.outputTokens,
+                totalTokens: metadata.totalTokens,
+                sdkMessageUuid: metadata.sdkMessageUuid,
+                projectId,
+              }),
+            );
             if (!projectId) {
-              console.warn(`[Usage] Skipping usage recording - projectId not found for chat ${input.chatId}`)
-            } else if (metadata.modelUsage && Object.keys(metadata.modelUsage).length > 0) {
+              console.warn(
+                `[Usage] Skipping usage recording - projectId not found for chat ${input.chatId}`,
+              );
+            } else if (
+              metadata.modelUsage &&
+              Object.keys(metadata.modelUsage).length > 0
+            ) {
               try {
                 // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
                 const existingUsage = metadata.sdkMessageUuid
-                  ? db.select().from(modelUsage).where(like(modelUsage.messageUuid, `${metadata.sdkMessageUuid}-%`)).get()
-                  : null
+                  ? db
+                      .select()
+                      .from(modelUsage)
+                      .where(
+                        like(
+                          modelUsage.messageUuid,
+                          `${metadata.sdkMessageUuid}-%`,
+                        ),
+                      )
+                      .get()
+                  : null;
 
                 if (!existingUsage) {
                   // Record separate entries for each model used
-                  for (const [model, usage] of Object.entries(metadata.modelUsage)) {
-                    const totalTokens = usage.inputTokens + usage.outputTokens
-                    db.insert(modelUsage).values({
-                      subChatId: input.subChatId,
-                      chatId: input.chatId,
-                      projectId,
-                      model,
-                      inputTokens: usage.inputTokens,
-                      outputTokens: usage.outputTokens,
-                      totalTokens,
-                      costUsd: usage.costUSD?.toFixed(6),
-                      sessionId: metadata.sessionId,
-                      messageUuid: metadata.sdkMessageUuid ? `${metadata.sdkMessageUuid}-${model}` : undefined,
-                      mode: input.mode,
-                      durationMs: metadata.durationMs,
-                    }).run()
-                    console.log(`[Usage] Recorded ${model}: ${usage.inputTokens} in, ${usage.outputTokens} out, cost: ${usage.costUSD?.toFixed(4) || '?'}`)
+                  for (const [model, usage] of Object.entries(
+                    metadata.modelUsage,
+                  )) {
+                    const totalTokens = usage.inputTokens + usage.outputTokens;
+                    db.insert(modelUsage)
+                      .values({
+                        subChatId: input.subChatId,
+                        chatId: input.chatId,
+                        projectId,
+                        model,
+                        inputTokens: usage.inputTokens,
+                        outputTokens: usage.outputTokens,
+                        totalTokens,
+                        costUsd: usage.costUSD?.toFixed(6),
+                        sessionId: metadata.sessionId,
+                        messageUuid: metadata.sdkMessageUuid
+                          ? `${metadata.sdkMessageUuid}-${model}`
+                          : undefined,
+                        mode: input.mode,
+                        durationMs: metadata.durationMs,
+                      })
+                      .run();
+                    console.log(
+                      `[Usage] Recorded ${model}: ${usage.inputTokens} in, ${usage.outputTokens} out, cost: ${usage.costUSD?.toFixed(4) || "?"}`,
+                    );
                   }
                 } else {
-                  console.log(`[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`)
+                  console.log(
+                    `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
+                  );
                 }
               } catch (usageErr) {
-                console.error(`[Usage] Failed to record per-model usage:`, usageErr)
+                console.error(
+                  `[Usage] Failed to record per-model usage:`,
+                  usageErr,
+                );
               }
             } else if (metadata.inputTokens || metadata.outputTokens) {
               // Fallback: use aggregate data if per-model breakdown not available
               // Note: Uses exact match since fallback messageUuid is stored without model suffix
               try {
                 const existingUsage = metadata.sdkMessageUuid
-                  ? db.select().from(modelUsage).where(eq(modelUsage.messageUuid, metadata.sdkMessageUuid)).get()
-                  : null
+                  ? db
+                      .select()
+                      .from(modelUsage)
+                      .where(
+                        eq(modelUsage.messageUuid, metadata.sdkMessageUuid),
+                      )
+                      .get()
+                  : null;
 
                 if (!existingUsage) {
-                  db.insert(modelUsage).values({
-                    subChatId: input.subChatId,
-                    chatId: input.chatId,
-                    projectId,
-                    model: finalCustomConfig?.model || "claude-sonnet-4-20250514",
-                    inputTokens: metadata.inputTokens || 0,
-                    outputTokens: metadata.outputTokens || 0,
-                    totalTokens: metadata.totalTokens || 0,
-                    costUsd: metadata.totalCostUsd?.toFixed(6),
-                    sessionId: metadata.sessionId,
-                    messageUuid: metadata.sdkMessageUuid,
-                    mode: input.mode,
-                    durationMs: metadata.durationMs,
-                  }).run()
-                  console.log(`[Usage] Recorded (fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || '?'}`)
+                  db.insert(modelUsage)
+                    .values({
+                      subChatId: input.subChatId,
+                      chatId: input.chatId,
+                      projectId,
+                      model:
+                        finalCustomConfig?.model || "claude-sonnet-4-20250514",
+                      inputTokens: metadata.inputTokens || 0,
+                      outputTokens: metadata.outputTokens || 0,
+                      totalTokens: metadata.totalTokens || 0,
+                      costUsd: metadata.totalCostUsd?.toFixed(6),
+                      sessionId: metadata.sessionId,
+                      messageUuid: metadata.sdkMessageUuid,
+                      mode: input.mode,
+                      durationMs: metadata.durationMs,
+                    })
+                    .run();
+                  console.log(
+                    `[Usage] Recorded (fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || "?"}`,
+                  );
                 } else {
-                  console.log(`[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`)
+                  console.log(
+                    `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
+                  );
                 }
               } catch (usageErr) {
-                console.error(`[Usage] Failed to record usage:`, usageErr)
+                console.error(`[Usage] Failed to record usage:`, usageErr);
               }
             }
 
             // Create snapshot stash for rollback support
             if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
-              await createRollbackStash(input.cwd, metadata.sdkMessageUuid)
+              await createRollbackStash(input.cwd, metadata.sdkMessageUuid);
             }
 
             // Memory hook: Record AI response text (fire-and-forget)
             if (memorySessionId && projectId && currentText.trim()) {
-              memoryHooks.onAssistantMessage({
-                sessionId: memorySessionId,
-                projectId,
-                text: currentText,
-                messageId: metadata.sdkMessageUuid,
-                promptNumber,
-              }).catch((err) => {
-                console.error("[Memory] Hook error (onAssistantMessage):", err)
-              })
+              memoryHooks
+                .onAssistantMessage({
+                  sessionId: memorySessionId,
+                  projectId,
+                  text: currentText,
+                  messageId: metadata.sdkMessageUuid,
+                  promptNumber,
+                })
+                .catch((err) => {
+                  console.error(
+                    "[Memory] Hook error (onAssistantMessage):",
+                    err,
+                  );
+                });
             }
 
             // Memory hook: End session (fire-and-forget)
             if (memorySessionId) {
-              memoryHooks.onSessionEnd({
-                sessionId: memorySessionId,
-                subChatId: input.subChatId,
-              }).catch((err) => {
-                console.error("[Memory] Hook error (onSessionEnd):", err)
-              })
+              memoryHooks
+                .onSessionEnd({
+                  sessionId: memorySessionId,
+                  subChatId: input.subChatId,
+                })
+                .catch((err) => {
+                  console.error("[Memory] Hook error (onSessionEnd):", err);
+                });
             }
 
-            const duration = ((Date.now() - streamStart) / 1000).toFixed(1)
-            console.log(`[SD] M:END sub=${subId} reason=ok n=${chunkCount} last=${lastChunkType} t=${duration}s`)
-            safeComplete()
+            const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
+            console.log(
+              `[SD] M:END sub=${subId} reason=ok n=${chunkCount} last=${lastChunkType} t=${duration}s`,
+            );
+            safeComplete();
           } catch (error) {
-            const duration = ((Date.now() - streamStart) / 1000).toFixed(1)
-            console.log(`[SD] M:END sub=${subId} reason=unexpected_error n=${chunkCount} t=${duration}s`)
-            emitError(error, "Unexpected error")
-            safeEmit({ type: "finish" } as UIMessageChunk)
-            safeComplete()
+            const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
+            console.log(
+              `[SD] M:END sub=${subId} reason=unexpected_error n=${chunkCount} t=${duration}s`,
+            );
+            emitError(error, "Unexpected error");
+            safeEmit({ type: "finish" } as UIMessageChunk);
+            safeComplete();
           } finally {
-            activeSessions.delete(input.subChatId)
+            activeSessions.delete(input.subChatId);
           }
-        })()
+        })();
 
         // Cleanup on unsubscribe
         return () => {
-          console.log(`[SD] M:CLEANUP sub=${subId} sessionId=${currentSessionId || 'none'}`)
-          isObservableActive = false // Prevent emit after unsubscribe
-          abortController.abort()
-          activeSessions.delete(input.subChatId)
-          clearPendingApprovals("Session ended.", input.subChatId)
+          console.log(
+            `[SD] M:CLEANUP sub=${subId} sessionId=${currentSessionId || "none"}`,
+          );
+          isObservableActive = false; // Prevent emit after unsubscribe
+          abortController.abort();
+          activeSessions.delete(input.subChatId);
+          clearPendingApprovals("Session ended.", input.subChatId);
 
           // Clear streamId since we're no longer streaming.
           // sessionId is NOT saved here — the save block in the async function
           // handles it (saves on normal completion, clears on abort). This avoids
           // a redundant DB write that the cancel mutation would then overwrite.
-          const db = getDatabase()
+          const db = getDatabase();
           db.update(subChats)
             .set({ streamId: null })
             .where(eq(subChats.id, input.subChatId))
-            .run()
-        }
-      })
+            .run();
+        };
+      });
     }),
 
   /**
@@ -3107,49 +3961,60 @@ If the user needs help with the page content, you can use the browser MCP tools 
     .input(z.object({ projectPath: z.string() }))
     .query(async ({ input }) => {
       try {
-        const config = await readClaudeConfig()
-        const globalServers = config.mcpServers || {}
-        const projectMcpServers = getProjectMcpServers(config, input.projectPath) || {}
+        const config = await readClaudeConfig();
+        const globalServers = config.mcpServers || {};
+        const projectMcpServers =
+          getProjectMcpServers(config, input.projectPath) || {};
 
         // Merge global + project (project overrides global)
-        const merged = { ...globalServers, ...projectMcpServers }
+        const merged = { ...globalServers, ...projectMcpServers };
 
         // Add plugin MCP servers (enabled + approved only)
-        const [enabledPluginSources, pluginMcpConfigs, approvedServers] = await Promise.all([
-          getEnabledPlugins(),
-          discoverPluginMcpServers(),
-          getApprovedPluginMcpServers(),
-        ])
+        const [enabledPluginSources, pluginMcpConfigs, approvedServers] =
+          await Promise.all([
+            getEnabledPlugins(),
+            discoverPluginMcpServers(),
+            getApprovedPluginMcpServers(),
+          ]);
 
         for (const pluginConfig of pluginMcpConfigs) {
-          if (!enabledPluginSources.includes(pluginConfig.pluginSource)) continue
-          for (const [name, serverConfig] of Object.entries(pluginConfig.mcpServers)) {
+          if (!enabledPluginSources.includes(pluginConfig.pluginSource))
+            continue;
+          for (const [name, serverConfig] of Object.entries(
+            pluginConfig.mcpServers,
+          )) {
             if (!merged[name]) {
-              const identifier = `${pluginConfig.pluginSource}:${name}`
+              const identifier = `${pluginConfig.pluginSource}:${name}`;
               if (approvedServers.includes(identifier)) {
-                merged[name] = serverConfig
+                merged[name] = serverConfig;
               }
             }
           }
         }
 
         // Convert to array format - determine status from config (no caching)
-        const mcpServers = Object.entries(merged).map(([name, serverConfig]) => {
-          const configObj = serverConfig as Record<string, unknown>
-          const status = getServerStatusFromConfig(configObj)
-          const hasUrl = !!configObj.url
+        const mcpServers = Object.entries(merged).map(
+          ([name, serverConfig]) => {
+            const configObj = serverConfig as Record<string, unknown>;
+            const status = getServerStatusFromConfig(configObj);
+            const hasUrl = !!configObj.url;
 
-          return {
-            name,
-            status,
-            config: { ...configObj, _hasUrl: hasUrl },
-          }
-        })
+            return {
+              name,
+              status,
+              config: { ...configObj, _hasUrl: hasUrl },
+            };
+          },
+        );
 
-        return { mcpServers, projectPath: input.projectPath }
+        return { mcpServers, projectPath: input.projectPath };
       } catch (error) {
-        console.error("[getMcpConfig] Error reading config:", error)
-        return { mcpServers: [], projectPath: input.projectPath, error: String(error) }
+        console.error("[getMcpConfig] Error reading config:", error);
+        return {
+          mcpServers: [],
+          projectPath: input.projectPath,
+          error: String(error),
+        };
       }
     }),
 
@@ -3169,41 +4034,43 @@ If the user needs help with the page content, you can use the browser MCP tools 
       z.object({
         serverName: z.string(),
         groupName: z.string(), // "Global", project name, or "Plugin: xxx"
-      })
+      }),
     )
     .mutation(async ({ input }) => {
-      const { serverName, groupName } = input
-      console.log(`[MCP] Retrying connection to ${serverName} in group ${groupName}`)
+      const { serverName, groupName } = input;
+      console.log(
+        `[MCP] Retrying connection to ${serverName} in group ${groupName}`,
+      );
 
       try {
         // Re-fetch all config to find this server
-        const config = await readClaudeConfig()
+        const config = await readClaudeConfig();
 
-        let serverConfig: McpServerConfig | undefined
-        let scope: string | null = null
+        let serverConfig: McpServerConfig | undefined;
+        let scope: string | null = null;
 
         // Find the server in the appropriate group
         if (groupName === "Global") {
-          serverConfig = config.mcpServers?.[serverName]
-          scope = null
+          serverConfig = config.mcpServers?.[serverName];
+          scope = null;
         } else if (groupName.startsWith("Plugin:")) {
           // Plugin MCP servers - need to look in plugin configs
-          const plugins = await discoverInstalledPlugins()
-          const pluginConfigs = await discoverPluginMcpServers()
+          const plugins = await discoverInstalledPlugins();
+          const pluginConfigs = await discoverPluginMcpServers();
 
           for (const pluginMcp of pluginConfigs) {
             if (pluginMcp.mcpServers[serverName]) {
-              serverConfig = pluginMcp.mcpServers[serverName]
-              scope = `plugin:${pluginMcp.pluginSource}`
-              break
+              serverConfig = pluginMcp.mcpServers[serverName];
+              scope = `plugin:${pluginMcp.pluginSource}`;
+              break;
             }
           }
         } else {
           // Project-specific server
           // groupName is the project path or name
           // For now, check if it's in global (most common case)
-          serverConfig = config.mcpServers?.[serverName]
-          scope = null
+          serverConfig = config.mcpServers?.[serverName];
+          scope = null;
         }
 
         if (!serverConfig) {
@@ -3212,41 +4079,45 @@ If the user needs help with the page content, you can use the browser MCP tools 
             error: `Server ${serverName} not found in ${groupName}`,
             status: "failed" as const,
             tools: [],
-          }
+          };
         }
 
         // Try to connect and fetch tools
-        const tools = await fetchToolsForServer(serverConfig)
+        const tools = await fetchToolsForServer(serverConfig);
 
         // Update cache
-        const cacheKey = mcpCacheKey(scope, serverName)
+        const cacheKey = mcpCacheKey(scope, serverName);
 
         if (tools.length > 0) {
-          workingMcpServers.set(cacheKey, true)
-          console.log(`[MCP] Successfully connected to ${serverName}: ${tools.length} tools`)
+          workingMcpServers.set(cacheKey, true);
+          console.log(
+            `[MCP] Successfully connected to ${serverName}: ${tools.length} tools`,
+          );
           return {
             success: true,
             status: "connected" as const,
             tools,
-          }
+          };
         }
 
         // No tools - check if needs auth
-        workingMcpServers.set(cacheKey, false)
-        let needsAuth = false
+        workingMcpServers.set(cacheKey, false);
+        let needsAuth = false;
 
         if (serverConfig.url) {
           try {
-            const baseUrl = getMcpBaseUrl(serverConfig.url)
-            const metadata = await fetchOAuthMetadata(baseUrl)
-            needsAuth = !!metadata && !!metadata.authorization_endpoint
+            const baseUrl = getMcpBaseUrl(serverConfig.url);
+            const metadata = await fetchOAuthMetadata(baseUrl);
+            needsAuth = !!metadata && !!metadata.authorization_endpoint;
           } catch {
             // If probe fails, assume no auth needed
           }
         }
 
-        const status = needsAuth ? "needs-auth" : "failed"
-        console.log(`[MCP] Failed to connect to ${serverName}: status=${status}`)
+        const status = needsAuth ? "needs-auth" : "failed";
+        console.log(
+          `[MCP] Failed to connect to ${serverName}: status=${status}`,
+        );
 
         return {
           success: false,
@@ -3254,15 +4125,15 @@ If the user needs help with the page content, you can use the browser MCP tools 
           tools: [],
           needsAuth,
           error: needsAuth ? "Authentication required" : "Connection failed",
-        }
+        };
       } catch (error) {
-        console.error(`[MCP] Error retrying ${serverName}:`, error)
+        console.error(`[MCP] Error retrying ${serverName}:`, error);
         return {
           success: false,
           status: "failed" as const,
           tools: [],
           error: error instanceof Error ? error.message : "Unknown error",
-        }
+        };
       }
     }),
 
@@ -3272,15 +4143,14 @@ If the user needs help with the page content, you can use the browser MCP tools 
   cancel: publicProcedure
     .input(z.object({ subChatId: z.string() }))
     .mutation(({ input }) => {
-      const controller = activeSessions.get(input.subChatId)
+      const controller = activeSessions.get(input.subChatId);
       if (controller) {
-        controller.abort()
-        activeSessions.delete(input.subChatId)
-        clearPendingApprovals("Session cancelled.", input.subChatId)
+        controller.abort();
+        activeSessions.delete(input.subChatId);
+        clearPendingApprovals("Session cancelled.", input.subChatId);
       }
 
-
-      return { cancelled: !!controller }
+      return { cancelled: !!controller };
     }),
 
   /**
@@ -3299,17 +4169,17 @@ If the user needs help with the page content, you can use the browser MCP tools 
       }),
     )
     .mutation(({ input }) => {
-      const pending = pendingToolApprovals.get(input.toolUseId)
+      const pending = pendingToolApprovals.get(input.toolUseId);
       if (!pending) {
-        return { ok: false }
+        return { ok: false };
       }
       pending.resolve({
         approved: input.approved,
         message: input.message,
         updatedInput: input.updatedInput,
-      })
-      pendingToolApprovals.delete(input.toolUseId)
-      return { ok: true }
+      });
+      pendingToolApprovals.delete(input.toolUseId);
+      return { ok: true };
     }),
 
   /**
@@ -3317,88 +4187,109 @@ If the user needs help with the page content, you can use the browser MCP tools 
    * Fetches OAuth metadata internally when needed
    */
   startMcpOAuth: publicProcedure
-    .input(z.object({
-      serverName: z.string(),
-      projectPath: z.string(),
-    }))
+    .input(
+      z.object({
+        serverName: z.string(),
+        projectPath: z.string(),
+      }),
+    )
     .mutation(async ({ input }) => {
-      return startMcpOAuth(input.serverName, input.projectPath)
+      return startMcpOAuth(input.serverName, input.projectPath);
     }),
 
   /**
    * Get MCP auth status for a server
    */
   getMcpAuthStatus: publicProcedure
-    .input(z.object({
-      serverName: z.string(),
-      projectPath: z.string(),
-    }))
+    .input(
+      z.object({
+        serverName: z.string(),
+        projectPath: z.string(),
+      }),
+    )
     .query(async ({ input }) => {
-      return getMcpAuthStatus(input.serverName, input.projectPath)
+      return getMcpAuthStatus(input.serverName, input.projectPath);
     }),
 
   addMcpServer: publicProcedure
-    .input(z.object({
-      name: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, "Name must contain only letters, numbers, underscores, and hyphens"),
-      scope: z.enum(["global", "project"]),
-      projectPath: z.string().optional(),
-      transport: z.enum(["stdio", "http"]),
-      command: z.string().optional(),
-      args: z.array(z.string()).optional(),
-      env: z.record(z.string()).optional(),
-      url: z.string().url().optional(),
-      authType: z.enum(["none", "oauth", "bearer"]).optional(),
-      bearerToken: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        name: z
+          .string()
+          .min(1)
+          .regex(
+            /^[a-zA-Z0-9_-]+$/,
+            "Name must contain only letters, numbers, underscores, and hyphens",
+          ),
+        scope: z.enum(["global", "project"]),
+        projectPath: z.string().optional(),
+        transport: z.enum(["stdio", "http"]),
+        command: z.string().optional(),
+        args: z.array(z.string()).optional(),
+        env: z.record(z.string()).optional(),
+        url: z.string().url().optional(),
+        authType: z.enum(["none", "oauth", "bearer"]).optional(),
+        bearerToken: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input }) => {
-      const serverName = input.name.trim()
+      const serverName = input.name.trim();
 
       if (input.transport === "stdio" && !input.command?.trim()) {
-        throw new Error("Command is required for stdio servers")
+        throw new Error("Command is required for stdio servers");
       }
       if (input.transport === "http" && !input.url?.trim()) {
-        throw new Error("URL is required for HTTP servers")
+        throw new Error("URL is required for HTTP servers");
       }
       if (input.scope === "project" && !input.projectPath) {
-        throw new Error("Project path required for project-scoped servers")
+        throw new Error("Project path required for project-scoped servers");
       }
 
-      const serverConfig: McpServerConfig = {}
+      const serverConfig: McpServerConfig = {};
       if (input.transport === "stdio") {
-        serverConfig.command = input.command!.trim()
+        serverConfig.command = input.command!.trim();
         if (input.args && input.args.length > 0) {
-          serverConfig.args = input.args
+          serverConfig.args = input.args;
         }
         if (input.env && Object.keys(input.env).length > 0) {
-          serverConfig.env = input.env
+          serverConfig.env = input.env;
         }
       } else {
-        serverConfig.url = input.url!.trim()
+        serverConfig.url = input.url!.trim();
         if (input.authType) {
-          serverConfig.authType = input.authType
+          serverConfig.authType = input.authType;
         }
         if (input.bearerToken) {
-          serverConfig.headers = { Authorization: `Bearer ${input.bearerToken}` }
+          serverConfig.headers = {
+            Authorization: `Bearer ${input.bearerToken}`,
+          };
         }
       }
 
       // Check existence before writing
-      const existingConfig = await readClaudeConfig()
-      const projectPath = input.projectPath
+      const existingConfig = await readClaudeConfig();
+      const projectPath = input.projectPath;
       if (input.scope === "project" && projectPath) {
         if (existingConfig.projects?.[projectPath]?.mcpServers?.[serverName]) {
-          throw new Error(`Server "${serverName}" already exists in this project`)
+          throw new Error(
+            `Server "${serverName}" already exists in this project`,
+          );
         }
       } else {
         if (existingConfig.mcpServers?.[serverName]) {
-          throw new Error(`Server "${serverName}" already exists`)
+          throw new Error(`Server "${serverName}" already exists`);
         }
       }
 
-      const config = updateMcpServerConfig(existingConfig, input.scope === "project" ? projectPath ?? null : null, serverName, serverConfig)
-      await writeClaudeConfig(config)
+      const config = updateMcpServerConfig(
+        existingConfig,
+        input.scope === "project" ? (projectPath ?? null) : null,
+        serverName,
+        serverConfig,
+      );
+      await writeClaudeConfig(config);
 
-      return { success: true, name: serverName }
+      return { success: true, name: serverName };
     }),
 
   updateMcpServer: publicProcedure
@@ -3424,59 +4315,96 @@ If the user needs help with the page content, you can use the browser MCP tools 
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
+    .input(
+      z.object({
+        name: z.string(),
+        scope: z.enum(["global", "project"]),
+        projectPath: z.string().optional(),
+        newName: z
+          .string()
+          .regex(/^[a-zA-Z0-9_-]+$/)
+          .optional(),
+        command: z.string().optional(),
+        args: z.array(z.string()).optional(),
+        env: z.record(z.string()).optional(),
+        url: z.string().url().optional(),
+        authType: z.enum(["none", "oauth", "bearer"]).optional(),
+        bearerToken: z.string().optional(),
+        disabled: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const config = await readClaudeConfig();
+      const projectPath =
+        input.scope === "project" ? input.projectPath : undefined;
+
       // Check server exists
-      let servers: Record<string, McpServerConfig> | undefined
+      let servers: Record<string, McpServerConfig> | undefined;
       if (projectPath) {
-        servers = config.projects?.[projectPath]?.mcpServers
+        servers = config.projects?.[projectPath]?.mcpServers;
       } else {
-        servers = config.mcpServers
+        servers = config.mcpServers;
       }
       if (!servers?.[input.name]) {
-        throw new Error(`Server "${input.name}" not found`)
+        throw new Error(`Server "${input.name}" not found`);
       }
 
-      const existing = servers[input.name]
+      const existing = servers[input.name];
 
       // Handle rename: create new, remove old
       if (input.newName && input.newName !== input.name) {
         if (servers[input.newName]) {
-          throw new Error(`Server "${input.newName}" already exists`)
+          throw new Error(`Server "${input.newName}" already exists`);
         }
-        const updated = removeMcpServerConfig(config, projectPath ?? null, input.name)
-        const finalConfig = updateMcpServerConfig(updated, projectPath ?? null, input.newName, existing)
-        await writeClaudeConfig(finalConfig)
-        return { success: true, name: input.newName }
+        const updated = removeMcpServerConfig(
+          config,
+          projectPath ?? null,
+          input.name,
+        );
+        const finalConfig = updateMcpServerConfig(
+          updated,
+          projectPath ?? null,
+          input.newName,
+          existing,
+        );
+        await writeClaudeConfig(finalConfig);
+        return { success: true, name: input.newName };
       }
 
       // Build update object from provided fields
-      const update: Partial<McpServerConfig> = {}
-      if (input.command !== undefined) update.command = input.command
-      if (input.args !== undefined) update.args = input.args
-      if (input.env !== undefined) update.env = input.env
-      if (input.url !== undefined) update.url = input.url
-      if (input.disabled !== undefined) update.disabled = input.disabled
+      const update: Partial<McpServerConfig> = {};
+      if (input.command !== undefined) update.command = input.command;
+      if (input.args !== undefined) update.args = input.args;
+      if (input.env !== undefined) update.env = input.env;
+      if (input.url !== undefined) update.url = input.url;
+      if (input.disabled !== undefined) update.disabled = input.disabled;
 
       // Handle bearer token
       if (input.bearerToken) {
-        update.authType = "bearer"
-        update.headers = { Authorization: `Bearer ${input.bearerToken}` }
+        update.authType = "bearer";
+        update.headers = { Authorization: `Bearer ${input.bearerToken}` };
       }
 
       // Handle authType changes
       if (input.authType) {
-        update.authType = input.authType
+        update.authType = input.authType;
         if (input.authType === "none") {
           // Clear auth-related fields
-          update.headers = undefined
-          update._oauth = undefined
+          update.headers = undefined;
+          update._oauth = undefined;
         }
       }
 
-      const merged = { ...existing, ...update }
-      const updatedConfig = updateMcpServerConfig(config, projectPath ?? null, input.name, merged)
-      await writeClaudeConfig(updatedConfig)
+      const merged = { ...existing, ...update };
+      const updatedConfig = updateMcpServerConfig(
+        config,
+        projectPath ?? null,
+        input.name,
+        merged,
+      );
+      await writeClaudeConfig(updatedConfig);
 
-      return { success: true, name: input.name }
+      return { success: true, name: input.name };
     }),
 
   removeMcpServer: publicProcedure
@@ -3507,21 +4435,37 @@ If the user needs help with the page content, you can use the browser MCP tools 
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
+    .input(
+      z.object({
+        name: z.string(),
+        scope: z.enum(["global", "project"]),
+        projectPath: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const config = await readClaudeConfig();
+      const projectPath =
+        input.scope === "project" ? input.projectPath : undefined;
+
       // Check server exists
-      let servers: Record<string, McpServerConfig> | undefined
+      let servers: Record<string, McpServerConfig> | undefined;
       if (projectPath) {
-        servers = config.projects?.[projectPath]?.mcpServers
+        servers = config.projects?.[projectPath]?.mcpServers;
       } else {
-        servers = config.mcpServers
+        servers = config.mcpServers;
       }
       if (!servers?.[input.name]) {
-        throw new Error(`Server "${input.name}" not found`)
+        throw new Error(`Server "${input.name}" not found`);
       }
 
-      const updated = removeMcpServerConfig(config, projectPath ?? null, input.name)
-      await writeClaudeConfig(updated)
+      const updated = removeMcpServerConfig(
+        config,
+        projectPath ?? null,
+        input.name,
+      );
+      await writeClaudeConfig(updated);
 
-      return { success: true }
+      return { success: true };
     }),
 
   setMcpBearerToken: publicProcedure
@@ -3540,67 +4484,94 @@ If the user needs help with the page content, you can use the browser MCP tools 
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
+    .input(
+      z.object({
+        name: z.string(),
+        scope: z.enum(["global", "project"]),
+        projectPath: z.string().optional(),
+        token: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const config = await readClaudeConfig();
+      const projectPath =
+        input.scope === "project" ? input.projectPath : undefined;
+
       // Check server exists
-      let servers: Record<string, McpServerConfig> | undefined
+      let servers: Record<string, McpServerConfig> | undefined;
       if (projectPath) {
-        servers = config.projects?.[projectPath]?.mcpServers
+        servers = config.projects?.[projectPath]?.mcpServers;
       } else {
-        servers = config.mcpServers
+        servers = config.mcpServers;
       }
       if (!servers?.[input.name]) {
-        throw new Error(`Server "${input.name}" not found`)
+        throw new Error(`Server "${input.name}" not found`);
       }
 
-      const existing = servers[input.name]
+      const existing = servers[input.name];
       const updated: McpServerConfig = {
         ...existing,
         authType: "bearer",
         headers: { Authorization: `Bearer ${input.token}` },
-      }
+      };
 
-      const updatedConfig = updateMcpServerConfig(config, projectPath ?? null, input.name, updated)
-      await writeClaudeConfig(updatedConfig)
+      const updatedConfig = updateMcpServerConfig(
+        config,
+        projectPath ?? null,
+        input.name,
+        updated,
+      );
+      await writeClaudeConfig(updatedConfig);
 
-      return { success: true }
+      return { success: true };
     }),
 
   getPendingPluginMcpApprovals: publicProcedure
     .input(z.object({ projectPath: z.string().optional() }))
     .query(async ({ input }) => {
-      const [enabledPluginSources, pluginMcpConfigs, approvedServers] = await Promise.all([
-        getEnabledPlugins(),
-        discoverPluginMcpServers(),
-        getApprovedPluginMcpServers(),
-      ])
+      const [enabledPluginSources, pluginMcpConfigs, approvedServers] =
+        await Promise.all([
+          getEnabledPlugins(),
+          discoverPluginMcpServers(),
+          getApprovedPluginMcpServers(),
+        ]);
 
       // Read global/project servers for conflict check
-      const config = await readClaudeConfig()
-      const globalServers = config.mcpServers || {}
-      const projectServers = input.projectPath ? getProjectMcpServers(config, input.projectPath) || {} : {}
+      const config = await readClaudeConfig();
+      const globalServers = config.mcpServers || {};
+      const projectServers = input.projectPath
+        ? getProjectMcpServers(config, input.projectPath) || {}
+        : {};
 
       const pending: Array<{
-        pluginSource: string
-        serverName: string
-        identifier: string
-        config: Record<string, unknown>
-      }> = []
+        pluginSource: string;
+        serverName: string;
+        identifier: string;
+        config: Record<string, unknown>;
+      }> = [];
 
       for (const pluginConfig of pluginMcpConfigs) {
-        if (!enabledPluginSources.includes(pluginConfig.pluginSource)) continue
+        if (!enabledPluginSources.includes(pluginConfig.pluginSource)) continue;
 
-        for (const [name, serverConfig] of Object.entries(pluginConfig.mcpServers)) {
-          const identifier = `${pluginConfig.pluginSource}:${name}`
-          if (!approvedServers.includes(identifier) && !globalServers[name] && !projectServers[name]) {
+        for (const [name, serverConfig] of Object.entries(
+          pluginConfig.mcpServers,
+        )) {
+          const identifier = `${pluginConfig.pluginSource}:${name}`;
+          if (
+            !approvedServers.includes(identifier) &&
+            !globalServers[name] &&
+            !projectServers[name]
+          ) {
             pending.push({
               pluginSource: pluginConfig.pluginSource,
               serverName: name,
               identifier,
               config: serverConfig as Record<string, unknown>,
-            })
+            });
           }
         }
       }
 
-      return { pending }
+      return { pending };
     }),
-})
+});

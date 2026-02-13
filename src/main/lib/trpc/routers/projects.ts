@@ -10,6 +10,7 @@ import { existsSync } from "node:fs"
 import { mkdir, copyFile, unlink, rename, readdir, rm, stat } from "node:fs/promises"
 import { extname } from "node:path"
 import { getGitRemoteInfo, isGitRepo } from "../../git"
+import { INBOX_PROJECT_ID } from "../../automation/inbox-project"
 import { getLaunchDirectory } from "../../cli"
 import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
 import { createId } from "../../db/utils"
@@ -39,11 +40,20 @@ export const projectsRouter = router({
     .query(({ input }) => {
       const db = getDatabase()
       const all = db.select().from(projects).orderBy(desc(projects.updatedAt)).all()
-      if (input?.includePlayground) {
-        return all
-      }
-      // Filter out playground project
-      return all.filter((p) => !p.isPlayground)
+
+      return all.filter((p) => {
+        // Always exclude inbox special project
+        if (p.id === INBOX_PROJECT_ID) return false
+        // Exclude playground unless requested
+        if (p.isPlayground && !input?.includePlayground) return false
+        // For non-playground projects, check path exists
+        if (!p.isPlayground && !existsSync(p.path)) {
+          // Clean up stale project from DB
+          db.delete(projects).where(eq(projects.id, p.id)).run()
+          return false
+        }
+        return true
+      })
     }),
 
   /**

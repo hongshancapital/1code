@@ -445,14 +445,23 @@ export const subChatsRouter = router({
 
   /**
    * Rename a sub-chat
+   * Set manuallyRenamed to true when user manually renames
    */
   renameSubChat: publicProcedure
-    .input(z.object({ id: z.string(), name: z.string().min(1) }))
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1),
+      skipManuallyRenamed: z.boolean().optional(), // For internal/auto-rename usage
+    }))
     .mutation(({ input }) => {
       const db = getDatabase()
       return db
         .update(subChats)
-        .set({ name: input.name })
+        .set({
+          name: input.name,
+          // Only set manuallyRenamed if not explicitly skipped (for auto-rename)
+          ...(!input.skipManuallyRenamed && { manuallyRenamed: true }),
+        })
         .where(eq(subChats.id, input.id))
         .returning()
         .get()
