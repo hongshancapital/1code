@@ -4,7 +4,7 @@ import { useState } from "react"
 import { memo, useMemo } from "react"
 import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
-import { ChevronDown, ChevronRight, Copy, Check } from "lucide-react"
+import { ChevronDown, ChevronRight, Copy, Check, RotateCcw } from "lucide-react"
 import dayjs from "dayjs"
 import { showDebugRequestAtom } from "../atoms"
 import {

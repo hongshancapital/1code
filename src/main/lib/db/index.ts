@@ -65,32 +65,132 @@ export function initDatabase() {
     console.log("[DB] Migrations completed")
   } catch (error) {
     console.error("[DB] Migration error:", error)
-    // Don't throw - try to continue with manual column additions
+    // Don't throw - try to continue with manual table/column additions
     console.log("[DB] Attempting manual schema fixes...")
   }
 
-  // Ensure is_playground column exists (for chat mode feature)
-  // This handles cases where migrations fail due to conflicts
+  // Ensure core tables exist (fallback if migrations fail)
   try {
-    sqlite.exec(`ALTER TABLE projects ADD COLUMN is_playground INTEGER DEFAULT 0`)
-    console.log("[DB] Added is_playground column")
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        git_remote_url TEXT,
+        git_provider TEXT,
+        git_owner TEXT,
+        git_repo TEXT,
+        mode TEXT DEFAULT 'cowork' NOT NULL,
+        feature_config TEXT,
+        icon_path TEXT,
+        is_playground INTEGER DEFAULT 0
+      )
+    `)
+    sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS projects_path_unique ON projects(path)`)
+    console.log("[DB] Projects table ensured")
   } catch (e: unknown) {
-    // Column likely already exists, ignore
     const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] is_playground column check:", error.message)
-    }
+    console.log("[DB] Projects table check:", error.message)
   }
 
-  // Ensure tag_id column exists on chats table (for preset tags)
   try {
-    sqlite.exec(`ALTER TABLE chats ADD COLUMN tag_id TEXT`)
-    console.log("[DB] Added tag_id column to chats")
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS chats (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        created_at INTEGER,
+        updated_at INTEGER,
+        archived_at INTEGER,
+        worktree_path TEXT,
+        branch TEXT,
+        base_branch TEXT,
+        pr_url TEXT,
+        pr_number INTEGER,
+        tag_id TEXT,
+        manually_renamed INTEGER DEFAULT 0
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS chats_worktree_path_idx ON chats(worktree_path)`)
+    console.log("[DB] Chats table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] tag_id column check:", error.message)
-    }
+    console.log("[DB] Chats table check:", error.message)
+  }
+
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS sub_chats (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        session_id TEXT,
+        stream_id TEXT,
+        mode TEXT DEFAULT 'agent' NOT NULL,
+        messages TEXT DEFAULT '[]' NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        stats_json TEXT,
+        has_pending_plan INTEGER DEFAULT 0,
+        manually_renamed INTEGER DEFAULT 0
+      )
+    `)
+    console.log("[DB] SubChats table ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] SubChats table check:", error.message)
+  }
+
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS model_usage (
+        id TEXT PRIMARY KEY NOT NULL,
+        sub_chat_id TEXT NOT NULL REFERENCES sub_chats(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        input_tokens INTEGER DEFAULT 0 NOT NULL,
+        output_tokens INTEGER DEFAULT 0 NOT NULL,
+        total_tokens INTEGER DEFAULT 0 NOT NULL,
+        cost_usd TEXT,
+        session_id TEXT,
+        message_uuid TEXT,
+        mode TEXT,
+        duration_ms INTEGER,
+        created_at INTEGER,
+        source TEXT
+      )
+    `)
+    console.log("[DB] ModelUsage table ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] ModelUsage table check:", error.message)
+  }
+
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS anthropic_accounts (
+        id TEXT PRIMARY KEY NOT NULL,
+        email TEXT,
+        display_name TEXT,
+        oauth_token TEXT NOT NULL,
+        user_id TEXT,
+        connected_at INTEGER,
+        last_used_at INTEGER
+      )
+    `)
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS anthropic_settings (
+        id TEXT PRIMARY KEY DEFAULT 'default' NOT NULL,
+        active_account_id TEXT REFERENCES anthropic_accounts(id) ON DELETE SET NULL
+      )
+    `)
+    console.log("[DB] Anthropic accounts tables ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    console.log("[DB] Anthropic accounts tables check:", error.message)
   }
 
   // Ensure workspace_tags tables exist (for grouping feature)
@@ -133,48 +233,6 @@ export function initDatabase() {
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] Workspace tags tables check:", error.message)
-  }
-
-  // Ensure stats_json column exists on sub_chats table (for preview optimization)
-  try {
-    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN stats_json TEXT`)
-    console.log("[DB] Added stats_json column to sub_chats")
-  } catch (e: unknown) {
-    const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] stats_json column check:", error.message)
-    }
-  }
-
-  // Ensure has_pending_plan column exists on sub_chats table
-  try {
-    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN has_pending_plan INTEGER DEFAULT 0`)
-    console.log("[DB] Added has_pending_plan column to sub_chats")
-  } catch (e: unknown) {
-    const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] has_pending_plan column check:", error.message)
-    }
-  }
-
-  // Ensure manually_renamed column exists on chats and sub_chats tables
-  try {
-    sqlite.exec(`ALTER TABLE chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
-    console.log("[DB] Added manually_renamed column to chats")
-  } catch (e: unknown) {
-    const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] chats manually_renamed column check:", error.message)
-    }
-  }
-  try {
-    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
-    console.log("[DB] Added manually_renamed column to sub_chats")
-  } catch (e: unknown) {
-    const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] sub_chats manually_renamed column check:", error.message)
-    }
   }
 
   // Ensure insights table exists (for usage analysis reports)
@@ -393,17 +451,6 @@ export function initDatabase() {
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] Memory tables check:", error.message)
-  }
-
-  // Ensure source column exists on model_usage table (for distinguishing chat/memory/automation usage)
-  try {
-    sqlite.exec(`ALTER TABLE model_usage ADD COLUMN source TEXT`)
-    console.log("[DB] Added source column to model_usage")
-  } catch (e: unknown) {
-    const error = e as Error
-    if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] source column check:", error.message)
-    }
   }
 
   // Ensure model_providers and cached_models tables exist (for unified provider management)

@@ -22,18 +22,55 @@ import { getEnv } from "../../env"
 
 // ============ Encryption helpers ============
 
+// Encryption format marker for new double-base64 format
+const ENCRYPTED_V2_PREFIX = "v2:"
+
 function encryptApiKey(key: string): string {
+  // First encode as base64 to handle any non-ASCII characters safely
+  const base64Key = Buffer.from(key, "utf-8").toString("base64")
   if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(key).toString("base64")
+    return ENCRYPTED_V2_PREFIX + base64Key
   }
-  return safeStorage.encryptString(key).toString("base64")
+  return ENCRYPTED_V2_PREFIX + safeStorage.encryptString(base64Key).toString("base64")
 }
 
 function decryptApiKey(encrypted: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(encrypted, "base64").toString("utf-8")
+  // Check if it's the new v2 format (double base64)
+  if (encrypted.startsWith(ENCRYPTED_V2_PREFIX)) {
+    const data = encrypted.slice(ENCRYPTED_V2_PREFIX.length)
+    let base64Key: string
+    if (!safeStorage.isEncryptionAvailable()) {
+      base64Key = data
+    } else {
+      base64Key = safeStorage.decryptString(Buffer.from(data, "base64"))
+    }
+    return Buffer.from(base64Key, "base64").toString("utf-8")
   }
-  return safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+
+  // Legacy format: directly encrypted string (no double base64)
+  let decrypted: string
+  if (!safeStorage.isEncryptionAvailable()) {
+    decrypted = Buffer.from(encrypted, "base64").toString("utf-8")
+  } else {
+    decrypted = safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+  }
+
+  // Check if the result looks like base64 (intermediate format from buggy code)
+  // Valid API keys contain alphanumeric, dots, dashes, underscores - not padding '='
+  // If it looks like base64, try decoding it once more
+  if (/^[A-Za-z0-9+/]+=*$/.test(decrypted) && decrypted.length > 20) {
+    try {
+      const maybeKey = Buffer.from(decrypted, "base64").toString("utf-8")
+      // If decoded successfully and looks like a valid key (printable ASCII), use it
+      if (/^[\x20-\x7E]+$/.test(maybeKey) && maybeKey.length > 10) {
+        return maybeKey
+      }
+    } catch {
+      // Not base64, use decrypted as-is
+    }
+  }
+
+  return decrypted
 }
 
 // ============ URL helpers ============
@@ -835,18 +872,15 @@ export const providersRouter = router({
 
         const rawModels: Array<{ id: string }> = data.data || data.models || []
 
-        // Filter blacklisted models, then apply provider-specific filters
-        let models: ModelInfo[] = rawModels
+        // Filter blacklisted models (embeddings, TTS, etc.)
+        // Note: We no longer apply whitelist filtering for custom providers,
+        // allowing users to see all available chat models from their provider.
+        const models: ModelInfo[] = rawModels
           .filter((m) => !isBlacklisted(m.id))
           .map((m) => ({
             id: m.id,
             name: m.id,
           }))
-
-        // LiteLLM & Custom: smart filter to keep only mainstream chat models
-        if (input.providerId !== "anthropic") {
-          models = filterProviderModels(models)
-        }
 
         // Update cache
         try {

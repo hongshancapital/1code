@@ -600,22 +600,22 @@ function ProviderCard({
 
   return (
     <div className={cn(
-      "rounded-xl border transition-all relative",
+      "rounded-xl border transition-all",
       isEnabled ? "bg-background border-border" : "bg-muted/30 border-border opacity-80",
     )}>
-      {provider.type === "custom" && onEdit && (
-        <button
-          onClick={onEdit}
-          className="absolute top-2 right-2 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
-      )}
       <div className="flex items-center justify-between p-4">
         {/* Left: Provider info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-foreground">{provider.name}</span>
+            {provider.type === "custom" && onEdit && (
+              <button
+                onClick={onEdit}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {provider.type === "anthropic" && t("models.auth.oauth.description")}
