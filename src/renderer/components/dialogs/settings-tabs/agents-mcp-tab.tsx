@@ -419,11 +419,13 @@ export function AgentsMcpTab() {
     server: McpServer
     scope: ScopeType
     projectPath: string | null
+    pluginSource?: string
   } | null>(null)
   const [deletingServer, setDeletingServer] = useState<{
     server: McpServer
     scope: ScopeType
     projectPath: string | null
+    pluginSource?: string
   } | null>(null)
 
   // Focus search on "/" hotkey
@@ -619,13 +621,14 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
 
   const handleDelete = async () => {
     if (!deletingServer) return
-    const { server, scope, projectPath: serverProjectPath } = deletingServer
+    const { server, scope, projectPath: serverProjectPath, pluginSource } = deletingServer
 
     try {
       await removeServerMutation.mutateAsync({
         name: server.name,
         scope,
         projectPath: serverProjectPath ?? undefined,
+        pluginSource,
       })
       toast.success(t('mcp.serverDeleted', { name: server.name }))
       setDeletingServer(null)
@@ -639,8 +642,16 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
 
   // Get scope type from group name
   const getScopeFromGroupName = (groupName: string): ScopeType => {
-    if (groupName === "Global" || groupName === "Plugins") return "global"
+    if (groupName === "Global") return "global"
+    if (groupName.startsWith("Plugin:")) return "plugin"
+    if (groupName === "Built-in") return "global"
     return "project"
+  }
+
+  // Extract plugin source from group name (e.g., "Plugin: foo:bar" → "foo:bar")
+  const getPluginSourceFromGroupName = (groupName: string): string | undefined => {
+    if (groupName.startsWith("Plugin: ")) return groupName.slice("Plugin: ".length)
+    return undefined
   }
 
   return (
@@ -820,11 +831,13 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
               server: selectedServer.server,
               scope: getScopeFromGroupName(selectedServer.group.groupName),
               projectPath: selectedServer.group.projectPath,
+              pluginSource: getPluginSourceFromGroupName(selectedServer.group.groupName),
             })}
             onDelete={() => setDeletingServer({
               server: selectedServer.server,
               scope: getScopeFromGroupName(selectedServer.group.groupName),
               projectPath: selectedServer.group.projectPath,
+              pluginSource: getPluginSourceFromGroupName(selectedServer.group.groupName),
             })}
             isDeleting={removeServerMutation.isPending}
           />
@@ -866,6 +879,7 @@ const handleRefresh = useCallback(async (silent = false, testConnections = false
         server={editingServer?.server || null}
         scope={editingServer?.scope || "global"}
         projectPath={editingServer?.projectPath ?? undefined}
+        pluginSource={editingServer?.pluginSource}
         onServerUpdated={() => handleRefresh(true)}
         onServerDeleted={() => { handleRefresh(true); setSelectedServerKey(null) }}
       />

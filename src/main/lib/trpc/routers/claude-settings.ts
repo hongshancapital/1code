@@ -176,6 +176,26 @@ export async function isPluginMcpApproved(pluginSource: string, serverName: stri
 }
 
 /**
+ * Revoke approval for a plugin MCP server by identifier
+ * Identifier format: "{pluginSource}:{serverName}"
+ */
+export async function revokePluginMcpApproval(identifier: string): Promise<void> {
+  const settings = await readClaudeSettings()
+  const approved = Array.isArray(settings.approvedPluginMcpServers)
+    ? (settings.approvedPluginMcpServers as string[])
+    : []
+
+  const index = approved.indexOf(identifier)
+  if (index > -1) {
+    approved.splice(index, 1)
+  }
+
+  settings.approvedPluginMcpServers = approved
+  await writeClaudeSettings(settings)
+  invalidateApprovedMcpCache()
+}
+
+/**
  * Write Claude settings.json file
  * Creates the .claude directory if it doesn't exist
  */
@@ -329,19 +349,7 @@ export const claudeSettingsRouter = router({
   revokePluginMcpServer: publicProcedure
     .input(z.object({ identifier: z.string() }))
     .mutation(async ({ input }) => {
-      const settings = await readClaudeSettings()
-      const approved = Array.isArray(settings.approvedPluginMcpServers)
-        ? (settings.approvedPluginMcpServers as string[])
-        : []
-
-      const index = approved.indexOf(input.identifier)
-      if (index > -1) {
-        approved.splice(index, 1)
-      }
-
-      settings.approvedPluginMcpServers = approved
-      await writeClaudeSettings(settings)
-      invalidateApprovedMcpCache()
+      await revokePluginMcpApproval(input.identifier)
       return { success: true }
     }),
 

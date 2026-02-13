@@ -23,7 +23,7 @@ export interface McpGroup {
 
 export type TransportType = "stdio" | "http"
 export type AuthType = "none" | "oauth" | "bearer"
-export type ScopeType = "global" | "project"
+export type ScopeType = "global" | "project" | "plugin"
 
 export interface McpServerFormData {
   name: string

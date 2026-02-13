@@ -23,6 +23,7 @@ interface EditMcpServerDialogProps {
   server: McpServer | null
   scope: ScopeType
   projectPath?: string
+  pluginSource?: string
   onServerUpdated?: () => void
   onServerDeleted?: () => void
 }
@@ -33,6 +34,7 @@ export function EditMcpServerDialog({
   server,
   scope,
   projectPath,
+  pluginSource,
   onServerUpdated,
   onServerDeleted,
 }: EditMcpServerDialogProps) {
@@ -123,6 +125,7 @@ export function EditMcpServerDialog({
         name: server.name,
         scope,
         projectPath,
+        pluginSource,
       })
       toast.success("Server removed", { description: server.name })
       onOpenChange(false)

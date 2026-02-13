@@ -35,7 +35,7 @@ import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth"
 import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { computePreviewStatsFromMessages } from "./chat-helpers"
-import { getEnabledPlugins, getApprovedPluginMcpServers } from "./claude-settings"
+import { getEnabledPlugins, getApprovedPluginMcpServers, revokePluginMcpApproval } from "./claude-settings"
 import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
@@ -3404,7 +3404,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
   updateMcpServer: publicProcedure
     .input(z.object({
       name: z.string(),
-      scope: z.enum(["global", "project"]),
+      scope: z.enum(["global", "project", "plugin"]),
       projectPath: z.string().optional(),
       newName: z.string().regex(/^[a-zA-Z0-9_-]+$/).optional(),
       command: z.string().optional(),
@@ -3416,6 +3416,11 @@ If the user needs help with the page content, you can use the browser MCP tools 
       disabled: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
+      // Plugin servers cannot be updated via ~/.claude.json
+      if (input.scope === "plugin") {
+        throw new Error("Plugin MCP servers cannot be modified directly. Remove and re-add through plugin settings.")
+      }
+
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
@@ -3477,10 +3482,21 @@ If the user needs help with the page content, you can use the browser MCP tools 
   removeMcpServer: publicProcedure
     .input(z.object({
       name: z.string(),
-      scope: z.enum(["global", "project"]),
+      scope: z.enum(["global", "project", "plugin"]),
       projectPath: z.string().optional(),
+      pluginSource: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      // Plugin servers: revoke approval instead of deleting from ~/.claude.json
+      if (input.scope === "plugin") {
+        if (!input.pluginSource) {
+          throw new Error(`Plugin source is required for plugin scope`)
+        }
+        const identifier = `${input.pluginSource}:${input.name}`
+        await revokePluginMcpApproval(identifier)
+        return { success: true }
+      }
+
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
@@ -3504,11 +3520,16 @@ If the user needs help with the page content, you can use the browser MCP tools 
   setMcpBearerToken: publicProcedure
     .input(z.object({
       name: z.string(),
-      scope: z.enum(["global", "project"]),
+      scope: z.enum(["global", "project", "plugin"]),
       projectPath: z.string().optional(),
       token: z.string(),
     }))
     .mutation(async ({ input }) => {
+      // Plugin servers cannot have bearer tokens set via ~/.claude.json
+      if (input.scope === "plugin") {
+        throw new Error("Cannot set bearer token on plugin MCP servers")
+      }
+
       const config = await readClaudeConfig()
       const projectPath = input.scope === "project" ? input.projectPath : undefined
 
