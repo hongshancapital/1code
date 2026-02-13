@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useAtom, useAtomValue } from "jotai"
 import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
-import { RotateCcw, ChevronDown, ChevronRight, Code, Copy, Check } from "lucide-react"
+import { RotateCcw, ChevronDown, ChevronRight, Code, Copy, Check, Pencil } from "lucide-react"
 import { showMessageJsonAtom, showDebugRequestAtom } from "../atoms"
 import { extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
 import {
@@ -760,6 +760,7 @@ interface SimpleIsolatedGroupProps {
   sandboxSetupError?: string
   onRetrySetup?: () => void
   onRetryMessage?: () => void
+  onEditMessage?: () => void
   // Components passed from parent - must be stable references
   UserBubbleComponent: React.ComponentType<{
     messageId: string
@@ -793,6 +794,7 @@ function areSimpleGroupPropsEqual(
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onEditMessage === next.onEditMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupComponent === next.MessageGroupComponent &&
@@ -810,6 +812,7 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   sandboxSetupError,
   onRetrySetup,
   onRetryMessage,
+  onEditMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupComponent,
@@ -1206,20 +1209,31 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
         </div>
       )}
 
-      {/* No response - retry option */}
+      {/* No response - retry/edit options */}
       {shouldShowRetry && (
         <div className="mt-4 p-3 bg-muted/50 border border-border rounded-lg">
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="text-muted-foreground">
               {t("status.noResponse")}
             </span>
-            <button
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
-              onClick={onRetryMessage}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t("actions.retry")}
-            </button>
+            <div className="flex items-center gap-2">
+              {onEditMessage && (
+                <button
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:bg-muted rounded-md transition-colors"
+                  onClick={onEditMessage}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {t("actions.edit")}
+                </button>
+              )}
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+                onClick={onRetryMessage}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t("actions.retry")}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1241,6 +1255,7 @@ interface SimpleIsolatedListProps {
   sandboxSetupError?: string
   onRetrySetup?: () => void
   onRetryMessage?: () => void
+  onEditMessage?: () => void
   UserBubbleComponent: SimpleIsolatedGroupProps["UserBubbleComponent"]
   ToolCallComponent: SimpleIsolatedGroupProps["ToolCallComponent"]
   MessageGroupComponent: SimpleIsolatedGroupProps["MessageGroupComponent"]
@@ -1261,6 +1276,7 @@ function areSimpleListPropsEqual(
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onEditMessage === next.onEditMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupComponent === next.MessageGroupComponent &&
@@ -1278,6 +1294,7 @@ export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesLi
   sandboxSetupError,
   onRetrySetup,
   onRetryMessage,
+  onEditMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupComponent,
@@ -1301,6 +1318,7 @@ export const SimpleIsolatedMessagesList = memo(function SimpleIsolatedMessagesLi
           sandboxSetupError={sandboxSetupError}
           onRetrySetup={onRetrySetup}
           onRetryMessage={onRetryMessage}
+          onEditMessage={onEditMessage}
           UserBubbleComponent={UserBubbleComponent}
           ToolCallComponent={ToolCallComponent}
           MessageGroupComponent={MessageGroupComponent}

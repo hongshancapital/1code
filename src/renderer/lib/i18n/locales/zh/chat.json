@@ -76,6 +76,7 @@
   "actions": {
     "stop": "停止",
     "retry": "重试",
+    "edit": "编辑",
     "copy": "复制",
     "approve": "批准",
     "reject": "拒绝",

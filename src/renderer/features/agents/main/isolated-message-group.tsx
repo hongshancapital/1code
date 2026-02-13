@@ -4,7 +4,7 @@ import { useState } from "react"
 import { memo, useMemo } from "react"
 import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
-import { ChevronDown, ChevronRight, Copy, Check, RotateCcw } from "lucide-react"
+import { ChevronDown, ChevronRight, Copy, Check, RotateCcw, Pencil } from "lucide-react"
 import dayjs from "dayjs"
 import { showDebugRequestAtom } from "../atoms"
 import {
@@ -64,6 +64,7 @@ interface IsolatedMessageGroupProps {
   sandboxSetupError?: string
   onRetrySetup?: () => void
   onRetryMessage?: () => void
+  onEditMessage?: () => void
   // Components passed from parent - must be stable references
   UserBubbleComponent: React.ComponentType<{
     messageId: string
@@ -96,6 +97,7 @@ function areGroupPropsEqual(
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onEditMessage === next.onEditMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupWrapper === next.MessageGroupWrapper &&
@@ -113,6 +115,7 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
   sandboxSetupError,
   onRetrySetup,
   onRetryMessage,
+  onEditMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupWrapper,
@@ -139,11 +142,6 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
     { enabled: showDebugRequest && !!subChatId }
   )
 
-  // Debug logs
-  console.log('[IsolatedMessageGroup Debug] showDebugRequest:', showDebugRequest)
-  console.log('[IsolatedMessageGroup Debug] subChatId:', subChatId)
-  console.log('[IsolatedMessageGroup Debug] debugData:', debugData)
-  console.log('[IsolatedMessageGroup Debug] hasRequestPayload:', !!debugData?.requestPayload)
 
   const toggleDebugSection = (section: string) => {
     setExpandedDebugSections((prev) => {
@@ -432,20 +430,31 @@ export const IsolatedMessageGroup = memo(function IsolatedMessageGroup({
           </div>
         )}
 
-      {/* No response - retry option */}
+      {/* No response - retry/edit options */}
       {shouldShowRetry && (
         <div className="mt-4 p-3 bg-muted/50 border border-border rounded-lg">
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="text-muted-foreground">
               {t("status.noResponse")}
             </span>
-            <button
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
-              onClick={onRetryMessage}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t("actions.retry")}
-            </button>
+            <div className="flex items-center gap-2">
+              {onEditMessage && (
+                <button
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:bg-muted rounded-md transition-colors"
+                  onClick={onEditMessage}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {t("actions.edit")}
+                </button>
+              )}
+              <button
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
+                onClick={onRetryMessage}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t("actions.retry")}
+              </button>
+            </div>
           </div>
         </div>
       )}

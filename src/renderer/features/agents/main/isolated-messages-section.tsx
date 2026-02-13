@@ -27,6 +27,7 @@ interface IsolatedMessagesSectionProps {
   sandboxSetupError?: string
   onRetrySetup?: () => void
   onRetryMessage?: () => void
+  onEditMessage?: () => void
   // Components passed from parent - must be stable references
   UserBubbleComponent: React.ComponentType<{
     messageId: string
@@ -57,6 +58,7 @@ function areSectionPropsEqual(
     prev.sandboxSetupError === next.sandboxSetupError &&
     prev.onRetrySetup === next.onRetrySetup &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onEditMessage === next.onEditMessage &&
     prev.UserBubbleComponent === next.UserBubbleComponent &&
     prev.ToolCallComponent === next.ToolCallComponent &&
     prev.MessageGroupWrapper === next.MessageGroupWrapper &&
@@ -73,6 +75,7 @@ export const IsolatedMessagesSection = memo(function IsolatedMessagesSection({
   sandboxSetupError,
   onRetrySetup,
   onRetryMessage,
+  onEditMessage,
   UserBubbleComponent,
   ToolCallComponent,
   MessageGroupWrapper,
@@ -119,6 +122,7 @@ export const IsolatedMessagesSection = memo(function IsolatedMessagesSection({
           sandboxSetupError={sandboxSetupError}
           onRetrySetup={onRetrySetup}
           onRetryMessage={onRetryMessage}
+          onEditMessage={onEditMessage}
           UserBubbleComponent={UserBubbleComponent}
           ToolCallComponent={ToolCallComponent}
           MessageGroupWrapper={MessageGroupWrapper}

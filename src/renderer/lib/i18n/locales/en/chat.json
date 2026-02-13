@@ -76,6 +76,7 @@
   "actions": {
     "stop": "Stop",
     "retry": "Retry",
+    "edit": "Edit",
     "copy": "Copy",
     "approve": "Approve",
     "reject": "Reject",
