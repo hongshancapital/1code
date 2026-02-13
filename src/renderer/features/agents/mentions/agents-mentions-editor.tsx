@@ -88,6 +88,10 @@ type AgentsMentionsEditorProps = {
   // Input history navigation (ArrowUp/ArrowDown)
   onHistoryUp?: (currentValue: string) => string | null // Navigate to older history
   onHistoryDown?: () => string | null // Navigate to newer history or draft
+  // IME integration: called when IME confirms input while @ trigger is active
+  // searchText: the final search text after @ (from DOM after IME confirms)
+  // Returns: "selected" if exact match found and selected, "partial" if partial match (keep dropdown), "none" if no match
+  onImeConfirm?: (searchText: string) => "selected" | "partial" | "none"
 }
 
 // Append text to element (no styling in input, ultrathink only in sent messages)
@@ -519,6 +523,7 @@ export const AgentsMentionsEditor = memo(
         onBlur,
         onHistoryUp,
         onHistoryDown,
+        onImeConfirm,
       },
       ref,
     ) {
@@ -829,21 +834,12 @@ export const AgentsMentionsEditor = memo(
       const lastEnterTimeRef = useRef(0)
 
       // Handle IME composition start (e.g., Chinese pinyin input)
-      const handleCompositionStart = useCallback((e: React.CompositionEvent) => {
+      const handleCompositionStart = useCallback(() => {
         isComposingRef.current = true
         justFinishedComposingRef.current = false
-        // Close any open triggers when IME starts
-        if (triggerActive.current) {
-          triggerActive.current = false
-          triggerStartIndex.current = null
-          onCloseTrigger()
-        }
-        if (slashTriggerActive.current) {
-          slashTriggerActive.current = false
-          slashTriggerStartIndex.current = null
-          onCloseSlashTrigger?.()
-        }
-      }, [onCloseTrigger, onCloseSlashTrigger])
+        // Don't close triggers - let search continue during IME composition
+        // The dropdown will update as user types pinyin
+      }, [])
 
       // Handle IME composition end
       const handleCompositionEnd = useCallback(() => {
@@ -860,48 +856,52 @@ export const AgentsMentionsEditor = memo(
           })
         })
 
-        // After IME composition ends, re-trigger @ and / detection
-        // This allows "@pencil" typed via IME to trigger mention dropdown
-        // Use setTimeout to ensure the composed text is fully committed to DOM
-        setTimeout(() => {
-          if (editorRef.current) {
-            // Dispatch a synthetic input event to trigger detection
-            editorRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-          }
-        }, 0)
-      }, [])
+        // If @ trigger is active, check if we should auto-select
+        if (triggerActive.current && triggerStartIndex.current !== null && onImeConfirm) {
+          // Use setTimeout to ensure DOM is updated with composed text
+          setTimeout(() => {
+            if (!editorRef.current || !triggerActive.current || triggerStartIndex.current === null) return
+
+            // Get the final search text from DOM (after @ symbol)
+            const sel = window.getSelection()
+            const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
+            const { textBeforeCursor, atIndex } = walkTreeOnce(editorRef.current, range)
+
+            // Extract text after @ for the current trigger
+            const finalSearchText = atIndex !== -1 ? textBeforeCursor.slice(atIndex + 1) : ""
+
+            // Check if dropdown has an exact match for the final text
+            const result = onImeConfirm(finalSearchText)
+
+            if (result === "selected") {
+              // Exact match found and selected - close trigger
+              // The insertMention will handle removing the @ and search text
+              triggerActive.current = false
+              triggerStartIndex.current = null
+            } else if (result === "partial") {
+              // Partial match - keep dropdown open, let user continue
+              // Trigger an input event to update the search
+              editorRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+            } else {
+              // No match - close dropdown and let the IME text stay
+              triggerActive.current = false
+              triggerStartIndex.current = null
+              onCloseTrigger()
+            }
+          }, 0)
+        } else {
+          // No active trigger, just re-run detection in case @ was typed during IME
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+            }
+          }, 0)
+        }
+      }, [onImeConfirm, onCloseTrigger])
 
       // Handle input - UNCONTROLLED: no onChange, just @ and / trigger detection
       const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
         if (!editorRef.current) return
-
-        // Check if IME composition is in progress (Chinese/Japanese/Korean input)
-        // During composition, we should not trigger @ or / detection
-        // But we still need to update hasContent to hide placeholder
-        if (isComposingRef.current) {
-          // Update placeholder visibility even during IME composition
-          const content = editorRef.current.textContent || ""
-          const newHasContent = !!content
-          setHasContent(newHasContent)
-          onContentChange?.(newHasContent)
-
-          // IME composition in progress: close any open triggers
-          if (triggerActive.current) {
-            triggerActive.current = false
-            triggerStartIndex.current = null
-            onCloseTrigger()
-          }
-          if (slashTriggerActive.current) {
-            slashTriggerActive.current = false
-            slashTriggerStartIndex.current = null
-            onCloseSlashTrigger?.()
-          }
-          return
-        }
-
-        // Save undo state with debounce (for typing)
-        // This captures state periodically during typing for proper undo
-        debouncedSaveUndoState()
 
         // Update placeholder visibility and notify parent IMMEDIATELY (cheap operation)
         // Use textContent without trim() so placeholder hides even with just spaces
@@ -909,6 +909,15 @@ export const AgentsMentionsEditor = memo(
         const newHasContent = !!content
         setHasContent(newHasContent)
         onContentChange?.(newHasContent)
+
+        // During IME composition, still update search but don't close triggers
+        // This allows real-time search as user types pinyin
+        const duringIme = isComposingRef.current
+
+        // Save undo state with debounce (for typing) - skip during IME
+        if (!duringIme) {
+          debouncedSaveUndoState()
+        }
 
         // Skip expensive trigger detection for very large text
         // This prevents UI freeze when pasting large content

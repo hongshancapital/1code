@@ -72,6 +72,7 @@ import {
   AgentsFileMention,
   AgentsMentionsEditor,
   type AgentsMentionsEditorHandle,
+  type AgentsFileMentionHandle,
   type FileMentionOption,
 } from "../mentions"
 import { AgentContextIndicator, type MessageTokenData } from "../ui/agent-context-indicator"
@@ -461,6 +462,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   const [showMentionDropdown, setShowMentionDropdown] = useState(false)
   const [mentionSearchText, setMentionSearchText] = useState("")
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
+  const mentionDropdownRef = useRef<AgentsFileMentionHandle>(null)
 
   // Mention dropdown subpage navigation state
   const [showingFilesList, setShowingFilesList] = useState(false)
@@ -973,6 +975,16 @@ export const ChatInputArea = memo(function ChatInputArea({
     setShowingToolsList(false)
   }, [editorRef])
 
+  // IME confirm handler - called when IME composition ends while @ trigger is active
+  // searchText: the final search text after @ (from DOM after IME confirms)
+  // Returns: "selected" if exact match found and selected, "partial" if partial match, "none" if no match
+  const handleImeConfirm = useCallback((searchText: string): "selected" | "partial" | "none" => {
+    if (!showMentionDropdown || !mentionDropdownRef.current) {
+      return "none"
+    }
+    return mentionDropdownRef.current.checkAndSelect(searchText)
+  }, [showMentionDropdown])
+
   // Slash command handlers
   const handleSlashTrigger = useCallback(
     ({ searchText, rect }: { searchText: string; rect: DOMRect }) => {
@@ -1306,6 +1318,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                   onBlur={handleEditorBlur}
                   onHistoryUp={getHistoryUp}
                   onHistoryDown={getHistoryDown}
+                  onImeConfirm={handleImeConfirm}
                 />
               </div>
               <PromptInputActions className="w-full">
@@ -1709,6 +1722,7 @@ export const ChatInputArea = memo(function ChatInputArea({
       {/* File mention dropdown */}
       {/* Desktop: use projectPath for local file search */}
       <AgentsFileMention
+        ref={mentionDropdownRef}
         isOpen={
           showMentionDropdown &&
           (!!projectPath || !!repository || !!sandboxId)
