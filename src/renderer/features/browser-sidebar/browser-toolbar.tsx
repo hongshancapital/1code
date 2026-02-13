@@ -715,6 +715,89 @@ export function BrowserToolbar({
           </div>
         )}
 
+        {/* Zoom indicator inside address bar - only show when not 100% */}
+        {(zoomLevel !== 1.0 || fitMode) && (
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="absolute right-7 top-1/2 -translate-y-1/2 z-10 px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    {fitMode ? "自动" : `${Math.round(zoomLevel * 100)}%`}
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">缩放设置</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" sideOffset={4} className="w-48">
+              {/* Zoom control row */}
+              <div className="flex items-center gap-1 px-2 py-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                      onClick={onZoomOut}
+                      disabled={zoomLevel <= 0.05}
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>缩小</TooltipContent>
+                </Tooltip>
+
+                <button
+                  className="flex-1 h-7 items-center justify-center rounded bg-muted/50 hover:bg-accent transition-colors text-xs font-medium tabular-nums cursor-pointer"
+                  onClick={onZoomReset}
+                >
+                  {fitMode ? "自动" : `${Math.round(zoomLevel * 100)}%`}
+                </button>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors"
+                      onClick={onZoomIn}
+                      disabled={zoomLevel >= 5.0}
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>放大</TooltipContent>
+                </Tooltip>
+              </div>
+
+              <DropdownMenuSeparator />
+
+              {/* Fit width toggle */}
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={onFitWidth}
+              >
+                <Maximize2 className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">{fitMode ? "自动适应" : "最佳适应"}</span>
+                {fitMode && <span className="text-xs text-primary">✓</span>}
+              </DropdownMenuItem>
+
+              {/* Reset to 100% */}
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={onZoomReset}
+              >
+                <RotateCcw className="w-4 h-4 mr-2 text-muted-foreground" />
+                <span className="flex-1">重置为 100%</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {/* Zoom range hint */}
+              <div className="px-2 py-1 text-[10px] text-muted-foreground/60 text-center">
+                缩放范围：5% - 500%
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {/* History dropdown trigger */}
         <DropdownMenu open={historyOpen} onOpenChange={setHistoryOpen}>
           <Tooltip>
@@ -797,22 +880,6 @@ export function BrowserToolbar({
         </DropdownMenu>
 
       </div>
-
-      {/* Zoom indicator - tag style in address bar, left of dropdown button */}
-      {/* Opens settings menu with zoom section when clicked */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSiteInfoOpen(true)}
-            className="h-6 px-2 text-xs font-medium tabular-nums hover:bg-foreground/10"
-          >
-            {fitMode ? "自动" : `${Math.round(zoomLevel * 100)}%`}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">缩放设置</TooltipContent>
-      </Tooltip>
 
       {/* External tools */}
       <Tooltip>
