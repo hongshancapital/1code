@@ -872,6 +872,26 @@ const chatsCoreRouter = router({
         .returning()
         .get()
 
+      // --- CRITICAL: Also update project.path if it matches the old worktreePath ---
+      // In cowork mode (non-git), project.path === chat.worktreePath
+      // If we only update chat.worktreePath, projects.list will delete the project
+      // because it checks existsSync(project.path) and the old path no longer exists
+      if (chat.projectId) {
+        const project = db
+          .select()
+          .from(projects)
+          .where(eq(projects.id, chat.projectId))
+          .get()
+
+        if (project && project.path === chat.worktreePath) {
+          console.log(`[moveWorktree] Also updating project.path: ${project.path} → ${newWorktreePath}`)
+          db.update(projects)
+            .set({ path: newWorktreePath, updatedAt: new Date() })
+            .where(eq(projects.id, chat.projectId))
+            .run()
+        }
+      }
+
       // --- Migrate SDK Session Files ---
       // Session files live at: {userData}/claude-sessions/{subChatId}/projects/{sanitized_cwd}/
       // We need to move them so SDK can continue to resume sessions with the new CWD

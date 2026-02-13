@@ -242,9 +242,13 @@ export const InfoSection = memo(function InfoSection({
         if (!old) return old
         return { ...old, worktreePath: updatedChat.worktreePath }
       })
-      // Invalidate both single chat and list to ensure UI updates everywhere
+      // Invalidate all related queries to ensure UI updates everywhere
+      // - chats.get: Current chat data
+      // - chats.list: Sidebar workspace list
+      // - projects.list: Sidebar uses projectsMap for gitRepo/name lookup
       utils.chats.get.invalidate({ id: chatId })
       utils.chats.list.invalidate()
+      utils.projects.list.invalidate()
       toast.success(t("details.workspace.folderRenamed"))
     },
     onError: (error) => {
