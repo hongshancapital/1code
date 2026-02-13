@@ -6,7 +6,7 @@
  */
 
 import { execSync } from "child_process"
-import { existsSync, symlinkSync, unlinkSync, mkdirSync, lstatSync, cpSync } from "fs"
+import { existsSync, symlinkSync, unlinkSync, mkdirSync, lstatSync, cpSync, readdirSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 
@@ -96,24 +96,43 @@ if (osPlatform && osArch) {
 
   // Also fix top-level @img directory for consistency
   const topLevelSharpDir = join(rootDir, "node_modules/@img", `sharp-${osPlatform}-${osArch}`, "lib")
-  const libvipsName =
-    platform === "darwin"
-      ? "libvips-cpp.8.17.3.dylib"
-      : platform === "linux"
-        ? "libvips-cpp.so.8.17.3"
-        : null
+  const libvipsSourceDir = join(sourceLibvipsDir, "lib")
 
-  if (libvipsName && existsSync(topLevelSharpDir)) {
-    const symlinkPath = join(topLevelSharpDir, libvipsName)
-    const relativePath = `../../sharp-libvips-${osPlatform}-${osArch}/lib/${libvipsName}`
+  // Find the actual libvips file in the source directory
+  let actualLibvipsFile = null
+  let expectedLibvipsName = null
 
-    if (!existsSync(symlinkPath)) {
+  if (existsSync(libvipsSourceDir)) {
+    const files = readdirSync(libvipsSourceDir)
+    // Look for libvips-cpp.*.dylib or libvips-cpp.so.*
+    actualLibvipsFile = files.find((f) =>
+      platform === "darwin"
+        ? f.startsWith("libvips-cpp.") && f.endsWith(".dylib")
+        : f.startsWith("libvips-cpp.so.")
+    )
+
+    // The expected name that sharp looks for (hardcoded in the binary)
+    expectedLibvipsName =
+      platform === "darwin" ? "libvips-cpp.8.17.3.dylib" : "libvips-cpp.so.8.17.3"
+  }
+
+  if (actualLibvipsFile && expectedLibvipsName && existsSync(topLevelSharpDir)) {
+    const symlinkPath = join(topLevelSharpDir, expectedLibvipsName)
+    // Point to the actual file that exists
+    const relativePath = `../../sharp-libvips-${osPlatform}-${osArch}/lib/${actualLibvipsFile}`
+
+    // Remove existing broken symlink
+    if (existsSync(symlinkPath) || lstatSync(symlinkPath).isSymbolicLink?.()) {
       try {
-        symlinkSync(relativePath, symlinkPath)
-        console.log(`Created symlink: ${symlinkPath}`)
-      } catch (e) {
-        console.error(`Failed to create top-level libvips symlink:`, e.message)
-      }
+        unlinkSync(symlinkPath)
+      } catch {}
+    }
+
+    try {
+      symlinkSync(relativePath, symlinkPath)
+      console.log(`Created symlink: ${expectedLibvipsName} -> ${actualLibvipsFile}`)
+    } catch (e) {
+      console.error(`Failed to create top-level libvips symlink:`, e.message)
     }
   }
 }

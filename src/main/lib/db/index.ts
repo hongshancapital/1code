@@ -3,7 +3,8 @@ import { drizzle } from "drizzle-orm/better-sqlite3"
 import { migrate } from "drizzle-orm/better-sqlite3/migrator"
 import { app } from "electron"
 import { join } from "path"
-import { existsSync, mkdirSync } from "fs"
+import { existsSync, mkdirSync, readFileSync } from "fs"
+import { createHash } from "crypto"
 import * as schema from "./schema"
 
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null
@@ -38,6 +39,54 @@ function getMigrationsPath(): string {
 }
 
 /**
+ * Sync migration history when tables already exist but migration records are missing
+ * This handles the case where migrations failed mid-way or database state is inconsistent
+ */
+function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string): void {
+  console.log("[DB] Syncing migration history...")
+
+  // Read migration journal
+  const journalPath = join(migrationsPath, "meta", "_journal.json")
+  if (!existsSync(journalPath)) {
+    console.log("[DB] No migration journal found, skipping sync")
+    return
+  }
+
+  const journal = JSON.parse(readFileSync(journalPath, "utf-8"))
+  if (!journal.entries || !Array.isArray(journal.entries)) {
+    console.log("[DB] Invalid migration journal, skipping sync")
+    return
+  }
+
+  // Get existing migration hashes
+  const existingMigrations = sqlite.prepare("SELECT hash FROM __drizzle_migrations").all() as Array<{ hash: string }>
+  const existingHashes = new Set(existingMigrations.map((m) => m.hash))
+
+  console.log(`[DB] Found ${journal.entries.length} migrations in journal, ${existingHashes.size} already applied`)
+
+  // Check each migration and add missing ones
+  let syncedCount = 0
+  for (const entry of journal.entries) {
+    const sqlPath = join(migrationsPath, `${entry.tag}.sql`)
+    if (!existsSync(sqlPath)) {
+      console.log(`[DB] Migration file not found: ${entry.tag}.sql, skipping`)
+      continue
+    }
+
+    const sqlContent = readFileSync(sqlPath, "utf-8")
+    const hash = createHash("sha256").update(sqlContent).digest("hex")
+
+    if (!existingHashes.has(hash)) {
+      console.log(`[DB] Adding missing migration: ${entry.tag}`)
+      sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, entry.when)
+      syncedCount++
+    }
+  }
+
+  console.log(`[DB] Synced ${syncedCount} missing migrations`)
+}
+
+/**
  * Initialize the database with Drizzle ORM
  */
 export function initDatabase() {
@@ -65,8 +114,23 @@ export function initDatabase() {
     console.log("[DB] Migrations completed")
   } catch (error) {
     console.error("[DB] Migration error:", error)
-    // Don't throw - try to continue with manual table/column additions
-    console.log("[DB] Attempting manual schema fixes...")
+
+    // Check if error is "table already exists"
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    if (errorMsg.includes("already exists")) {
+      console.log("[DB] Detected existing tables, attempting to sync migration history...")
+      try {
+        syncMigrationHistory(sqlite, migrationsPath)
+        console.log("[DB] Migration history synced, retrying migrations...")
+        migrate(db, { migrationsFolder: migrationsPath })
+        console.log("[DB] Migrations completed after sync")
+      } catch (syncError) {
+        console.error("[DB] Failed to sync migration history:", syncError)
+        console.log("[DB] Continuing with manual schema fixes...")
+      }
+    } else {
+      console.log("[DB] Attempting manual schema fixes...")
+    }
   }
 
   // Ensure core tables exist (fallback if migrations fail)
@@ -120,6 +184,17 @@ export function initDatabase() {
     console.log("[DB] Chats table check:", error.message)
   }
 
+  // Ensure manually_renamed column exists on chats table
+  try {
+    sqlite.exec(`ALTER TABLE chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
+    console.log("[DB] Added manually_renamed column to chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] manually_renamed column check (chats):", error.message)
+    }
+  }
+
   try {
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS sub_chats (
@@ -141,6 +216,17 @@ export function initDatabase() {
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] SubChats table check:", error.message)
+  }
+
+  // Ensure manually_renamed column exists on sub_chats table
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
+    console.log("[DB] Added manually_renamed column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] manually_renamed column check (sub_chats):", error.message)
+    }
   }
 
   try {
