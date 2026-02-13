@@ -660,7 +660,13 @@ export function LoadingScene({
               type="text"
               value={nameValue}
               onChange={(e) => setNameValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && nameValue.trim() && handleConfirmName()}
+              onKeyDown={(e) => {
+                // 跳过 IME 组合状态中的回车（中文输入法确认）
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                if (e.key === 'Enter' && nameValue.trim()) {
+                  handleConfirmName()
+                }
+              }}
               placeholder={t('loading.nameInput.placeholder')}
               maxLength={50}
               className="w-full max-w-xs px-4 py-2.5 rounded-lg border border-border bg-background/80 backdrop-blur-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-center"
