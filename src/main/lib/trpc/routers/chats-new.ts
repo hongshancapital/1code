@@ -500,6 +500,7 @@ const chatsCoreRouter = router({
           mode: subChats.mode,
           createdAt: subChats.createdAt,
           updatedAt: subChats.updatedAt,
+          manuallyRenamed: subChats.manuallyRenamed,
         })
         .from(subChats)
         .where(eq(subChats.chatId, input.id))
