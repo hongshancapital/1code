@@ -233,9 +233,18 @@ export const InfoSection = memo(function InfoSection({
 
   // Move worktree mutation
   const moveWorktreeMutation = trpc.chats.moveWorktree.useMutation({
-    onSuccess: () => {
+    onSuccess: (updatedChat) => {
       setIsEditingPath(false)
+      // CRITICAL: Update cache BEFORE invalidate to prevent race condition
+      // Otherwise, pending queries may use old worktreePath which is no longer
+      // registered in DB, causing assertRegisteredWorktree to throw
+      utils.chats.get.setData({ id: chatId }, (old) => {
+        if (!old) return old
+        return { ...old, worktreePath: updatedChat.worktreePath }
+      })
+      // Invalidate both single chat and list to ensure UI updates everywhere
       utils.chats.get.invalidate({ id: chatId })
+      utils.chats.list.invalidate()
       toast.success(t("details.workspace.folderRenamed"))
     },
     onError: (error) => {
