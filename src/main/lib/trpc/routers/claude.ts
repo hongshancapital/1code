@@ -36,7 +36,7 @@ import { publicProcedure, router } from "../index"
 import { buildAgentsOption } from "./agent-utils"
 import { computePreviewStatsFromMessages } from "./chat-helpers"
 import { getEnabledPlugins, getApprovedPluginMcpServers, revokePluginMcpApproval } from "./claude-settings"
-import { discoverInstalledPlugins, discoverPluginMcpServers } from "../../plugins"
+import { discoverInstalledPlugins, discoverPluginMcpServers, removePluginMcpServer } from "../../plugins"
 import { injectBuiltinMcp, BUILTIN_MCP_NAME, getBuiltinMcpConfig, getBuiltinMcpPlaceholder } from "../../builtin-mcp"
 import { getAuthManager } from "../../../index"
 import { getCachedRuntimeEnvironment } from "./runner"
@@ -3487,13 +3487,20 @@ If the user needs help with the page content, you can use the browser MCP tools 
       pluginSource: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      // Plugin servers: revoke approval instead of deleting from ~/.claude.json
+      // Plugin servers: remove from the plugin's .mcp.json file
       if (input.scope === "plugin") {
         if (!input.pluginSource) {
           throw new Error(`Plugin source is required for plugin scope`)
         }
+        // Remove the server entry from the plugin's .mcp.json
+        await removePluginMcpServer(input.pluginSource, input.name)
+        // Also revoke approval so it doesn't linger in settings.json
         const identifier = `${input.pluginSource}:${input.name}`
-        await revokePluginMcpApproval(identifier)
+        try {
+          await revokePluginMcpApproval(identifier)
+        } catch {
+          // Ignore — approval may not exist
+        }
         return { success: true }
       }
 

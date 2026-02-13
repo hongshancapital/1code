@@ -339,3 +339,70 @@ export async function discoverPluginMcpServers(): Promise<PluginMcpConfig[]> {
   mcpCache = { configs, timestamp: Date.now() }
   return configs
 }
+
+/**
+ * Remove a specific MCP server entry from a plugin's .mcp.json file.
+ * If the file becomes empty after removal, deletes the file.
+ * Also invalidates the MCP cache so the server disappears immediately.
+ *
+ * @param pluginSource - Plugin source identifier (e.g., "claude-plugins-official:test-fake-plugin")
+ * @param serverName - The MCP server name to remove (e.g., "test-plugin-delete-me")
+ */
+export async function removePluginMcpServer(pluginSource: string, serverName: string): Promise<void> {
+  const plugins = await discoverInstalledPlugins()
+  const plugin = plugins.find((p) => p.source === pluginSource)
+  if (!plugin) {
+    throw new Error(`Plugin not found: ${pluginSource}`)
+  }
+
+  const mcpJsonPath = path.join(plugin.path, ".mcp.json")
+  let content: string
+  try {
+    content = await fs.readFile(mcpJsonPath, "utf-8")
+  } catch {
+    throw new Error(`No .mcp.json found for plugin: ${pluginSource}`)
+  }
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    throw new Error(`Invalid JSON in .mcp.json for plugin: ${pluginSource}`)
+  }
+
+  // Detect format: nested (mcpServers) or flat
+  const isNested =
+    parsed.mcpServers &&
+    typeof parsed.mcpServers === "object" &&
+    !Array.isArray(parsed.mcpServers)
+
+  if (isNested) {
+    const servers = parsed.mcpServers as Record<string, unknown>
+    if (!(serverName in servers)) {
+      throw new Error(`Server "${serverName}" not found in plugin ${pluginSource}`)
+    }
+    delete servers[serverName]
+
+    // If no servers left, delete the file
+    if (Object.keys(servers).length === 0) {
+      await fs.unlink(mcpJsonPath)
+    } else {
+      await fs.writeFile(mcpJsonPath, JSON.stringify(parsed, null, 2) + "\n", "utf-8")
+    }
+  } else {
+    // Flat format
+    if (!(serverName in parsed)) {
+      throw new Error(`Server "${serverName}" not found in plugin ${pluginSource}`)
+    }
+    delete parsed[serverName]
+
+    if (Object.keys(parsed).length === 0) {
+      await fs.unlink(mcpJsonPath)
+    } else {
+      await fs.writeFile(mcpJsonPath, JSON.stringify(parsed, null, 2) + "\n", "utf-8")
+    }
+  }
+
+  // Invalidate cache so changes take effect immediately
+  mcpCache = null
+}
