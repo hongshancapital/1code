@@ -160,6 +160,9 @@ currentProjectModeAtom,
   pendingMentionAtom,
   suppressInputFocusAtom,
   diffHasPendingChangesAtomFamily,
+  pendingAINameSubChatsAtom,
+  setPendingAIName,
+  clearPendingAIName,
   type AgentMode,
   type SelectedCommit,
   type CachedParsedDiffFile,
@@ -6475,10 +6478,13 @@ Make sure to preserve all functionality from both branches when resolving confli
           const sm = appStore.get(summaryModelIdAtom)
           const payload = {
             userMessage: msg,
+            subChatId,
+            chatId,
+            projectId: chatProject?.id,
+            isFirstSubChat: isFirst,
             ...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
           }
           console.log("[auto-rename] summaryProvider:", sp || "(not set)", "summaryModel:", sm || "(not set)")
-          console.log("[auto-rename] mutation payload keys:", Object.keys(payload), "has provider:", !!payload.summaryProviderId)
           return generateSubChatNameMutation.mutateAsync(payload)
         },
         renameSubChat: async (input) => {
@@ -6548,6 +6554,12 @@ Make sure to preserve all functionality from both branches when resolving confli
             },
           )
         },
+        // Refresh after delay to pick up AI-generated name from backend
+        onRefreshForAIName: () => {
+          console.log("[auto-rename] Invalidating queries to pick up AI name...")
+          utils.agents.getAgentChat.invalidate({ chatId })
+          utils.agents.getAgentChats.invalidate({ teamId: selectedTeamId })
+        },
       })
     },
     [
@@ -6560,6 +6572,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       selectedOllamaModel,
       utils.agents.getAgentChats,
       utils.agents.getAgentChat,
+      chatProject?.id,
     ],
   )
 
