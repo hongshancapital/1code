@@ -209,6 +209,11 @@ type FileAttachment = {
 export class IPCChatTransport implements ChatTransport<UIMessage> {
   constructor(private config: IPCChatTransportConfig) {}
 
+  /** Update CWD for subsequent messages (e.g. after playground→project migration) */
+  updateCwd(newCwd: string): void {
+    this.config = { ...this.config, cwd: newCwd }
+  }
+
   async sendMessages(options: {
     messages: UIMessage[]
     abortSignal?: AbortSignal

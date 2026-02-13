@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
-import { getDatabase, projects, chats } from "../../db"
+import { getDatabase, projects, chats, subChats } from "../../db"
 import { eq, desc, and, isNull } from "drizzle-orm"
 import { dialog, BrowserWindow, app } from "electron"
 import { basename, join, dirname } from "path"
@@ -831,6 +831,53 @@ export const projectsRouter = router({
         .returning()
         .get()
 
+      // Update worktreePath for all chats under this project
+      // and migrate SDK session files so conversations can be resumed
+      const projectChats = db
+        .select({ id: chats.id, worktreePath: chats.worktreePath })
+        .from(chats)
+        .where(eq(chats.projectId, input.projectId))
+        .all()
+
+      const userDataPath = app.getPath("userData")
+      const sanitize = (p: string) => p.replace(/[/.]/g, "-")
+
+      for (const chat of projectChats) {
+        if (chat.worktreePath && chat.worktreePath.startsWith(sourcePath)) {
+          const newWorktreePath = targetPath + chat.worktreePath.slice(sourcePath.length)
+          db.update(chats)
+            .set({ worktreePath: newWorktreePath, updatedAt: new Date() })
+            .where(eq(chats.id, chat.id))
+            .run()
+
+          // Migrate SDK session files from old CWD directory to new CWD directory
+          // Session files live at: {userData}/claude-sessions/{subChatId}/projects/{sanitized_cwd}/
+          const oldSanitized = sanitize(chat.worktreePath)
+          const newSanitized = sanitize(newWorktreePath)
+
+          const chatSubChats = db
+            .select({ id: subChats.id })
+            .from(subChats)
+            .where(eq(subChats.chatId, chat.id))
+            .all()
+
+          for (const sc of chatSubChats) {
+            const oldDir = join(userDataPath, "claude-sessions", sc.id, "projects", oldSanitized)
+            const newDir = join(userDataPath, "claude-sessions", sc.id, "projects", newSanitized)
+            try {
+              if (existsSync(oldDir) && !existsSync(newDir)) {
+                await mkdir(dirname(newDir), { recursive: true })
+                await rename(oldDir, newDir)
+                console.log(`[migratePlayground] Session dir moved: ${oldSanitized} → ${newSanitized}`)
+              }
+            } catch (err) {
+              console.warn(`[migratePlayground] Failed to move session dir for ${sc.id}:`, err)
+              // Non-fatal: conversation will start fresh if session file is missing
+            }
+          }
+        }
+      }
+
       return updatedProject
     }),
 
@@ -866,8 +913,7 @@ export const projectsRouter = router({
         return { success: false as const, reason: "canceled" as const }
       }
 
-      const targetPath = join(result.filePaths[0], input.suggestedName)
-      return { success: true as const, targetPath }
+      return { success: true as const, parentDir: result.filePaths[0] }
     }),
 
   /**

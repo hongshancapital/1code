@@ -120,6 +120,7 @@
     "selectFolder": "选择位置...",
     "move": "确定",
     "moving": "处理中...",
+    "finalPath": "最终路径",
     "success": "已转换为正式项目",
     "error": "转换失败"
   },

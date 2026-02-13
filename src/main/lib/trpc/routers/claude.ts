@@ -2,7 +2,7 @@ import { observable } from "@trpc/server/observable";
 import { eq, like, desc } from "drizzle-orm";
 import { app, BrowserWindow, safeStorage } from "electron";
 import * as fs from "fs/promises";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import * as os from "os";
 import path from "path";
 import { z } from "zod";
@@ -1975,17 +1975,33 @@ export const claudeRouter = router({
             // Get bundled Claude binary path
             const claudeBinaryPath = getBundledClaudeBinaryPath();
 
-            const resumeSessionId =
+            let resumeSessionId =
               input.sessionId || existingSessionId || undefined;
 
             // DEBUG: Session resume path tracing
             const expectedSanitizedCwd = input.cwd.replace(/[/.]/g, "-");
-            const expectedSessionPath = path.join(
-              isolatedConfigDir,
-              "projects",
-              expectedSanitizedCwd,
-              `${resumeSessionId}.jsonl`,
-            );
+            const expectedSessionPath = resumeSessionId
+              ? path.join(
+                  isolatedConfigDir,
+                  "projects",
+                  expectedSanitizedCwd,
+                  `${resumeSessionId}.jsonl`,
+                )
+              : null;
+
+            // If session file doesn't exist (e.g. CWD changed after migrate),
+            // skip resume to avoid SDK crash with exit code 1
+            if (resumeSessionId && expectedSessionPath && !existsSync(expectedSessionPath)) {
+              console.log(
+                `[claude] Session file not found at ${expectedSessionPath}, skipping resume`,
+              );
+              resumeSessionId = undefined;
+              // Also clear stale sessionId from DB
+              db.update(subChats)
+                .set({ sessionId: null })
+                .where(eq(subChats.id, input.subChatId))
+                .run();
+            }
             console.log(`[claude] ========== SESSION DEBUG ==========`);
             console.log(`[claude] subChatId: ${input.subChatId}`);
             console.log(`[claude] cwd: ${input.cwd}`);

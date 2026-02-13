@@ -194,7 +194,7 @@ import {
   toQueuedTextContext,
   type AgentQueueItem,
 } from "../lib/queue-utils"
-import { buildImagePart, buildFilePart } from "../lib/message-utils"
+import { buildImagePart, buildFilePart, stripFileAttachmentText } from "../lib/message-utils"
 import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   FileOpenProvider,
@@ -3494,6 +3494,39 @@ const ChatViewInner = memo(function ChatViewInner({
     regenerate()
   }, [messages, isStreaming, regenerate])
 
+  // Edit message - remove the last user message and put its text back in the input
+  const handleEditMessage = useCallback(() => {
+    if (isStreaming) return
+
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
+    if (!lastUserMsg) return
+
+    // Don't edit if there's already an assistant response
+    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
+    const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
+    if (hasAssistantResponse) return
+
+    // Extract text content from the user message
+    const textParts = lastUserMsg.parts?.filter((p: any) => p.type === "text") || []
+    const rawText = textParts.map((p: any) => p.text).join("\n")
+    const { cleanedText } = stripFileAttachmentText(rawText)
+
+    // Truncate messages (remove the last user message and anything after)
+    const truncatedMessages = messages.slice(0, lastUserMsgIndex)
+    setMessages(truncatedMessages)
+
+    // Persist to database
+    trpcClient.chats.updateSubChatMessages.mutate({
+      id: subChatId,
+      messages: JSON.stringify(truncatedMessages),
+    })
+
+    // Put the text back in the input
+    editorRef.current?.setValue(cleanedText)
+    editorRef.current?.focus()
+  }, [messages, isStreaming, setMessages, subChatId])
+
   // NOTE: Auto-processing of queue is now handled globally by QueueProcessor
   // component in agents-layout.tsx. This ensures queues continue processing
   // even when user navigates to different sub-chats or workspaces.
@@ -3807,6 +3840,7 @@ const ChatViewInner = memo(function ChatViewInner({
               sandboxSetupError={sandboxSetupError}
               onRetrySetup={onRetrySetup}
               onRetryMessage={handleRetryMessage}
+              onEditMessage={handleEditMessage}
               UserBubbleComponent={AgentUserMessageBubble}
               ToolCallComponent={AgentToolCall}
               MessageGroupWrapper={MessageGroup}
@@ -5710,33 +5744,46 @@ Make sure to preserve all functionality from both branches when resolving confli
       // Return existing chat if we have it
       const existing = chatRegistry.get(subChatId)
       if (existing) {
-        // 检查：如果缓存的 Chat 初始化时消息为空，但现在有消息数据了
-        // 需要清除缓存并重新创建，以使用新的消息数据
-        // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
-        const hasNewMessages = subChatMessagesData?.messages && subChatId === activeSubChatId
-        if (hasNewMessages) {
-          try {
-            const parsed = JSON.parse(subChatMessagesData.messages)
-            // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
-            const existingMessages = existing.messages ?? []
-            console.log('[getOrCreateChat] Checking cache', {
-              subChatId: subChatId.slice(-8),
-              cachedMsgCount: existingMessages.length,
-              newMsgCount: parsed.length,
-            })
-            // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
-            if (parsed.length > existingMessages.length) {
-              console.log('[getOrCreateChat] Recreating chat with new messages')
-              chatRegistry.unregister(subChatId)
-              // 不 return，继续往下创建新 Chat
-            } else {
+        // 检查 CWD 是否变更（playground 转项目后路径变化）
+        const entry = chatRegistry.getEntry(subChatId)
+        if (worktreePath && entry?.cwd && entry.cwd !== worktreePath) {
+          console.log('[getOrCreateChat] CWD changed, hot-updating transport', {
+            subChatId: subChatId.slice(-8),
+            oldCwd: entry.cwd,
+            newCwd: worktreePath,
+          })
+          // 热更新：保留 Chat 实例和消息，只更新 transport CWD
+          chatRegistry.updateCwdByParentChatId(entry.parentChatId, worktreePath)
+          return existing
+        } else {
+          // 检查：如果缓存的 Chat 初始化时消息为空，但现在有消息数据了
+          // 需要清除缓存并重新创建，以使用新的消息数据
+          // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
+          const hasNewMessages = subChatMessagesData?.messages && subChatId === activeSubChatId
+          if (hasNewMessages) {
+            try {
+              const parsed = JSON.parse(subChatMessagesData.messages)
+              // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
+              const existingMessages = existing.messages ?? []
+              console.log('[getOrCreateChat] Checking cache', {
+                subChatId: subChatId.slice(-8),
+                cachedMsgCount: existingMessages.length,
+                newMsgCount: parsed.length,
+              })
+              // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
+              if (parsed.length > existingMessages.length) {
+                console.log('[getOrCreateChat] Recreating chat with new messages')
+                chatRegistry.unregister(subChatId)
+                // 不 return，继续往下创建新 Chat
+              } else {
+                return existing
+              }
+            } catch {
               return existing
             }
-          } catch {
+          } else {
             return existing
           }
-        } else {
-          return existing
         }
       }
 
@@ -5923,7 +5970,7 @@ Make sure to preserve all functionality from both branches when resolving confli
         },
       })
 
-      chatRegistry.register(subChatId, newChat, chatId)
+      chatRegistry.register(subChatId, newChat, chatId, worktreePath || undefined, transport instanceof IPCChatTransport ? transport : undefined)
       // Store streamId at creation time to prevent resume during active streaming
       // tRPC refetch would update stream_id in DB, but store stays stable
       chatRegistry.registerStreamId(subChatId, subChat?.stream_id || null)
@@ -6128,7 +6175,7 @@ Make sure to preserve all functionality from both branches when resolving confli
           // No need to refetch here as it would overwrite the optimistic update with stale data
         },
       })
-      chatRegistry.register(newId, newChat, chatId)
+      chatRegistry.register(newId, newChat, chatId, worktreePath || undefined, transport instanceof IPCChatTransport ? transport : undefined)
       chatRegistry.registerStreamId(newId, null) // New chat has no active stream
       forceUpdate({}) // Trigger re-render
     }
@@ -6426,10 +6473,13 @@ Make sure to preserve all functionality from both branches when resolving confli
         generateName: async (msg) => {
           const sp = appStore.get(summaryProviderIdAtom)
           const sm = appStore.get(summaryModelIdAtom)
-          return generateSubChatNameMutation.mutateAsync({
+          const payload = {
             userMessage: msg,
             ...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
-          })
+          }
+          console.log("[auto-rename] summaryProvider:", sp || "(not set)", "summaryModel:", sm || "(not set)")
+          console.log("[auto-rename] mutation payload keys:", Object.keys(payload), "has provider:", !!payload.summaryProviderId)
+          return generateSubChatNameMutation.mutateAsync(payload)
         },
         renameSubChat: async (input) => {
           // Pass skipManuallyRenamed to prevent setting the flag for auto-rename

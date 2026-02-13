@@ -1,4 +1,5 @@
 import type { Chat } from "@ai-sdk/react"
+import type { IPCChatTransport } from "../lib/ipc-chat-transport"
 import { useStreamingStatusStore } from "./streaming-status-store"
 
 /**
@@ -13,6 +14,8 @@ import { useStreamingStatusStore } from "./streaming-status-store"
 export interface ChatEntry {
   chat: Chat<any>
   parentChatId: string // 归属哪个 workspace
+  cwd?: string // transport CWD，用于检测路径变更后缓存过期
+  transport?: IPCChatTransport // 保持引用以便热更新 CWD
   createdAt: number
   lastActiveAt: number // 用于 LRU 淘汰
   isBackground?: boolean // 是否在后台运行（Keep-Alive）
@@ -51,7 +54,7 @@ class ChatRegistry {
 
   // ── 注册/注销 ──
 
-  register(subChatId: string, chat: Chat<any>, parentChatId: string): void {
+  register(subChatId: string, chat: Chat<any>, parentChatId: string, cwd?: string, transport?: IPCChatTransport): void {
     if (this.entries.has(subChatId)) {
       // 更新现有条目
       const entry = this.entries.get(subChatId)!
@@ -59,6 +62,8 @@ class ChatRegistry {
       entry.parentChatId = parentChatId
       entry.lastActiveAt = Date.now()
       entry.isBackground = false
+      if (cwd) entry.cwd = cwd
+      if (transport) entry.transport = transport
       return
     }
 
@@ -68,6 +73,8 @@ class ChatRegistry {
     this.entries.set(subChatId, {
       chat,
       parentChatId,
+      cwd,
+      transport,
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
       isBackground: false,
@@ -90,6 +97,18 @@ class ChatRegistry {
   }
 
   // ── 批量操作 ──
+
+  /** 热更新某个 workspace (chatId) 下所有 sub-chat 的 transport CWD。
+   *  保留 Chat 实例和消息，只更新后续发送用的 CWD（避免 evict 导致消息丢失）。*/
+  updateCwdByParentChatId(parentChatId: string, newCwd: string): void {
+    for (const [id, entry] of this.entries) {
+      if (entry.parentChatId === parentChatId) {
+        console.log(`[ChatRegistry] Hot-update CWD: ${id.slice(-8)} → ${newCwd}`)
+        entry.cwd = newCwd
+        entry.transport?.updateCwd(newCwd)
+      }
+    }
+  }
 
   clear(): void {
     // 强制清理（通常用于退出登录或彻底重置）

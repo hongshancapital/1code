@@ -120,6 +120,7 @@
     "selectFolder": "Choose location...",
     "move": "Confirm",
     "moving": "Processing...",
+    "finalPath": "Final path",
     "success": "Successfully converted to project",
     "error": "Failed to convert"
   },

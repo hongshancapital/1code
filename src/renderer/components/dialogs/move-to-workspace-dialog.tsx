@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { Folder, ArrowRight, Loader2 } from "lucide-react"
+import { Folder, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -33,16 +33,19 @@ export function MoveToWorkspaceDialog({
   onSuccess,
 }: MoveToWorkspaceDialogProps) {
   const { t } = useTranslation("common")
-  const [targetPath, setTargetPath] = useState<string | null>(null)
+  const [parentDir, setParentDir] = useState<string | null>(null)
   const [newName, setNewName] = useState(projectName || "")
   const [isPickingFolder, setIsPickingFolder] = useState(false)
+
+  // targetPath is computed from parentDir + newName, always in sync
+  const targetPath = parentDir && newName ? `${parentDir}/${newName}` : null
 
   const utils = trpc.useUtils()
 
   const pickDestination = trpc.projects.pickMigrateDestination.useMutation({
     onSuccess: (result) => {
-      if (result.success && result.targetPath) {
-        setTargetPath(result.targetPath)
+      if (result.success && result.parentDir) {
+        setParentDir(result.parentDir)
       }
     },
   })
@@ -53,6 +56,7 @@ export function MoveToWorkspaceDialog({
       // Invalidate queries to refresh the UI
       utils.projects.list.invalidate()
       utils.chats.list.invalidate()
+      utils.chats.get.invalidate()
       onOpenChange(false)
       onSuccess?.()
     },
@@ -80,14 +84,14 @@ export function MoveToWorkspaceDialog({
   }, [projectId, targetPath, newName, migratePlayground])
 
   const handleClose = useCallback(() => {
-    setTargetPath(null)
+    setParentDir(null)
     setNewName(projectName || "")
     onOpenChange(false)
   }, [projectName, onOpenChange])
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t("moveToWorkspace.title")}</DialogTitle>
           <DialogDescription>
@@ -95,7 +99,7 @@ export function MoveToWorkspaceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 min-w-0">
           {/* Project name input */}
           <div className="space-y-2">
             <Label htmlFor="project-name">{t("moveToWorkspace.projectName")}</Label>
@@ -113,17 +117,17 @@ export function MoveToWorkspaceDialog({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                className="flex-1 justify-start text-left font-normal"
+                className="flex-1 justify-start text-left font-normal min-w-0 overflow-hidden"
                 onClick={handlePickFolder}
                 disabled={isPickingFolder}
               >
                 {isPickingFolder ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 shrink-0 animate-spin" />
                 ) : (
-                  <Folder className="h-4 w-4 mr-2" />
+                  <Folder className="h-4 w-4 mr-2 shrink-0" />
                 )}
-                {targetPath ? (
-                  <span className="truncate">{targetPath}</span>
+                {parentDir ? (
+                  <span className="truncate">{parentDir}</span>
                 ) : (
                   <span className="text-muted-foreground">
                     {t("moveToWorkspace.selectFolder")}
@@ -133,15 +137,12 @@ export function MoveToWorkspaceDialog({
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Final path preview */}
           {targetPath && (
-            <div className="rounded-md bg-muted/50 p-3 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="truncate">{projectName}</span>
-                <ArrowRight className="h-4 w-4 shrink-0" />
-                <span className="truncate font-medium text-foreground">
-                  {targetPath}
-                </span>
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs">{t("moveToWorkspace.finalPath")}</Label>
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-sm font-mono truncate">
+                {targetPath}
               </div>
             </div>
           )}
