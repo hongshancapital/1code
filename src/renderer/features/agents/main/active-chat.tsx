@@ -102,6 +102,10 @@ import {
   MessageGroup,
 } from "./chat-utils"
 import {
+  SubChatTabsContainer,
+  type ChatViewInnerProps,
+} from "../components/sub-chat-tabs-renderer"
+import {
   detailsSidebarOpenAtom,
   unifiedSidebarEnabledAtom,
   expandedWidgetAtomFamily,
@@ -3167,8 +3171,13 @@ export function ChatView({
   )
   const [isExplorerPanelOpen, setIsExplorerPanelOpen] = useAtom(explorerPanelOpenAtom)
 
+  // Diff view mode atoms (independent of diff data) - defined before useSidebarMutualExclusion
+  const [diffMode, setDiffMode] = useAtom(diffViewModeAtom)
+  const [diffDisplayMode, setDiffDisplayMode] = useAtom(diffViewDisplayModeAtom)
+  const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom)
+
   // Mutual exclusion: Details sidebar vs Plan/Terminal/Diff(side-peek) sidebars
-  // Extracted to useSidebarMutualExclusion hook for maintainability
+  // Now includes Diff sidebar handling (previously separate useEffect below)
   useSidebarMutualExclusion(
     {
       isDetailsSidebarOpen,
@@ -3176,61 +3185,17 @@ export function ChatView({
       currentPlanPath,
       isTerminalSidebarOpen,
       terminalDisplayMode,
+      isDiffSidebarOpen,
+      diffDisplayMode,
     },
     {
       setIsDetailsSidebarOpen,
       setIsPlanSidebarOpen,
       setIsTerminalSidebarOpen,
+      setIsDiffSidebarOpen,
+      setDiffDisplayMode,
     }
   )
-
-  // Diff data cache - stored in atoms to persist across workspace switches
-  const diffCacheAtom = useMemo(
-    () => workspaceDiffCacheAtomFamily(chatId),
-    [chatId],
-  )
-  const [diffCache, setDiffCache] = useAtom(diffCacheAtom)
-
-  // Extract diff data from cache
-  const diffStats = diffCache.diffStats
-  const parsedFileDiffs = diffCache.parsedFileDiffs as ParsedDiffFile[] | null
-  const prefetchedFileContents = diffCache.prefetchedFileContents
-  const diffContent = diffCache.diffContent
-
-  // Smart setters that update the cache
-  type DiffStatsType = { isLoading: boolean; hasChanges: boolean; fileCount: number; additions: number; deletions: number }
-  const setDiffStats = useCallback((val: DiffStatsType | ((prev: DiffStatsType) => DiffStatsType)) => {
-    setDiffCache((prev) => {
-      const newVal = typeof val === 'function' ? val(prev.diffStats) : val
-      // Only update if something changed
-      if (
-        prev.diffStats.fileCount === newVal.fileCount &&
-        prev.diffStats.additions === newVal.additions &&
-        prev.diffStats.deletions === newVal.deletions &&
-        prev.diffStats.isLoading === newVal.isLoading &&
-        prev.diffStats.hasChanges === newVal.hasChanges
-      ) {
-        return prev // Return same reference to prevent re-render
-      }
-      return { ...prev, diffStats: newVal }
-    })
-  }, [setDiffCache])
-
-  const setParsedFileDiffs = useCallback((files: ParsedDiffFile[] | null) => {
-    setDiffCache((prev) => ({ ...prev, parsedFileDiffs: files as CachedParsedDiffFile[] | null }))
-  }, [setDiffCache])
-
-  const setPrefetchedFileContents = useCallback((contents: Record<string, string>) => {
-    setDiffCache((prev) => ({ ...prev, prefetchedFileContents: contents }))
-  }, [setDiffCache])
-
-  const setDiffContent = useCallback((content: string | null) => {
-    setDiffCache((prev) => ({ ...prev, diffContent: content }))
-  }, [setDiffCache])
-  const [diffMode, setDiffMode] = useAtom(diffViewModeAtom)
-  const [diffDisplayMode, setDiffDisplayMode] = useAtom(diffViewDisplayModeAtom)
-  const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom)
-
 
   // Force narrow width when switching to side-peek mode (from dialog/fullscreen)
   useEffect(() => {
@@ -3239,62 +3204,6 @@ export function ChatView({
       appStore.set(agentsDiffSidebarWidthAtom, 400)
     }
   }, [diffDisplayMode])
-
-  // Handle Diff + Details sidebar conflict (side-peek mode only)
-  // - If Diff opens in side-peek while Details is open: switch Diff to center-peek (dialog) mode
-  // - If user manually switches Diff to side-peek while Details is open: close Details and remember
-  // - If Details opens while Diff is in side-peek mode: close Diff and remember
-  const prevDiffStateRef = useRef<{ isOpen: boolean; mode: string; detailsOpen: boolean }>({
-    isOpen: isDiffSidebarOpen,
-    mode: diffDisplayMode,
-    detailsOpen: isDetailsSidebarOpen,
-  })
-  // Flag to skip center-peek switch when restoring Diff after Details closes
-  const isRestoringDiffRef = useRef(false)
-  useEffect(() => {
-    const prev = prevDiffStateRef.current
-    const auto = autoClosedStateRef.current
-    const isNowSidePeek = isDiffSidebarOpen && diffDisplayMode === "side-peek"
-    const wasSidePeek = prev.isOpen && prev.mode === "side-peek"
-    const detailsJustOpened = isDetailsSidebarOpen && !prev.detailsOpen
-    const detailsJustClosed = !isDetailsSidebarOpen && prev.detailsOpen
-    const diffSidePeekJustClosed = wasSidePeek && !isNowSidePeek
-
-    if (isNowSidePeek && isDetailsSidebarOpen) {
-      // Details just opened while Diff is in side-peek → close Diff and remember
-      if (detailsJustOpened) {
-        auto.diffClosedByDetails = true
-        setIsDiffSidebarOpen(false)
-      }
-      // Diff just opened in side-peek mode → switch to dialog (don't close Details)
-      // Skip if we're restoring Diff after Details closed
-      else if (!prev.isOpen && !isRestoringDiffRef.current) {
-        setDiffDisplayMode("center-peek")
-      }
-      // User manually switched to side-peek while Diff was already open → close Details and remember
-      else if (prev.isOpen && prev.mode !== "side-peek") {
-        auto.detailsClosedBy = "diff"
-        setIsDetailsSidebarOpen(false)
-      }
-    }
-    // Diff side-peek closed → restore Details if we closed it
-    else if (diffSidePeekJustClosed && auto.detailsClosedBy === "diff") {
-      auto.detailsClosedBy = null
-      setIsDetailsSidebarOpen(true)
-    }
-    // Details closed → restore Diff if we closed it (in side-peek mode, not switching to dialog)
-    else if (detailsJustClosed && auto.diffClosedByDetails) {
-      auto.diffClosedByDetails = false
-      isRestoringDiffRef.current = true
-      setIsDiffSidebarOpen(true)
-      // Reset flag after state update
-      requestAnimationFrame(() => {
-        isRestoringDiffRef.current = false
-      })
-    }
-
-    prevDiffStateRef.current = { isOpen: isDiffSidebarOpen, mode: diffDisplayMode, detailsOpen: isDetailsSidebarOpen }
-  }, [isDiffSidebarOpen, diffDisplayMode, isDetailsSidebarOpen, setDiffDisplayMode, setIsDetailsSidebarOpen, setIsDiffSidebarOpen])
 
   // Hide/show traffic lights based on full-page diff or full-page file viewer
   const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
@@ -3729,6 +3638,28 @@ export function ChatView({
   // Desktop uses worktreePath, web uses sandboxUrl
   const chatWorkingDir = worktreePath || sandboxUrl
 
+  // Diff data management - extracted to useDiffData hook
+  const {
+    diffStats,
+    parsedFileDiffs,
+    prefetchedFileContents,
+    diffContent,
+    setDiffStats,
+    setParsedFileDiffs,
+    setPrefetchedFileContents,
+    setDiffContent,
+    fetchDiffStats,
+    fetchDiffStatsRef,
+  } = useDiffData({
+    chatId,
+    worktreePath,
+    sandboxId,
+    isDesktopPlatform,
+    isDiffSidebarOpen,
+    setHasPendingDiffChanges,
+    agentChat,
+  })
+
   // Listen for file changes from Claude Write/Edit tools and invalidate git status
   useFileChangeListener(worktreePath)
 
@@ -3836,236 +3767,6 @@ export function ChatView({
   // Note: We no longer forcibly close diff sidebar when canOpenDiff is false.
   // The sidebar render is guarded by canOpenDiff, so it naturally hides.
   // Per-chat state (diffSidebarOpenAtomFamily) preserves each chat's preference.
-
-  // Fetch diff stats - extracted as callback for reuse in onFinish
-  const fetchDiffStatsDebounceRef = useRef<NodeJS.Timeout | null>(null)
-  const isFetchingDiffRef = useRef(false)
-
-  const fetchDiffStats = useCallback(async () => {
-    console.log("[fetchDiffStats] Called with:", { worktreePath, sandboxId, chatId, isDesktop: isDesktopPlatform })
-
-    // Desktop uses worktreePath, web uses sandboxId
-    // Don't reset stats if worktreePath is temporarily undefined - just skip the fetch
-    // This prevents the button from becoming disabled when component re-renders
-    if (!worktreePath && !sandboxId) {
-      console.log("[fetchDiffStats] Skipping - no worktreePath or sandboxId")
-      return
-    }
-
-    // Prevent duplicate parallel fetches
-    if (isFetchingDiffRef.current) {
-      console.log("[fetchDiffStats] Skipping - already fetching")
-      return
-    }
-    isFetchingDiffRef.current = true
-    console.log("[fetchDiffStats] Starting fetch...")
-
-    try {
-      // Desktop: use new getParsedDiff endpoint (all-in-one: parsing + file contents)
-      if (worktreePath && chatId) {
-        const result = await trpcClient.chats.getParsedDiff.query({ chatId })
-
-        if (result.files && result.files.length > 0) {
-          // Store parsed files directly (already parsed on server)
-          setParsedFileDiffs(result.files)
-
-          // Store prefetched file contents
-          setPrefetchedFileContents(result.fileContents)
-
-          // Set diff content to null since we have parsed files
-          // (AgentDiffView will use parsedFileDiffs when available)
-          setDiffContent(null)
-
-          setDiffStats({
-            fileCount: result.files.length,
-            additions: result.totalAdditions,
-            deletions: result.totalDeletions,
-            isLoading: false,
-            hasChanges: result.files.length > 0,
-          })
-        } else {
-          setDiffStats({
-            fileCount: 0,
-            additions: 0,
-            deletions: 0,
-            isLoading: false,
-            hasChanges: false,
-          })
-          // Use empty array instead of null to signal "no changes" vs "still loading"
-          setParsedFileDiffs([])
-          setPrefetchedFileContents({})
-          setDiffContent(null)
-        }
-        return
-      }
-
-      // Desktop without chat (viewing main repo directly)
-      if (worktreePath && !chatId) {
-        // TODO: Need to add endpoint that accepts worktreePath directly
-        return
-      }
-
-      // Remote sandbox: use stats from chat data (desktop) or fetch diff (web)
-      if (sandboxId) {
-        console.log("[fetchDiffStats] Sandbox mode - sandboxId:", sandboxId)
-
-        // Desktop app: use stats already provided in chat data
-        // The diff sidebar won't work for remote chats (no worktree), but stats will show
-        if (isDesktopPlatform) {
-          // Use type-safe helper to get normalized remote stats
-          const normalizedStats = getRemoteStats(agentChat)
-          console.log("[fetchDiffStats] Desktop remote chat - using remoteStats:", normalizedStats)
-
-          if (normalizedStats) {
-            setDiffStats({
-              fileCount: normalizedStats.fileCount,
-              additions: normalizedStats.additions,
-              deletions: normalizedStats.deletions,
-              isLoading: false,
-              hasChanges: normalizedStats.fileCount > 0,
-            })
-          } else {
-            setDiffStats({
-              fileCount: 0,
-              additions: 0,
-              deletions: 0,
-              isLoading: false,
-              hasChanges: false,
-            })
-          }
-          // No parsed files for remote chats - diff view not available
-          setParsedFileDiffs([])
-          setPrefetchedFileContents({})
-          setDiffContent(null)
-          return
-        }
-
-        // Web: use relative fetch to get actual diff
-        let rawDiff: string | null = null
-        const response = await fetch(`/api/agents/sandbox/${sandboxId}/diff`)
-        if (!response.ok) {
-          setDiffStats((prev) => ({ ...prev, isLoading: false }))
-          return
-        }
-        const data = await response.json()
-        rawDiff = data.diff || null
-
-        // Store raw diff for AgentDiffView
-        console.log("[fetchDiffStats] Setting diff content, length:", rawDiff?.length ?? 0)
-        setDiffContent(rawDiff)
-
-        if (rawDiff && rawDiff.trim()) {
-          // Parse diff to get file list and stats (client-side for web)
-          console.log("[fetchDiffStats] Parsing diff...")
-          const parsedFiles = splitUnifiedDiffByFile(rawDiff)
-          console.log("[fetchDiffStats] Parsed files:", parsedFiles.length, "files")
-          setParsedFileDiffs(parsedFiles)
-
-          let additions = 0
-          let deletions = 0
-          for (const file of parsedFiles) {
-            additions += file.additions
-            deletions += file.deletions
-          }
-
-          console.log("[fetchDiffStats] Setting stats:", { fileCount: parsedFiles.length, additions, deletions })
-          setDiffStats({
-            fileCount: parsedFiles.length,
-            additions,
-            deletions,
-            isLoading: false,
-            hasChanges: parsedFiles.length > 0,
-          })
-        } else {
-          console.log("[fetchDiffStats] No diff content, setting empty stats")
-          setDiffStats({
-            fileCount: 0,
-            additions: 0,
-            deletions: 0,
-            isLoading: false,
-            hasChanges: false,
-          })
-          // Use empty array instead of null to signal "no changes" vs "still loading"
-          setParsedFileDiffs([])
-          setPrefetchedFileContents({})
-        }
-      }
-    } catch (error) {
-      console.error("[fetchDiffStats] Error:", error)
-      setDiffStats((prev) => ({ ...prev, isLoading: false }))
-    } finally {
-      console.log("[fetchDiffStats] Done")
-      isFetchingDiffRef.current = false
-    }
-  }, [worktreePath, sandboxId, chatId, agentChat]) // Note: activeSubChatId removed - diff is same for whole chat
-
-  // Debounced version for calling after stream ends
-  const fetchDiffStatsDebounced = useCallback(() => {
-    if (fetchDiffStatsDebounceRef.current) {
-      clearTimeout(fetchDiffStatsDebounceRef.current)
-    }
-    fetchDiffStatsDebounceRef.current = setTimeout(() => {
-      fetchDiffStats()
-    }, 500) // 500ms debounce to avoid spamming if multiple streams end
-  }, [fetchDiffStats])
-
-  // Ref to hold the latest fetchDiffStatsDebounced for use in onFinish callbacks
-  const fetchDiffStatsRef = useRef(fetchDiffStatsDebounced)
-  useEffect(() => {
-    fetchDiffStatsRef.current = fetchDiffStatsDebounced
-  }, [fetchDiffStatsDebounced])
-
-  // Fetch diff stats on mount and when worktreePath/sandboxId changes
-  useEffect(() => {
-    fetchDiffStats()
-  }, [fetchDiffStats])
-
-  // Refresh diff stats when diff sidebar opens or closes
-  // When closing: refresh to update the Changes widget with latest data
-  useEffect(() => {
-    if (isDiffSidebarOpen) {
-      // Fetch in background - existing parsedFileDiffs will be shown immediately
-      fetchDiffStats()
-    } else {
-      // Clear pending changes flag and refresh data when sidebar closes
-      // This ensures the Changes widget shows latest data
-      setHasPendingDiffChanges(false)
-      fetchDiffStats()
-    }
-  }, [isDiffSidebarOpen, fetchDiffStats, setHasPendingDiffChanges])
-
-  // Calculate total file count across all sub-chats for change detection
-  const totalSubChatFileCount = useMemo(() => {
-    let count = 0
-    subChatFiles.forEach((files) => {
-      count += files.length
-    })
-    return count
-  }, [subChatFiles])
-
-  // Throttled refetch when sub-chat files change (agent edits/writes files)
-  // This keeps the top-right diff sidebar in sync with the bottom "Generated X files" bar
-  useEffect(() => {
-    // Skip if no files tracked yet (initial state)
-    if (totalSubChatFileCount === 0) return
-
-    const now = Date.now()
-    const timeSinceLastFetch = now - lastDiffFetchTimeRef.current
-
-    if (timeSinceLastFetch >= DIFF_THROTTLE_MS) {
-      // Enough time passed, fetch immediately
-      lastDiffFetchTimeRef.current = now
-      fetchDiffStats()
-    } else {
-      // Schedule fetch for when throttle window ends
-      const delay = DIFF_THROTTLE_MS - timeSinceLastFetch
-      const timer = setTimeout(() => {
-        lastDiffFetchTimeRef.current = Date.now()
-        fetchDiffStats()
-      }, delay)
-      return () => clearTimeout(timer)
-    }
-  }, [totalSubChatFileCount, fetchDiffStats])
 
   // Handle Create PR (Direct) - pushes branch and opens GitHub compare URL
   const handleCreatePrDirect = useCallback(async () => {
@@ -5416,87 +5117,33 @@ Make sure to preserve all functionality from both branches when resolving confli
           )}
 
           {/* Chat Content - Keep-alive: render all open tabs, hide inactive with CSS */}
-          {tabsToRender.length > 0 && agentChat ? (
-            <div className="relative flex-1 min-h-0 flex">
-              {/* Collapsed indicator column - occupies its own space in left */}
-              {collapsedIndicator && (
-                <div className="shrink-0 pl-2">
-                  {collapsedIndicator}
-                </div>
-              )}
-              {/* Chat tabs container */}
-              <div className="relative flex-1 min-h-0">
-                {/* Loading gate: prevent getOrCreateChat() from caching empty messages before data is ready */}
-                {/* 修复：区分"正在加载"和"加载完成但无数据"
-                    - isLoadingMessages: 查询正在执行
-                    - subChatMessagesData: 查询结果（可能为 null 如果 subchat 不存在）
-                    当查询完成后（无论结果如何），都应该允许渲染，不能卡在 loading */}
-                {(isLocalChatLoading || (chatSourceMode === "local" && isLoadingMessages && subChatMessagesData === undefined)) ? (
-                  <div className="flex items-center justify-center h-full">
-                    <IconSpinner className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  tabsToRender.map(subChatId => {
-                    const chat = getOrCreateChat(subChatId)
-                    const isActive = subChatId === activeSubChatId
-                    const isFirstSubChat = getFirstSubChatId(agentSubChats) === subChatId
-
-                    // Defense in depth: double-check workspace ownership
-                    // Use agentSubChats (server data) as primary source, fall back to allSubChats for optimistic updates
-                    // This fixes the race condition where allSubChats is empty after setChatId but before setAllSubChats
-                    // When both sources are empty (data still loading), skip this check - tabsToRender already
-                    // handles this case by trusting localStorage when no data has loaded yet.
-                    const hasWorkspaceData = agentSubChats.length > 0 || allSubChats.length > 0
-                    const belongsToWorkspace = !hasWorkspaceData ||
-                      agentSubChats.some(sc => sc.id === subChatId) ||
-                      allSubChats.some(sc => sc.id === subChatId)
-
-                    if (!chat || !belongsToWorkspace) return null
-
-                    return (
-                      <div
-                        key={subChatId}
-                        className="absolute inset-0 flex flex-col"
-                        style={{
-                          // GPU-accelerated visibility switching (нативное ощущение)
-                          // transform + opacity быстрее чем visibility для GPU
-                          transform: isActive ? "translateZ(0)" : "translateZ(0) scale(0.98)",
-                          opacity: isActive ? 1 : 0,
-                          // Prevent pointer events on hidden tabs
-                          pointerEvents: isActive ? "auto" : "none",
-                          // GPU layer hints
-                          willChange: "transform, opacity",
-                          // Изолируем layout - изменения внутри не влияют на другие табы
-                          contain: "layout style paint",
-                        }}
-                        aria-hidden={!isActive}
-                      >
-                        <ChatViewInner
-                          chat={chat}
-                          subChatId={subChatId}
-                          parentChatId={chatId}
-                          isFirstSubChat={isFirstSubChat}
-                          onAutoRename={handleAutoRename}
-                          onCreateNewSubChat={handleCreateNewSubChat}
-                          teamId={selectedTeamId || undefined}
-                          repository={repositoryString}
-                          streamId={null}
-                          isMobile={isMobileFullscreen}
-                          isSubChatsSidebarOpen={subChatsSidebarMode === "sidebar"}
-                          sandboxId={sandboxId || undefined}
-                          projectPath={worktreePath || undefined}
-                          isArchived={isArchived}
-                          onRestoreWorkspace={handleRestoreWorkspace}
-                          existingPrUrl={agentChat?.prUrl}
-                          isActive={isActive}
-                        />
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-          ) : (
+          <SubChatTabsContainer
+            show={tabsToRender.length > 0 && !!agentChat}
+            tabsToRender={tabsToRender}
+            activeSubChatId={activeSubChatId}
+            agentSubChats={agentSubChats}
+            allSubChats={allSubChats}
+            isLocalChatLoading={isLocalChatLoading}
+            isLoadingMessages={isLoadingMessages}
+            chatSourceMode={chatSourceMode}
+            subChatMessagesData={subChatMessagesData}
+            getOrCreateChat={getOrCreateChat}
+            chatId={chatId}
+            handleAutoRename={handleAutoRename}
+            handleCreateNewSubChat={handleCreateNewSubChat}
+            selectedTeamId={selectedTeamId}
+            repositoryString={repositoryString}
+            isMobileFullscreen={isMobileFullscreen}
+            subChatsSidebarMode={subChatsSidebarMode}
+            sandboxId={sandboxId}
+            worktreePath={worktreePath}
+            isArchived={isArchived}
+            handleRestoreWorkspace={handleRestoreWorkspace}
+            existingPrUrl={agentChat?.prUrl}
+            ChatViewInnerComponent={ChatViewInner}
+            collapsedIndicator={collapsedIndicator}
+          />
+          {!(tabsToRender.length > 0 && agentChat) && (
             <>
               {/* Empty chat area - no loading indicator */}
               <div className="flex-1" />

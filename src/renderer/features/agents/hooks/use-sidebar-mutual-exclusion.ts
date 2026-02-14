@@ -3,8 +3,9 @@
  *
  * Extracted from active-chat.tsx to improve maintainability.
  * Handles the logic where certain sidebars conflict with each other:
- * - Details sidebar conflicts with Plan and Terminal (side-peek mode)
+ * - Details sidebar conflicts with Plan, Terminal (side-peek mode), and Diff (side-peek mode)
  * - When one opens, it closes conflicting sidebars and remembers for restoration
+ * - Diff sidebar has special behavior: when opened while Details is open, it switches to center-peek mode
  */
 
 import { useEffect, useRef } from "react"
@@ -15,12 +16,18 @@ export interface SidebarMutualExclusionState {
   currentPlanPath: string | null
   isTerminalSidebarOpen: boolean
   terminalDisplayMode: "side-peek" | "bottom"
+  // Diff sidebar state (optional - only needed if handling Diff)
+  isDiffSidebarOpen?: boolean
+  diffDisplayMode?: "side-peek" | "center-peek" | "full-page"
 }
 
 export interface SidebarMutualExclusionSetters {
   setIsDetailsSidebarOpen: (value: boolean) => void
   setIsPlanSidebarOpen: (value: boolean) => void
   setIsTerminalSidebarOpen: (value: boolean) => void
+  // Diff sidebar setters (optional)
+  setIsDiffSidebarOpen?: (value: boolean) => void
+  setDiffDisplayMode?: (value: "side-peek" | "center-peek" | "full-page") => void
 }
 
 interface AutoClosedState {
@@ -37,20 +44,25 @@ interface PrevSidebarStates {
   planSidebarOpen: boolean
   planHasPath: boolean
   terminal: boolean
+  diff: boolean
+  diffMode: string
 }
 
 /**
  * Hook to manage mutual exclusion between sidebars
  *
  * Behavior:
- * - When Details opens: closes Plan and Terminal (side-peek), remembers for restoration
- * - When Details closes: restores Plan/Terminal if they were auto-closed
+ * - When Details opens: closes Plan, Terminal (side-peek), and Diff (side-peek), remembers for restoration
+ * - When Details closes: restores Plan/Terminal/Diff if they were auto-closed
  * - When Plan opens: closes Details, remembers for restoration
  * - When Plan closes: restores Details if it was auto-closed
  * - When Terminal opens (side-peek): closes Details, remembers for restoration
  * - When Terminal closes: restores Details if it was auto-closed
+ * - When Diff opens in side-peek while Details is open: switches to center-peek mode
+ * - When user switches Diff to side-peek while Details is open: closes Details
+ * - When Diff side-peek closes: restores Details if we closed it
  *
- * Note: Terminal in "bottom" mode does NOT conflict with Details
+ * Note: Terminal/Diff in "bottom"/"center-peek"/"full-page" mode do NOT conflict with Details
  */
 export function useSidebarMutualExclusion(
   state: SidebarMutualExclusionState,
@@ -62,12 +74,16 @@ export function useSidebarMutualExclusion(
     currentPlanPath,
     isTerminalSidebarOpen,
     terminalDisplayMode,
+    isDiffSidebarOpen = false,
+    diffDisplayMode = "center-peek",
   } = state
 
   const {
     setIsDetailsSidebarOpen,
     setIsPlanSidebarOpen,
     setIsTerminalSidebarOpen,
+    setIsDiffSidebarOpen,
+    setDiffDisplayMode,
   } = setters
 
   // Track what was auto-closed and by whom for restoration
@@ -78,6 +94,9 @@ export function useSidebarMutualExclusion(
     diffClosedByDetails: false,
   })
 
+  // Flag to skip center-peek switch when restoring Diff after Details closes
+  const isRestoringDiffRef = useRef(false)
+
   // Track previous states to detect opens/closes
   // Note: For plan sidebar, we track isPlanSidebarOpen separately from currentPlanPath
   // to avoid race conditions when opening the sidebar before the plan path is set
@@ -86,6 +105,8 @@ export function useSidebarMutualExclusion(
     planSidebarOpen: isPlanSidebarOpen,
     planHasPath: !!currentPlanPath,
     terminal: isTerminalSidebarOpen,
+    diff: isDiffSidebarOpen,
+    diffMode: diffDisplayMode,
   })
 
   useEffect(() => {
@@ -105,6 +126,11 @@ export function useSidebarMutualExclusion(
     const terminalJustOpened = isTerminalSidebarOpen && !prev.terminal
     const terminalJustClosed = !isTerminalSidebarOpen && prev.terminal
 
+    // Diff state changes (only if Diff setters are provided)
+    const isNowDiffSidePeek = isDiffSidebarOpen && diffDisplayMode === "side-peek"
+    const wasDiffSidePeek = prev.diff && prev.diffMode === "side-peek"
+    const diffSidePeekJustClosed = wasDiffSidePeek && !isNowDiffSidePeek
+
     // Terminal in "bottom" mode doesn't conflict with Details sidebar
     const terminalConflictsWithDetails = terminalDisplayMode === "side-peek"
 
@@ -118,6 +144,11 @@ export function useSidebarMutualExclusion(
         auto.terminalClosedByDetails = true
         setIsTerminalSidebarOpen(false)
       }
+      // Close Diff side-peek if open
+      if (isNowDiffSidePeek && setIsDiffSidebarOpen) {
+        auto.diffClosedByDetails = true
+        setIsDiffSidebarOpen(false)
+      }
     }
     // Details closed → restore what it closed
     else if (detailsJustClosed) {
@@ -128,6 +159,16 @@ export function useSidebarMutualExclusion(
       if (auto.terminalClosedByDetails) {
         auto.terminalClosedByDetails = false
         setIsTerminalSidebarOpen(true)
+      }
+      // Restore Diff if we closed it
+      if (auto.diffClosedByDetails && setIsDiffSidebarOpen) {
+        auto.diffClosedByDetails = false
+        isRestoringDiffRef.current = true
+        setIsDiffSidebarOpen(true)
+        // Reset flag after state update
+        requestAnimationFrame(() => {
+          isRestoringDiffRef.current = false
+        })
       }
     }
     // Plan opened → close Details and remember
@@ -160,12 +201,36 @@ export function useSidebarMutualExclusion(
       auto.detailsClosedBy = null
       setIsDetailsSidebarOpen(true)
     }
+    // Diff sidebar handling (only if setters are provided)
+    else if (setIsDiffSidebarOpen && setDiffDisplayMode) {
+      // Diff is now in side-peek mode and Details is open
+      if (isNowDiffSidePeek && isDetailsSidebarOpen) {
+        // Details just opened while Diff is in side-peek → this case is handled above
+        // Diff just opened in side-peek mode → switch to dialog (don't close Details)
+        // Skip if we're restoring Diff after Details closed
+        if (!prev.diff && !isRestoringDiffRef.current) {
+          setDiffDisplayMode("center-peek")
+        }
+        // User manually switched to side-peek while Diff was already open → close Details and remember
+        else if (prev.diff && prev.diffMode !== "side-peek") {
+          auto.detailsClosedBy = "diff"
+          setIsDetailsSidebarOpen(false)
+        }
+      }
+      // Diff side-peek closed → restore Details if we closed it
+      else if (diffSidePeekJustClosed && auto.detailsClosedBy === "diff") {
+        auto.detailsClosedBy = null
+        setIsDetailsSidebarOpen(true)
+      }
+    }
 
     prevSidebarStatesRef.current = {
       details: isDetailsSidebarOpen,
       planSidebarOpen: isPlanSidebarOpen,
       planHasPath: !!currentPlanPath,
       terminal: isTerminalSidebarOpen,
+      diff: isDiffSidebarOpen,
+      diffMode: diffDisplayMode,
     }
   }, [
     isDetailsSidebarOpen,
@@ -173,8 +238,12 @@ export function useSidebarMutualExclusion(
     currentPlanPath,
     isTerminalSidebarOpen,
     terminalDisplayMode,
+    isDiffSidebarOpen,
+    diffDisplayMode,
     setIsDetailsSidebarOpen,
     setIsPlanSidebarOpen,
     setIsTerminalSidebarOpen,
+    setIsDiffSidebarOpen,
+    setDiffDisplayMode,
   ])
 }

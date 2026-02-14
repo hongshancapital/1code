@@ -15,7 +15,7 @@ import { trpcClient } from "../../../lib/trpc"
 import {
   workspaceDiffCacheAtomFamily,
   type CachedParsedDiffFile,
-} from "../../../lib/atoms"
+} from "../atoms"
 import {
   splitUnifiedDiffByFile,
   type ParsedDiffFile,
