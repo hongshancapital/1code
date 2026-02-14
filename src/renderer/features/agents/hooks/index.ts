@@ -26,3 +26,15 @@ export {
   useChatKeyboardShortcuts,
   type ChatKeyboardShortcutsOptions,
 } from "./use-chat-keyboard-shortcuts"
+
+export {
+  useSidebarManager,
+  type SidebarManagerOptions,
+  type SidebarManagerResult,
+  type SidebarState,
+  type DiffSidebarState,
+  type PlanSidebarState,
+  type TerminalSidebarState,
+  type BrowserSidebarState,
+  type FileViewerState,
+} from "./use-sidebar-manager"
