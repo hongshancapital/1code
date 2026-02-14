@@ -3,13 +3,14 @@
 import { useCallback, useMemo, useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
-import { useAtom } from "jotai"
+import { useAtom, useAtomValue } from "jotai"
 import { RotateCcw, Settings2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { CmdIcon, OptionIcon, ShiftIcon, ControlIcon } from "../../ui/icons"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { settingsKeyboardSidebarWidthAtom } from "../../../features/agents/atoms"
 import {
+  betaVoiceInputEnabledAtom,
   customHotkeysAtom,
   ctrlTabTargetAtom,
 } from "../../../lib/atoms"
@@ -342,10 +343,24 @@ function EmptyDetailPanel({ t }: { t: (key: string) => string }) {
 /**
  * Main keyboard settings tab component
  */
+// Filter shortcuts by feature flag availability + beta enablement
+function useFeatureFlagFilter() {
+  const betaVoiceInput = useAtomValue(betaVoiceInputEnabledAtom)
+  const betaFlags: Record<string, boolean> = useMemo(() => ({
+    voiceInput: betaVoiceInput,
+  }), [betaVoiceInput])
+
+  return useCallback((action: ShortcutAction): boolean => {
+    if (!action.featureFlag) return true
+    return betaFlags[action.featureFlag] ?? false
+  }, [betaFlags])
+}
+
 export function AgentsKeyboardTab() {
   const { t } = useTranslation("settings")
   const [customHotkeys, setCustomHotkeys] = useAtom(customHotkeysAtom)
   const [ctrlTabTarget] = useAtom(ctrlTabTargetAtom)
+  const isFeatureEnabled = useFeatureFlagFilter()
   // Default to first shortcut
   const [selectedActionId, setSelectedActionId] = useState<ShortcutActionId>("show-shortcuts")
   const [isRecording, setIsRecording] = useState(false)
@@ -367,10 +382,15 @@ export function AgentsKeyboardTab() {
     return () => document.removeEventListener("keydown", handler)
   }, [])
 
-  // Get shortcuts by category
+  // Get shortcuts by category, filtering out feature-flagged ones when not enabled
   const shortcutsByCategory = useMemo(() => {
-    return getShortcutsByCategory()
-  }, [])
+    const all = getShortcutsByCategory()
+    return {
+      general: all.general.filter(isFeatureEnabled),
+      workspaces: all.workspaces.filter(isFeatureEnabled),
+      agents: all.agents.filter(isFeatureEnabled),
+    }
+  }, [isFeatureEnabled])
 
   // Detect conflicts
   const conflicts = useMemo(

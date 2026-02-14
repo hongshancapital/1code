@@ -863,7 +863,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   // Keyboard shortcut: Voice input hotkey (push-to-talk: hold to record, release to transcribe)
   useEffect(() => {
-    if (!voiceInputHotkey) return
+    if (!voiceInputHotkey || !isVoiceAvailable) return
 
     // Parse hotkey once
     const parts = voiceInputHotkey.split("+").map(p => p.toLowerCase())
@@ -958,7 +958,7 @@ export const ChatInputArea = memo(function ChatInputArea({
       window.removeEventListener("keydown", handleKeyDown, true)
       window.removeEventListener("keyup", handleKeyUp, true)
     }
-  }, [voiceInputHotkey, isVoiceRecording, isTranscribing, isStreaming, isCurrentSubChatActive, handleVoiceMouseDown, handleVoiceMouseUp])
+  }, [voiceInputHotkey, isVoiceAvailable, isVoiceRecording, isTranscribing, isStreaming, isCurrentSubChatActive, handleVoiceMouseDown, handleVoiceMouseUp])
 
   // Handle pending file reference from file tree panel (@ button click)
   useEffect(() => {

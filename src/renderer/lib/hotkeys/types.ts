@@ -53,6 +53,8 @@ export interface ShortcutAction {
   isDynamic?: boolean
   /** Description for dynamic shortcuts explaining what controls them */
   dynamicDescription?: string
+  /** Feature flag key — shortcut only visible when the feature is available and beta-enabled */
+  featureFlag?: string
 }
 
 /**

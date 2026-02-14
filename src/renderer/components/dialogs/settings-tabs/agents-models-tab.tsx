@@ -1875,32 +1875,10 @@ export function AgentsModelsTab() {
 function VoiceInputSettings() {
   const { t } = useTranslation("settings")
 
-  // Check if voice beta feature is enabled
+  // Check if voice beta feature is enabled — hide entirely when off
   const betaVoiceInputEnabled = useAtomValue(betaVoiceInputEnabledAtom)
+  if (!betaVoiceInputEnabled) return null
 
-  // If beta feature is not enabled, show enable prompt
-  if (!betaVoiceInputEnabled) {
-    return (
-      <div className="space-y-2">
-        <div className="pb-2">
-          <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
-            <Mic className="h-4 w-4 text-muted-foreground" />
-            {t("models.voice.title")}
-          </h4>
-        </div>
-        <div className="bg-muted/30 rounded-lg border border-border p-4 text-center">
-          <p className="text-sm text-muted-foreground mb-2">
-            {t("models.voice.betaDisabled", "Voice Input is a beta feature.")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t("models.voice.enableInBeta", "Enable it in Settings → Beta → Voice Input to use this feature.")}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Beta is enabled (or in dev mode), show actual settings
   return <VoiceInputSettingsContent />
 }
 

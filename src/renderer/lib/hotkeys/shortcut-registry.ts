@@ -177,6 +177,7 @@ export const ALL_SHORTCUT_ACTIONS: ShortcutAction[] = [
     label: "Voice input (hold)",
     category: "agents",
     defaultKeys: ["ctrl", "opt"],
+    featureFlag: "voiceInput",
   },
 
   // ============================================

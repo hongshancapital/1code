@@ -607,6 +607,7 @@ export function NewChatForm({
 
   // Voice hotkey listener (push-to-talk: hold to record, release to transcribe)
   useEffect(() => {
+    if (!isVoiceAvailable) return
     const voiceHotkey = getResolvedHotkey("voice-input", customHotkeys)
     if (!voiceHotkey) return
 
@@ -699,7 +700,7 @@ export function NewChatForm({
       window.removeEventListener("keydown", handleKeyDown, true)
       window.removeEventListener("keyup", handleKeyUp, true)
     }
-  }, [customHotkeys, isVoiceRecording, isTranscribing, handleVoiceMouseDown, handleVoiceMouseUp])
+  }, [isVoiceAvailable, customHotkeys, isVoiceRecording, isTranscribing, handleVoiceMouseDown, handleVoiceMouseUp])
 
   // Shift+Tab handler for mode switching (now handled inside input component via onShiftTab prop)
 
