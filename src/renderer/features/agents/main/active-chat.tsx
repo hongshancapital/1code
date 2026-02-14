@@ -192,9 +192,7 @@ import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
 import { usePastedTextFiles } from "../hooks/use-pasted-text-files"
 import { useTextContextSelection } from "../hooks/use-text-context-selection"
 import { useToggleFocusOnCmdEsc } from "../hooks/use-toggle-focus-on-cmd-esc"
-// TODO: Multi-instance support disabled - causes infinite update loops with Radix UI refs
-// import { useChatViewSetup } from "../hooks/use-chat-view-setup"
-// import { ChatInputProvider } from "../context/chat-input-context"
+import { useChatViewSetup } from "../hooks/use-chat-view-setup"
 import {
   clearSubChatDraft,
   getSubChatDraftFull
@@ -720,10 +718,24 @@ const ChatViewInner = memo(function ChatViewInner({
 
   const isStreaming = status === "streaming" || status === "submitted"
 
-  // TODO: Multi-instance support (disabled due to causing infinite update loops)
-  // When re-enabling, investigate the interaction between ChatInputProvider atoms
-  // and Radix UI's composeRefs which triggers setRef loops
-  // const { instanceId: chatViewInstanceId, isActiveInstance } = useChatViewSetup({...})
+  // Setup ChatView registration for multi-instance support
+  // ChatInputProvider is now at App.tsx level, so multiple ChatViews can share it
+  const { instanceId: chatViewInstanceId, isActiveInstance } = useChatViewSetup({
+    chatId: parentChatId,
+    subChatId,
+    projectPath,
+    sandboxId,
+    teamId,
+    isActive,
+    isStreaming,
+    isArchived,
+    sandboxSetupStatus: sandboxSetupStatus === "cloning" ? "loading" : sandboxSetupStatus,
+    sendMessageRef,
+    stopRef,
+    editorRef,
+    shouldAutoScrollRef,
+    scrollToBottom,
+  })
 
   // Memory router: scroll to target message when navigated via useNavigate
   // messagesLoaded ensures we wait for messages before scrolling to specific messageId
@@ -5342,8 +5354,6 @@ Make sure to preserve all functionality from both branches when resolving confli
   }, [setGlobalCommentInputState])
 
   return (
-    // TODO: ChatInputProvider disabled - causes infinite update loops with Radix UI refs
-    // <ChatInputProvider>
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
     {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
@@ -6078,6 +6088,5 @@ Make sure to preserve all functionality from both branches when resolving confli
     </div>
     </TextSelectionProvider>
     </FileOpenProvider>
-    // </ChatInputProvider>
   )
 }

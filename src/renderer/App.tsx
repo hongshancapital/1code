@@ -6,7 +6,9 @@ import { toast, Toaster } from "sonner"
 import { TooltipProvider } from "./components/ui/tooltip"
 import { TRPCProvider } from "./contexts/TRPCProvider"
 import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext"
+import { PlatformProvider } from "./contexts/PlatformContext"
 import { selectedAgentChatIdAtom } from "./features/agents/atoms"
+import { ChatInputProvider } from "./features/agents/context/chat-input-context"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { useNavigate } from "./lib/router"
 import { AgentsLayout } from "./features/layout/agents-layout"
@@ -389,26 +391,30 @@ export function App() {
   return (
     <GlobalErrorBoundary>
       <WindowProvider>
-        <JotaiProvider store={appStore}>
-          <I18nextProvider i18n={i18n}>
-            <LanguageSync />
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              <VSCodeThemeProvider>
-                <TooltipProvider delayDuration={100}>
-                  <TRPCProvider>
-                    <div
-                      data-agents-page
-                      className="h-screen w-screen bg-background text-foreground overflow-hidden"
-                    >
-                      <AppContent />
-                    </div>
-                    <ThemedToaster />
-                  </TRPCProvider>
-                </TooltipProvider>
-              </VSCodeThemeProvider>
-            </ThemeProvider>
-          </I18nextProvider>
-        </JotaiProvider>
+        <PlatformProvider>
+          <JotaiProvider store={appStore}>
+            <I18nextProvider i18n={i18n}>
+              <LanguageSync />
+              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+                <VSCodeThemeProvider>
+                  <TooltipProvider delayDuration={100}>
+                    <TRPCProvider>
+                      <ChatInputProvider>
+                        <div
+                          data-agents-page
+                          className="h-screen w-screen bg-background text-foreground overflow-hidden"
+                        >
+                          <AppContent />
+                        </div>
+                        <ThemedToaster />
+                      </ChatInputProvider>
+                    </TRPCProvider>
+                  </TooltipProvider>
+                </VSCodeThemeProvider>
+              </ThemeProvider>
+            </I18nextProvider>
+          </JotaiProvider>
+        </PlatformProvider>
       </WindowProvider>
     </GlobalErrorBoundary>
   )
