@@ -5,6 +5,7 @@
 
 import type { SettingsTab } from "../../../lib/atoms"
 import type { DesktopView } from "../atoms"
+import { trackClickNewChat } from "../../../lib/sensors-analytics"
 
 // ============================================================================
 // TYPES
@@ -78,6 +79,7 @@ const createNewAgentAction: AgentActionDefinition = {
   hotkey: "cmd+n",
   handler: async (context) => {
     console.log("[Action] create-new-agent handler called")
+    trackClickNewChat("shortcut")
     // Clear selected chat
     context.setSelectedChatId?.(null)
     // Clear selected draft so form starts empty

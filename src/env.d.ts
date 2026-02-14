@@ -50,9 +50,6 @@ declare global {
   }
 
   // Main process global extensions (extends globalThis for Node.js/Electron main process)
-  /** Callback to update available state from auto-updater */
-  // eslint-disable-next-line no-var
-  var __setUpdateAvailable: ((available: boolean, version?: string) => void) | undefined
   /** Flag to track if devTools have been unlocked */
   // eslint-disable-next-line no-var
   var __devToolsUnlocked: boolean | undefined

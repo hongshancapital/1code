@@ -1,5 +1,5 @@
 import { useAtom } from "jotai"
-import { Check, Copy, RefreshCw } from "lucide-react"
+import { Check, Copy } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
@@ -7,7 +7,6 @@ import {
   betaAutomationsEnabledAtom,
   betaBrowserEnabledAtom,
   betaMemoryEnabledAtom,
-  betaUpdatesEnabledAtom,
   enableTasksAtom,
   historyEnabledAtom,
   selectedOllamaModelAtom,
@@ -17,7 +16,6 @@ import {
 import { isFeatureAvailable } from "../../../lib/feature-flags"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { Button } from "../../ui/button"
 import { ExternalLinkIcon } from "../../ui/icons"
 import {
   Select,
@@ -57,7 +55,6 @@ export function AgentsBetaTab() {
   const [selectedOllamaModel, setSelectedOllamaModel] = useAtom(selectedOllamaModelAtom)
   const [automationsEnabled, setAutomationsEnabled] = useAtom(betaAutomationsEnabledAtom)
   const [enableTasks, setEnableTasks] = useAtom(enableTasksAtom)
-  const [betaUpdatesEnabled, setBetaUpdatesEnabled] = useAtom(betaUpdatesEnabledAtom)
   const [skillAwarenessEnabled, setSkillAwarenessEnabled] = useAtom(skillAwarenessEnabledAtom)
   const [betaMemoryEnabled, setBetaMemoryEnabled] = useAtom(betaMemoryEnabledAtom)
   const [betaBrowserEnabled, setBetaBrowserEnabled] = useAtom(betaBrowserEnabledAtom)
@@ -65,43 +62,6 @@ export function AgentsBetaTab() {
   // Automations is dev-only feature
   const canEnableAutomations = isFeatureAvailable("automations")
   const [copied, setCopied] = useState(false)
-  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "available" | "not-available" | "error">("idle")
-  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null)
-
-  // Get current version on mount and sync update channel state
-  useEffect(() => {
-    window.desktopApi?.getVersion().then(setCurrentVersion)
-    window.desktopApi?.getUpdateChannel().then((ch) => {
-      setBetaUpdatesEnabled(ch === "beta")
-    })
-  }, [])
-
-  // Check for updates with force flag to bypass cache
-  const handleCheckForUpdates = async () => {
-    // Check if we're in dev mode
-    const isPackaged = await window.desktopApi?.isPackaged?.()
-    if (!isPackaged) {
-      setUpdateStatus("error")
-      console.log("Update check skipped in dev mode")
-      return
-    }
-
-    setUpdateStatus("checking")
-    setUpdateVersion(null)
-    try {
-      const result = await window.desktopApi?.checkForUpdates(true)
-      if (result) {
-        setUpdateStatus("available")
-        setUpdateVersion(result.version)
-      } else {
-        setUpdateStatus("not-available")
-      }
-    } catch (error) {
-      console.error("Failed to check for updates:", error)
-      setUpdateStatus("error")
-    }
-  }
 
   // Get Ollama status
   const { data: ollamaStatus } = trpc.ollama.getStatus.useQuery(undefined, {
@@ -389,63 +349,6 @@ export function AgentsBetaTab() {
         </div>
       )}
 
-      {/* Updates Section */}
-      <div className="flex flex-col gap-2">
-        <div className="pb-2">
-          <h4 className="text-sm font-medium text-foreground">{t('beta.updates.title')}</h4>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t('beta.updates.description')}
-          </p>
-        </div>
-
-        <div className="bg-background rounded-lg border border-border overflow-hidden">
-          {/* Early Access Toggle */}
-          <div className="flex items-center justify-between p-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-foreground">
-                {t('beta.updates.earlyAccess.title')}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {t('beta.updates.earlyAccess.description')}
-              </span>
-            </div>
-            <Switch
-              checked={betaUpdatesEnabled}
-              onCheckedChange={(checked) => {
-                setBetaUpdatesEnabled(checked)
-                window.desktopApi?.setUpdateChannel(checked ? "beta" : "latest")
-              }}
-            />
-          </div>
-
-          {/* Version & Check */}
-          <div className="p-4 border-t border-border">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-foreground">
-                  {currentVersion ? t('beta.updates.version.current', { version: currentVersion }) : "Version"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {updateStatus === "checking" && t('beta.updates.version.checking')}
-                  {updateStatus === "available" && t('beta.updates.version.available', { version: updateVersion })}
-                  {updateStatus === "not-available" && t('beta.updates.version.upToDate')}
-                  {updateStatus === "error" && t('beta.updates.version.error')}
-                  {updateStatus === "idle" && t('beta.updates.version.idle')}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCheckForUpdates}
-                disabled={updateStatus === "checking"}
-              >
-                <RefreshCw className={cn("h-4 w-4 mr-2", updateStatus === "checking" && "animate-spin")} />
-                {updateStatus === "checking" ? t('beta.updates.version.checking') : t('beta.updates.checkNow')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

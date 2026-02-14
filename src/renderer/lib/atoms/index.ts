@@ -525,15 +525,6 @@ export const enableTasksAtom = atomWithStorage<boolean>(
   { getOnInit: true },
 )
 
-// Beta: Enable Early Access Updates
-// When enabled, the app checks for beta releases in addition to stable releases
-export const betaUpdatesEnabledAtom = atomWithStorage<boolean>(
-  "preferences:beta-updates-enabled",
-  false, // Default OFF - only stable releases
-  undefined,
-  { getOnInit: true },
-)
-
 // Beta: Skill Awareness (Prompt Injection)
 // When enabled (default), injects a prompt reminder for AI to consider available skills before planning/executing
 export const skillAwarenessEnabledAtom = atomWithStorage<boolean>(
@@ -745,46 +736,6 @@ export const agentsQuickSwitchSelectedIndexAtom = atom<number>(0)
 // Quick switch dialog - Sub-chats
 export const subChatsQuickSwitchOpenAtom = atom<boolean>(false)
 export const subChatsQuickSwitchSelectedIndexAtom = atom<number>(0)
-
-// ============================================
-// UPDATE ATOMS
-// ============================================
-
-export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "available"
-  | "downloading"
-  | "ready"
-  | "error"
-
-export type UpdateState = {
-  status: UpdateStatus
-  version?: string
-  progress?: number // 0-100
-  bytesPerSecond?: number
-  transferred?: number
-  total?: number
-  error?: string
-}
-
-export const updateStateAtom = atom<UpdateState>({ status: "idle" })
-
-// Track if app was just updated (to show "What's New" banner)
-// This is set to true when app launches with a new version, reset when user dismisses
-export const justUpdatedAtom = atom<boolean>(false)
-
-// Store the version that triggered the "just updated" state
-export const justUpdatedVersionAtom = atom<string | null>(null)
-
-// Legacy atom for backwards compatibility (deprecated)
-export type UpdateInfo = {
-  version: string
-  downloadUrl: string
-  releaseNotes?: string
-}
-
-export const updateInfoAtom = atom<UpdateInfo | null>(null)
 
 // ============================================
 // DESKTOP/FULLSCREEN STATE ATOMS

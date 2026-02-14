@@ -1,6 +1,6 @@
 /**
  * Notifies the main process when all background tasks and streaming operations
- * become idle, so the auto-updater can safely trigger a force update.
+ * become idle, so the main process knows it is safe to perform maintenance tasks.
  */
 
 import { useEffect, useRef } from "react"

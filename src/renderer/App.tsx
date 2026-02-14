@@ -22,6 +22,7 @@ import {
   login as sensorsLogin,
   registerCommonProps,
   shutdown as shutdownSensors,
+  trackAppDuration,
 } from "./lib/sensors-analytics"
 import {
   anthropicOnboardingCompletedAtom,
@@ -348,6 +349,14 @@ export function App() {
     }
     loginUser()
 
+    // Track app usage duration on page unload (beacon send survives page close)
+    const appStartTime = Date.now()
+    const handleUnload = () => {
+      trackAppDuration(Date.now() - appStartTime)
+    }
+    window.addEventListener("pagehide", handleUnload)
+    window.addEventListener("beforeunload", handleUnload)
+
     // Listen for session expiration (when refresh token fails)
     const unsubscribeSessionExpired = window.desktopApi?.onSessionExpired?.(() => {
       toast.error(i18n.t("info.sessionExpired", { ns: "toast" }), {
@@ -369,6 +378,8 @@ export function App() {
 
     // Cleanup on unmount
     return () => {
+      window.removeEventListener("pagehide", handleUnload)
+      window.removeEventListener("beforeunload", handleUnload)
       shutdownSensors()
       unsubscribeSessionExpired?.()
       unsubscribeReauthenticating?.()

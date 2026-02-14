@@ -58,6 +58,7 @@ export function initSensors(): void {
     server_url: config.serverUrl,
     is_track_single_page: false,
     show_log: config.isDebug,
+    send_type: "beacon",
     heatmap: {
       clickmap: "not_collect",
       scroll_notice_map: "not_collect",
@@ -138,7 +139,7 @@ export function trackClickNewWorkspace(): void {
 /**
  * 点击 New Chat 按钮
  */
-export function trackClickNewChat(button: "chat" | "add"): void {
+export function trackClickNewChat(button: "chat" | "add" | "shortcut" | "new-chat-form"): void {
   track("Cowork_Click_New_Chat", {
     Button: button,
   })
@@ -186,5 +187,14 @@ export function trackSendMessage(mode: "agent" | "plan", at: boolean): void {
   track("Cowork_Send_Message", {
     Mode: mode,
     At: at,
+  })
+}
+
+/**
+ * AI 回复用时（每轮对话独立记录）
+ */
+export function trackAIResponseDuration(durationMs: number): void {
+  track("Cowork_AI_Response_Duration", {
+    DurationMs: durationMs,
   })
 }
