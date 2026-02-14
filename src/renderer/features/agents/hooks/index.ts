@@ -38,3 +38,9 @@ export {
   type BrowserSidebarState,
   type FileViewerState,
 } from "./use-sidebar-manager"
+
+export {
+  useChatMutations,
+  type ChatMutationsOptions,
+  type ChatMutationsResult,
+} from "./use-chat-mutations"
