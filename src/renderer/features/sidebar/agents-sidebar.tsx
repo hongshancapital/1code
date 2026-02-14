@@ -2269,6 +2269,8 @@ export function AgentsSidebar({
 
       utils.chats.list.invalidate()
       utils.chats.listArchived.invalidate()
+      // Invalidate the archived chat's cache to prevent stale data
+      utils.chats.get.invalidate({ id: variables.id })
 
       // If archiving the currently selected chat, navigate based on auto-advance setting
       if (selectedChatId === variables.id) {
@@ -2372,6 +2374,10 @@ export function AgentsSidebar({
 
       utils.chats.list.invalidate()
       utils.chats.listArchived.invalidate()
+      // Invalidate each archived chat's cache to prevent stale data
+      for (const chatId of variables.chatIds) {
+        utils.chats.get.invalidate({ id: chatId })
+      }
 
       // Add each chat to unified undo stack for Cmd+Z
       const newItems: UndoItem[] = variables.chatIds.map((chatId) => {

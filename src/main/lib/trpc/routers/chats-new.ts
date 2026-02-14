@@ -489,7 +489,12 @@ const chatsCoreRouter = router({
     .input(z.object({ id: z.string() }))
     .query(({ input }) => {
       const db = getDatabase()
-      const chat = db.select().from(chats).where(eq(chats.id, input.id)).get()
+      // Filter out archived chats (consistent with list query)
+      const chat = db
+        .select()
+        .from(chats)
+        .where(and(eq(chats.id, input.id), isNull(chats.archivedAt)))
+        .get()
       if (!chat) return null
 
       // Only select metadata, not messages (lazy loading for performance)

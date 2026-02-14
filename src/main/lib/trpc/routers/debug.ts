@@ -519,7 +519,7 @@ export const debugRouter = router({
       throw new Error(`This operation is only available in development builds (userData: ${userDataPath}, packaged: ${isPackaged})`)
     }
 
-    const userDataPath = app.getPath("userData") // e.g., ~/Library/Application Support/Hong Cowork-开发版
+    // userDataPath already declared above at line 506
     const appSupportPath = join(userDataPath, "..") // ~/Library/Application Support
 
     // Production database path - try multiple possible locations
