@@ -22,6 +22,7 @@ interface AgentSubChatStore {
   openSubChatIds: string[] // Open tabs (preserves order)
   pinnedSubChatIds: string[] // Pinned sub-chats
   allSubChats: SubChatMeta[] // All sub-chats for history
+  isDbSynced: boolean // true after setAllSubChats populates from DB data
 
   // Actions
   setChatId: (chatId: string | null) => void
@@ -127,6 +128,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
   openSubChatIds: [],
   pinnedSubChatIds: [],
   allSubChats: [],
+  isDbSynced: false,
 
   setChatId: (chatId) => {
     if (!chatId) {
@@ -137,6 +139,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
         openSubChatIds: [],
         pinnedSubChatIds: [],
         allSubChats: [],
+        isDbSynced: false,
       })
       return
     }
@@ -156,7 +159,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     const pinnedSubChatIds = loadFromLS<string[]>(chatId, "pinned", [])
 
     console.log('[sub-chat-store] setChatId', { chatId, activeSubChatId, openSubChatIds })
-    set({ chatId, openSubChatIds, activeSubChatId, pinnedSubChatIds, allSubChats: [] })
+    set({ chatId, openSubChatIds, activeSubChatId, pinnedSubChatIds, allSubChats: [], isDbSynced: false })
   },
 
   setActiveSubChat: (subChatId) => {
@@ -214,7 +217,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
   },
 
   setAllSubChats: (subChats) => {
-    set({ allSubChats: subChats })
+    set({ allSubChats: subChats, isDbSynced: true })
   },
 
   addToAllSubChats: (subChat) => {
@@ -267,6 +270,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
       openSubChatIds: [],
       pinnedSubChatIds: [],
       allSubChats: [],
+      isDbSynced: false,
     })
   },
 }))

@@ -779,14 +779,14 @@ export function AgentsContent() {
 
   // Check if sub-chats data is loaded (use separate selectors to avoid object creation)
   const subChatsStoreChatId = useAgentSubChatStore((state) => state.chatId)
-  const subChatsCount = useAgentSubChatStore(
-    (state) => state.allSubChats.length,
-  )
+  const isDbSynced = useAgentSubChatStore((state) => state.isDbSynced)
 
   // Check if sub-chats are still loading (store not yet initialized for this chat)
+  // Uses isDbSynced flag instead of allSubChats.length because a chat can legitimately
+  // have 0 sub-chats (all archived or none created yet)
   const isLoadingSubChats =
     selectedChatId !== null &&
-    (subChatsStoreChatId !== selectedChatId || subChatsCount === 0)
+    (subChatsStoreChatId !== selectedChatId || !isDbSynced)
 
   // Track sub-chats sidebar open state for animation control
   // Now renders even while loading to show spinner (mobile always uses tabs)
