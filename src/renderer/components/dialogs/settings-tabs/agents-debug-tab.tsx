@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react"
-import { useSetAtom } from "jotai"
+import { useAtom, useSetAtom } from "jotai"
 import { useTranslation } from "react-i18next"
 import { Button } from "../../ui/button"
 import { Switch } from "../../ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, ChevronDown, ChevronRight, ChevronLeft, Trash2 } from "lucide-react"
+import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, ChevronDown, ChevronRight, ChevronLeft, Trash2 } from "lucide-react"
+import { showMessageJsonAtom } from "../../../features/agents/atoms"
 import { runtimeSimulatedModeAtom, runtimeInitBannerDismissedAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
@@ -67,6 +68,7 @@ export function AgentsDebugTab() {
   const [copiedInfo, setCopiedInfo] = useState(false)
   const [reactScanEnabled, setReactScanEnabled] = useState(false)
   const [reactScanLoading, setReactScanLoading] = useState(false)
+  const [showMessageJson, setShowMessageJson] = useAtom(showMessageJsonAtom)
   const setRuntimeBannerDismissed = useSetAtom(runtimeInitBannerDismissedAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
@@ -328,6 +330,21 @@ export function AgentsDebugTab() {
                   setOfflineSimulationMutation.mutate({ enabled })
                 }
                 disabled={setOfflineSimulationMutation.isPending}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center gap-2">
+                <FileJson className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <span className="text-sm">{t('debug.devTools.showMessageJson')}</span>
+                  <p className="text-xs text-muted-foreground">
+                    {t('debug.devTools.showMessageJsonDesc')}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={showMessageJson}
+                onCheckedChange={setShowMessageJson}
               />
             </div>
             <div className="flex items-center justify-between p-3">

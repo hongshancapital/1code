@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from "jotai"
 import { createContext, memo, useCallback, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import { useTranslation } from "react-i18next"
 import { RotateCcw, Pencil } from "lucide-react"
+import { showMessageJsonAtom } from "../atoms"
 import { extractTextMentions, TextMentionBlocks } from "../mentions/render-file-mentions"
 import {
   chatStatusAtom,
@@ -13,6 +14,7 @@ import {
   messageAtomFamily,
   isMessagesSyncedAtom,
 } from "../stores/message-store"
+import { MessageJsonDisplay } from "../ui/message-json-display"
 import { AssistantMessageItem } from "./assistant-message-item"
 import { stripFileAttachmentText } from "../lib/message-utils"
 
@@ -819,6 +821,8 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
   const { userMsg, assistantMsgIds, isLastGroup } = useUserMessageWithAssistants(userMsgId)
   const { isStreaming } = useStreamingStatus()
   const isMessagesSynced = useAtomValue(isMessagesSyncedAtom)
+  const showMessageJson = useAtomValue(showMessageJsonAtom)
+  const isDev = import.meta.env.DEV
 
   // User message data (computed before hooks that depend on it)
   // stripFileAttachmentText removes AI-facing "[The user has attached...]" instructions
@@ -965,6 +969,13 @@ export const SimpleIsolatedGroup = memo(function SimpleIsolatedGroup({
           </div>
         )}
       </div>
+
+      {/* User message JSON display (dev only) */}
+      {isDev && showMessageJson && (
+        <div className="pointer-events-auto mt-1 mb-2">
+          <MessageJsonDisplay message={userMsg} label="User" />
+        </div>
+      )}
 
       {/* Assistant messages */}
       {assistantMsgIds.length > 0 && (

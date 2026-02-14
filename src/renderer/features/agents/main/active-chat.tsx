@@ -53,7 +53,6 @@ import {
   trackSendMessage,
 } from "../../../lib/sensors-analytics"
 import {
-  betaBrowserEnabledAtom,
   chatSourceModeAtom,
   customClaudeConfigAtom,
   defaultAgentModeAtom,
@@ -110,7 +109,7 @@ import { DetailsSidebar } from "../../details-sidebar/details-sidebar"
 import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
 import { FileViewerSidebar } from "../../file-viewer"
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
-import { BrowserPanel, browserVisibleAtomFamily, browserActiveAtomFamily, browserUrlAtomFamily, browserPendingScreenshotAtomFamily } from "../../browser-sidebar"
+import { BrowserPanel } from "../../browser-sidebar"
 import { terminalSidebarOpenAtomFamily, terminalDisplayModeAtom, terminalBottomHeightAtom } from "../../terminal/atoms"
 import { TerminalSidebar, TerminalBottomPanelContent } from "../../terminal/terminal-sidebar"
 import { ResizableBottomPanel } from "@/components/ui/resizable-bottom-panel"
@@ -195,6 +194,7 @@ import { useToggleFocusOnCmdEsc } from "../hooks/use-toggle-focus-on-cmd-esc"
 import { useChatViewSetup } from "../hooks/use-chat-view-setup"
 import { useSidebarMutualExclusion } from "../hooks/use-sidebar-mutual-exclusion"
 import { useDiffData } from "../hooks/use-diff-data"
+import { useBrowserSidebar } from "../hooks/use-browser-sidebar"
 import {
   clearSubChatDraft,
   getSubChatDraftFull
@@ -2944,32 +2944,6 @@ export function ChatView({
   )
   const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planSidebarAtom)
 
-  // Browser beta feature check
-  const betaBrowserEnabled = useAtomValue(betaBrowserEnabledAtom)
-
-  // Browser sidebar state (per-chat)
-  const browserVisibleAtom = useMemo(
-    () => browserVisibleAtomFamily(chatId),
-    [chatId],
-  )
-  const browserActiveAtom = useMemo(
-    () => browserActiveAtomFamily(chatId),
-    [chatId],
-  )
-  const [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw] = useAtom(browserVisibleAtom)
-  const setBrowserActive = useSetAtom(browserActiveAtom)
-  const browserUrlAtom = useMemo(
-    () => browserUrlAtomFamily(chatId),
-    [chatId],
-  )
-  const setBrowserUrl = useSetAtom(browserUrlAtom)
-  // Browser screenshot atom - for passing screenshots to ChatViewInner
-  const browserPendingScreenshotAtom = useMemo(
-    () => browserPendingScreenshotAtomFamily(chatId),
-    [chatId],
-  )
-  const setBrowserPendingScreenshot = useSetAtom(browserPendingScreenshotAtom)
-
   const currentPlanPathAtom = useMemo(
     () => currentPlanPathAtomFamily(activeSubChatIdForPlan || ""),
     [activeSubChatIdForPlan],
@@ -2991,14 +2965,18 @@ export function ChatView({
   const isUnifiedSidebarEnabled = useAtomValue(unifiedSidebarEnabledAtom)
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw] = useAtom(detailsSidebarOpenAtom)
 
-  // Mutual exclusion: Browser sidebar and Details sidebar cannot be open at the same time
-  const setIsBrowserSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
-    const newValue = typeof open === 'function' ? open(isBrowserSidebarOpen) : open
-    if (newValue) {
-      setIsDetailsSidebarOpenRaw(false) // Close details when opening browser
-    }
-    setIsBrowserSidebarOpenRaw(newValue)
-  }, [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw, setIsDetailsSidebarOpenRaw])
+  // Browser sidebar state - extracted to useBrowserSidebar hook
+  const {
+    betaBrowserEnabled,
+    isBrowserSidebarOpen,
+    setIsBrowserSidebarOpen,
+    setBrowserActive,
+    setBrowserUrl,
+    setBrowserPendingScreenshot,
+  } = useBrowserSidebar({
+    chatId,
+    setIsDetailsSidebarOpenRaw,
+  })
 
   const setIsDetailsSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
     const newValue = typeof open === 'function' ? open(isDetailsSidebarOpen) : open
@@ -3006,30 +2984,6 @@ export function ChatView({
     // Both can be open at the same time
     setIsDetailsSidebarOpenRaw(newValue)
   }, [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw])
-
-  // Listen for browser navigation requests from chat links
-  useEffect(() => {
-    const cleanup = window.desktopApi.onBrowserNavigate((url: string) => {
-      setBrowserUrl(url)
-      setIsBrowserSidebarOpenRaw(true)
-      setBrowserActive(true)
-      // Close details sidebar (mutual exclusion)
-      setIsDetailsSidebarOpenRaw(false)
-    })
-    return cleanup
-  }, [setBrowserUrl, setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
-
-  // Listen for browser:show-panel from main process (AI lock/ensureReady)
-  // Must be here (always mounted) — not in BrowserSidebar which only mounts when visible
-  useEffect(() => {
-    if (!window.desktopApi.onBrowserShowPanel) return
-    const cleanup = window.desktopApi.onBrowserShowPanel(() => {
-      setIsBrowserSidebarOpenRaw(true)
-      setBrowserActive(true)
-      setIsDetailsSidebarOpenRaw(false)
-    })
-    return cleanup
-  }, [setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
 
   // Listen for AI-generated sub-chat name from backend (success or failure)
   useEffect(() => {
