@@ -36,12 +36,16 @@ import { memoryRouter } from "./memory"
 import { browserRouter } from "./browser"
 import { internalToolsRouter } from "./internal-tools"
 import { BrowserWindow } from "electron"
+import { getExtensionManager } from "../../extension"
 
 /**
  * Create the main app router
  * Uses getter pattern to avoid stale window references
  */
 export function createAppRouter(_getWindow: () => BrowserWindow | null) {
+  // 合并 Extension 提供的 tRPC routers
+  const extensionRouters = getExtensionManager().getRouters()
+
   return router({
     projects: projectsRouter,
     chats: chatsRouter,
@@ -88,6 +92,8 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     browser: browserRouter,
     // Internal tools discovery
     internalTools: internalToolsRouter,
+    // Extension routers (dynamically merged)
+    ...extensionRouters,
   })
 }
 

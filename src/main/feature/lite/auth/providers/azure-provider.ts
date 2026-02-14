@@ -9,8 +9,8 @@ import { PublicClientApplication, LogLevel } from "@azure/msal-node"
 import { randomBytes, createHash } from "crypto"
 import { shell } from "electron"
 import { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
-import { getEnv } from "../env"
-import { OKTA_CALLBACK_PORT } from "../../constants"
+import { getEnv } from "../../../../lib/env"
+import { OKTA_CALLBACK_PORT } from "../../../../constants"
 
 // Scopes required for authentication
 const SCOPES = ["openid", "profile", "email", "offline_access"]

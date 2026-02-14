@@ -6,9 +6,9 @@
 
 import { shell } from "electron"
 import { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
-import { generateCodeVerifier, generateCodeChallenge, generateState } from "../okta/pkce"
-import { getEnv } from "../env"
-import { OKTA_CALLBACK_PORT } from "../../constants"
+import { generateCodeVerifier, generateCodeChallenge, generateState } from "../../../../lib/okta/pkce"
+import { getEnv } from "../../../../lib/env"
+import { OKTA_CALLBACK_PORT } from "../../../../constants"
 
 /**
  * Get Okta configuration from environment.

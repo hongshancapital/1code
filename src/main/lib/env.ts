@@ -45,6 +45,9 @@ interface OptionalEnv {
   MAIN_VITE_AZURE_CLIENT_ID?: string
   // Azure AD login URL (e.g., https://login.partner.microsoftonline.cn for China)
   MAIN_VITE_AZURE_LOGIN_URL?: string
+
+  // Lite WSS (real-time channel)
+  MAIN_VITE_LITE_WSS_URL?: string
 }
 
 /**
@@ -103,6 +106,9 @@ export function validateEnv(): Env {
     MAIN_VITE_AZURE_TENANT_ID: import.meta.env.MAIN_VITE_AZURE_TENANT_ID,
     MAIN_VITE_AZURE_CLIENT_ID: import.meta.env.MAIN_VITE_AZURE_CLIENT_ID,
     MAIN_VITE_AZURE_LOGIN_URL: import.meta.env.MAIN_VITE_AZURE_LOGIN_URL,
+
+    // Lite WSS
+    MAIN_VITE_LITE_WSS_URL: import.meta.env.MAIN_VITE_LITE_WSS_URL,
   }
 
   console.log("[Env] Environment validated successfully")

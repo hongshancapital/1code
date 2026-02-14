@@ -751,6 +751,20 @@ if (gotTheLock) {
       console.error("[App] AutomationEngine init failed:", error)
     }
 
+    // Initialize ExtensionManager
+    try {
+      const { getExtensionManager } = await import("./lib/extension")
+      // 加载 chat lifecycle hooks（运行时模式注册副作用）
+      await import("./lib/extension/hooks/chat-lifecycle")
+      const { liteExtension } = await import("./feature/lite")
+      const em = getExtensionManager()
+      em.register(liteExtension)
+      await em.initializeAll()
+      console.log("[App] ExtensionManager initialized")
+    } catch (error) {
+      console.error("[App] ExtensionManager init failed:", error)
+    }
+
     // Sync all skills (builtin + enabled plugins) via SkillManager
     try {
       const { getSkillManager } = await import("./lib/skills")
@@ -819,6 +833,12 @@ if (gotTheLock) {
     console.log("[App] Shutting down...")
     cancelAllPendingOAuth()
     AutomationEngine.getInstance().cleanup()
+    try {
+      const { getExtensionManager } = await import("./lib/extension")
+      await getExtensionManager().cleanupAll()
+    } catch {
+      // extension cleanup 错误不阻塞退出
+    }
     await cleanupGitWatchers()
     // App duration is now tracked in renderer via beacon (survives page unload)
     await shutdownSensors()
