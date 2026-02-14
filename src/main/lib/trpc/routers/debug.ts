@@ -533,22 +533,26 @@ export const debugRouter = router({
       mkdirSync(devDataDir, { recursive: true })
     }
 
-    // Close current database connection
+    // Close current dev database connection
     closeDatabase()
 
-    // Copy production db to dev
+    // Remove stale dev WAL/SHM files (they belong to the old dev db)
     try {
-      copyFileSync(productionDbPath, devDbPath)
-      console.log(`[Debug] Copied production DB from ${productionDbPath} to ${devDbPath}`)
+      if (existsSync(devDbPath + "-wal")) unlinkSync(devDbPath + "-wal")
+      if (existsSync(devDbPath + "-shm")) unlinkSync(devDbPath + "-shm")
+    } catch { /* ignore */ }
 
-      // Also copy WAL files if they exist (for consistency)
-      const walPath = productionDbPath + "-wal"
-      const shmPath = productionDbPath + "-shm"
-      if (existsSync(walPath)) {
-        copyFileSync(walPath, devDbPath + "-wal")
-      }
-      if (existsSync(shmPath)) {
-        copyFileSync(shmPath, devDbPath + "-shm")
+    // Use VACUUM INTO to create a consistent snapshot of the production db.
+    // This merges any WAL data into the output file without affecting
+    // the running production app or needing its lock.
+    try {
+      const Database = require("better-sqlite3")
+      const prodDb = new Database(productionDbPath, { readonly: true })
+      try {
+        prodDb.exec(`VACUUM INTO '${devDbPath.replace(/'/g, "''")}'`)
+        console.log(`[Debug] VACUUM INTO from ${productionDbPath} to ${devDbPath}`)
+      } finally {
+        prodDb.close()
       }
     } catch (error) {
       // Re-initialize database even on error
@@ -556,7 +560,7 @@ export const debugRouter = router({
       throw error
     }
 
-    // Re-initialize database with new file
+    // Re-initialize database with the new file
     initDatabase()
 
     console.log("[Debug] Production database copied to dev environment")
