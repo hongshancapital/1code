@@ -59,3 +59,12 @@ export {
   type CommentHandlersOptions,
   type CommentHandlersResult,
 } from "./use-comment-handlers"
+
+export {
+  useQuestionHandlers,
+  type QuestionHandlersOptions,
+  type QuestionHandlersResult,
+  type QuestionData,
+  type QuestionComponentRef,
+  type EditorRef,
+} from "./use-question-handlers"
