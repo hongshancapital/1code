@@ -38,6 +38,7 @@ import {
 import {
   agentsSettingsDialogActiveTabAtom,
   agentsSettingsDialogOpenAtom,
+  betaVoiceInputEnabledAtom,
   extendedThinkingEnabledAtom,
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
@@ -45,15 +46,13 @@ import {
 import {
   sessionModelOverrideAtom,
   effectiveLlmSelectionAtom,
-  activeProviderIdAtom,
-  activeModelIdAtom,
   enabledProviderIdsAtom,
   enabledModelsPerProviderAtom,
-  chatModelSelectionsAtom,
+  subChatModelSelectionsAtom,
   type ModelInfo,
   type ProviderInfo,
 } from "../../../lib/atoms/model-config"
-import { trpc } from "../../../lib/trpc"
+import { trpc, trpcClient } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { agentsChatFullWidthAtom, subChatModeAtomFamily, getNextMode, type AgentMode, type SubChatFileChange } from "../atoms"
 import { pendingFileReferenceAtom } from "../../cowork/atoms"
@@ -516,10 +515,8 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Unified model config - session override and effective selection
   const [sessionOverride, setSessionOverride] = useAtom(sessionModelOverrideAtom)
   const effectiveSelection = useAtomValue(effectiveLlmSelectionAtom)
-  // Per-chat model persistence + global default update
-  const setActiveProviderId = useSetAtom(activeProviderIdAtom)
-  const setActiveModelId = useSetAtom(activeModelIdAtom)
-  const setChatModelSelections = useSetAtom(chatModelSelectionsAtom)
+  // Per-subChat model persistence
+  const setSubChatModelSelections = useSetAtom(subChatModelSelectionsAtom)
 
   // Fetch available providers, filter by enabled state
   const { data: providersData } = trpc.providers.list.useQuery()
@@ -616,16 +613,75 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Pending file reference from file tree panel (@ button click)
   const [pendingFileReference, setPendingFileReference] = useAtom(pendingFileReferenceAtom)
 
-  // Voice input state
+  // Voice input state - with interim transcription support
+  const [interimTranscript, setInterimTranscript] = useState("")
+  // Use ref for interim transcribing state to avoid closure issues
+  const isInterimTranscribingRef = useRef(false)
+  const interimAbortControllerRef = useRef<AbortController | null>(null)
+  // Ref for mount state - must be defined before use
+  const voiceMountedRef = useRef(true)
+
   const {
     isRecording: isVoiceRecording,
     audioLevel: voiceAudioLevel,
     startRecording: startVoiceRecording,
     stopRecording: stopVoiceRecording,
     cancelRecording: cancelVoiceRecording,
-  } = useVoiceRecording()
+  } = useVoiceRecording({
+    onInterimAudio: async (chunks: Blob[], _audioLevel: number) => {
+      // Skip if already transcribing or component unmounted
+      if (isInterimTranscribingRef.current || !voiceMountedRef.current) return
+      if (chunks.length === 0) return
+
+      // Calculate total size - skip if too small
+      const totalSize = chunks.reduce((acc, chunk) => acc + chunk.size, 0)
+      if (totalSize < 2000) return
+
+      isInterimTranscribingRef.current = true
+
+      // Cancel previous request
+      if (interimAbortControllerRef.current) {
+        interimAbortControllerRef.current.abort()
+      }
+      interimAbortControllerRef.current = new AbortController()
+
+      try {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" })
+        const base64 = await blobToBase64(audioBlob)
+        const format = getAudioFormat(audioBlob.type)
+
+        console.log("[VoiceInput] Sending interim audio, size:", totalSize)
+
+        // Use trpcClient for interim transcription (mutation)
+        const result = await trpcClient.voice.transcribe.mutate({
+          audio: base64,
+          format,
+          modelId: "tiny",
+        })
+
+        console.log("[VoiceInput] Interim result:", result)
+
+        if (result?.text && voiceMountedRef.current) {
+          const text = result.text.trim()
+          console.log("[VoiceInput] Interim transcript:", text)
+          setInterimTranscript(text)
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          console.warn("[VoiceInput] Interim transcription error:", err)
+        }
+      } finally {
+        isInterimTranscribingRef.current = false
+      }
+    },
+    interimIntervalMs: 1000,
+  })
   const [isTranscribing, setIsTranscribing] = useState(false)
-  const voiceMountedRef = useRef(true)
+
+  // Check if this SubChat is the currently active one (for voice input)
+  // Only the active SubChat should respond to voice hotkey to prevent all tabs from recording simultaneously
+  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  const isCurrentSubChatActive = activeSubChatId === subChatId
 
   // Input history navigation (ArrowUp/ArrowDown like terminal)
   const { getHistoryUp, getHistoryDown, resetHistory } = useInputHistory()
@@ -649,8 +705,10 @@ export const ChatInputArea = memo(function ChatInputArea({
   const transcribeMutation = trpc.voice.transcribe.useMutation()
 
   // Check if voice input is available (authenticated OR has OPENAI_API_KEY)
+  // Also check if voiceInput feature is enabled (beta feature)
   const { data: voiceAvailability } = trpc.voice.isAvailable.useQuery()
-  const isVoiceAvailable = voiceAvailability?.available ?? false
+  const betaVoiceInputEnabled = useAtomValue(betaVoiceInputEnabledAtom)
+  const isVoiceAvailable = (voiceAvailability?.available ?? false) && betaVoiceInputEnabled
 
   // Get resolved voice input hotkey
   const customHotkeys = useAtomValue(customHotkeysAtom)
@@ -719,6 +777,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Voice input handlers
   const handleVoiceMouseDown = useCallback(async () => {
     if (isStreaming || isTranscribing || isVoiceRecording) return
+    setInterimTranscript("") // Clear interim transcript on start
     try {
       await startVoiceRecording()
     } catch (err) {
@@ -728,6 +787,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 
   const handleVoiceMouseUp = useCallback(async () => {
     if (!isVoiceRecording) return
+
+    // Clear interim transcript immediately
+    setInterimTranscript("")
 
     try {
       const blob = await stopVoiceRecording()
@@ -754,17 +816,33 @@ export const ChatInputArea = memo(function ChatInputArea({
 
       if (result.text && result.text.trim()) {
         // Insert transcribed text into editor
-        // Clean both current value and transcribed text
-        const currentRaw = editorRef.current?.getValue() || ""
-        const current = currentRaw.replace(/[\r\n\t]+/g, " ").replace(/ +/g, " ").trim()
+        // Clean transcribed text
         const transcribed = result.text
           .replace(/[\r\n\t]+/g, " ")
           .replace(/ +/g, " ")
           .trim()
-        // Add space separator only if current text exists and doesn't end with whitespace
-        const needsSpace = current.length > 0 && !/\s$/.test(current)
-        const newValue = current + (needsSpace ? " " : "") + transcribed
-        editorRef.current?.setValue(newValue)
+
+        // Check if user has selected text - if so, replace the selection
+        // Note: We assume selection is in the editor since voice input button is only
+        // visible when editor is focused
+        const selection = window.getSelection()
+        const hasSelection = selection && selection.rangeCount > 0 &&
+          selection.toString().length > 0
+
+        if (hasSelection) {
+          // Replace selected text with transcribed text using execCommand
+          // This properly replaces the selection rather than appending
+          document.execCommand("insertText", false, transcribed)
+        } else {
+          // No selection - append to existing text
+          // Clean current value
+          const currentRaw = editorRef.current?.getValue() || ""
+          const current = currentRaw.replace(/[\r\n\t]+/g, " ").replace(/ +/g, " ").trim()
+          // Add space separator only if current text exists and doesn't end with whitespace
+          const needsSpace = current.length > 0 && !/\s$/.test(current)
+          const newValue = current + (needsSpace ? " " : "") + transcribed
+          editorRef.current?.setValue(newValue)
+        }
         editorRef.current?.focus()
       }
     } catch (err) {
@@ -849,6 +927,10 @@ export const ChatInputArea = memo(function ChatInputArea({
       if (!matchesHotkey(e)) return
       if (e.repeat) return // Ignore key repeat
 
+      // CRITICAL: Only respond if this is the active SubChat
+      // This prevents all SubChat tabs from recording simultaneously
+      if (!isCurrentSubChatActive) return
+
       e.preventDefault()
       e.stopPropagation()
 
@@ -862,8 +944,8 @@ export const ChatInputArea = memo(function ChatInputArea({
       // Stop recording when the main key (or any modifier for modifier-only hotkeys) is released
       if (!isMainKeyRelease(e)) return
 
-      // Only stop if we're currently recording
-      if (isVoiceRecording) {
+      // Only stop if we're currently recording AND this is the active SubChat
+      if (isVoiceRecording && isCurrentSubChatActive) {
         e.preventDefault()
         e.stopPropagation()
         handleVoiceMouseUp()
@@ -876,7 +958,7 @@ export const ChatInputArea = memo(function ChatInputArea({
       window.removeEventListener("keydown", handleKeyDown, true)
       window.removeEventListener("keyup", handleKeyUp, true)
     }
-  }, [voiceInputHotkey, isVoiceRecording, isTranscribing, isStreaming, handleVoiceMouseDown, handleVoiceMouseUp])
+  }, [voiceInputHotkey, isVoiceRecording, isTranscribing, isStreaming, isCurrentSubChatActive, handleVoiceMouseDown, handleVoiceMouseUp])
 
   // Handle pending file reference from file tree panel (@ button click)
   useEffect(() => {
@@ -902,6 +984,8 @@ export const ChatInputArea = memo(function ChatInputArea({
   }, [pendingFileReference, setPendingFileReference, editorRef])
 
   // Save draft on blur (with attachments and text contexts)
+  // IMPORTANT: Capture subChatId and parentChatId from props (not refs) to ensure
+  // draft is saved to the correct SubChat when switching tabs.
   const handleEditorBlur = useCallback(() => {
     // Use RAF to avoid React error #185 (max update depth)
     requestAnimationFrame(() => {
@@ -911,13 +995,11 @@ export const ChatInputArea = memo(function ChatInputArea({
     })
 
     const draft = editorRef.current?.getValue() || ""
-    const chatId = currentChatIdRef.current
-    const subChatIdValue = currentSubChatIdRef.current
 
     // Update ref for unmount save
     currentDraftTextRef.current = draft
 
-    if (!chatId) return
+    if (!parentChatId) return
 
     const hasContent =
       draft.trim() ||
@@ -927,16 +1009,18 @@ export const ChatInputArea = memo(function ChatInputArea({
       (diffTextContexts?.length ?? 0) > 0
 
     if (hasContent) {
-      saveSubChatDraftWithAttachments(chatId, subChatIdValue, draft, {
+      // Use subChatId from props closure (captured at callback creation time)
+      // This ensures draft is saved to THIS component's SubChat, not the newly active one
+      saveSubChatDraftWithAttachments(parentChatId, subChatId, draft, {
         images,
         files,
         textContexts,
         diffTextContexts,
       })
     } else {
-      clearSubChatDraft(chatId, subChatIdValue)
+      clearSubChatDraft(parentChatId, subChatId)
     }
-  }, [editorRef, images, files, textContexts, diffTextContexts])
+  }, [editorRef, images, files, textContexts, diffTextContexts, parentChatId, subChatId])
 
   // Content change handler
   const handleContentChange = useCallback((newHasContent: boolean) => {
@@ -1597,15 +1681,13 @@ export const ChatInputArea = memo(function ChatInputArea({
                                 providerId: provider.id,
                                 modelId,
                               }
+                              // Set active model for current subChat (in-memory mirror)
                               setSessionOverride(selection)
-                              // Persist globally: update default provider/model for new chats
-                              setActiveProviderId(provider.id)
-                              setActiveModelId(modelId)
-                              // Persist per-chat: remember this chat's model choice
-                              if (parentChatId) {
-                                setChatModelSelections((prev) => ({
+                              // Persist per-subChat: each sub-chat remembers its own model
+                              if (subChatId) {
+                                setSubChatModelSelections((prev) => ({
                                   ...prev,
-                                  [parentChatId]: selection,
+                                  [subChatId]: selection,
                                 }))
                               }
                               setIsModelDropdownOpen(false)
@@ -1662,9 +1744,17 @@ export const ChatInputArea = memo(function ChatInputArea({
                     }}
                   />
 
-                  {/* Voice wave indicator - shown during recording */}
+                  {/* Voice wave indicator and interim transcript - shown during recording */}
                   {isVoiceRecording ? (
-                    <VoiceWaveIndicator isRecording={isVoiceRecording} audioLevel={voiceAudioLevel} />
+                    <div className="flex items-center gap-2">
+                      <VoiceWaveIndicator isRecording={isVoiceRecording} audioLevel={voiceAudioLevel} />
+                      {/* Interim transcript display */}
+                      {interimTranscript && (
+                        <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded max-w-[200px] truncate">
+                          {interimTranscript}
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <>
                       {/* Context window indicator - click to compact */}

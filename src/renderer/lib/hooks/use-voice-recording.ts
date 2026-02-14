@@ -1,5 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 
+interface UseVoiceRecordingOptions {
+  /** Callback fired periodically with current audio chunks for real-time transcription */
+  onInterimAudio?: (chunks: Blob[], audioLevel: number) => void
+  /** Interval in ms for interim audio callbacks (default: 2000ms) */
+  interimIntervalMs?: number
+}
+
 interface UseVoiceRecordingReturn {
   isRecording: boolean
   error: Error | null
@@ -22,8 +29,21 @@ interface UseVoiceRecordingReturn {
  * // Stop recording and get audio blob (e.g., on mouse up)
  * const blob = await stopRecording()
  * ```
+ *
+ * With interim transcription:
+ * ```tsx
+ * const { isRecording, startRecording, stopRecording } = useVoiceRecording({
+ *   onInterimAudio: (chunks, level) => {
+ *     // Send chunks for interim transcription while recording
+ *   },
+ *   interimIntervalMs: 2000 // Callback every 2 seconds
+ * })
+ * ```
  */
-export function useVoiceRecording(): UseVoiceRecordingReturn {
+export function useVoiceRecording(
+  options: UseVoiceRecordingOptions = {}
+): UseVoiceRecordingReturn {
+  const { onInterimAudio, interimIntervalMs = 2000 } = options
   const [isRecording, setIsRecording] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [audioLevel, setAudioLevel] = useState(0)
@@ -33,10 +53,14 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
   const streamRef = useRef<MediaStream | null>(null)
   const isStartingRef = useRef(false) // Prevent race conditions
 
+  // Interim audio timer ref
+  const interimTimerRef = useRef<number | null>(null)
+
   // Audio analysis refs
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
+  const audioLevelRef = useRef(0) // Track current audio level for interim callbacks
 
   // Cleanup function to stop all tracks and reset state
   const cleanup = useCallback(() => {
@@ -44,6 +68,12 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
+    }
+
+    // Stop interim audio timer
+    if (interimTimerRef.current) {
+      clearInterval(interimTimerRef.current)
+      interimTimerRef.current = null
     }
 
     // Clean up audio analysis
@@ -72,6 +102,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
     }
     chunksRef.current = []
     isStartingRef.current = false
+    audioLevelRef.current = 0
     setAudioLevel(0)
   }, [])
 
@@ -143,6 +174,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
           const raw = average / 255
           const amplified = Math.pow(raw, 0.6) * 2.5 // Power curve + strong amplification
           const normalized = Math.min(1, amplified)
+          audioLevelRef.current = normalized
           setAudioLevel(normalized)
 
           animationFrameRef.current = requestAnimationFrame(updateLevel)
@@ -174,6 +206,25 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
       mediaRecorder.start(100) // Collect data every 100ms
       setIsRecording(true)
       isStartingRef.current = false
+
+      // Set up interim audio callback if provided
+      if (onInterimAudio) {
+        let lastCallbackTime = Date.now()
+
+        interimTimerRef.current = window.setInterval(() => {
+          if (chunksRef.current.length > 0 && onInterimAudio) {
+            const now = Date.now()
+            // Debounce: only fire if enough time has passed
+            if (now - lastCallbackTime >= interimIntervalMs - 100) {
+              lastCallbackTime = now
+              // Clone chunks to avoid mutation during callback
+              const currentChunks = [...chunksRef.current]
+              // Use ref for current audio level (updated in real-time)
+              onInterimAudio(currentChunks, audioLevelRef.current)
+            }
+          }
+        }, 200) // Check every 200ms
+      }
     } catch (err) {
       isStartingRef.current = false
       cleanup()
@@ -198,16 +249,19 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
       console.error("[VoiceRecording] Start error:", error)
       throw error
     }
-  }, [cleanup])
+  }, [cleanup, onInterimAudio, interimIntervalMs])
 
   const stopRecording = useCallback(async (): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const mediaRecorder = mediaRecorderRef.current
 
-      if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        const error = new Error("No active recording")
-        setError(error)
-        reject(error)
+      // More robust check: also verify state
+      // MediaRecorder states: "inactive", "recording", "paused" (no "stopped")
+      const state = mediaRecorder?.state
+      if (!mediaRecorder || state === "inactive" || state === undefined) {
+        // Already stopped or never started - resolve with empty blob to avoid breaking the flow
+        console.warn("[VoiceRecording] No active recording to stop, resolving with empty blob")
+        resolve(new Blob([], { type: "audio/webm" }))
         return
       }
 

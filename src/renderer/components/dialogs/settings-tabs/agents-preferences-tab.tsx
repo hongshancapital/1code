@@ -498,7 +498,6 @@ export function AgentsPreferencesTab() {
           </DropdownMenu>
         </div>
       </div>
-
     </div>
   )
 }

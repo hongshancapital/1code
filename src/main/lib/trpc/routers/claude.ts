@@ -2919,7 +2919,9 @@ If the user needs help with the page content, you can use the browser MCP tools 
 
             try {
               for await (const msg of stream) {
-                if (abortController.signal.aborted) {
+                // For plan mode completion, we abort but still need to wait for the result message
+                // to get token usage data. Only break immediately if it's not plan completion.
+                if (abortController.signal.aborted && !planCompleted) {
                   if (isUsingOllama)
                     console.log(`[Ollama] Stream aborted by user`);
                   break;
@@ -3282,16 +3284,21 @@ If the user needs help with the page content, you can use the browser MCP tools 
                           }
                         }
 
-                        // Check if ExitPlanMode just completed - stop the stream
+                        // Check if ExitPlanMode just completed
+                        // We set planCompleted and abort the SDK to trigger the result message
+                        // with token usage data. We don't break immediately - we wait for result.
                         if (
                           exitPlanModeToolCallId &&
                           chunk.toolCallId === exitPlanModeToolCallId
                         ) {
                           console.log(
-                            `[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, emitting finish`,
+                            `[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, aborting to get result with usage data`,
                           );
                           planCompleted = true;
+                          // Emit finish to frontend so it knows plan is done
                           safeEmit({ type: "finish" } as UIMessageChunk);
+                          // Abort the SDK to stop further API calls and trigger result message
+                          abortController.abort();
                         }
 
                         // Memory hook: Record tool output (fire-and-forget)
@@ -3345,20 +3352,16 @@ If the user needs help with the page content, you can use the browser MCP tools 
                       break;
                   }
 
-                  // Break from chunk loop if plan is done
-                  if (planCompleted) {
-                    console.log(`[SD] M:PLAN_BREAK_CHUNK sub=${subId}`);
-                    break;
-                  }
                 }
                 // Break from stream loop if observer closed (user clicked Stop)
                 if (!isObservableActive) {
                   console.log(`[SD] M:OBSERVER_CLOSED_STREAM sub=${subId}`);
                   break;
                 }
-                // Break from stream loop if plan completed
-                if (planCompleted) {
-                  console.log(`[SD] M:PLAN_BREAK_STREAM sub=${subId}`);
+                // Break from stream loop if plan completed AND we've received the result message
+                // The result message contains token usage data which we need to record
+                if (planCompleted && sdkMsg.type === "result") {
+                  console.log(`[SD] M:PLAN_BREAK_STREAM sub=${subId} - Got result message after ExitPlanMode`);
                   break;
                 }
               }

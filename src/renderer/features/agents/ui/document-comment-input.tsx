@@ -2,45 +2,93 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
+import { useAtom } from "jotai"
 import { cn } from "../../../lib/utils"
 import { Trash2 } from "lucide-react"
-import type { DocumentType, DocumentComment } from "../atoms/review-atoms"
+import { commentInputStateAtom, type CommentInputState } from "../atoms/review-atoms"
+import { useDocumentComments } from "../hooks/use-document-comments"
+import { useAgentSubChatStore } from "../stores/sub-chat-store"
 
-interface DocumentCommentInputProps {
-  selectedText: string
-  documentType: DocumentType
-  documentPath: string
-  lineStart?: number
-  lineEnd?: number
-  lineType?: "old" | "new"
-  rect: DOMRect
-  onSubmit: (content: string) => void
-  onCancel: () => void
-  // Edit mode
-  existingComment?: DocumentComment
-  onUpdate?: (content: string) => void
-  onDelete?: () => void
+/**
+ * Self-contained document comment input popover.
+ * Reads commentInputStateAtom directly — no props needed from parent.
+ * Renders nothing when commentInputState is null.
+ */
+export function DocumentCommentInput() {
+  const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
+  const activeSubChatId = useAgentSubChatStore((state) => state.activeSubChatId)
+  const { addComment, getComment, updateComment, removeComment } = useDocumentComments(activeSubChatId || "")
+
+  if (!commentInputState) return null
+
+  return (
+    <DocumentCommentInputInner
+      commentInputState={commentInputState}
+      setCommentInputState={setCommentInputState}
+      addComment={addComment}
+      getComment={getComment}
+      updateComment={updateComment}
+      removeComment={removeComment}
+    />
+  )
 }
 
-export function DocumentCommentInput({
-  selectedText,
-  documentType,
-  documentPath,
-  lineStart,
-  lineEnd,
-  lineType,
-  rect,
-  onSubmit,
-  onCancel,
-  existingComment,
-  onUpdate,
-  onDelete,
-}: DocumentCommentInputProps) {
+// Inner component to avoid hooks-after-early-return issue
+function DocumentCommentInputInner({
+  commentInputState,
+  setCommentInputState,
+  addComment,
+  getComment,
+  updateComment,
+  removeComment,
+}: {
+  commentInputState: CommentInputState
+  setCommentInputState: (state: CommentInputState | null) => void
+  addComment: ReturnType<typeof useDocumentComments>["addComment"]
+  getComment: ReturnType<typeof useDocumentComments>["getComment"]
+  updateComment: ReturnType<typeof useDocumentComments>["updateComment"]
+  removeComment: ReturnType<typeof useDocumentComments>["removeComment"]
+}) {
+  const existingComment = commentInputState.existingCommentId
+    ? getComment(commentInputState.existingCommentId)
+    : undefined
+
   const [content, setContent] = useState(existingComment?.content ?? "")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const isEditMode = !!existingComment
+
+  const handleCancel = useCallback(() => {
+    setCommentInputState(null)
+  }, [setCommentInputState])
+
+  const handleSubmitComment = useCallback((trimmed: string) => {
+    if (isEditMode && commentInputState.existingCommentId) {
+      updateComment(commentInputState.existingCommentId, { content: trimmed })
+    } else {
+      addComment({
+        documentType: commentInputState.documentType,
+        documentPath: commentInputState.documentPath,
+        selectedText: commentInputState.selectedText,
+        content: trimmed,
+        lineStart: commentInputState.lineStart,
+        lineEnd: commentInputState.lineEnd,
+        lineType: commentInputState.lineType,
+        charStart: commentInputState.charStart,
+        charLength: commentInputState.charLength,
+      })
+    }
+    setCommentInputState(null)
+    window.getSelection()?.removeAllRanges()
+  }, [isEditMode, commentInputState, addComment, updateComment, setCommentInputState])
+
+  const handleDelete = useCallback(() => {
+    if (commentInputState.existingCommentId) {
+      removeComment(commentInputState.existingCommentId)
+      setCommentInputState(null)
+    }
+  }, [commentInputState.existingCommentId, removeComment, setCommentInputState])
 
   // Auto-focus on mount
   useEffect(() => {
@@ -58,7 +106,7 @@ export function DocumentCommentInput({
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onCancel()
+        handleCancel()
       }
     }
 
@@ -70,18 +118,13 @@ export function DocumentCommentInput({
       clearTimeout(timer)
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [onCancel])
+  }, [handleCancel])
 
   const handleSubmit = useCallback(() => {
     const trimmed = content.trim()
     if (!trimmed) return
-
-    if (isEditMode && onUpdate) {
-      onUpdate(trimmed)
-    } else {
-      onSubmit(trimmed)
-    }
-  }, [content, isEditMode, onSubmit, onUpdate])
+    handleSubmitComment(trimmed)
+  }, [content, handleSubmitComment])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -90,11 +133,12 @@ export function DocumentCommentInput({
     }
     if (e.key === "Escape") {
       e.preventDefault()
-      onCancel()
+      handleCancel()
     }
-  }, [handleSubmit, onCancel])
+  }, [handleSubmit, handleCancel])
 
   // Calculate position - below the selection by default, above if not enough space
+  const { rect, selectedText, documentType, documentPath, lineStart, lineEnd, lineType } = commentInputState
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const inputWidth = 320
@@ -182,9 +226,9 @@ export function DocumentCommentInput({
         {/* Actions */}
         <div className="px-2 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-1">
-            {isEditMode && onDelete && (
+            {isEditMode && (
               <button
-                onClick={onDelete}
+                onClick={handleDelete}
                 className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 title="Delete comment"
               >
@@ -194,7 +238,7 @@ export function DocumentCommentInput({
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={onCancel}
+              onClick={handleCancel}
               className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancel

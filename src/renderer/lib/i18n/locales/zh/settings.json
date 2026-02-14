@@ -64,6 +64,28 @@
         "title": "分享使用分析",
         "description": "通过分享匿名使用数据帮助我们改进。我们只追踪功能使用和应用性能，绝不会访问您的代码、提示词或消息。"
       }
+    },
+    "voice": {
+      "title": "语音输入",
+      "provider": {
+        "title": "转写服务",
+        "description": "选择语音转文字的方式",
+        "auto": "自动",
+        "local": "本地（离线）",
+        "openai": "OpenAI API"
+      },
+      "language": {
+        "title": "语言",
+        "description": "语音识别语言"
+      },
+      "models": {
+        "title": "本地模型",
+        "description": "下载离线转写模型",
+        "download": "下载",
+        "downloaded": "已下载",
+        "cancel": "取消"
+      },
+      "binaryNotAvailable": "本地转写不可用。请运行 'bun run whisper:download' 安装。"
     }
   },
   "appearance": {
@@ -167,6 +189,8 @@
     },
     "voice": {
       "title": "语音输入",
+      "betaDisabled": "语音输入是 Beta 功能。",
+      "enableInBeta": "请在 设置 → Beta → 语音输入 中启用此功能。",
       "openaiKey": {
         "title": "OpenAI API 密钥",
         "description": "语音转录（Whisper API）所需。免费用户需要自己的密钥。",
@@ -430,6 +454,11 @@
     "browser": {
       "title": "浏览器",
       "description": "内置浏览器，用于 AI 驱动的网页自动化和测试。"
+    },
+    "voiceInput": {
+      "title": "语音输入",
+      "description": "使用本地 Whisper 或 OpenAI API 进行语音转文字输入。",
+      "devOnly": "仅开发模式可用。该功能仍在调试中。"
     },
     "offlineSettings": {
       "title": "离线模式设置",

@@ -192,8 +192,10 @@ export function createTransformer(options?: {
       // for that specific API call (= current context window size).
       // The LAST one reflects the final context size.
       const msgUsage = msg.event?.message?.usage;
+      console.log("[transform] message_start usage:", JSON.stringify(msgUsage));
       if (msgUsage?.input_tokens) {
         lastApiCallInputTokens = msgUsage.input_tokens;
+        console.log("[transform] Updated lastApiCallInputTokens:", lastApiCallInputTokens);
       }
     }
 
@@ -401,6 +403,7 @@ export function createTransformer(options?: {
       // Anthropic API sends output_tokens in message_delta at the end of each response.
       if (event.type === "message_delta" && event.usage?.output_tokens) {
         lastApiCallOutputTokens = event.usage.output_tokens;
+        console.log("[transform] Updated lastApiCallOutputTokens:", lastApiCallOutputTokens);
       }
     }
 
@@ -778,6 +781,12 @@ export function createTransformer(options?: {
           )
         : undefined;
 
+      console.log("[transform] Building metadata with lastCall tokens:", {
+        lastApiCallInputTokens,
+        lastApiCallOutputTokens,
+        inputTokens,
+        outputTokens,
+      });
       const metadata: MessageMetadata = {
         sessionId: msg.session_id,
         sdkMessageUuid: emitSdkMessageUuid ? msg.uuid : undefined,
@@ -796,6 +805,7 @@ export function createTransformer(options?: {
         lastCallInputTokens: lastApiCallInputTokens || undefined,
         lastCallOutputTokens: lastApiCallOutputTokens || undefined,
       };
+      console.log("[transform] Emitting message-metadata:", JSON.stringify(metadata));
       yield { type: "message-metadata", messageMetadata: metadata };
       yield { type: "finish-step" };
       yield { type: "finish", messageMetadata: metadata };

@@ -46,7 +46,7 @@ export interface Message {
   role: "user" | "assistant" | "system"
   parts?: MessagePart[]
   metadata?: MessageMetadata
-  createdAt?: Date
+  createdAt?: Date | string  // Can be Date object or ISO string from DB
 }
 
 // ============================================================================
@@ -76,6 +76,11 @@ export const messageAtomFamily = atomFamily((_messageId: string) =>
 
 // Track active message IDs per subChat for cleanup
 const activeMessageIdsByChat = new Map<string, Set<string>>()
+
+// Cache for createdAt timestamps - persists across SDK updates
+// AI SDK's useChat doesn't preserve custom fields like createdAt,
+// so we cache them when first seen and restore on subsequent syncs
+const createdAtCache = new Map<string, Date | string>()
 
 // Ordered list of message IDs (for rendering order)
 export const messageIdsAtom = atom<string[]>([])
@@ -806,8 +811,13 @@ export const syncMessagesWithStatusAtom = atom(
     for (const msg of messages) {
       if (isFullReset) {
         // All messages are new - skip change detection, just clone and set
+        // Cache createdAt if present (from DB load), or restore from cache (SDK updates)
+        if (msg.createdAt) {
+          createdAtCache.set(msg.id, msg.createdAt)
+        }
         const clonedMsg = {
           ...msg,
+          createdAt: msg.createdAt || createdAtCache.get(msg.id),
           parts: msg.parts?.map((part: any) => ({ ...part, input: part.input ? { ...part.input } : undefined })),
         }
         set(messageAtomFamily(msg.id), clonedMsg)
@@ -832,10 +842,14 @@ export const syncMessagesWithStatusAtom = atom(
 
         // CRITICAL FIX: Also update if atom is null (not yet populated)
         if (msgChanged || !currentAtomValue) {
+          // Cache createdAt if present (from DB load), or restore from cache/atom (SDK updates)
+          if (msg.createdAt) {
+            createdAtCache.set(msg.id, msg.createdAt)
+          }
           // Deep clone message with new parts array and new part objects
           const clonedMsg = {
             ...msg,
-            createdAt: msg.createdAt || currentAtomValue?.createdAt,
+            createdAt: msg.createdAt || createdAtCache.get(msg.id) || currentAtomValue?.createdAt,
             parts: msg.parts?.map((part: any) => ({ ...part, input: part.input ? { ...part.input } : undefined })),
           }
           set(messageAtomFamily(msg.id), clonedMsg)
@@ -900,6 +914,7 @@ export function clearSubChatCaches(subChatId: string) {
       messageAtomFamily.remove(id)
       previousMessageState.delete(`${subChatId}:${id}`)
       assistantIdsCacheByChat.delete(`${subChatId}:${id}`)
+      createdAtCache.delete(id) // Clear createdAt cache for this message
     }
     activeMessageIdsByChat.delete(subChatId)
   }

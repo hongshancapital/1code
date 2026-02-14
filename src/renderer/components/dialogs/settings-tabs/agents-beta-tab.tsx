@@ -7,13 +7,14 @@ import {
   betaAutomationsEnabledAtom,
   betaBrowserEnabledAtom,
   betaMemoryEnabledAtom,
+  betaVoiceInputEnabledAtom,
   enableTasksAtom,
   historyEnabledAtom,
   selectedOllamaModelAtom,
   showOfflineModeFeaturesAtom,
   skillAwarenessEnabledAtom,
 } from "../../../lib/atoms"
-import { isFeatureAvailable } from "../../../lib/feature-flags"
+import { isFeatureAvailable, IS_DEV } from "../../../lib/feature-flags"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { ExternalLinkIcon } from "../../ui/icons"
@@ -58,9 +59,11 @@ export function AgentsBetaTab() {
   const [skillAwarenessEnabled, setSkillAwarenessEnabled] = useAtom(skillAwarenessEnabledAtom)
   const [betaMemoryEnabled, setBetaMemoryEnabled] = useAtom(betaMemoryEnabledAtom)
   const [betaBrowserEnabled, setBetaBrowserEnabled] = useAtom(betaBrowserEnabledAtom)
+  const [betaVoiceInputEnabled, setBetaVoiceInputEnabled] = useAtom(betaVoiceInputEnabledAtom)
 
-  // Automations is dev-only feature
+  // dev-only features
   const canEnableAutomations = isFeatureAvailable("automations")
+  const canEnableVoiceInput = isFeatureAvailable("voiceInput")
   const [copied, setCopied] = useState(false)
 
   // Get Ollama status
@@ -205,6 +208,29 @@ export function AgentsBetaTab() {
           <Switch
             checked={betaBrowserEnabled}
             onCheckedChange={setBetaBrowserEnabled}
+          />
+        </div>
+
+        {/* Voice Input Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className={cn("text-sm font-medium", canEnableVoiceInput ? "text-foreground" : "text-muted-foreground")}>
+              {t('beta.voiceInput.title')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {canEnableVoiceInput
+                ? t('beta.voiceInput.description')
+                : t('beta.voiceInput.devOnly')}
+            </span>
+          </div>
+          <Switch
+            checked={betaVoiceInputEnabled && canEnableVoiceInput}
+            onCheckedChange={(checked) => {
+              if (canEnableVoiceInput) {
+                setBetaVoiceInputEnabled(checked)
+              }
+            }}
+            disabled={!canEnableVoiceInput}
           />
         </div>
       </div>

@@ -106,6 +106,7 @@ import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sid
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
 import { BrowserPanel } from "../../browser-sidebar"
 import { browserPendingScreenshotAtomFamily } from "../../browser-sidebar/atoms"
+import { pendingPlanApprovalsAtom } from "../atoms"
 import { terminalSidebarOpenAtomFamily, terminalDisplayModeAtom, terminalBottomHeightAtom } from "../../terminal/atoms"
 import { TerminalSidebar, TerminalBottomPanelContent } from "../../terminal/terminal-sidebar"
 import { ResizableBottomPanel } from "@/components/ui/resizable-bottom-panel"
@@ -233,8 +234,7 @@ import { AgentUserMessageBubble } from "../ui/agent-user-message-bubble"
 import { AgentUserQuestion, type AgentUserQuestionHandle } from "../ui/agent-user-question"
 import { ChatTitleEditor } from "../ui/chat-title-editor"
 import { DocumentCommentInput } from "../ui/document-comment-input"
-import { useDocumentComments } from "../hooks/use-document-comments"
-import { commentInputStateAtom, reviewCommentsAtomFamily, type DocumentType } from "../atoms/review-atoms"
+import { useCommentInput } from "../hooks/use-comment-input"
 import { ReviewButton } from "../ui/review-button"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
@@ -376,6 +376,9 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // For confirming name on manual rename (stop shimmer)
   const setUnconfirmedNameSubChats = useSetAtom(unconfirmedNameSubChatsAtom)
+
+  // For cleaning up pending plan approvals on unmount
+  const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom)
 
   // Get sub-chat name from store
   const subChatName = useAgentSubChatStore(
@@ -596,13 +599,8 @@ const ChatViewInner = memo(function ChatViewInner({
     fileContentsRef.current.clear()
   }, [subChatId])
 
-  // Document comment state for review system (scoped by activeSubChatId for consistency with diff view)
-  // We use activeSubChatId instead of subChatId because:
-  // - Comments are added from diff view which reads from activeSubChatId
-  // - This ensures comments are stored and read from the same place
-  const [commentInputState, setCommentInputState] = useAtom(commentInputStateAtom)
-  const activeSubChatIdForComment = useAgentSubChatStore((state) => state.activeSubChatId)
-  const { addComment, getComment, updateComment, removeComment } = useDocumentComments(activeSubChatIdForComment || subChatId)
+  // Comment input - unified handler for TextSelectionPopover
+  const openCommentInput = useCommentInput()
 
   // Message queue for sending messages while streaming
   const queue = useMessageQueueStore((s) => s.queues[subChatId] ?? EMPTY_QUEUE)
@@ -740,103 +738,6 @@ const ChatViewInner = memo(function ChatViewInner({
     window.addEventListener("file-viewer-add-to-context", handler)
     return () => window.removeEventListener("file-viewer-add-to-context", handler)
   }, [addTextContext])
-
-  // Handler for document comment (review system)
-  const handleAddComment = useCallback((
-    text: string,
-    source: TextSelectionSource,
-    rect: DOMRect,
-    charStart?: number | null,
-    charLength?: number | null,
-    lineStart?: number | null,
-    lineEnd?: number | null
-  ) => {
-    // Map TextSelectionSource to DocumentType
-    let documentType: DocumentType
-    let documentPath: string
-    let lineType: "old" | "new" | undefined
-
-    // Use passed lineStart/lineEnd, but for diff also check source.lineNumber
-    let finalLineStart = lineStart ?? undefined
-    let finalLineEnd = lineEnd ?? undefined
-
-    if (source.type === "plan") {
-      documentType = "plan"
-      documentPath = source.planPath
-    } else if (source.type === "diff") {
-      documentType = "diff"
-      documentPath = source.filePath
-      // For diff, prefer source.lineNumber if available (more accurate from DOM)
-      if (source.lineNumber) {
-        finalLineStart = source.lineNumber
-        // If we don't have lineEnd, use lineStart
-        if (!finalLineEnd) finalLineEnd = finalLineStart
-      }
-      lineType = source.lineType
-    } else if (source.type === "tool-edit") {
-      documentType = "tool-edit"
-      documentPath = source.filePath
-    } else {
-      return // Don't handle assistant-message type for comments
-    }
-
-    setCommentInputState({
-      selectedText: text,
-      documentType,
-      documentPath,
-      lineStart: finalLineStart,
-      lineEnd: finalLineEnd,
-      lineType,
-      charStart: charStart ?? undefined,
-      charLength: charLength ?? undefined,
-      rect,
-    })
-  }, [setCommentInputState])
-
-  // Handler for document comment submit
-  const handleCommentSubmit = useCallback((content: string) => {
-    if (!commentInputState) return
-
-    addComment({
-      documentType: commentInputState.documentType,
-      documentPath: commentInputState.documentPath,
-      selectedText: commentInputState.selectedText,
-      content,
-      lineStart: commentInputState.lineStart,
-      lineEnd: commentInputState.lineEnd,
-      lineType: commentInputState.lineType,
-      charStart: commentInputState.charStart,
-      charLength: commentInputState.charLength,
-    })
-
-    setCommentInputState(null)
-    window.getSelection()?.removeAllRanges()
-  }, [commentInputState, addComment, setCommentInputState])
-
-  // Handler for document comment cancel
-  const handleCommentCancel = useCallback(() => {
-    setCommentInputState(null)
-  }, [setCommentInputState])
-
-  // Handler for document comment update (edit mode)
-  const handleCommentUpdate = useCallback((content: string) => {
-    if (!commentInputState?.existingCommentId) return
-    updateComment(commentInputState.existingCommentId, { content })
-    setCommentInputState(null)
-  }, [commentInputState, updateComment, setCommentInputState])
-
-  // Handler for document comment delete (edit mode)
-  const handleCommentDelete = useCallback(() => {
-    if (!commentInputState?.existingCommentId) return
-    removeComment(commentInputState.existingCommentId)
-    setCommentInputState(null)
-  }, [commentInputState, removeComment, setCommentInputState])
-
-  // Get existing comment for edit mode
-  const existingComment = useMemo(() => {
-    if (!commentInputState?.existingCommentId) return undefined
-    return getComment(commentInputState.existingCommentId)
-  }, [commentInputState?.existingCommentId, getComment])
 
   // Sync loading status to atom for UI indicators
   // Only SET loading here when streaming starts.
@@ -2257,27 +2158,12 @@ const ChatViewInner = memo(function ChatViewInner({
         {/* Text selection popover for adding text to context */}
         <TextSelectionPopover
           onAddToContext={addTextContext}
-          onAddComment={handleAddComment}
+          onAddComment={openCommentInput}
           onFocusInput={handleFocusInput}
         />
 
-        {/* Document comment input for review system */}
-        {commentInputState && (
-          <DocumentCommentInput
-            selectedText={commentInputState.selectedText}
-            documentType={commentInputState.documentType}
-            documentPath={commentInputState.documentPath}
-            lineStart={commentInputState.lineStart}
-            lineEnd={commentInputState.lineEnd}
-            lineType={commentInputState.lineType}
-            rect={commentInputState.rect}
-            onSubmit={handleCommentSubmit}
-            onCancel={handleCommentCancel}
-            existingComment={existingComment}
-            onUpdate={handleCommentUpdate}
-            onDelete={handleCommentDelete}
-          />
-        )}
+        {/* Document comment input for review system (self-contained, reads atom directly) */}
+        <DocumentCommentInput />
 
         {/* Chat search bar */}
         <ChatSearchBar messages={messages} topOffset={searchBarTopOffset} />
@@ -3991,59 +3877,8 @@ export function ChatView({
 
   // No early return - let the UI render with loading state handled by activeChat check below
 
-  // Global comment input state for TextSelectionPopover at ChatView level
-  // This enables comment functionality for diff sidebar which is outside ChatViewInner
-  const [, setGlobalCommentInputState] = useAtom(commentInputStateAtom)
-
-  // Handler for adding comment from top-level TextSelectionPopover
-  // This is a simplified version that only handles diff comments (no addTextContext)
-  const handleGlobalAddComment = useCallback((
-    text: string,
-    source: TextSelectionSource,
-    rect: DOMRect,
-    charStart?: number | null,
-    charLength?: number | null,
-    lineStart?: number | null,
-    lineEnd?: number | null
-  ) => {
-    // Map TextSelectionSource to DocumentType
-    let documentType: DocumentType
-    let documentPath: string
-    let lineType: "old" | "new" | undefined
-
-    let finalLineStart = lineStart ?? undefined
-    let finalLineEnd = lineEnd ?? undefined
-
-    if (source.type === "plan") {
-      documentType = "plan"
-      documentPath = source.planPath
-    } else if (source.type === "diff") {
-      documentType = "diff"
-      documentPath = source.filePath
-      if (source.lineNumber) {
-        finalLineStart = source.lineNumber
-        if (!finalLineEnd) finalLineEnd = finalLineStart
-      }
-      lineType = source.lineType
-    } else if (source.type === "tool-edit") {
-      documentType = "tool-edit"
-      documentPath = source.filePath
-    } else {
-      return // Don't handle assistant-message or file-viewer types
-    }
-
-    setGlobalCommentInputState({
-      selectedText: text,
-      documentType,
-      documentPath,
-      lineStart: finalLineStart,
-      lineEnd: finalLineEnd,
-      lineType,
-      rect,
-      charStart: charStart ?? undefined,
-      charLength: charLength ?? undefined,
-    })
-  }, [setGlobalCommentInputState])
+  // Global comment input - reuses the same hook as ChatViewInner (writes to same atom)
+  const globalOpenCommentInput = useCommentInput()
 
   return (
     <FileOpenProvider onOpenFile={setFileViewerPath}>
@@ -4051,7 +3886,7 @@ export function ChatView({
     {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
     <TextSelectionPopover
       onAddToContext={() => {}} // No-op - diff sidebar doesn't have chat input
-      onAddComment={handleGlobalAddComment}
+      onAddComment={globalOpenCommentInput}
     />
     {/* File Search Dialog (Cmd+P) */}
     {worktreePath && (

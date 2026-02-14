@@ -1065,6 +1065,25 @@ export const betaBrowserEnabledAtom = atom(
 )
 
 // ============================================
+// VOICE INPUT SETTINGS ATOMS
+// ============================================
+
+/**
+ * Beta: Enable Voice Input feature
+ * When disabled (default), all voice input functionality is off:
+ * - Voice input button hidden
+ * - Voice keyboard shortcuts disabled
+ * - Voice settings hidden from settings
+ * Note: Voice is a beta feature - users must opt-in
+ */
+export const betaVoiceInputEnabledAtom = atomWithStorage<boolean>(
+  "preferences:beta-voice-input-enabled",
+  false, // Default OFF - beta feature
+  undefined,
+  { getOnInit: true },
+)
+
+// ============================================
 // UNIFIED MODEL CONFIG (New Provider + Model system)
 // ============================================
 
@@ -1086,6 +1105,8 @@ export {
   activeLlmModelIdAtom,
   // Per-chat model persistence
   chatModelSelectionsAtom,
+  // Per-subChat model persistence
+  subChatModelSelectionsAtom,
   // Session override for chat-time switching
   sessionModelOverrideAtom,
   effectiveLlmSelectionAtom,

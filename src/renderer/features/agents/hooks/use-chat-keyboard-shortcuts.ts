@@ -26,6 +26,7 @@ import { useSetAtom } from "jotai"
 import { usePlatform } from "../../../contexts/PlatformContext"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { undoStackAtom } from "../atoms"
+import { trpc, trpcClient } from "../../../lib/trpc"
 
 export interface ChatKeyboardShortcutsOptions {
   // Chat ID for undo stack
@@ -61,6 +62,7 @@ export function useChatKeyboardShortcuts({
 }: ChatKeyboardShortcutsOptions): void {
   const { isDesktop } = usePlatform()
   const setUndoStack = useSetAtom(undoStackAtom)
+  const utils = trpc.useUtils()
 
   // Helper to add sub-chat to undo stack
   const addSubChatToUndoStack = useCallback(
@@ -145,6 +147,10 @@ export function useChatKeyboardShortcuts({
             idsToClose.forEach((id) => {
               store.removeFromOpenSubChats(id)
               addSubChatToUndoStack(id)
+              // Archive in database, then invalidate cache so archived sub-chats don't reappear
+              trpcClient.subChats.archiveSubChat.mutate({ id })
+                .then(() => utils.agents.getAgentChat.invalidate({ chatId }))
+                .catch(console.error)
             })
           }
           clearSubChatSelection?.()
@@ -159,6 +165,10 @@ export function useChatKeyboardShortcuts({
         if (activeId && openIds.length > 1) {
           store.removeFromOpenSubChats(activeId)
           addSubChatToUndoStack(activeId)
+          // Archive in database, then invalidate cache so archived sub-chats don't reappear
+          trpcClient.subChats.archiveSubChat.mutate({ id: activeId })
+            .then(() => utils.agents.getAgentChat.invalidate({ chatId }))
+            .catch(console.error)
         }
       }
     }
@@ -166,11 +176,13 @@ export function useChatKeyboardShortcuts({
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [
+    chatId,
     isSubChatMultiSelectMode,
     selectedSubChatIds,
     clearSubChatSelection,
     addSubChatToUndoStack,
     isDesktop,
+    utils,
   ])
 
   // Keyboard shortcut: Navigate between sub-chats (Cmd+[ / Cmd+])

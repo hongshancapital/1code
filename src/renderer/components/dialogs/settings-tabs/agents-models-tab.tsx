@@ -6,14 +6,17 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Download,
   Info,
   Loader2,
+  Mic,
   Pencil,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
 } from "lucide-react"
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { UsageDetailsDialog } from "./usage-details-dialog"
@@ -21,6 +24,7 @@ import {
   agentsSettingsDialogOpenAtom,
   anthropicOnboardingCompletedAtom,
   autoOfflineModeAtom,
+  betaVoiceInputEnabledAtom,
   billingMethodAtom,
   openaiApiKeyAtom,
   showOfflineModeFeaturesAtom,
@@ -61,6 +65,13 @@ import { Label } from "../../ui/label"
 import { Switch } from "../../ui/switch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../ui/tooltip"
 import { cn } from "../../../lib/utils"
+import { Progress } from "../../ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "../../ui/select"
 
 // ============ Provider Icon ============
 
@@ -1850,47 +1861,351 @@ export function AgentsModelsTab() {
         <UsageStatisticsSection onViewDetails={() => setUsageDetailsOpen(true)} />
       </div>
 
-      {/* OpenAI API Key for Voice Input */}
-      <div className="space-y-2">
-        <div className="pb-2 flex items-center justify-between">
-          <h4 className="text-sm font-medium text-foreground">{t("models.voice.title")}</h4>
-          {canResetOpenAI && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetOpenAI}
-              disabled={setOpenAIKeyMutation.isPending}
-              className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
-            >
-              {t("models.voice.openaiKey.remove")}
-            </Button>
-          )}
-        </div>
-
-        <div className="bg-background rounded-lg border border-border overflow-hidden">
-          <div className="flex items-center justify-between gap-6 p-4">
-            <div className="flex-1">
-              <Label className="text-sm font-medium">{t("models.voice.openaiKey.title")}</Label>
-              <p className="text-xs text-muted-foreground">
-                {t("models.voice.openaiKey.description")}
-              </p>
-            </div>
-            <div className="shrink-0 w-80">
-              <Input
-                type="password"
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                onBlur={handleSaveOpenAI}
-                className="w-full"
-                placeholder="sk-..."
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Voice Input Settings */}
+      <VoiceInputSettings />
 
       {/* Usage Details Dialog */}
       <UsageDetailsDialog open={usageDetailsOpen} onOpenChange={setUsageDetailsOpen} />
+    </div>
+  )
+}
+
+// ============ Voice Input Settings ============
+
+function VoiceInputSettings() {
+  const { t } = useTranslation("settings")
+
+  // Check if voice beta feature is enabled
+  const betaVoiceInputEnabled = useAtomValue(betaVoiceInputEnabledAtom)
+
+  // If beta feature is not enabled, show enable prompt
+  if (!betaVoiceInputEnabled) {
+    return (
+      <div className="space-y-2">
+        <div className="pb-2">
+          <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Mic className="h-4 w-4 text-muted-foreground" />
+            {t("models.voice.title")}
+          </h4>
+        </div>
+        <div className="bg-muted/30 rounded-lg border border-border p-4 text-center">
+          <p className="text-sm text-muted-foreground mb-2">
+            {t("models.voice.betaDisabled", "Voice Input is a beta feature.")}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t("models.voice.enableInBeta", "Enable it in Settings → Beta → Voice Input to use this feature.")}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Beta is enabled (or in dev mode), show actual settings
+  return <VoiceInputSettingsContent />
+}
+
+// Voice Input Settings Content (actual settings)
+function VoiceInputSettingsContent() {
+  const { t } = useTranslation("settings")
+
+  // OpenAI API Key state
+  const [storedOpenAIKey, setStoredOpenAIKey] = useAtom(openaiApiKeyAtom)
+  const [openaiKey, setOpenaiKey] = useState(storedOpenAIKey)
+  const setOpenAIKeyMutation = trpc.voice.setOpenAIKey.useMutation()
+  const trpcUtils = trpc.useUtils()
+
+  useEffect(() => {
+    setOpenaiKey(storedOpenAIKey)
+  }, [storedOpenAIKey])
+
+  const trimmedOpenAIKey = openaiKey.trim()
+  const canResetOpenAI = !!trimmedOpenAIKey
+
+  const handleSaveOpenAI = async () => {
+    if (trimmedOpenAIKey === storedOpenAIKey) return
+    if (trimmedOpenAIKey && !trimmedOpenAIKey.startsWith("sk-")) {
+      toast.error("Invalid OpenAI API key format. Key should start with 'sk-'")
+      return
+    }
+
+    try {
+      await setOpenAIKeyMutation.mutateAsync({ key: trimmedOpenAIKey })
+      setStoredOpenAIKey(trimmedOpenAIKey)
+      await trpcUtils.voice.isAvailable.invalidate()
+      toast.success("OpenAI API key saved")
+    } catch {
+      toast.error("Failed to save OpenAI API key")
+    }
+  }
+
+  const handleResetOpenAI = async () => {
+    try {
+      await setOpenAIKeyMutation.mutateAsync({ key: "" })
+      setStoredOpenAIKey("")
+      setOpenaiKey("")
+      await trpcUtils.voice.isAvailable.invalidate()
+      toast.success("OpenAI API key removed")
+    } catch {
+      toast.error("Failed to remove OpenAI API key")
+    }
+  }
+
+  // Whisper status and config queries
+  const { data: whisperStatus, refetch: refetchStatus } = trpc.voice.whisperStatus.useQuery(undefined, {
+    refetchInterval: 2000, // Poll for download progress
+  })
+  const { data: whisperConfig, refetch: refetchConfig } = trpc.voice.getWhisperConfig.useQuery()
+
+  // Mutations
+  const setConfigMutation = trpc.voice.setWhisperConfig.useMutation({
+    onSuccess: () => {
+      refetchConfig()
+    },
+  })
+  const downloadModelMutation = trpc.voice.downloadModel.useMutation({
+    onSuccess: () => {
+      refetchStatus()
+    },
+  })
+  const deleteModelMutation = trpc.voice.deleteModel.useMutation({
+    onSuccess: () => {
+      refetchStatus()
+    },
+  })
+  const cancelDownloadMutation = trpc.voice.cancelDownload.useMutation({
+    onSuccess: () => {
+      refetchStatus()
+    },
+  })
+
+  const handleProviderChange = useCallback((provider: "auto" | "local" | "openai") => {
+    setConfigMutation.mutate({ provider })
+  }, [setConfigMutation])
+
+  const handleLanguageChange = useCallback((language: string | null) => {
+    setConfigMutation.mutate({ language })
+  }, [setConfigMutation])
+
+  const handleDownloadModel = useCallback((modelId: "tiny" | "base" | "small") => {
+    downloadModelMutation.mutate({ modelId })
+  }, [downloadModelMutation])
+
+  const handleDeleteModel = useCallback((modelId: "tiny" | "base" | "small") => {
+    deleteModelMutation.mutate({ modelId })
+  }, [deleteModelMutation])
+
+  const handleCancelDownload = useCallback((modelId: "tiny" | "base" | "small") => {
+    cancelDownloadMutation.mutate({ modelId })
+  }, [cancelDownloadMutation])
+
+  // Format file size
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+    return `${Math.round(bytes / 1024 / 1024)} MB`
+  }
+
+  const binaryAvailable = whisperStatus?.binaryAvailable ?? false
+  const models = whisperStatus?.models ?? []
+  const provider = whisperConfig?.provider ?? "auto"
+  const language = whisperConfig?.language ?? null
+  const availableLanguages = whisperConfig?.availableLanguages ?? []
+
+  return (
+    <div className="space-y-2">
+      {/* Section Header */}
+      <div className="pb-2 flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Mic className="h-4 w-4 text-muted-foreground" />
+            {t("models.voice.title")}
+          </h4>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure voice-to-text transcription
+          </p>
+        </div>
+        {canResetOpenAI && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleResetOpenAI}
+            disabled={setOpenAIKeyMutation.isPending}
+            className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+          >
+            {t("models.voice.openaiKey.remove")}
+          </Button>
+        )}
+      </div>
+
+      <div className="bg-background rounded-lg border border-border overflow-hidden">
+        {/* Transcription Provider */}
+        <div className="flex items-center justify-between p-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t("preferences.voice.provider.title", "Transcription Provider")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("preferences.voice.provider.description", "Choose how voice is transcribed to text")}
+            </span>
+          </div>
+          <Select
+            value={provider}
+            onValueChange={(value: "auto" | "local" | "openai") => handleProviderChange(value)}
+          >
+            <SelectTrigger className="w-auto px-2">
+              <span className="text-xs">
+                {provider === "auto"
+                  ? t("preferences.voice.provider.auto", "Auto")
+                  : provider === "local"
+                    ? t("preferences.voice.provider.local", "Local (Offline)")
+                    : t("preferences.voice.provider.openai", "OpenAI API")}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">{t("preferences.voice.provider.auto", "Auto")}</SelectItem>
+              <SelectItem value="local">{t("preferences.voice.provider.local", "Local (Offline)")}</SelectItem>
+              <SelectItem value="openai">{t("preferences.voice.provider.openai", "OpenAI API")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Language */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t("preferences.voice.language.title", "Language")}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t("preferences.voice.language.description", "Speech recognition language")}
+            </span>
+          </div>
+          <Select
+            value={language || "auto"}
+            onValueChange={(value) => handleLanguageChange(value === "auto" ? null : value)}
+          >
+            <SelectTrigger className="w-auto px-2">
+              <span className="text-xs">
+                {availableLanguages.find((l) => l.code === (language || "auto"))?.name || "Auto-detect"}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              {availableLanguages.map((lang) => (
+                <SelectItem key={lang.code} value={lang.code}>
+                  {lang.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* OpenAI API Key */}
+        <div className="flex items-center justify-between gap-6 p-4 border-t border-border">
+          <div className="flex-1">
+            <Label className="text-sm font-medium">{t("models.voice.openaiKey.title")}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t("models.voice.openaiKey.description")}
+            </p>
+          </div>
+          <div className="shrink-0 w-64">
+            <Input
+              type="password"
+              value={openaiKey}
+              onChange={(e) => setOpenaiKey(e.target.value)}
+              onBlur={handleSaveOpenAI}
+              className="w-full"
+              placeholder="sk-..."
+            />
+          </div>
+        </div>
+
+        {/* Local Whisper Models */}
+        {binaryAvailable && (
+          <div className="p-4 border-t border-border">
+            <div className="flex flex-col gap-1 mb-3">
+              <span className="text-sm font-medium text-foreground">
+                {t("preferences.voice.models.title", "Local Models")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t("preferences.voice.models.description", "Download models for offline transcription")}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {models.map((model) => (
+                <div
+                  key={model.id}
+                  className="flex items-center justify-between p-2 rounded-md bg-muted/30"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{model.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({formatSize(model.expectedSize)})
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {model.description}
+                    </span>
+                    {model.downloading && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <Progress value={model.progress} className="h-1 w-24" />
+                        <span className="text-xs text-muted-foreground">{model.progress}%</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {model.downloading ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCancelDownload(model.id)}
+                        className="h-7 px-2"
+                      >
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        {t("preferences.voice.models.cancel", "Cancel")}
+                      </Button>
+                    ) : model.downloaded ? (
+                      <>
+                        <span className="text-xs text-green-500 mr-2">
+                          {t("preferences.voice.models.downloaded", "Downloaded")}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteModel(model.id)}
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDownloadModel(model.id)}
+                        disabled={downloadModelMutation.isPending}
+                        className="h-7 px-2"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        {t("preferences.voice.models.download", "Download")}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Binary not available warning */}
+        {!binaryAvailable && (
+          <div className="p-4 border-t border-border">
+            <div className="text-xs text-amber-500">
+              {t("preferences.voice.binaryNotAvailable", "Local transcription not available. Run 'bun run whisper:download' to install.")}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

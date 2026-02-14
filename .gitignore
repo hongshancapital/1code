@@ -33,6 +33,13 @@ electron.vite.config.*.mjs
 
 # Claude binary (downloaded at build time)
 resources/bin/
+
+# Whisper binary (downloaded at runtime)
+resources/whisper/
+
+# Upload temp files
+uploads/
+
 .hong/
 
 .claude/

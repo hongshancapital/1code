@@ -64,6 +64,28 @@
         "title": "Share Usage Analytics",
         "description": "Help us improve by sharing anonymous usage data. We only track feature usage and app performance–never your code, prompts, or messages."
       }
+    },
+    "voice": {
+      "title": "Voice Input",
+      "provider": {
+        "title": "Transcription Provider",
+        "description": "Choose how voice is transcribed to text",
+        "auto": "Auto",
+        "local": "Local (Offline)",
+        "openai": "OpenAI API"
+      },
+      "language": {
+        "title": "Language",
+        "description": "Speech recognition language"
+      },
+      "models": {
+        "title": "Local Models",
+        "description": "Download models for offline transcription",
+        "download": "Download",
+        "downloaded": "Downloaded",
+        "cancel": "Cancel"
+      },
+      "binaryNotAvailable": "Local transcription not available. Run 'bun run whisper:download' to install."
     }
   },
   "appearance": {
@@ -167,6 +189,8 @@
     },
     "voice": {
       "title": "Voice Input",
+      "betaDisabled": "Voice Input is a beta feature.",
+      "enableInBeta": "Enable it in Settings → Beta → Voice Input to use this feature.",
       "openaiKey": {
         "title": "OpenAI API Key",
         "description": "Required for voice transcription (Whisper API). Free users need their own key.",
@@ -430,6 +454,11 @@
     "browser": {
       "title": "Browser",
       "description": "Built-in browser for AI-driven web automation and testing."
+    },
+    "voiceInput": {
+      "title": "Voice Input",
+      "description": "Voice-to-text input using local Whisper or OpenAI Whisper API.",
+      "devOnly": "Only available in development mode. This feature is still being debugged."
     },
     "offlineSettings": {
       "title": "Offline Mode Settings",

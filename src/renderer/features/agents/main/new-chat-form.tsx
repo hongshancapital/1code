@@ -60,6 +60,7 @@ const selectedTeamIdAtom = atom<string | null>(null)
 import {
   agentsSettingsDialogOpenAtom,
   agentsSettingsDialogActiveTabAtom,
+  betaVoiceInputEnabledAtom,
   customClaudeConfigAtom,
   normalizeCustomClaudeConfig,
   showOfflineModeFeaturesAtom,
@@ -551,8 +552,10 @@ export function NewChatForm({
   const transcribeMutation = trpc.voice.transcribe.useMutation()
 
   // Check if voice input is available (authenticated OR has OPENAI_API_KEY)
+  // Also check if voiceInput feature is enabled (beta feature)
   const { data: voiceAvailability } = trpc.voice.isAvailable.useQuery()
-  const isVoiceAvailable = voiceAvailability?.available ?? false
+  const betaVoiceInputEnabled = useAtomValue(betaVoiceInputEnabledAtom)
+  const isVoiceAvailable = (voiceAvailability?.available ?? false) && betaVoiceInputEnabled
 
   // Voice input handlers
   const handleVoiceMouseDown = useCallback(async () => {

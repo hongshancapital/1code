@@ -311,6 +311,20 @@ export const chatModelSelectionsAtom = atomWithStorage<Record<string, ModelSelec
   { getOnInit: true },
 )
 
+// ============ Per-SubChat Model Persistence ============
+
+/**
+ * Per-subChat model selections (persisted to localStorage)
+ * Key: subChatId, Value: { providerId, modelId }
+ * Each sub-chat remembers its own model independently.
+ */
+export const subChatModelSelectionsAtom = atomWithStorage<Record<string, ModelSelection>>(
+  "models:subchat-selections",
+  {},
+  undefined,
+  { getOnInit: true },
+)
+
 // ============ Session Model Override (Chat-time switching) ============
 
 /**
