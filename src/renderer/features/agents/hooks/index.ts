@@ -68,3 +68,9 @@ export {
   type QuestionComponentRef,
   type EditorRef,
 } from "./use-question-handlers"
+
+export {
+  useAutoRename,
+  type UseAutoRenameOptions,
+  type UseAutoRenameResult,
+} from "./use-auto-rename"
