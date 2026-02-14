@@ -4839,6 +4839,14 @@ export function ChatView({
       ...agentSubChats.map(sc => sc.id),
       ...allSubChats.map(sc => sc.id),
     ])
+    console.log('[active-chat] tabsToRender calculation:', {
+      agentSubChatsCount: agentSubChats.length,
+      allSubChatsCount: allSubChats.length,
+      validSubChatIdsCount: validSubChatIds.size,
+      openSubChatIdsCount: openSubChatIds.length,
+      pinnedSubChatIdsCount: pinnedSubChatIds.length,
+      activeSubChatId
+    })
 
     // When both data sources are still empty (loading), trust activeSubChatId from localStorage.
     // Without this, there's a race condition:
@@ -5673,10 +5681,12 @@ Make sure to preserve all functionality from both branches when resolving confli
           "agent",
       }
     })
+    console.log('[active-chat] dbSubChats length:', dbSubChats.length, 'chatId:', chatId)
     const dbSubChatIds = new Set(dbSubChats.map((sc) => sc.id))
 
     // Start with DB sub-chats
     const allSubChats: SubChatMeta[] = [...dbSubChats]
+    console.log('[active-chat] allSubChats length:', allSubChats.length)
 
     // For each open tab ID that's NOT in DB, add placeholder (like Canvas)
     // This prevents losing tabs during race conditions
@@ -5702,6 +5712,20 @@ Make sure to preserve all functionality from both branches when resolving confli
         if (sc.mode) {
           appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
         }
+      }
+
+      // FIX: When switching to a new chat, if openSubChatIds is empty or doesn't contain all DB sub-chats,
+      // initialize it with all DB sub-chat IDs. This fixes the issue where copying production DB
+      // results in only 1 tab showing (because localStorage openSubChatIds only had 1 ID).
+      const dbSubChatIdSet = new Set(dbSubChats.map(sc => sc.id))
+      const currentOpenSet = new Set(freshState.openSubChatIds)
+      const hasAllDbSubChats = dbSubChats.every(sc => currentOpenSet.has(sc.id))
+
+      if (!hasAllDbSubChats && dbSubChats.length > 0) {
+        console.log('[active-chat] Initializing openSubChatIds with all DB sub-chats:', dbSubChats.length)
+        // Add all DB sub-chat IDs to openSubChatIds (oldest first, so newest are at the end)
+        const allOpenIds = [...dbSubChats.map(sc => sc.id)]
+        freshState.setOpenSubChats(allOpenIds)
       }
     }
 
