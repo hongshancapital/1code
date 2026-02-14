@@ -325,16 +325,37 @@ export function SubChatSelector({
     })
   }, [])
 
+  const apiUtils = api.useUtils()
+  const archiveMutation = trpc.subChats.archiveSubChat.useMutation({
+    onSuccess: () => {
+      // Invalidate chat query so archived sub-chats don't reappear from stale cache
+      if (parentChatId) {
+        apiUtils.agents.getAgentChat.invalidate({ chatId: parentChatId })
+      }
+    },
+  })
+
   const onCloseTab = useCallback((subChatId: string) => {
+    // Remove from open tabs immediately (optimistic update)
     useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId)
-  }, [])
+
+    // Archive in database (fire-and-forget)
+    archiveMutation.mutate({ id: subChatId })
+  }, [archiveMutation])
 
   const onCloseOtherTabs = useCallback((subChatId: string) => {
     const state = useAgentSubChatStore.getState()
     const idsToClose = state.openSubChatIds.filter((id) => id !== subChatId)
+
+    // Remove from open tabs immediately (optimistic update)
     idsToClose.forEach((id) => state.removeFromOpenSubChats(id))
     state.setActiveSubChat(subChatId)
-  }, [])
+
+    // Archive in database (fire-and-forget)
+    idsToClose.forEach((id) => {
+      archiveMutation.mutate({ id })
+    })
+  }, [archiveMutation])
 
   const onCloseTabsToRight = useCallback(
     (_subChatId: string, visualIndex: number) => {
@@ -342,9 +363,16 @@ export function SubChatSelector({
 
       // Use visual order from sorted openSubChats, not storage order
       const idsToClose = openSubChats.slice(visualIndex + 1).map((sc) => sc.id)
+
+      // Remove from open tabs immediately (optimistic update)
       idsToClose.forEach((id) => state.removeFromOpenSubChats(id))
+
+      // Archive in database (fire-and-forget)
+      idsToClose.forEach((id) => {
+        archiveMutation.mutate({ id })
+      })
     },
-    [openSubChats],
+    [openSubChats, archiveMutation],
   )
 
   const [editingSubChatId, setEditingSubChatId] = useState<string | null>(null)

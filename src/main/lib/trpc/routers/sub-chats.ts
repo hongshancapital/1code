@@ -483,6 +483,36 @@ export const subChatsRouter = router({
     }),
 
   /**
+   * Archive a sub-chat (soft delete)
+   */
+  archiveSubChat: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(({ input }) => {
+      const db = getDatabase()
+      return db
+        .update(subChats)
+        .set({ archivedAt: new Date(), updatedAt: new Date() })
+        .where(eq(subChats.id, input.id))
+        .returning()
+        .get()
+    }),
+
+  /**
+   * Unarchive a sub-chat
+   */
+  unarchiveSubChat: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(({ input }) => {
+      const db = getDatabase()
+      return db
+        .update(subChats)
+        .set({ archivedAt: null, updatedAt: new Date() })
+        .where(eq(subChats.id, input.id))
+        .returning()
+        .get()
+    }),
+
+  /**
    * Generate a name for a sub-chat using AI
    *
    * New flow for better UX:

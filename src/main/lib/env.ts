@@ -96,7 +96,7 @@ export function validateEnv(): Env {
     MAIN_VITE_SENTRY_DSN: import.meta.env.MAIN_VITE_SENTRY_DSN,
     MAIN_VITE_OPENAI_API_KEY: import.meta.env.MAIN_VITE_OPENAI_API_KEY,
     MAIN_VITE_SENSORS_SERVER_URL: import.meta.env.MAIN_VITE_SENSORS_SERVER_URL,
-    MAIN_VITE_LITELLM_BASE_URL: import.meta.env.MAIN_VITE_LITELLM_BASE_URL || "http://localhost:4000/v1",
+    MAIN_VITE_LITELLM_BASE_URL: import.meta.env.MAIN_VITE_LITELLM_BASE_URL,
     MAIN_VITE_LITELLM_API_KEY: import.meta.env.MAIN_VITE_LITELLM_API_KEY,
 
     // Azure AD (optional, for Windows domain users)

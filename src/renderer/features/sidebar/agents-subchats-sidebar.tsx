@@ -535,8 +535,9 @@ export function AgentsSubChatsSidebar({
         }
         return
       }
-      // Archive = remove from open tabs (but keep in allSubChats for history)
+      // Archive = remove from open tabs + persist to database
       useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId)
+      trpcClient.subChats.archiveSubChat.mutate({ id: subChatId }).catch(console.error)
 
       // Add to unified undo stack for Cmd+Z
       if (parentChatId) {
@@ -621,7 +622,10 @@ export function AgentsSubChatsSidebar({
         .slice(currentIndex + 1)
         .map((c) => c.id)
 
-      idsToClose.forEach((id) => state.removeFromOpenSubChats(id))
+      idsToClose.forEach((id) => {
+        state.removeFromOpenSubChats(id)
+        trpcClient.subChats.archiveSubChat.mutate({ id }).catch(console.error)
+      })
 
       // Add each to unified undo stack for Cmd+Z
       if (parentChatId) {
@@ -642,7 +646,10 @@ export function AgentsSubChatsSidebar({
   const onCloseOtherChats = useCallback((subChatId: string) => {
     const state = useAgentSubChatStore.getState()
     const idsToClose = state.openSubChatIds.filter((id) => id !== subChatId)
-    idsToClose.forEach((id) => state.removeFromOpenSubChats(id))
+    idsToClose.forEach((id) => {
+      state.removeFromOpenSubChats(id)
+      trpcClient.subChats.archiveSubChat.mutate({ id }).catch(console.error)
+    })
     state.setActiveSubChat(subChatId)
 
     // Add each to unified undo stack for Cmd+Z
@@ -897,7 +904,10 @@ export function AgentsSubChatsSidebar({
       } else {
         // Some tabs remain - just close selected ones
         const state = useAgentSubChatStore.getState()
-        idsToArchive.forEach((id) => state.removeFromOpenSubChats(id))
+        idsToArchive.forEach((id) => {
+          state.removeFromOpenSubChats(id)
+          trpcClient.subChats.archiveSubChat.mutate({ id }).catch(console.error)
+        })
         clearSubChatSelection()
 
         // Add each to unified undo stack for Cmd+Z

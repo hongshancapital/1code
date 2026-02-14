@@ -193,8 +193,9 @@ export function trackSendMessage(mode: "agent" | "plan", at: boolean): void {
 /**
  * AI 回复用时（每轮对话独立记录）
  */
-export function trackAIResponseDuration(durationMs: number): void {
+export function trackAIResponseDuration(durationMs: number, status: "success" | "error"): void {
   track("Cowork_AI_Response_Duration", {
     DurationMs: durationMs,
+    Status: status,
   })
 }

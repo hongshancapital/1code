@@ -44,7 +44,7 @@ export const useStreamingStatusStore = create<StreamingStatusState>()(
         const startTime = turnStartTimes.get(subChatId)
         if (startTime !== undefined) {
           turnStartTimes.delete(subChatId)
-          trackAIResponseDuration(Date.now() - startTime)
+          trackAIResponseDuration(Date.now() - startTime, status === "ready" ? "success" : "error")
         }
       }
 

@@ -3274,23 +3274,10 @@ export function ChatView({
     })
     const dbSubChatIds = new Set(dbSubChats.map((sc) => sc.id))
 
-    // Start with DB sub-chats
-    const allSubChats: SubChatMeta[] = [...dbSubChats]
-
-    // For each open tab ID that's NOT in DB, add placeholder (like Canvas)
-    // This prevents losing tabs during race conditions
-    const currentOpenIds = freshState.openSubChatIds
-    currentOpenIds.forEach((id) => {
-      if (!dbSubChatIds.has(id)) {
-        allSubChats.push({
-          id,
-          name: "New Chat",
-          created_at: new Date().toISOString(),
-        })
-      }
-    })
-
-    freshState.setAllSubChats(allSubChats)
+    // DB is the source of truth — archived sub-chats are already filtered out.
+    // New sub-chats are added to the store directly via addToAllSubChats + React Query setData
+    // at creation time, so no placeholder logic is needed here.
+    freshState.setAllSubChats(dbSubChats)
 
     // Initialize atomFamily mode for each sub-chat from database
     // IMPORTANT: Only do this when chatId changes (new chat loaded), not on every agentChat update
@@ -3302,63 +3289,44 @@ export function ChatView({
           appStore.set(subChatModeAtomFamily(sc.id), sc.mode)
         }
       }
+
+      // Initialize openSubChatIds from DB.
+      // DB already filters out archived sub-chats (via archived_at),
+      // so we trust DB as source of truth.
+      if (dbSubChats.length > 0) {
+        freshState.setOpenSubChats(dbSubChats.map(sc => sc.id))
+      }
     }
 
-    // Validate localStorage state against DB
-    const currentActive = freshState.activeSubChatId
-    const isActiveIdValid = currentActive && dbSubChatIds.has(currentActive)
-
-    // Only keep open tabs that exist in DB
+    // Validate openSubChatIds — remove any IDs that no longer exist in DB
+    // (e.g. sub-chat was archived or deleted since last session)
+    const currentOpenIds = freshState.openSubChatIds
     const validOpenIds = currentOpenIds.filter(id => dbSubChatIds.has(id))
-
-    // Helper: find the most recently updated subchat from a list
-    const findLatest = (list: SubChatMeta[]) => {
-      if (list.length === 0) return null
-      return list.reduce((latest, sc) => {
-        const latestTime = latest.updated_at || latest.created_at || ""
-        const scTime = sc.updated_at || sc.created_at || ""
-        return scTime > latestTime ? sc : latest
-      })
+    if (validOpenIds.length !== currentOpenIds.length) {
+      freshState.setOpenSubChats(validOpenIds)
     }
 
-    if (validOpenIds.length > 0) {
-      // Have valid open tabs
-      if (validOpenIds.length !== currentOpenIds.length) {
-        console.log('[init] Filtering invalid open tabs', {
-          before: currentOpenIds.length,
-          after: validOpenIds.length,
+    // Validate activeSubChatId
+    const currentActive = freshState.activeSubChatId
+    if (!currentActive || !dbSubChatIds.has(currentActive)) {
+      // Pick the most recently updated sub-chat from open tabs, or from all DB sub-chats
+      const candidates = validOpenIds.length > 0
+        ? validOpenIds.map(id => dbSubChats.find(sc => sc.id === id)).filter(Boolean) as SubChatMeta[]
+        : dbSubChats
+      if (candidates.length > 0) {
+        const latest = candidates.reduce((a, b) => {
+          const aTime = a.updated_at || a.created_at || ""
+          const bTime = b.updated_at || b.created_at || ""
+          return bTime > aTime ? b : a
         })
-        freshState.setOpenSubChats(validOpenIds)
+        freshState.setActiveSubChat(latest.id)
+        // If no open tabs, also open this one
+        if (validOpenIds.length === 0) {
+          freshState.setOpenSubChats([latest.id])
+        }
+      } else {
+        freshState.setActiveSubChat(null)
       }
-
-      // Validate activeSubChatId
-      if (!isActiveIdValid || !validOpenIds.includes(currentActive!)) {
-        // Pick the most recently updated among valid open tabs
-        const openSubChats = validOpenIds
-          .map(id => dbSubChats.find(sc => sc.id === id))
-          .filter(Boolean) as SubChatMeta[]
-        const latest = findLatest(openSubChats)
-        const targetId = latest?.id || validOpenIds[0]
-        console.log('[init] Invalid activeSubChatId, switching to latest valid', {
-          currentActive,
-          targetId,
-        })
-        freshState.setActiveSubChat(targetId)
-      }
-    } else if (dbSubChats.length > 0) {
-      // No valid open tabs, but DB has subchats — open the most recent one
-      const latest = findLatest(dbSubChats)!
-      console.log('[init] No valid open tabs, opening latest subchat from DB', {
-        id: latest.id,
-        updated_at: latest.updated_at,
-      })
-      freshState.setOpenSubChats([latest.id])
-      freshState.setActiveSubChat(latest.id)
-    } else {
-      // DB has no subchats — clear state (UI will show new chat input)
-      console.log('[init] No subchats in DB, clearing state')
-      freshState.setOpenSubChats([])
-      freshState.setActiveSubChat(null)
     }
   }, [agentChat, chatId])
 

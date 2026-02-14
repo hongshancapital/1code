@@ -29,7 +29,7 @@ const simulatedInstallState: SimulatedInstallState = {
 }
 
 // Protocol constant (must match main/index.ts)
-const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
+const IS_DEV = !app.isPackaged
 const PROTOCOL = IS_DEV ? "hong-dev" : "hong"
 
 // Helper function for delays
@@ -497,58 +497,79 @@ export const debugRouter = router({
   }),
 
   /**
-   * Copy production database to development environment (dev only)
-   * This allows testing with real data from the release version
+   * Copy production database to development environment
+   * Only available in dev builds (packaged or unpackaged)
    */
   copyProductionDb: publicProcedure.mutation(async () => {
-    // Only allow in dev mode
-    if (!IS_DEV) {
-      throw new Error("This operation is only available in development mode")
+    // Only allow in dev builds (bun run dev or packaged dev build)
+    // Check userData path instead of app name (more reliable when embedded in Tinker)
+    const userDataPath = app.getPath("userData")
+    const isPackaged = app.isPackaged
+    const isDevBuild = !isPackaged ||
+                       userDataPath.includes("开发版") ||
+                       userDataPath.includes("Dev") ||
+                       userDataPath.includes("Agents Dev")
+
+    console.log("[copyProductionDb] App name:", app.getName())
+    console.log("[copyProductionDb] userData:", userDataPath)
+    console.log("[copyProductionDb] isPackaged:", isPackaged)
+    console.log("[copyProductionDb] isDevBuild:", isDevBuild)
+
+    if (!isDevBuild) {
+      throw new Error(`This operation is only available in development builds (userData: ${userDataPath}, packaged: ${isPackaged})`)
     }
 
-    // Determine production app data path
-    // Production app name is "hong-desktop", dev is "Agents Dev"
-    const userDataPath = app.getPath("userData") // e.g., ~/Library/Application Support/Agents Dev
+    // userDataPath already declared above at line 506
     const appSupportPath = join(userDataPath, "..") // ~/Library/Application Support
 
     // Production database path - try multiple possible locations
+    // Current userData paths:
+    // - "Hong Cowork" (production, embedded in Tinker)
+    // - "Hong Cowork-开发版" (dev build, embedded in Tinker)
+    // - "Hong" (standalone production, no Tinker)
     const possibleProductionPaths = [
-      join(appSupportPath, "hong-desktop", "data", "agents.db"),  // Current production
-      join(appSupportPath, "Hong Cowork", "data", "agents.db"),   // Legacy name
-      join(appSupportPath, "Hong", "data", "agents.db"),          // Alternative name
-    ]
+      join(appSupportPath, "Hong Cowork", "data", "agents.db"),         // Production (Tinker)
+      join(appSupportPath, "Hong Cowork-开发版", "data", "agents.db"), // Dev build (Tinker)
+      join(appSupportPath, "Hong", "data", "agents.db"),                // Standalone production
+      join(appSupportPath, "hong-desktop", "data", "agents.db"),        // Legacy
+    ].filter(p => p !== join(userDataPath, "data", "agents.db")) // Exclude self
 
     const productionDbPath = possibleProductionPaths.find(p => existsSync(p))
 
     if (!productionDbPath) {
-      throw new Error(`Production database not found. Searched paths:\n${possibleProductionPaths.join("\n")}`)
+      throw new Error(`Source database not found. Searched paths:\n${possibleProductionPaths.join("\n")}`)
     }
 
-    // Target path (dev database)
-    const devDataDir = join(userDataPath, "data")
-    const devDbPath = join(devDataDir, "agents.db")
+    // Target path (current app's database)
+    const targetDataDir = join(userDataPath, "data")
+    const targetDbPath = join(targetDataDir, "agents.db")
 
     // Ensure data directory exists
-    if (!existsSync(devDataDir)) {
-      mkdirSync(devDataDir, { recursive: true })
+    if (!existsSync(targetDataDir)) {
+      mkdirSync(targetDataDir, { recursive: true })
     }
 
     // Close current database connection
     closeDatabase()
 
-    // Copy production db to dev
+    // Remove old target db and WAL/SHM files (VACUUM INTO requires target not exist)
     try {
-      copyFileSync(productionDbPath, devDbPath)
-      console.log(`[Debug] Copied production DB from ${productionDbPath} to ${devDbPath}`)
+      if (existsSync(targetDbPath)) unlinkSync(targetDbPath)
+      if (existsSync(targetDbPath + "-wal")) unlinkSync(targetDbPath + "-wal")
+      if (existsSync(targetDbPath + "-shm")) unlinkSync(targetDbPath + "-shm")
+    } catch { /* ignore */ }
 
-      // Also copy WAL files if they exist (for consistency)
-      const walPath = productionDbPath + "-wal"
-      const shmPath = productionDbPath + "-shm"
-      if (existsSync(walPath)) {
-        copyFileSync(walPath, devDbPath + "-wal")
-      }
-      if (existsSync(shmPath)) {
-        copyFileSync(shmPath, devDbPath + "-shm")
+    // Use VACUUM INTO to create a consistent snapshot of the source db.
+    // This merges any WAL data into the output file without affecting
+    // the running source app or needing its lock.
+    try {
+      const Database = require("better-sqlite3")
+      const sourceDb = new Database(productionDbPath, { readonly: true })
+      try {
+        sourceDb.exec(`VACUUM INTO '${targetDbPath.replace(/'/g, "''")}'`)
+        console.log(`[Debug] VACUUM INTO from ${productionDbPath} to ${targetDbPath}`)
+      } finally {
+        sourceDb.close()
       }
     } catch (error) {
       // Re-initialize database even on error
@@ -556,11 +577,11 @@ export const debugRouter = router({
       throw error
     }
 
-    // Re-initialize database with new file
+    // Re-initialize database with the new file
     initDatabase()
 
-    console.log("[Debug] Production database copied to dev environment")
-    return { success: true, sourcePath: productionDbPath, targetPath: devDbPath }
+    console.log("[Debug] Database copied successfully")
+    return { success: true, sourcePath: productionDbPath, targetPath: targetDbPath }
   }),
 
   /**
