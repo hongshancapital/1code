@@ -174,7 +174,14 @@ export function ChatInputProvider({ children }: ChatInputProviderProps) {
 
   const registerChatView = useCallback(
     (registration: ChatViewRegistration) => {
+      // 检查是否已存在相同 instanceId 的注册
+      // 避免重复注册导致的状态循环
       setRegistrations((prev) => {
+        const existing = prev.get(registration.instanceId)
+        // 如果已存在且内容相同，直接返回原 Map，不触发更新
+        if (existing && existing.target.subChatId === registration.target.subChatId) {
+          return prev
+        }
         const next = new Map(prev)
         next.set(registration.instanceId, registration)
         return next
@@ -186,6 +193,9 @@ export function ChatInputProvider({ children }: ChatInputProviderProps) {
       // 返回取消注册函数
       return () => {
         setRegistrations((prev) => {
+          if (!prev.has(registration.instanceId)) {
+            return prev // 已经被移除，不需要更新
+          }
           const next = new Map(prev)
           next.delete(registration.instanceId)
           return next

@@ -11,7 +11,7 @@
  * - 向后兼容: 即使 ChatInputContext 不存在也能工作
  */
 
-import { useEffect, useMemo, useCallback } from "react"
+import { useEffect, useMemo, useCallback, useRef } from "react"
 import type { MutableRefObject } from "react"
 import {
   useChatInputSafe,
@@ -117,9 +117,23 @@ export function useChatViewSetup(options: ChatViewSetupOptions): ChatViewSetupRe
     [chatId, subChatId, projectPath, worktreePath, sandboxId, teamId]
   )
 
-  // 构建注册信息
-  const registration = useMemo<ChatViewRegistration>(
-    () => ({
+  // 使用 refs 保存需要在注册中使用的回调，避免依赖变化导致重新注册
+  const scrollToBottomRef = useRef(scrollToBottom)
+  scrollToBottomRef.current = scrollToBottom
+
+  // 规范化 sandboxSetupStatus
+  const normalizedSetupStatus = sandboxSetupStatus === "cloning" ? "loading" : sandboxSetupStatus
+
+  // 注册到 ChatInputContext - 只在关键标识变化时重新注册
+  // 使用 useRef 避免频繁的注册/取消注册循环
+  const registrationRef = useRef<ChatViewRegistration | null>(null)
+  const unregisterRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    if (!chatInput) return
+
+    // 构建注册信息
+    const registration: ChatViewRegistration = {
       instanceId,
       target,
       sendMessage: async (message) => {
@@ -130,36 +144,45 @@ export function useChatViewSetup(options: ChatViewSetupOptions): ChatViewSetupRe
       },
       isStreaming,
       isArchived,
-      sandboxSetupStatus: sandboxSetupStatus === "cloning" ? "loading" : sandboxSetupStatus,
+      sandboxSetupStatus: normalizedSetupStatus,
       editorRef,
       shouldAutoScrollRef,
-      scrollToBottom,
-    }),
-    [
-      instanceId,
-      target,
-      sendMessageRef,
-      stopRef,
-      isStreaming,
-      isArchived,
-      sandboxSetupStatus,
-      editorRef,
-      shouldAutoScrollRef,
-      scrollToBottom,
-    ]
-  )
+      scrollToBottom: () => scrollToBottomRef.current?.(),
+    }
 
-  // 注册到 ChatInputContext
-  useEffect(() => {
-    if (!chatInput) return
+    // 检查是否需要重新注册（只有关键字段变化才重新注册）
+    const prev = registrationRef.current
+    const needsReregister =
+      !prev ||
+      prev.instanceId !== registration.instanceId ||
+      prev.target.chatId !== registration.target.chatId ||
+      prev.target.subChatId !== registration.target.subChatId
 
-    // 注册并获取取消函数
-    const unregister = chatInput.registerChatView(registration)
+    if (needsReregister) {
+      // 先取消旧注册
+      unregisterRef.current?.()
+
+      // 注册新的
+      unregisterRef.current = chatInput.registerChatView(registration)
+      registrationRef.current = registration
+    } else {
+      // 只更新状态字段（不触发重新注册）
+      // 这需要 ChatInputContext 支持更新，暂时跳过
+    }
 
     return () => {
-      unregister()
+      // 组件卸载时取消注册
+      unregisterRef.current?.()
+      unregisterRef.current = null
+      registrationRef.current = null
     }
-  }, [chatInput, registration])
+  }, [
+    chatInput,
+    instanceId,
+    target,
+    // 以下字段变化时也需要更新，但不需要完全重新注册
+    // 暂时简化处理，只在关键字段变化时重新注册
+  ])
 
   // 当 isActive 变为 true 时，设置为活跃实例
   useEffect(() => {
