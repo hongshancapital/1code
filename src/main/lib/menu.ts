@@ -123,7 +123,16 @@ export function buildHongMenuTemplate(options: HongMenuOptions): MenuItemConstru
       label: "View",
       submenu: [
         { role: "forceReload" },
-        ...(showDevTools ? [{ role: "toggleDevTools" as const }] : []),
+        ...(showDevTools
+          ? [
+              {
+                label: "Toggle Developer Tools",
+                click: (_menuItem: unknown, browserWindow: BrowserWindow | undefined) => {
+                  browserWindow?.webContents.toggleDevTools()
+                },
+              },
+            ]
+          : []),
         { type: "separator" },
         { role: "resetZoom" },
         { role: "zoomIn" },
