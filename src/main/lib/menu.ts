@@ -9,6 +9,8 @@ export interface HongMenuOptions {
   showDevTools?: boolean
   /** Callback after menu-affecting state changes (e.g. CLI install) — caller should rebuild menu */
   onMenuChanged?: () => void
+  /** Override "New Window" action (default: createWindow from windows/main) */
+  onNewWindow?: () => void
 }
 
 /**
@@ -17,7 +19,7 @@ export interface HongMenuOptions {
  * Returns MenuItemConstructorOptions[] — caller does Menu.buildFromTemplate() + setApplicationMenu().
  */
 export function buildHongMenuTemplate(options: HongMenuOptions): MenuItemConstructorOptions[] {
-  const { getWindow, showDevTools = false, onMenuChanged } = options
+  const { getWindow, showDevTools = false, onMenuChanged, onNewWindow } = options
 
   return [
     {
@@ -85,7 +87,11 @@ export function buildHongMenuTemplate(options: HongMenuOptions): MenuItemConstru
           label: "New Window",
           accelerator: "CmdOrCtrl+Shift+N",
           click: () => {
-            createWindow()
+            if (onNewWindow) {
+              onNewWindow()
+            } else {
+              createWindow()
+            }
           },
         },
         { type: "separator" },
