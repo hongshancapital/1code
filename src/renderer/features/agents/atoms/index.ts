@@ -1065,22 +1065,6 @@ export const codingTerminalPanelHeightAtom = atomWithStorage<number>(
   { getOnInit: true },
 )
 
-// Show raw JSON for each message in chat (dev only)
-export const showMessageJsonAtom = atomWithStorage<boolean>(
-  "agents:showMessageJson",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Show debug request payload in chat (original claudeQuery content)
-export const showDebugRequestAtom = atomWithStorage<boolean>(
-  "agents:showDebugRequest",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
 // ============================================
 // ENABLED WIDGETS (Feature Configuration)
 // ============================================

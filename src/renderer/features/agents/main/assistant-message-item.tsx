@@ -9,8 +9,7 @@ import { CollapseIcon, ExpandIcon, IconTextUndo } from "../../../components/ui/i
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
 import { isRollingBackAtom, rollbackHandlerAtom } from "../stores/message-store"
-import { selectedProjectAtom, showMessageJsonAtom } from "../atoms"
-import { MessageJsonDisplay } from "../ui/message-json-display"
+import { selectedProjectAtom } from "../atoms"
 import { AgentAskUserQuestionTool } from "../ui/agent-ask-user-question-tool"
 import { AgentBashTool } from "../ui/agent-bash-tool"
 import { AgentEditTool } from "../ui/agent-edit-tool"
@@ -297,11 +296,9 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
 }: AssistantMessageItemProps) {
   const onRollback = useAtomValue(rollbackHandlerAtom)
   const isRollingBack = useAtomValue(isRollingBackAtom)
-  const showMessageJson = useAtomValue(showMessageJsonAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const projectPath = selectedProject?.path
   const onOpenFile = useFileOpen()
-  const isDev = import.meta.env.DEV
   const messageParts = message?.parts || []
 
   const contentParts = useMemo(() =>
@@ -781,12 +778,6 @@ export const AssistantMessageItem = memo(function AssistantMessageItem({
 
       {/* Git activity badges - commit/PR pills */}
       {(!isStreaming || !isLastMessage) && <GitActivityBadges parts={messageParts} chatId={chatId} subChatId={subChatId} />}
-
-      {isDev && showMessageJson && (
-        <div className="px-2 mt-2">
-          <MessageJsonDisplay message={message} label="Assistant" />
-        </div>
-      )}
     </div>
   )
 }, areMessagePropsEqual)
