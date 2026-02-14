@@ -109,7 +109,10 @@ const chatsCoreRouter = router({
     return db
       .select()
       .from(subChats)
-      .where(eq(subChats.chatId, playgroundChat.id))
+      .where(and(
+        eq(subChats.chatId, playgroundChat.id),
+        isNull(subChats.archivedAt)
+      ))
       .orderBy(desc(subChats.updatedAt))
       .all()
   }),
@@ -503,7 +506,10 @@ const chatsCoreRouter = router({
           manuallyRenamed: subChats.manuallyRenamed,
         })
         .from(subChats)
-        .where(eq(subChats.chatId, input.id))
+        .where(and(
+          eq(subChats.chatId, input.id),
+          isNull(subChats.archivedAt)
+        ))
         .orderBy(subChats.createdAt)
         .all()
 

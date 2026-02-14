@@ -51,6 +51,7 @@ import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 import type { FileStatus } from "../../../../shared/changes-types"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
+import { getWindowId } from "../../../contexts/WindowContext"
 import {
   trackClickNewChat,
   trackClickPlanApprove,
@@ -5771,14 +5772,26 @@ Make sure to preserve all functionality from both branches when resolving confli
         freshState.setActiveSubChat(targetId)
       }
     } else if (dbSubChats.length > 0) {
-      // No valid open tabs, but DB has subchats — open the most recent one
-      const latest = findLatest(dbSubChats)!
-      console.log('[init] No valid open tabs, opening latest subchat from DB', {
-        id: latest.id,
-        updated_at: latest.updated_at,
-      })
-      freshState.setOpenSubChats([latest.id])
-      freshState.setActiveSubChat(latest.id)
+      // No valid open tabs, but DB has subchats
+      // Check if user explicitly closed all tabs (localStorage has key with empty array)
+      const storageKey = `${getWindowId()}:agent-open-sub-chats-${chatId}`
+      const hasExplicitEmptyState = localStorage.getItem(storageKey) === '[]'
+
+      if (hasExplicitEmptyState) {
+        // User closed all tabs — respect their choice, don't auto-open
+        console.log('[init] User closed all tabs, keeping empty state')
+        freshState.setOpenSubChats([])
+        freshState.setActiveSubChat(null)
+      } else {
+        // First time opening this chat — open the most recent subchat
+        const latest = findLatest(dbSubChats)!
+        console.log('[init] No valid open tabs, opening latest subchat from DB', {
+          id: latest.id,
+          updated_at: latest.updated_at,
+        })
+        freshState.setOpenSubChats([latest.id])
+        freshState.setActiveSubChat(latest.id)
+      }
     } else {
       // DB has no subchats — clear state (UI will show new chat input)
       console.log('[init] No subchats in DB, clearing state')
@@ -6369,6 +6382,8 @@ Make sure to preserve all functionality from both branches when resolving confli
             idsToClose.forEach((id) => {
               store.removeFromOpenSubChats(id)
               addSubChatToUndoStack(id)
+              // Archive in database
+              trpcClient.subChats.archiveSubChat.mutate({ id }).catch(console.error)
             })
           }
           clearSubChatSelection()
@@ -6384,6 +6399,8 @@ Make sure to preserve all functionality from both branches when resolving confli
         if (activeId && openIds.length > 1) {
           store.removeFromOpenSubChats(activeId)
           addSubChatToUndoStack(activeId)
+          // Archive in database
+          trpcClient.subChats.archiveSubChat.mutate({ id: activeId }).catch(console.error)
         }
       }
     }

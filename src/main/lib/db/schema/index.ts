@@ -102,6 +102,7 @@ export const subChats = sqliteTable("sub_chats", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),
+  archivedAt: integer("archived_at", { mode: "timestamp" }),
 })
 
 export const subChatsRelations = relations(subChats, ({ one }) => ({

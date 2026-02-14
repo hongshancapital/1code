@@ -92,6 +92,13 @@
       "when": 1770911737202,
       "tag": "0017_typical_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1771059783188,
+      "tag": "0018_sturdy_true_believers",
+      "breakpoints": true
     }
   ]
 }
