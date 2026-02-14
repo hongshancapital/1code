@@ -92,3 +92,27 @@ export {
   type TextSelectionContextValue,
   type TextSelectionSource,
 } from "./text-selection-context"
+
+// Chat input (multi-instance support)
+export {
+  ChatInputProvider,
+  useChatInput,
+  useChatInputSafe,
+  useChatViewRegistration,
+  useSetActiveChat,
+  useIsActiveChat,
+  activeInstanceIdAtom,
+  chatViewRegistrationsAtom,
+  buildUserMessage,
+  type ChatInputContextValue,
+  type ChatInputProviderProps,
+  type ChatTarget,
+  type ChatViewRegistration,
+  type SendMessageFn,
+  type StopStreamFn,
+  type MessagePart,
+  type TextPart,
+  type ImagePart,
+  type FilePart,
+  type FileContentPart,
+} from "./chat-input-context"
