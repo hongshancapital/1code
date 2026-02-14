@@ -536,8 +536,9 @@ export const debugRouter = router({
     // Close current dev database connection
     closeDatabase()
 
-    // Remove stale dev WAL/SHM files (they belong to the old dev db)
+    // Remove old dev db and WAL/SHM files (VACUUM INTO requires target not exist)
     try {
+      if (existsSync(devDbPath)) unlinkSync(devDbPath)
       if (existsSync(devDbPath + "-wal")) unlinkSync(devDbPath + "-wal")
       if (existsSync(devDbPath + "-shm")) unlinkSync(devDbPath + "-shm")
     } catch { /* ignore */ }
