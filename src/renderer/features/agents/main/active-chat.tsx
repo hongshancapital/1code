@@ -6,11 +6,8 @@ import {
   AttachIcon,
   ClaudeCodeIcon,
   IconCloseSidebarRight,
-  IconOpenSidebarRight,
   IconSpinner,
-  IconTextUndo
 } from "../../../components/ui/icons"
-import { Kbd } from "../../../components/ui/kbd"
 import {
   PromptInput,
   PromptInputActions
@@ -30,9 +27,7 @@ import {
   ArrowDown,
   ArrowLeftFromLine,
   ChevronDown,
-  GitFork,
   MoveHorizontal,
-  SquareTerminal,
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import {
@@ -105,6 +100,7 @@ import {
   SubChatTabsContainer,
   type ChatViewInnerProps,
 } from "../components/sub-chat-tabs-renderer"
+import { ChatViewHeader } from "../components/chat-view-header"
 import {
   detailsSidebarOpenAtom,
   unifiedSidebarEnabledAtom,
@@ -184,7 +180,6 @@ currentProjectModeAtom,
 import { BUILTIN_SLASH_COMMANDS } from "../commands"
 import { AgentSendButton } from "../components/agent-send-button"
 import { OpenLocallyDialog } from "../components/open-locally-dialog"
-import { PreviewSetupHoverCard } from "../components/preview-setup-hover-card"
 import type { TextSelectionSource } from "../context/text-selection-context"
 import { TextSelectionProvider } from "../context/text-selection-context"
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload"
@@ -249,14 +244,11 @@ import { AgentToolRegistry } from "../ui/agent-tool-registry"
 import { isPlanFile } from "../ui/agent-tool-utils"
 import { AgentUserMessageBubble } from "../ui/agent-user-message-bubble"
 import { AgentUserQuestion, type AgentUserQuestionHandle } from "../ui/agent-user-question"
-import { AgentsHeaderControls } from "../ui/agents-header-controls"
 import { ChatTitleEditor } from "../ui/chat-title-editor"
-import { MobileChatHeader } from "../ui/mobile-chat-header"
 import { DocumentCommentInput } from "../ui/document-comment-input"
 import { useDocumentComments } from "../hooks/use-document-comments"
 import { commentInputStateAtom, reviewCommentsAtomFamily, type DocumentType } from "../atoms/review-atoms"
 import { ReviewButton } from "../ui/review-button"
-import { SubChatSelector } from "../ui/sub-chat-selector"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
 import { autoRenameAgentChat } from "../utils/auto-rename"
@@ -4918,203 +4910,45 @@ Make sure to preserve all functionality from both branches when resolving confli
           className="flex-1 flex flex-col overflow-hidden relative"
           style={{ minWidth: "350px" }}
         >
-          {/* SubChatSelector header - absolute when sidebar open (desktop only), regular div otherwise */}
-          {!shouldHideChatHeader && (
-            <div
-              className={cn(
-                "relative z-20 pointer-events-none",
-                // Mobile: always flex; Desktop: absolute when sidebar open, flex when closed
-                !isMobileFullscreen && subChatsSidebarMode === "sidebar"
-                  ? `absolute top-0 left-0 right-0 ${CHAT_LAYOUT.headerPaddingSidebarOpen}`
-                  : `shrink-0 ${CHAT_LAYOUT.headerPaddingSidebarClosed}`,
-              )}
-            >
-              {/* Gradient background - only when not absolute */}
-              {(isMobileFullscreen || subChatsSidebarMode !== "sidebar") && (
-                <div className="absolute inset-0 bg-linear-to-b from-background via-background to-transparent" />
-              )}
-              <div className="pointer-events-auto flex items-center justify-between relative">
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  {/* Mobile header - simplified with chat name as trigger */}
-                  {isMobileFullscreen ? (
-                    <MobileChatHeader
-                      onCreateNew={handleCreateNewSubChat}
-                      onBackToChats={onBackToChats}
-                      onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
-                      canOpenPreview={hideGitFeatures ? false : canOpenPreview}
-                      onOpenDiff={hideGitFeatures ? undefined : onOpenDiff}
-                      canOpenDiff={hideGitFeatures ? false : canShowDiffButton}
-                      diffStats={hideGitFeatures ? undefined : diffStats}
-                      onOpenTerminal={hideGitFeatures ? undefined : onOpenTerminal}
-                      canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
-                      isTerminalOpen={isTerminalSidebarOpen}
-                      isArchived={isArchived}
-                      onRestore={handleRestoreWorkspace}
-                      onOpenLocally={handleOpenLocally}
-                      showOpenLocally={showOpenLocally}
-                    />
-                  ) : (
-                    <>
-                      {/* Header controls - desktop only */}
-                      <AgentsHeaderControls
-                        isSidebarOpen={isSidebarOpen}
-                        onToggleSidebar={onToggleSidebar}
-                        hasUnseenChanges={hasAnyUnseenChanges}
-                        isSubChatsSidebarOpen={
-                          subChatsSidebarMode === "sidebar"
-                        }
-                      />
-                      <SubChatSelector
-                        onCreateNew={handleCreateNewSubChat}
-                        isMobile={false}
-                        onBackToChats={onBackToChats}
-                        onOpenPreview={hideGitFeatures ? undefined : onOpenPreview}
-                        canOpenPreview={hideGitFeatures ? false : canOpenPreview}
-                        onOpenDiff={hideGitFeatures ? undefined : (canOpenDiff ? () => setIsDiffSidebarOpen(true) : undefined)}
-                        canOpenDiff={hideGitFeatures ? false : canShowDiffButton}
-                        isDiffSidebarOpen={hideGitFeatures ? false : isDiffSidebarOpen}
-                        diffStats={hideGitFeatures ? undefined : diffStats}
-                        onOpenTerminal={hideGitFeatures ? undefined : () => setIsTerminalSidebarOpen(true)}
-                        canOpenTerminal={hideGitFeatures ? false : !!worktreePath}
-                        isTerminalOpen={isTerminalSidebarOpen}
-                        chatId={chatId}
-                      />
-                      {/* Open Locally button - desktop only, sandbox mode */}
-                      {showOpenLocally && (
-                        <Tooltip delayDuration={500}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={handleOpenLocally}
-                              disabled={isImporting}
-                              className="h-6 px-2 gap-1.5 text-xs font-medium ml-2"
-                            >
-                              {isImporting ? (
-                                <IconSpinner className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <GitFork className="h-3 w-3" />
-                              )}
-                              Fork Locally
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Continue this session on your local machine
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </>
-                  )}
-                </div>
-                {/* Open Preview Button - shows when preview is closed (desktop only, local mode only) */}
-                {!hideGitFeatures &&
-                  !isMobileFullscreen &&
-                  !isPreviewSidebarOpen &&
-                  sandboxId &&
-                  chatSourceMode === "local" &&
-                  (canOpenPreview ? (
-                    <Tooltip delayDuration={500}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setIsPreviewSidebarOpen(true)}
-                          className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
-                          aria-label="Open preview"
-                        >
-                          <IconOpenSidebarRight className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Open preview</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <PreviewSetupHoverCard>
-                      <span className="inline-flex ml-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled
-                          className="h-6 w-6 p-0 text-muted-foreground shrink-0 rounded-md cursor-not-allowed pointer-events-none"
-                          aria-label="Preview not available"
-                        >
-                          <IconOpenSidebarRight className="h-4 w-4" />
-                        </Button>
-                      </span>
-                    </PreviewSetupHoverCard>
-                  ))}
-                {/* Overview/Terminal Button - shows when sidebar is closed and worktree/sandbox exists (desktop only) */}
-                {!isMobileFullscreen &&
-                  (worktreePath || sandboxId) && (
-                    isUnifiedSidebarEnabled ? (
-                      // Details button for unified sidebar
-                      !isDetailsSidebarOpen && (
-                        <Tooltip delayDuration={500}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setIsDetailsSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
-                              aria-label="View details"
-                            >
-                              <IconOpenSidebarRight className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            View details
-                            {toggleDetailsHotkey && <Kbd>{toggleDetailsHotkey}</Kbd>}
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    ) : (
-                      // Terminal button for legacy sidebars (hidden in cowork mode)
-                      !hideGitFeatures && !isTerminalSidebarOpen && (
-                        <Tooltip delayDuration={500}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setIsTerminalSidebarOpen(true)}
-                              className="h-6 w-6 p-0 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2"
-                              aria-label="Open terminal"
-                            >
-                              <SquareTerminal className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Open terminal
-                            {toggleTerminalHotkey && <Kbd>{toggleTerminalHotkey}</Kbd>}
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    )
-                  )}
-                {/* Restore Button - shows when viewing archived workspace (desktop only) */}
-                {!isMobileFullscreen && isArchived && (
-                  <Tooltip delayDuration={500}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        onClick={handleRestoreWorkspace}
-                        disabled={restoreWorkspaceMutation.isPending}
-                        className="h-6 px-2 gap-1.5 hover:bg-foreground/10 transition-colors text-foreground shrink-0 rounded-md ml-2 flex items-center"
-                        aria-label="Restore workspace"
-                      >
-                        <IconTextUndo className="h-4 w-4" />
-                        <span className="text-xs">Restore</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">
-                      Restore workspace
-                      <Kbd>⇧⌘E</Kbd>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-                {/* Custom right header slot - used by Cowork mode for panel toggle */}
-                {rightHeaderSlot}
-              </div>
-            </div>
-          )}
+          {/* Chat Header - extracted to ChatViewHeader component */}
+          <ChatViewHeader
+            isMobileFullscreen={isMobileFullscreen}
+            subChatsSidebarMode={subChatsSidebarMode}
+            shouldHideChatHeader={shouldHideChatHeader}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={onToggleSidebar}
+            hasAnyUnseenChanges={hasAnyUnseenChanges}
+            handleCreateNewSubChat={handleCreateNewSubChat}
+            onBackToChats={onBackToChats}
+            hideGitFeatures={hideGitFeatures}
+            canOpenPreview={canOpenPreview}
+            onOpenPreview={onOpenPreview}
+            isPreviewSidebarOpen={isPreviewSidebarOpen}
+            setIsPreviewSidebarOpen={setIsPreviewSidebarOpen}
+            sandboxId={sandboxId}
+            chatSourceMode={chatSourceMode}
+            canShowDiffButton={canShowDiffButton}
+            canOpenDiff={canOpenDiff}
+            isDiffSidebarOpen={isDiffSidebarOpen}
+            setIsDiffSidebarOpen={setIsDiffSidebarOpen}
+            diffStats={diffStats}
+            worktreePath={worktreePath}
+            isTerminalSidebarOpen={isTerminalSidebarOpen}
+            setIsTerminalSidebarOpen={setIsTerminalSidebarOpen}
+            toggleTerminalHotkey={toggleTerminalHotkey}
+            isUnifiedSidebarEnabled={isUnifiedSidebarEnabled}
+            isDetailsSidebarOpen={isDetailsSidebarOpen}
+            setIsDetailsSidebarOpen={setIsDetailsSidebarOpen}
+            toggleDetailsHotkey={toggleDetailsHotkey}
+            isArchived={isArchived}
+            handleRestoreWorkspace={handleRestoreWorkspace}
+            isRestorePending={restoreWorkspaceMutation.isPending}
+            showOpenLocally={showOpenLocally}
+            handleOpenLocally={handleOpenLocally}
+            isImporting={isImporting}
+            chatId={chatId}
+            rightHeaderSlot={rightHeaderSlot}
+          />
 
           {/* Chat Content - Keep-alive: render all open tabs, hide inactive with CSS */}
           <SubChatTabsContainer
