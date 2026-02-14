@@ -185,7 +185,14 @@ function SearchResultItem({
   )
 }
 
-// Group results by type
+// Group results by type with priority ordering
+// Priority: prompts (user input) > sessions > observations (memory)
+const TYPE_PRIORITY: Record<string, number> = {
+  prompt: 0,    // User prompts first
+  session: 1,   // Sessions second
+  observation: 2, // Memory/observations last
+}
+
 function groupResults(results: HybridSearchResult[]): Map<string, HybridSearchResult[]> {
   const groups = new Map<string, HybridSearchResult[]>()
 
@@ -197,7 +204,16 @@ function groupResults(results: HybridSearchResult[]): Map<string, HybridSearchRe
     groups.get(key)!.push(result)
   }
 
-  return groups
+  // Sort groups by priority (prompts first, observations last)
+  const sortedGroups = new Map<string, HybridSearchResult[]>()
+  const sortedKeys = Array.from(groups.keys()).sort(
+    (a, b) => (TYPE_PRIORITY[a] ?? 99) - (TYPE_PRIORITY[b] ?? 99)
+  )
+  for (const key of sortedKeys) {
+    sortedGroups.set(key, groups.get(key)!)
+  }
+
+  return sortedGroups
 }
 
 // Group label keys for i18n
