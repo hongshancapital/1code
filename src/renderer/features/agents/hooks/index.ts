@@ -15,3 +15,14 @@ export { usePastedTextFiles } from "./use-pasted-text-files"
 export { useTextContextSelection } from "./use-text-context-selection"
 export { useToggleFocusOnCmdEsc } from "./use-toggle-focus-on-cmd-esc"
 export { useWorkspaceSwitch } from "./use-workspace-switch"
+
+// New refactored hooks (Phase 2)
+export {
+  usePrOperations,
+  type PrOperationsResult,
+} from "./use-pr-operations"
+
+export {
+  useChatKeyboardShortcuts,
+  type ChatKeyboardShortcutsOptions,
+} from "./use-chat-keyboard-shortcuts"
