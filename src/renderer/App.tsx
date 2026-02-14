@@ -9,6 +9,7 @@ import { WindowProvider, getInitialWindowParams } from "./contexts/WindowContext
 import { PlatformProvider } from "./contexts/PlatformContext"
 import { selectedAgentChatIdAtom } from "./features/agents/atoms"
 import { ChatInputProvider } from "./features/agents/context/chat-input-context"
+import { ChatViewLayoutProvider } from "./features/agents/layout"
 import { useAgentSubChatStore } from "./features/agents/stores/sub-chat-store"
 import { useNavigate } from "./lib/router"
 import { AgentsLayout } from "./features/layout/agents-layout"
@@ -400,13 +401,15 @@ export function App() {
                   <TooltipProvider delayDuration={100}>
                     <TRPCProvider>
                       <ChatInputProvider>
-                        <div
-                          data-agents-page
-                          className="h-screen w-screen bg-background text-foreground overflow-hidden"
-                        >
-                          <AppContent />
-                        </div>
-                        <ThemedToaster />
+                        <ChatViewLayoutProvider>
+                          <div
+                            data-agents-page
+                            className="h-screen w-screen bg-background text-foreground overflow-hidden"
+                          >
+                            <AppContent />
+                          </div>
+                          <ThemedToaster />
+                        </ChatViewLayoutProvider>
                       </ChatInputProvider>
                     </TRPCProvider>
                   </TooltipProvider>
