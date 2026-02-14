@@ -105,3 +105,18 @@ export {
   type ChatViewSetupOptions,
   type ChatViewSetupResult,
 } from "./use-chat-view-setup"
+
+// Sidebar mutual exclusion (Details vs Plan/Terminal)
+export {
+  useSidebarMutualExclusion,
+  type SidebarMutualExclusionState,
+  type SidebarMutualExclusionSetters,
+} from "./use-sidebar-mutual-exclusion"
+
+// Diff data management (stats, parsed files, fetch)
+export {
+  useDiffData,
+  type UseDiffDataOptions,
+  type UseDiffDataResult,
+  type DiffStats,
+} from "./use-diff-data"

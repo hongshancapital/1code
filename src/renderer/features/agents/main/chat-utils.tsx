@@ -86,6 +86,104 @@ export function getFirstSubChatId(
 }
 
 // =============================================================================
+// Tab Computation
+// =============================================================================
+
+/**
+ * Maximum number of tabs to keep mounted for keep-alive behavior
+ * Prevents memory growth while maintaining smooth tab switching
+ */
+export const MAX_MOUNTED_TABS = 10
+
+/**
+ * Computes which sub-chat tabs should be rendered (keep-alive pool)
+ *
+ * This handles workspace isolation and race conditions:
+ * - Validates sub-chat IDs against server and local store data
+ * - Trusts localStorage during initial loading (before data arrives)
+ * - Always includes active tab + pinned tabs + recent tabs up to limit
+ *
+ * @param activeSubChatId - Currently active sub-chat ID
+ * @param pinnedSubChatIds - IDs of pinned sub-chats
+ * @param openSubChatIds - IDs of open sub-chats (in order)
+ * @param allSubChats - SubChats from local Zustand store
+ * @param agentSubChats - SubChats from server (React Query cache)
+ * @returns Array of sub-chat IDs to render
+ */
+export function computeTabsToRender(
+  activeSubChatId: string | null,
+  pinnedSubChatIds: string[],
+  openSubChatIds: string[],
+  allSubChats: Array<{ id: string }>,
+  agentSubChats: Array<{ id: string }>
+): string[] {
+  if (!activeSubChatId) return []
+
+  // Combine server data (agentSubChats) with local store (allSubChats) for validation.
+  // This handles:
+  // 1. Race condition where setChatId resets allSubChats but activeSubChatId loads from localStorage
+  // 2. Optimistic updates when creating new sub-chats (new sub-chat is in allSubChats but not in agentSubChats yet)
+  const validSubChatIds = new Set([
+    ...agentSubChats.map((sc) => sc.id),
+    ...allSubChats.map((sc) => sc.id),
+  ])
+
+  // When both data sources are still empty (loading), trust activeSubChatId from localStorage.
+  // Without this, there's a race condition:
+  //   1. setChatId() resets allSubChats to []
+  //   2. Server query for agentChat is still loading → agentSubChats is []
+  //   3. activeSubChatId is restored from localStorage (valid)
+  //   4. validSubChatIds is empty → activeSubChatId fails validation → returns []
+  //   5. No ChatViewInner renders → blank screen
+  const dataNotYetLoaded = validSubChatIds.size === 0
+
+  // If active sub-chat doesn't belong to this workspace → return []
+  // This prevents rendering sub-chats from another workspace during race condition
+  // But skip this check when data hasn't loaded yet (trust localStorage)
+  if (!dataNotYetLoaded && !validSubChatIds.has(activeSubChatId)) {
+    return []
+  }
+
+  // Filter openSubChatIds and pinnedSubChatIds to only valid IDs for this workspace
+  // When data hasn't loaded, allow all IDs through (they came from localStorage for this chatId)
+  const validOpenIds = dataNotYetLoaded
+    ? openSubChatIds
+    : openSubChatIds.filter((id) => validSubChatIds.has(id))
+  const validPinnedIds = dataNotYetLoaded
+    ? pinnedSubChatIds
+    : pinnedSubChatIds.filter((id) => validSubChatIds.has(id))
+
+  // Start with active (must always be mounted)
+  const mustRender = new Set([activeSubChatId])
+
+  // Add pinned tabs (only valid ones)
+  for (const id of validPinnedIds) {
+    mustRender.add(id)
+  }
+
+  // If we have room, add recent tabs from openSubChatIds (only valid ones)
+  if (mustRender.size < MAX_MOUNTED_TABS) {
+    const remaining = MAX_MOUNTED_TABS - mustRender.size
+    const recentTabs = validOpenIds
+      .filter((id) => !mustRender.has(id))
+      .slice(-remaining) // Take the most recent (end of array)
+
+    for (const id of recentTabs) {
+      mustRender.add(id)
+    }
+  }
+
+  // Return tabs to render
+  // Always include activeSubChatId even if not in validOpenIds (handles race condition
+  // where openSubChatIds from localStorage doesn't include the active tab yet)
+  const result = validOpenIds.filter((id) => mustRender.has(id))
+  if (!result.includes(activeSubChatId)) {
+    result.unshift(activeSubChatId)
+  }
+  return result
+}
+
+// =============================================================================
 // UI Components
 // =============================================================================
 

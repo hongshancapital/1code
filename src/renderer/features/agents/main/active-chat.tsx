@@ -97,6 +97,7 @@ import {
   utf8ToBase64,
   waitForStreamingReady,
   getFirstSubChatId,
+  computeTabsToRender,
   ScrollToBottomButton,
   MessageGroup,
 } from "./chat-utils"
@@ -193,6 +194,8 @@ import { usePastedTextFiles } from "../hooks/use-pasted-text-files"
 import { useTextContextSelection } from "../hooks/use-text-context-selection"
 import { useToggleFocusOnCmdEsc } from "../hooks/use-toggle-focus-on-cmd-esc"
 import { useChatViewSetup } from "../hooks/use-chat-view-setup"
+import { useSidebarMutualExclusion } from "../hooks/use-sidebar-mutual-exclusion"
+import { useDiffData } from "../hooks/use-diff-data"
 import {
   clearSubChatDraft,
   getSubChatDraftFull
@@ -3165,117 +3168,21 @@ export function ChatView({
   const [isExplorerPanelOpen, setIsExplorerPanelOpen] = useAtom(explorerPanelOpenAtom)
 
   // Mutual exclusion: Details sidebar vs Plan/Terminal/Diff(side-peek) sidebars
-  // When one opens, close the conflicting ones and remember for restoration
-
-  // Track what was auto-closed and by whom for restoration
-  const autoClosedStateRef = useRef<{
-    // What closed Details
-    detailsClosedBy: "plan" | "terminal" | "diff" | null
-    // What Details closed
-    planClosedByDetails: boolean
-    terminalClosedByDetails: boolean
-    diffClosedByDetails: boolean
-  }>({
-    detailsClosedBy: null,
-    planClosedByDetails: false,
-    terminalClosedByDetails: false,
-    diffClosedByDetails: false,
-  })
-
-  // Track previous states to detect opens/closes
-  // Note: For plan sidebar, we track isPlanSidebarOpen separately from currentPlanPath
-  // to avoid race conditions when opening the sidebar before the plan path is set
-  const prevSidebarStatesRef = useRef({
-    details: isDetailsSidebarOpen,
-    planSidebarOpen: isPlanSidebarOpen,
-    planHasPath: !!currentPlanPath,
-    terminal: isTerminalSidebarOpen,
-  })
-
-  useEffect(() => {
-    const prev = prevSidebarStatesRef.current
-    const auto = autoClosedStateRef.current
-    const isPlanOpen = isPlanSidebarOpen && !!currentPlanPath
-
-    // Detect state changes
-    const detailsJustOpened = isDetailsSidebarOpen && !prev.details
-    const detailsJustClosed = !isDetailsSidebarOpen && prev.details
-    // Plan "opened" = sidebar was just opened OR sidebar is open and path just became valid
-    const planJustOpened = (isPlanSidebarOpen && !prev.planSidebarOpen) ||
-                           (isPlanSidebarOpen && !!currentPlanPath && !prev.planHasPath)
-    // Plan "closed" = sidebar was just closed (ignore path changes while sidebar is open)
-    const planJustClosed = !isPlanSidebarOpen && prev.planSidebarOpen
-    const terminalJustOpened = isTerminalSidebarOpen && !prev.terminal
-    const terminalJustClosed = !isTerminalSidebarOpen && prev.terminal
-
-    // Terminal in "bottom" mode doesn't conflict with Details sidebar
-    const terminalConflictsWithDetails = terminalDisplayMode === "side-peek"
-
-    // Details opened → close conflicting sidebars and remember
-    if (detailsJustOpened) {
-      if (isPlanOpen) {
-        auto.planClosedByDetails = true
-        setIsPlanSidebarOpen(false)
-      }
-      if (isTerminalSidebarOpen && terminalConflictsWithDetails) {
-        auto.terminalClosedByDetails = true
-        setIsTerminalSidebarOpen(false)
-      }
+  // Extracted to useSidebarMutualExclusion hook for maintainability
+  useSidebarMutualExclusion(
+    {
+      isDetailsSidebarOpen,
+      isPlanSidebarOpen,
+      currentPlanPath,
+      isTerminalSidebarOpen,
+      terminalDisplayMode,
+    },
+    {
+      setIsDetailsSidebarOpen,
+      setIsPlanSidebarOpen,
+      setIsTerminalSidebarOpen,
     }
-    // Details closed → restore what it closed
-    else if (detailsJustClosed) {
-      if (auto.planClosedByDetails) {
-        auto.planClosedByDetails = false
-        setIsPlanSidebarOpen(true)
-      }
-      if (auto.terminalClosedByDetails) {
-        auto.terminalClosedByDetails = false
-        setIsTerminalSidebarOpen(true)
-      }
-    }
-    // Plan opened → close Details and remember
-    else if (planJustOpened && isDetailsSidebarOpen) {
-      auto.detailsClosedBy = "plan"
-      // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
-      // when it detects Details closing (which would cause a conflict)
-      auto.diffClosedByDetails = false
-      setIsDetailsSidebarOpen(false)
-    }
-    // Plan closed → restore Details if we closed it
-    else if (planJustClosed && auto.detailsClosedBy === "plan") {
-      auto.detailsClosedBy = null
-      setIsDetailsSidebarOpen(true)
-    }
-    // Terminal opened → close Details and remember (only in side-peek mode)
-    else if (terminalJustOpened && isDetailsSidebarOpen && terminalConflictsWithDetails) {
-      auto.detailsClosedBy = "terminal"
-      // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
-      // when it detects Details closing (which would cause a conflict)
-      auto.diffClosedByDetails = false
-      setIsDetailsSidebarOpen(false)
-    }
-    // Terminal closed → restore Details if we closed it
-    else if (terminalJustClosed && auto.detailsClosedBy === "terminal") {
-      auto.detailsClosedBy = null
-      setIsDetailsSidebarOpen(true)
-    }
-
-    prevSidebarStatesRef.current = {
-      details: isDetailsSidebarOpen,
-      planSidebarOpen: isPlanSidebarOpen,
-      planHasPath: !!currentPlanPath,
-      terminal: isTerminalSidebarOpen,
-    }
-  }, [
-    isDetailsSidebarOpen,
-    isPlanSidebarOpen,
-    currentPlanPath,
-    isTerminalSidebarOpen,
-    terminalDisplayMode,
-    setIsDetailsSidebarOpen,
-    setIsPlanSidebarOpen,
-    setIsTerminalSidebarOpen,
-  ])
+  )
 
   // Diff data cache - stored in atoms to persist across workspace switches
   const diffCacheAtom = useMemo(
@@ -3699,80 +3606,12 @@ export function ChatView({
   // In cowork mode, git features are hidden by default
   const hideGitFeatures = hideGitFeaturesFromProps ?? (chatProjectMode === "cowork")
 
-  // Workspace isolation: limit mounted tabs to prevent memory growth
-  // CRITICAL: Filter by workspace to prevent rendering sub-chats from other workspaces
-  // Always render: active + pinned, then fill with recent up to limit
-  const MAX_MOUNTED_TABS = 10
-  const tabsToRender = useMemo(() => {
-    if (!activeSubChatId) return []
-
-    // Combine server data (agentSubChats) with local store (allSubChats) for validation.
-    // This handles:
-    // 1. Race condition where setChatId resets allSubChats but activeSubChatId loads from localStorage
-    // 2. Optimistic updates when creating new sub-chats (new sub-chat is in allSubChats but not in agentSubChats yet)
-    //
-    // By combining both sources, we validate against all known sub-chats from both server and local state.
-    const validSubChatIds = new Set([
-      ...agentSubChats.map(sc => sc.id),
-      ...allSubChats.map(sc => sc.id),
-    ])
-
-    // When both data sources are still empty (loading), trust activeSubChatId from localStorage.
-    // Without this, there's a race condition:
-    //   1. setChatId() resets allSubChats to []
-    //   2. Server query for agentChat is still loading → agentSubChats is []
-    //   3. activeSubChatId is restored from localStorage (valid)
-    //   4. validSubChatIds is empty → activeSubChatId fails validation → returns []
-    //   5. No ChatViewInner renders → blank screen
-    // By skipping the validation when no data has loaded yet, we allow the tab to mount
-    // and load its messages. Once data arrives, the next re-render will properly validate.
-    const dataNotYetLoaded = validSubChatIds.size === 0
-
-    // If active sub-chat doesn't belong to this workspace → return []
-    // This prevents rendering sub-chats from another workspace during race condition
-    // But skip this check when data hasn't loaded yet (trust localStorage)
-    if (!dataNotYetLoaded && !validSubChatIds.has(activeSubChatId)) {
-      return []
-    }
-
-    // Filter openSubChatIds and pinnedSubChatIds to only valid IDs for this workspace
-    // When data hasn't loaded, allow all IDs through (they came from localStorage for this chatId)
-    const validOpenIds = dataNotYetLoaded
-      ? openSubChatIds
-      : openSubChatIds.filter(id => validSubChatIds.has(id))
-    const validPinnedIds = dataNotYetLoaded
-      ? pinnedSubChatIds
-      : pinnedSubChatIds.filter(id => validSubChatIds.has(id))
-
-    // Start with active (must always be mounted)
-    const mustRender = new Set([activeSubChatId])
-
-    // Add pinned tabs (only valid ones)
-    for (const id of validPinnedIds) {
-      mustRender.add(id)
-    }
-
-    // If we have room, add recent tabs from openSubChatIds (only valid ones)
-    if (mustRender.size < MAX_MOUNTED_TABS) {
-      const remaining = MAX_MOUNTED_TABS - mustRender.size
-      const recentTabs = validOpenIds
-        .filter(id => !mustRender.has(id))
-        .slice(-remaining) // Take the most recent (end of array)
-
-      for (const id of recentTabs) {
-        mustRender.add(id)
-      }
-    }
-
-    // Return tabs to render
-    // Always include activeSubChatId even if not in validOpenIds (handles race condition
-    // where openSubChatIds from localStorage doesn't include the active tab yet)
-    const result = validOpenIds.filter(id => mustRender.has(id))
-    if (!result.includes(activeSubChatId)) {
-      result.unshift(activeSubChatId)
-    }
-    return result
-  }, [activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats, agentSubChats])
+  // Workspace isolation: compute which tabs to render (keep-alive pool)
+  // Extracted to computeTabsToRender utility for maintainability
+  const tabsToRender = useMemo(
+    () => computeTabsToRender(activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats, agentSubChats),
+    [activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats, agentSubChats]
+  )
 
   // Get PR status when PR exists (for checking if it's open/merged/closed)
   const hasPrNumber = !!agentChat?.prNumber
