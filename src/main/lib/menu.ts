@@ -1,6 +1,5 @@
 import { app, dialog, type BrowserWindow, type MenuItemConstructorOptions } from "electron"
 import { isCliInstalled, installCli, uninstallCli } from "./cli"
-import { createWindow } from "../windows/main"
 
 export interface HongMenuOptions {
   /** Get the currently focused Hong window */
@@ -90,7 +89,9 @@ export function buildHongMenuTemplate(options: HongMenuOptions): MenuItemConstru
             if (onNewWindow) {
               onNewWindow()
             } else {
-              createWindow()
+              // Lazy import to avoid loading windows/main.ts at module init time
+              // (embedded mode provides onNewWindow, so this path is standalone-only)
+              import("../windows/main").then(({ createWindow }) => createWindow())
             }
           },
         },
