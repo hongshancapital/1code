@@ -1,4 +1,7 @@
 // Dev mode detection
+// This file is evaluated early, before app.getName() is available
+// So we only check ELECTRON_RENDERER_URL (bun run dev)
+// For packaged dev builds, use app.getName() check in main/index.ts
 export const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
 
 // Auth server port - use different port in dev to allow running alongside production
