@@ -2,16 +2,9 @@
 
 import { Button } from "../../../components/ui/button"
 import {
-  AgentIcon,
-  AttachIcon,
-  ClaudeCodeIcon,
   IconCloseSidebarRight,
   IconSpinner,
 } from "../../../components/ui/icons"
-import {
-  PromptInput,
-  PromptInputActions
-} from "../../../components/ui/prompt-input"
 import { ResizableSidebar } from "../../../components/ui/resizable-sidebar"
 import {
   Tooltip,
@@ -24,9 +17,7 @@ import { Chat, useChat } from "@ai-sdk/react"
 import type { DiffViewMode } from "../ui/agent-diff-view"
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import {
-  ArrowDown,
   ArrowLeftFromLine,
-  ChevronDown,
   MoveHorizontal,
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
@@ -71,6 +62,7 @@ import {
 import {
   sessionModelOverrideAtom,
   chatModelSelectionsAtom,
+  subChatModelSelectionsAtom,
 } from "../../../lib/atoms/model-config"
 import { useFileChangeListener, useGitWatcher } from "../../../lib/hooks/use-file-change-listener"
 import { useRemoteChat } from "../../../lib/hooks/use-remote-chats"
@@ -100,6 +92,9 @@ import {
   type ChatViewInnerProps,
 } from "../components/sub-chat-tabs-renderer"
 import { ChatViewHeader } from "../components/chat-view-header"
+import { FileViewerPanel } from "../components/file-viewer-panel"
+import { PreviewSidebarPanel } from "../components/preview-sidebar-panel"
+import { ChatViewLoadingPlaceholder } from "../components/chat-view-loading-placeholder"
 import {
   detailsSidebarOpenAtom,
   unifiedSidebarEnabledAtom,
@@ -107,7 +102,6 @@ import {
 } from "../../details-sidebar/atoms"
 import { DetailsSidebar } from "../../details-sidebar/details-sidebar"
 import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar"
-import { FileViewerSidebar } from "../../file-viewer"
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
 import { BrowserPanel } from "../../browser-sidebar"
 import { browserPendingScreenshotAtomFamily } from "../../browser-sidebar/atoms"
@@ -121,7 +115,6 @@ import {
   agentsPlanSidebarWidthAtom,
   agentsBrowserSidebarWidthAtom,
   agentsPreviewSidebarOpenAtom,
-  agentsPreviewSidebarWidthAtom,
   agentsSubChatsSidebarModeAtom,
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
@@ -131,7 +124,6 @@ import {
   fileSearchDialogOpenAtom,
   fileViewerDisplayModeAtom,
   fileViewerOpenAtomFamily,
-  fileViewerSidebarWidthAtom,
   clearLoading,
   compactingSubChatsAtom,
   currentPlanPathAtomFamily,
@@ -177,7 +169,6 @@ currentProjectModeAtom,
   type CachedParsedDiffFile,
 } from "../atoms"
 import { BUILTIN_SLASH_COMMANDS } from "../commands"
-import { AgentSendButton } from "../components/agent-send-button"
 import { OpenLocallyDialog } from "../components/open-locally-dialog"
 import type { TextSelectionSource } from "../context/text-selection-context"
 import { TextSelectionProvider } from "../context/text-selection-context"
@@ -239,7 +230,6 @@ import {
   type ParsedDiffFile,
 } from "../ui/agent-diff-view"
 import { AgentPlanSidebar } from "../ui/agent-plan-sidebar"
-import { AgentPreview } from "../ui/agent-preview"
 import { AgentQueueIndicator } from "../ui/agent-queue-indicator"
 import { AgentToolCall } from "../ui/agent-tool-call"
 import { AgentToolRegistry } from "../ui/agent-tool-registry"
@@ -3216,17 +3206,29 @@ export function ChatView({
     })
   }, [chatId, setUnseenChanges])
 
-  // Restore per-chat model selection when switching chats
+  // Restore per-subChat model selection when switching sub-chats or chats
+  const subChatModelSelections = useAtomValue(subChatModelSelectionsAtom)
   const chatModelSelections = useAtomValue(chatModelSelectionsAtom)
   const setSessionModelOverride = useSetAtom(sessionModelOverrideAtom)
+  const activeSubChatIdForModel = useAgentSubChatStore((state) => state.activeSubChatId)
   useEffect(() => {
-    const saved = chatModelSelections[chatId]
-    if (saved) {
-      setSessionModelOverride(saved)
-    } else {
-      setSessionModelOverride(null)
+    // Priority 1: per-subChat selection
+    if (activeSubChatIdForModel) {
+      const subChatSaved = subChatModelSelections[activeSubChatIdForModel]
+      if (subChatSaved) {
+        setSessionModelOverride(subChatSaved)
+        return
+      }
     }
-  }, [chatId]) // eslint-disable-line react-hooks/exhaustive-deps -- only restore on chat switch
+    // Priority 2: per-chat fallback (backwards compatibility)
+    const chatSaved = chatModelSelections[chatId]
+    if (chatSaved) {
+      setSessionModelOverride(chatSaved)
+      return
+    }
+    // No saved selection: use global default
+    setSessionModelOverride(null)
+  }, [activeSubChatIdForModel, chatId]) // eslint-disable-line react-hooks/exhaustive-deps -- only restore on switch
 
   // Get sub-chat state from store (reactive subscription for tabsToRender)
   const {
@@ -4575,79 +4577,10 @@ export function ChatView({
             collapsedIndicator={collapsedIndicator}
           />
           {!(tabsToRender.length > 0 && agentChat) && (
-            <>
-              {/* Empty chat area - no loading indicator */}
-              <div className="flex-1" />
-
-              {/* Disabled input while loading */}
-              <div className="px-2 pb-2">
-                <div className={cn("w-full mx-auto", !isChatFullWidth && "max-w-2xl")}>
-                  <div className="relative w-full">
-                    <PromptInput
-                      className="border bg-input-background relative z-10 p-2 rounded-xl opacity-50 pointer-events-none"
-                      maxHeight={200}
-                    >
-                      <div className="p-1 text-muted-foreground text-sm">
-                        Plan, @ for context, / for commands
-                      </div>
-                      <PromptInputActions className="w-full">
-                        <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                          {/* Mode selector placeholder */}
-                          <button
-                            disabled
-                            className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground rounded-md cursor-not-allowed"
-                          >
-                            <AgentIcon className="h-3.5 w-3.5" />
-                            <span>Agent</span>
-                            <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                          </button>
-
-                          {/* Model selector placeholder */}
-                          <button
-                            disabled
-                            className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground rounded-md cursor-not-allowed"
-                          >
-                            <ClaudeCodeIcon className="h-3.5 w-3.5" />
-                            <span>
-                              {hasCustomClaudeConfig ? (
-                                "Custom Model"
-                              ) : (
-                                <>
-                                  Sonnet{" "}
-                                  <span className="text-muted-foreground">
-                                    4.5
-                                  </span>
-                                </>
-                              )}
-                            </span>
-                            <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-0.5 ml-auto shrink-0">
-                          {/* Attach button placeholder */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled
-                            className="h-7 w-7 rounded-sm cursor-not-allowed"
-                          >
-                            <AttachIcon className="h-4 w-4" />
-                          </Button>
-
-                          {/* Send button */}
-                          <div className="ml-1">
-                            <AgentSendButton
-                              disabled={true}
-                              onClick={() => {}}
-                            />
-                          </div>
-                        </div>
-                      </PromptInputActions>
-                    </PromptInput>
-                  </div>
-                </div>
-              </div>
-            </>
+            <ChatViewLoadingPlaceholder
+              isChatFullWidth={isChatFullWidth}
+              hasCustomClaudeConfig={hasCustomClaudeConfig}
+            />
           )}
         </div>
 
@@ -4783,119 +4716,25 @@ export function ChatView({
 
         {/* Preview Sidebar - hidden on mobile fullscreen, when preview is not available, or when hideGitFeatures is true */}
         {!hideGitFeatures && canOpenPreview && !isMobileFullscreen && (
-          <ResizableSidebar
+          <PreviewSidebarPanel
             isOpen={isPreviewSidebarOpen}
             onClose={() => setIsPreviewSidebarOpen(false)}
-            widthAtom={agentsPreviewSidebarWidthAtom}
-            minWidth={350}
-            side="right"
-            animationDuration={0}
-            initialWidth={0}
-            exitWidth={0}
-            showResizeTooltip={true}
-            className="bg-tl-background border-l"
-            style={{ borderLeftWidth: "0.5px" }}
-          >
-            {isQuickSetup ? (
-              <div className="flex flex-col h-full">
-                {/* Header with close button */}
-                <div className="flex items-center justify-end px-3 h-10 bg-tl-background shrink-0 border-b border-border/50">
-                  <Button
-                    variant="ghost"
-                    className="h-7 w-7 p-0 hover:bg-muted transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] rounded-md"
-                    onClick={() => setIsPreviewSidebarOpen(false)}
-                  >
-                    <IconCloseSidebarRight className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-                {/* Content */}
-                <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
-                  <div className="text-muted-foreground mb-4">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="48"
-                      height="48"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="opacity-50"
-                    >
-                      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                      <line x1="8" y1="21" x2="16" y2="21" />
-                      <line x1="12" y1="17" x2="12" y2="21" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Preview not available
-                  </p>
-                  <p className="text-xs text-muted-foreground/70 max-w-[200px]">
-                    Set up this repository to enable live preview
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <AgentPreview
-                chatId={chatId}
-                sandboxId={sandboxId}
-                port={previewPort}
-                repository={repositoryString}
-                hideHeader={false}
-                onClose={() => setIsPreviewSidebarOpen(false)}
-              />
-            )}
-          </ResizableSidebar>
+            chatId={chatId}
+            sandboxId={sandboxId}
+            port={previewPort}
+            repository={repositoryString}
+            isQuickSetup={isQuickSetup}
+          />
         )}
 
-        {/* File Viewer - opens when a file is clicked */}
-        {!isMobileFullscreen && fileViewerPath && worktreePath && fileViewerDisplayMode === "side-peek" && (
-          <ResizableSidebar
-            isOpen={!!fileViewerPath}
-            onClose={() => setFileViewerPath(null)}
-            widthAtom={fileViewerSidebarWidthAtom}
-            minWidth={350}
-            maxWidth={900}
-            side="right"
-            animationDuration={0}
-            initialWidth={0}
-            exitWidth={0}
-            showResizeTooltip={true}
-            className="bg-tl-background border-l"
-            style={{ borderLeftWidth: "0.5px" }}
-          >
-            <FileViewerSidebar
-              filePath={fileViewerPath}
-              projectPath={worktreePath}
-              onClose={() => setFileViewerPath(null)}
-            />
-          </ResizableSidebar>
-        )}
-        {fileViewerPath && worktreePath && fileViewerDisplayMode === "center-peek" && (
-          <DiffCenterPeekDialog
-            isOpen={!!fileViewerPath}
-            onClose={() => setFileViewerPath(null)}
-          >
-            <FileViewerSidebar
-              filePath={fileViewerPath}
-              projectPath={worktreePath}
-              onClose={() => setFileViewerPath(null)}
-            />
-          </DiffCenterPeekDialog>
-        )}
-        {fileViewerPath && worktreePath && fileViewerDisplayMode === "full-page" && (
-          <DiffFullPageView
-            isOpen={!!fileViewerPath}
-            onClose={() => setFileViewerPath(null)}
-          >
-            <FileViewerSidebar
-              filePath={fileViewerPath}
-              projectPath={worktreePath}
-              onClose={() => setFileViewerPath(null)}
-            />
-          </DiffFullPageView>
-        )}
+        {/* File Viewer - opens when a file is clicked (supports side-peek/center-peek/full-page) */}
+        <FileViewerPanel
+          filePath={fileViewerPath}
+          projectPath={worktreePath}
+          displayMode={fileViewerDisplayMode}
+          isMobileFullscreen={isMobileFullscreen}
+          onClose={() => setFileViewerPath(null)}
+        />
 
         {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden when hideGitFeatures is true */}
         {!hideGitFeatures && worktreePath && (
