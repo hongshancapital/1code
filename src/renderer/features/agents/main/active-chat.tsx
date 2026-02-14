@@ -40,7 +40,6 @@ import { getQueryClient } from "../../../contexts/TRPCProvider"
 import {
   trackClickNewChat,
   trackClickPlanApprove,
-  trackClickRegenerate,
   trackSendMessage,
 } from "../../../lib/sensors-analytics"
 import {
@@ -69,6 +68,13 @@ import { cn } from "../../../lib/utils"
 import { usePlatform } from "../../../contexts/PlatformContext"
 import { PanelGate, usePanelContext, PANEL_IDS } from "../ui/panel-system"
 import { useChatKeyboardShortcuts } from "../hooks/use-chat-keyboard-shortcuts"
+import { useDraftRestoration } from "../hooks/use-draft-restoration"
+import { usePendingMessageHandling } from "../hooks/use-pending-message-handling"
+import { usePlanEditTracking } from "../hooks/use-plan-edit-tracking"
+import { usePrUrlDetection } from "../hooks/use-pr-url-detection"
+import { useStreamStopShortcuts } from "../hooks/use-stream-stop-shortcuts"
+import { useMessageEditing } from "../hooks/use-message-editing"
+import { usePlanApprovalState } from "../hooks/use-plan-approval-state"
 import {
   DiffStateProvider,
   DiffSidebarRenderer,
@@ -133,10 +139,6 @@ import {
   MODEL_ID_MAP,
   pendingAuthRetryMessageAtom,
   pendingBuildPlanSubChatIdAtom,
-  pendingConflictResolutionMessageAtom,
-  pendingPlanApprovalsAtom,
-  pendingPrMessageAtom,
-  pendingReviewMessageAtom,
   pendingUserQuestionsAtom,
   planEditRefetchTriggerAtomFamily,
   planSidebarOpenAtomFamily,
@@ -184,10 +186,7 @@ import { useDiffData } from "../hooks/use-diff-data"
 import { useBrowserSidebar } from "../hooks/use-browser-sidebar"
 import { useSubChatNameSync } from "../hooks/use-subchat-name-sync"
 import { usePrGitOperations } from "../hooks/use-pr-git-operations"
-import {
-  clearSubChatDraft,
-  getSubChatDraftFull
-} from "../lib/drafts"
+import { clearSubChatDraft } from "../lib/drafts"
 import { IPCChatTransport } from "../lib/ipc-chat-transport"
 import {
   createQueueItem,
@@ -198,7 +197,7 @@ import {
   toQueuedTextContext,
   type AgentQueueItem,
 } from "../lib/queue-utils"
-import { buildImagePart, buildFilePart, stripFileAttachmentText } from "../lib/message-utils"
+import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import {
   FileOpenProvider,
@@ -627,65 +626,16 @@ const ChatViewInner = memo(function ChatViewInner({
   chatRef.current = chat
 
   // Restore draft when subChatId changes (switching between sub-chats)
-  const prevSubChatIdForDraftRef = useRef<string | null>(null)
-  useEffect(() => {
-    let cancelled = false
-
-    async function restoreDraft() {
-      // Restore full draft (text + attachments + text contexts) for new sub-chat
-      const savedDraft = parentChatId
-        ? await getSubChatDraftFull(parentChatId, subChatId)
-        : null
-
-      if (cancelled) return
-
-      if (savedDraft) {
-        // Restore text
-        if (savedDraft.text) {
-          editorRef.current?.setValue(savedDraft.text)
-        } else {
-          editorRef.current?.clear()
-        }
-        // Restore images
-        if (savedDraft.images.length > 0) {
-          setImagesFromDraft(savedDraft.images)
-        } else {
-          clearAll()
-        }
-        // Restore files
-        if (savedDraft.files.length > 0) {
-          setFilesFromDraft(savedDraft.files)
-        }
-        // Restore text contexts
-        if (savedDraft.textContexts.length > 0) {
-          setTextContextsFromDraft(savedDraft.textContexts)
-        } else {
-          clearTextContexts()
-        }
-      } else if (
-        prevSubChatIdForDraftRef.current &&
-        prevSubChatIdForDraftRef.current !== subChatId
-      ) {
-        // Clear everything when switching to a sub-chat with no draft
-        editorRef.current?.clear()
-        clearAll()
-        clearTextContexts()
-      }
-
-      prevSubChatIdForDraftRef.current = subChatId
-    }
-
-    restoreDraft()
-    return () => { cancelled = true }
-  }, [
+  useDraftRestoration({
     subChatId,
     parentChatId,
+    editorRef,
     setImagesFromDraft,
     setFilesFromDraft,
     setTextContextsFromDraft,
     clearAll,
     clearTextContexts,
-  ])
+  })
 
   // Use subChatId as stable key to prevent HMR-induced duplicate resume requests
   // resume: !!streamId to reconnect to active streams (background streaming support)
@@ -903,62 +853,12 @@ const ChatViewInner = memo(function ChatViewInner({
     setLoading(setLoadingSubChats, subChatId, storedParentChatId)
   }, [isStreaming, subChatId, setLoadingSubChats])
 
-  // Watch for pending PR message and send it
-  // Only the active tab should consume pending messages to prevent
-  // inactive ChatViewInner instances from stealing the message
-  const [pendingPrMessage, setPendingPrMessage] = useAtom(pendingPrMessageAtom)
-
-  useEffect(() => {
-    if (pendingPrMessage && !isStreaming && isActive) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingPrMessage(null)
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: pendingPrMessage }],
-      })
-
-      // Reset creating PR state after message is sent
-      setIsCreatingPr(false)
-    }
-  }, [pendingPrMessage, isStreaming, isActive, sendMessage, setPendingPrMessage])
-
-  // Watch for pending Review message and send it
-  const [pendingReviewMessage, setPendingReviewMessage] = useAtom(
-    pendingReviewMessageAtom,
-  )
-
-  useEffect(() => {
-    if (pendingReviewMessage && !isStreaming && isActive) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingReviewMessage(null)
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: pendingReviewMessage }],
-      })
-    }
-  }, [pendingReviewMessage, isStreaming, isActive, sendMessage, setPendingReviewMessage])
-
-  // Watch for pending conflict resolution message and send it
-  const [pendingConflictMessage, setPendingConflictMessage] = useAtom(
-    pendingConflictResolutionMessageAtom,
-  )
-
-  useEffect(() => {
-    if (pendingConflictMessage && !isStreaming && isActive) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingConflictMessage(null)
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: pendingConflictMessage }],
-      })
-    }
-  }, [pendingConflictMessage, isStreaming, isActive, sendMessage, setPendingConflictMessage])
+  // Handle pending messages (PR, Review, Conflict Resolution)
+  usePendingMessageHandling({
+    isStreaming,
+    isActive,
+    sendMessage,
+  })
 
   // Handle pending "Build plan" from sidebar (atom - effect is defined after handleApprovePlan)
   const [pendingBuildPlanSubChatId, setPendingBuildPlanSubChatId] = useAtom(
@@ -1418,79 +1318,15 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [pendingBuildPlanSubChatId, subChatId, isActive, setPendingBuildPlanSubChatId, handleApprovePlan])
 
   // Detect PR URLs in assistant messages and store them
-  // Initialize with existing PR URL to prevent duplicate toast on re-mount
-  const detectedPrUrlRef = useRef<string | null>(existingPrUrl ?? null)
-
-  useEffect(() => {
-    // Only check after streaming ends
-    if (isStreaming) return
-
-    // Look through messages for PR URLs
-    for (const msg of messages) {
-      if (msg.role !== "assistant") continue
-
-      // Extract text content from message
-      const textContent =
-        msg.parts
-          ?.filter((p: any) => p.type === "text")
-          .map((p: any) => p.text)
-          .join(" ") || ""
-
-      // Match GitHub PR URL pattern
-      const prUrlMatch = textContent.match(
-        /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/(\d+)/,
-      )
-
-      if (prUrlMatch && prUrlMatch[0] !== detectedPrUrlRef.current) {
-        const prUrl = prUrlMatch[0]
-        const prNumber = parseInt(prUrlMatch[1], 10)
-
-        // Store to prevent duplicate calls
-        detectedPrUrlRef.current = prUrl
-
-        // Update database
-        trpcClient.chats.updatePrInfo
-          .mutate({ chatId: parentChatId, prUrl, prNumber })
-          .then(() => {
-            // Invalidate the agentChat query to refetch with new PR info
-            utils.agents.getAgentChat.invalidate({ chatId: parentChatId })
-          })
-
-        break // Only process first PR URL found
-      }
-    }
-  }, [messages, isStreaming, parentChatId])
+  usePrUrlDetection({
+    messages,
+    isStreaming,
+    parentChatId,
+    existingPrUrl,
+  })
 
   // Track plan Edit completions to trigger sidebar refetch
-  const triggerPlanEditRefetch = useSetAtom(
-    useMemo(() => planEditRefetchTriggerAtomFamily(subChatId), [subChatId])
-  )
-  const lastPlanEditCountRef = useRef(0)
-
-  useEffect(() => {
-    // Count completed plan Edits
-    let completedPlanEdits = 0
-    for (const msg of messages) {
-      const msgWithParts = msg as Message
-      if (msgWithParts.role !== "assistant" || !msgWithParts.parts) continue
-      for (const part of msgWithParts.parts) {
-        if (
-          part.type === "tool-Edit" &&
-          part.state !== "input-streaming" &&
-          part.state !== "pending" &&
-          isPlanFile((part.input?.file_path as string) || "")
-        ) {
-          completedPlanEdits++
-        }
-      }
-    }
-
-    // Trigger refetch if count increased (new Edit completed)
-    if (completedPlanEdits > lastPlanEditCountRef.current) {
-      lastPlanEditCountRef.current = completedPlanEdits
-      triggerPlanEditRefetch()
-    }
-  }, [messages, triggerPlanEditRefetch])
+  usePlanEditTracking({ messages, subChatId })
 
   const { changedFiles: changedFilesForSubChat, recomputeChangedFiles } = useChangedFilesTracking(
     messages,
@@ -1586,84 +1422,14 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [isRollingBack, setIsRollingBackAtom])
 
   // ESC, Ctrl+C and Cmd+Shift+Backspace handler for stopping stream
-  useEffect(() => {
-    // Skip keyboard handlers for inactive tabs (keep-alive)
-    if (!isActive) return
-
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      let shouldStop = false
-      let shouldSkipQuestions = false
-
-      // Check for Escape key without modifiers (works even from input fields, like terminal Ctrl+C)
-      // Ignore if Cmd/Ctrl is pressed (reserved for Cmd+Esc to focus input)
-      if (
-        e.key === "Escape" &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.shiftKey &&
-        !e.altKey &&
-        isStreaming
-      ) {
-        const target = e.target as HTMLElement
-
-        // Allow ESC to propagate if it originated from a modal/dialog/dropdown
-        const isInsideOverlay = target.closest(
-          '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]',
-        )
-
-        // Also check if any dialog/modal is open anywhere in the document (not just at event target)
-        // This prevents stopping stream when settings dialog is open but not focused
-        const hasOpenDialog = document.querySelector(
-          '[role="dialog"][aria-modal="true"], [data-modal="agents-settings"]',
-        )
-
-        if (!isInsideOverlay && !hasOpenDialog) {
-          // If there are pending/expired questions for this chat, skip/dismiss them instead of stopping stream
-          if (displayQuestions) {
-            shouldSkipQuestions = true
-          } else {
-            shouldStop = true
-          }
-        }
-      }
-
-      // Check for Ctrl+C (only Ctrl, not Cmd on Mac)
-      if (e.ctrlKey && !e.metaKey && e.code === "KeyC") {
-        if (!isStreaming) return
-
-        const selection = window.getSelection()
-        const hasSelection = selection && selection.toString().length > 0
-
-        // If there's a text selection, let browser handle copy
-        if (hasSelection) return
-
-        shouldStop = true
-      }
-
-      // Check for Cmd+Shift+Backspace (Mac) or Ctrl+Shift+Backspace (Windows/Linux)
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.key === "Backspace" &&
-        isStreaming
-      ) {
-        shouldStop = true
-      }
-
-      if (shouldSkipQuestions) {
-        e.preventDefault()
-        await handleQuestionsSkip()
-      } else if (shouldStop) {
-        e.preventDefault()
-        // Mark as manually aborted to prevent completion sound
-        chatRegistry.setManuallyAborted(subChatId, true)
-        await stop()
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isActive, isStreaming, stop, subChatId, displayQuestions, handleQuestionsSkip])
+  useStreamStopShortcuts({
+    isActive,
+    isStreaming,
+    subChatId,
+    stop,
+    displayQuestions,
+    handleQuestionsSkip,
+  })
 
   // Keyboard shortcut: Enter to focus input when not already focused
   useFocusInputOnEnter(editorRef)
@@ -2341,129 +2107,30 @@ const ChatViewInner = memo(function ChatViewInner({
     clearAll,
   ])
 
-  // Retry message - resend the last user message when no response was received
-  // Uses regenerate() to re-trigger without duplicating the user message
-  const handleRetryMessage = useCallback(() => {
-    // Don't retry if currently streaming
-    if (isStreaming) return
-
-    // Find the last user message
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg) return
-
-    // Don't retry if there's already an assistant response for this message
-    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
-    const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
-    if (hasAssistantResponse) return
-
-    // Track regenerate click
-    trackClickRegenerate()
-
-    // Use regenerate to re-send without duplicating user message
-    regenerate()
-  }, [messages, isStreaming, regenerate])
-
-  // Edit message - remove the last user message and put its text back in the input
-  const handleEditMessage = useCallback(() => {
-    if (isStreaming) return
-
-    // Find the last user message
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg) return
-
-    // Don't edit if there's already an assistant response
-    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
-    const hasAssistantResponse = messages.slice(lastUserMsgIndex + 1).some((m) => m.role === "assistant")
-    if (hasAssistantResponse) return
-
-    // Extract text content from the user message
-    const textParts = lastUserMsg.parts?.filter((p: any) => p.type === "text") || []
-    const rawText = textParts.map((p: any) => p.text).join("\n")
-    const { cleanedText } = stripFileAttachmentText(rawText)
-
-    // Truncate messages (remove the last user message and anything after)
-    const truncatedMessages = messages.slice(0, lastUserMsgIndex)
-    setMessages(truncatedMessages)
-
-    // Persist to database
-    trpcClient.chats.updateSubChatMessages.mutate({
-      id: subChatId,
-      messages: JSON.stringify(truncatedMessages),
-    })
-
-    // Put the text back in the input
-    editorRef.current?.setValue(cleanedText)
-    editorRef.current?.focus()
-  }, [messages, isStreaming, setMessages, subChatId])
+  const { handleRetryMessage, handleEditMessage } = useMessageEditing({
+    messages,
+    isStreaming,
+    subChatId,
+    setMessages,
+    regenerate,
+    editorRef,
+  })
 
   // NOTE: Auto-processing of queue is now handled globally by QueueProcessor
   // component in agents-layout.tsx. This ensures queues continue processing
   // even when user navigates to different sub-chats or workspaces.
 
-  // Check if there's an unapproved plan (in plan mode with completed ExitPlanMode)
-  const hasUnapprovedPlan = useMemo(() => {
-    // If already in agent mode, plan is approved (mode is the source of truth)
-    if (subChatMode !== "plan") return false
-
-    // Look for completed ExitPlanMode in messages
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
-
-      // If assistant message with completed ExitPlanMode, we found an unapproved plan
-      if (msg.role === "assistant" && msg.parts) {
-        const exitPlanPart = msg.parts.find(
-          (p: any) => p.type === "tool-ExitPlanMode"
-        )
-        // Check if ExitPlanMode is completed (has output, even if empty)
-        if (exitPlanPart && exitPlanPart.output !== undefined) {
-          return true
-        }
-      }
-    }
-    return false
-  }, [messages, subChatMode])
-
-  // Keep ref in sync for use in initializeScroll (which runs in useLayoutEffect)
-  hasUnapprovedPlanRef.current = hasUnapprovedPlan
-
-  // Update pending plan approvals atom for sidebar indicators
-  const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom)
-  useEffect(() => {
-    setPendingPlanApprovals((prev: Map<string, string>) => {
-      const newMap = new Map(prev)
-      if (hasUnapprovedPlan) {
-        newMap.set(subChatId, parentChatId)
-      } else {
-        newMap.delete(subChatId)
-      }
-      // Only return new map if it changed
-      if (newMap.size !== prev.size || ![...newMap.keys()].every((id) => prev.has(id))) {
-        return newMap
-      }
-      return prev
-    })
-  }, [hasUnapprovedPlan, subChatId, parentChatId, setPendingPlanApprovals])
-
-  // Keyboard shortcut: Cmd+Enter to approve plan
-  useEffect(() => {
-    if (!isActive) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === "Enter" &&
-        e.metaKey &&
-        !e.shiftKey &&
-        hasUnapprovedPlan &&
-        !isStreaming
-      ) {
-        e.preventDefault()
-        handleApprovePlan()
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isActive, hasUnapprovedPlan, isStreaming, handleApprovePlan])
+  // Plan approval state: hasUnapprovedPlan, sidebar indicators, Cmd+Enter shortcut
+  const { hasUnapprovedPlan } = usePlanApprovalState({
+    messages,
+    subChatMode,
+    subChatId,
+    parentChatId,
+    isActive,
+    isStreaming,
+    handleApprovePlan,
+    hasUnapprovedPlanRef,
+  })
 
   // Cmd/Ctrl + Arrow Down to scroll to bottom (works even when focused in input)
   // But don't intercept if input has content - let native cursor navigation work
