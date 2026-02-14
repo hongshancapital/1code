@@ -11,6 +11,7 @@
 import { memo, type ReactNode } from "react"
 import { GitFork, SquareTerminal, ChevronDown } from "lucide-react"
 import { cn } from "../../../lib/utils"
+import { useChatInstance } from "../context/chat-instance-context"
 import { Button } from "../../../components/ui/button"
 import {
   Tooltip,
@@ -49,7 +50,6 @@ export interface ChatViewHeaderProps {
   onOpenPreview?: () => void
   isPreviewSidebarOpen: boolean
   setIsPreviewSidebarOpen: (open: boolean) => void
-  sandboxId?: string
   chatSourceMode: "local" | "sandbox"
 
   // Diff
@@ -60,7 +60,6 @@ export interface ChatViewHeaderProps {
   diffStats: DiffStats
 
   // Terminal
-  worktreePath: string | null
   isTerminalSidebarOpen: boolean
   setIsTerminalSidebarOpen: (open: boolean) => void
   toggleTerminalHotkey?: string | null
@@ -72,7 +71,6 @@ export interface ChatViewHeaderProps {
   toggleDetailsHotkey?: string | null
 
   // Archive
-  isArchived: boolean
   handleRestoreWorkspace: () => void
   isRestorePending: boolean
 
@@ -80,9 +78,6 @@ export interface ChatViewHeaderProps {
   showOpenLocally: boolean
   handleOpenLocally: () => void
   isImporting: boolean
-
-  // Chat ID for SubChatSelector
-  chatId: string
 
   // Custom slot for right header content
   rightHeaderSlot?: ReactNode
@@ -114,7 +109,6 @@ export const ChatViewHeader = memo(function ChatViewHeader({
   onOpenPreview,
   isPreviewSidebarOpen,
   setIsPreviewSidebarOpen,
-  sandboxId,
   chatSourceMode,
 
   // Diff
@@ -125,7 +119,6 @@ export const ChatViewHeader = memo(function ChatViewHeader({
   diffStats,
 
   // Terminal
-  worktreePath,
   isTerminalSidebarOpen,
   setIsTerminalSidebarOpen,
   toggleTerminalHotkey,
@@ -137,7 +130,6 @@ export const ChatViewHeader = memo(function ChatViewHeader({
   toggleDetailsHotkey,
 
   // Archive
-  isArchived,
   handleRestoreWorkspace,
   isRestorePending,
 
@@ -146,12 +138,11 @@ export const ChatViewHeader = memo(function ChatViewHeader({
   handleOpenLocally,
   isImporting,
 
-  // Chat ID
-  chatId,
-
   // Custom slot
   rightHeaderSlot,
 }: ChatViewHeaderProps) {
+  // Get identity props from ChatInstanceContext (eliminates prop drilling)
+  const { chatId, worktreePath, sandboxId, isArchived } = useChatInstance()
   if (shouldHideChatHeader) {
     return null
   }

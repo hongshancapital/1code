@@ -12,6 +12,7 @@ import { memo } from "react"
 import type { Chat } from "@ai-sdk/react"
 import { IconSpinner } from "../../../components/ui/icons"
 import { getFirstSubChatId } from "../main/chat-utils"
+import { useChatInstance } from "../context/chat-instance-context"
 
 /**
  * Props for the ChatViewInner component (passed through)
@@ -72,8 +73,6 @@ export interface SubChatTabsRendererProps {
   subChatMessagesData: unknown
   /** Function to get or create Chat instance for a subChatId */
   getOrCreateChat: (subChatId: string) => Chat<any> | null
-  /** Parent chat ID */
-  chatId: string
   /** Handler for auto-rename */
   handleAutoRename: (userMessage: string, subChatId: string) => void
   /** Handler for creating new sub-chat */
@@ -86,12 +85,6 @@ export interface SubChatTabsRendererProps {
   isMobileFullscreen: boolean
   /** SubChats sidebar mode */
   subChatsSidebarMode: "tabs" | "sidebar"
-  /** Sandbox ID for sandbox mode */
-  sandboxId?: string
-  /** Worktree path for local mode */
-  worktreePath: string | null
-  /** Whether workspace is archived */
-  isArchived: boolean
   /** Handler for restoring archived workspace */
   handleRestoreWorkspace: () => void
   /** Existing PR URL if any */
@@ -167,21 +160,19 @@ export const SubChatTabsRenderer = memo(function SubChatTabsRenderer({
   chatSourceMode,
   subChatMessagesData,
   getOrCreateChat,
-  chatId,
   handleAutoRename,
   handleCreateNewSubChat,
   selectedTeamId,
   repositoryString,
   isMobileFullscreen,
   subChatsSidebarMode,
-  sandboxId,
-  worktreePath,
-  isArchived,
   handleRestoreWorkspace,
   existingPrUrl,
   ChatViewInnerComponent,
   collapsedIndicator,
 }: SubChatTabsRendererProps) {
+  // Get identity props from ChatInstanceContext (eliminates prop drilling)
+  const { chatId, worktreePath, sandboxId, isArchived } = useChatInstance()
   // Show loading gate to prevent getOrCreateChat() from caching empty messages before data is ready
   // Distinguish between "loading" and "loaded but no data"
   // - isLoadingMessages: query is executing

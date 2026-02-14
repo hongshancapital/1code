@@ -218,6 +218,31 @@ export function ChatInstanceProvider({
 }
 
 // ============================================================================
+// Value Provider (inject pre-computed values, no internal queries)
+// ============================================================================
+
+export interface ChatInstanceValueProviderProps {
+  value: ChatInstanceContextValue
+  children: ReactNode
+}
+
+/**
+ * Lightweight provider that accepts pre-computed values.
+ * Use this when the parent component already has the data (e.g., ChatView).
+ * Avoids duplicate tRPC queries that ChatInstanceProvider would create.
+ */
+export function ChatInstanceValueProvider({
+  value,
+  children,
+}: ChatInstanceValueProviderProps) {
+  return (
+    <ChatInstanceContext.Provider value={value}>
+      {children}
+    </ChatInstanceContext.Provider>
+  )
+}
+
+// ============================================================================
 // Hooks
 // ============================================================================
 

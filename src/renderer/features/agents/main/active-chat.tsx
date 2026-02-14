@@ -247,6 +247,7 @@ import { explorerPanelOpenAtomFamily } from "../atoms"
 import type { ProjectMode } from "../../../../shared/feature-config"
 import type { AgentChat, ChatProject } from "../types"
 import { isRemoteChat, getSandboxId, getProjectPath, getRemoteStats } from "../types"
+import { ChatInstanceValueProvider, type ChatInstanceContextValue } from "../context/chat-instance-context"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -3880,7 +3881,47 @@ export function ChatView({
   // Global comment input - reuses the same hook as ChatViewInner (writes to same atom)
   const globalOpenCommentInput = useCommentInput()
 
+  // ── ChatInstanceContext value ──────────────────────────────────────────
+  // Provides chat identity + data to all children via useChatInstance()
+  // Uses ValueProvider to avoid duplicate tRPC queries (ChatView already fetches agentChat)
+  const chatInstanceValue = useMemo<ChatInstanceContextValue>(() => ({
+    chatId,
+    worktreePath,
+    sandboxId: sandboxId ?? null,
+    projectPath: chatProject?.path ?? selectedProject?.path ?? null,
+    agentChat: agentChat as AgentChat | null,
+    agentSubChats: agentSubChats as any[],
+    isLoading: isLocalChatLoading,
+    isRemoteChat: chatSourceMode === "sandbox",
+    isSandboxMode: chatSourceMode === "sandbox" || !!sandboxId,
+    isPlayground: selectedProject?.isPlayground === true,
+    project: chatProject,
+    isArchived,
+    invalidateChat: async () => {
+      const queryClient = getQueryClient()
+      await queryClient.invalidateQueries({
+        queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
+      })
+    },
+    refreshBranch: async () => {
+      if (!worktreePath) return
+      try {
+        await trpcClient.changes.fetchRemote.mutate({ worktreePath })
+        const queryClient = getQueryClient()
+        await queryClient.invalidateQueries({
+          queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
+        })
+      } catch (error) {
+        console.error("[ChatInstanceContext] Failed to refresh branch:", error)
+      }
+    },
+  }), [
+    chatId, worktreePath, sandboxId, chatProject, selectedProject,
+    agentChat, agentSubChats, isLocalChatLoading, chatSourceMode, isArchived,
+  ])
+
   return (
+    <ChatInstanceValueProvider value={chatInstanceValue}>
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
     {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
@@ -3920,14 +3961,12 @@ export function ChatView({
             onOpenPreview={onOpenPreview}
             isPreviewSidebarOpen={isPreviewSidebarOpen}
             setIsPreviewSidebarOpen={setIsPreviewSidebarOpen}
-            sandboxId={sandboxId}
             chatSourceMode={chatSourceMode}
             canShowDiffButton={canShowDiffButton}
             canOpenDiff={canOpenDiff}
             isDiffSidebarOpen={isDiffSidebarOpen}
             setIsDiffSidebarOpen={setIsDiffSidebarOpen}
             diffStats={diffStats}
-            worktreePath={worktreePath}
             isTerminalSidebarOpen={isTerminalSidebarOpen}
             setIsTerminalSidebarOpen={setIsTerminalSidebarOpen}
             toggleTerminalHotkey={toggleTerminalHotkey}
@@ -3935,13 +3974,11 @@ export function ChatView({
             isDetailsSidebarOpen={isDetailsSidebarOpen}
             setIsDetailsSidebarOpen={setIsDetailsSidebarOpen}
             toggleDetailsHotkey={toggleDetailsHotkey}
-            isArchived={isArchived}
             handleRestoreWorkspace={handleRestoreWorkspace}
             isRestorePending={restoreWorkspaceMutation.isPending}
             showOpenLocally={showOpenLocally}
             handleOpenLocally={handleOpenLocally}
             isImporting={isImporting}
-            chatId={chatId}
             rightHeaderSlot={rightHeaderSlot}
           />
 
@@ -3957,16 +3994,12 @@ export function ChatView({
             chatSourceMode={chatSourceMode}
             subChatMessagesData={subChatMessagesData}
             getOrCreateChat={getOrCreateChat}
-            chatId={chatId}
             handleAutoRename={handleAutoRename}
             handleCreateNewSubChat={handleCreateNewSubChat}
             selectedTeamId={selectedTeamId}
             repositoryString={repositoryString}
             isMobileFullscreen={isMobileFullscreen}
             subChatsSidebarMode={subChatsSidebarMode}
-            sandboxId={sandboxId}
-            worktreePath={worktreePath}
-            isArchived={isArchived}
             handleRestoreWorkspace={handleRestoreWorkspace}
             existingPrUrl={agentChat?.prUrl}
             ChatViewInnerComponent={ChatViewInner}
@@ -4240,5 +4273,6 @@ export function ChatView({
     </div>
     </TextSelectionProvider>
     </FileOpenProvider>
+    </ChatInstanceValueProvider>
   )
 }
