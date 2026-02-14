@@ -4839,15 +4839,6 @@ export function ChatView({
       ...agentSubChats.map(sc => sc.id),
       ...allSubChats.map(sc => sc.id),
     ])
-    console.log('[active-chat] tabsToRender calculation:', {
-      agentSubChatsCount: agentSubChats.length,
-      allSubChatsCount: allSubChats.length,
-      validSubChatIdsCount: validSubChatIds.size,
-      openSubChatIdsCount: openSubChatIds.length,
-      pinnedSubChatIdsCount: pinnedSubChatIds.length,
-      activeSubChatId
-    })
-
     // When both data sources are still empty (loading), trust activeSubChatId from localStorage.
     // Without this, there's a race condition:
     //   1. setChatId() resets allSubChats to []
@@ -7334,7 +7325,7 @@ Make sure to preserve all functionality from both branches when resolving confli
           remoteChat={remoteAgentChat ?? null}
           matchingProjects={openLocallyMatchingProjects}
           allProjects={projects ?? []}
-          remoteSubChatId={null}
+          remoteSubChatId={activeSubChatId}
         />
 
         {/* Unified Details Sidebar - combines all right sidebars into one (rightmost) */}
