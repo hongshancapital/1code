@@ -55,11 +55,6 @@ import {
   summaryModelIdAtom,
 } from "../../../lib/atoms"
 import {
-  setTrafficLightRequestAtom,
-  removeTrafficLightRequestAtom,
-  TRAFFIC_LIGHT_PRIORITIES,
-} from "../../../lib/atoms/traffic-light"
-import {
   sessionModelOverrideAtom,
   chatModelSelectionsAtom,
   subChatModelSelectionsAtom,
@@ -184,6 +179,7 @@ import { useTextContextSelection } from "../hooks/use-text-context-selection"
 import { useToggleFocusOnCmdEsc } from "../hooks/use-toggle-focus-on-cmd-esc"
 import { useChatViewSetup } from "../hooks/use-chat-view-setup"
 import { useSidebarMutualExclusion } from "../hooks/use-sidebar-mutual-exclusion"
+import { useDiffSidebarLayout } from "../hooks/use-diff-sidebar-layout"
 import { useDiffData } from "../hooks/use-diff-data"
 import { useBrowserSidebar } from "../hooks/use-browser-sidebar"
 import { useSubChatNameSync } from "../hooks/use-subchat-name-sync"
@@ -3099,93 +3095,23 @@ export function ChatView({
     }
   )
 
-  // Force narrow width when switching to side-peek mode (from dialog/fullscreen)
-  useEffect(() => {
-    if (diffDisplayMode === "side-peek") {
-      // Set to narrow width (400px) to ensure correct layout
-      appStore.set(agentsDiffSidebarWidthAtom, 400)
-    }
-  }, [diffDisplayMode])
-
-  // Hide/show traffic lights based on full-page diff or full-page file viewer
-  const setTrafficLightRequest = useSetAtom(setTrafficLightRequestAtom)
-  const removeTrafficLightRequest = useSetAtom(removeTrafficLightRequestAtom)
-
-  useEffect(() => {
-    if (!isDesktop || isFullscreen) return
-
-    const isFullPageDiff = isDiffSidebarOpen && diffDisplayMode === "full-page"
-    const isFullPageFileViewer = !!fileViewerPath && fileViewerDisplayMode === "full-page"
-    const shouldHide = isFullPageDiff || isFullPageFileViewer
-
-    if (shouldHide) {
-      setTrafficLightRequest({
-        requester: "active-chat-viewer",
-        visible: false,
-        priority: TRAFFIC_LIGHT_PRIORITIES.ACTIVE_CHAT_VIEWER,
-      })
-    } else {
-      removeTrafficLightRequest("active-chat-viewer")
-    }
-
-    return () => removeTrafficLightRequest("active-chat-viewer")
-  }, [isDiffSidebarOpen, diffDisplayMode, fileViewerPath, fileViewerDisplayMode, isDesktop, isFullscreen, setTrafficLightRequest, removeTrafficLightRequest])
-
-  // Track diff sidebar width for responsive header
-  const storedDiffSidebarWidth = useAtomValue(agentsDiffSidebarWidthAtom)
-  const diffSidebarRef = useRef<HTMLDivElement>(null)
+  // Diff sidebar layout management (width tracking, traffic lights, resize observer)
+  const {
+    diffSidebarRef,
+    diffSidebarWidth,
+    isDiffSidebarNarrow,
+  } = useDiffSidebarLayout({
+    isDiffSidebarOpen,
+    diffDisplayMode,
+    fileViewerPath,
+    fileViewerDisplayMode,
+  })
   const diffViewRef = useRef<AgentDiffViewRef>(null)
-  const [diffSidebarWidth, setDiffSidebarWidth] = useState(
-    storedDiffSidebarWidth,
-  )
   // Track if all diff files are collapsed/expanded for button disabled states
   const [_diffCollapseState, setDiffCollapseState] = useState({
     allCollapsed: false,
     allExpanded: true,
   })
-
-  // Compute isNarrow for filtering logic (same threshold as DiffSidebarContent)
-  const isDiffSidebarNarrow = diffSidebarWidth < 500
-
-  // ResizeObserver to track diff sidebar width in real-time (atom only updates after resize ends)
-  useEffect(() => {
-    if (!isDiffSidebarOpen) {
-      return
-    }
-
-    let observer: ResizeObserver | null = null
-    let rafId: number | null = null
-
-    const checkRef = () => {
-      const element = diffSidebarRef.current
-      if (!element) {
-        // Retry if ref not ready yet
-        rafId = requestAnimationFrame(checkRef)
-        return
-      }
-
-      // Set initial width
-      setDiffSidebarWidth(element.offsetWidth || storedDiffSidebarWidth)
-
-      observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const width = entry.contentRect.width
-          if (width > 0) {
-            setDiffSidebarWidth(width)
-          }
-        }
-      })
-
-      observer.observe(element)
-    }
-
-    checkRef()
-
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      if (observer) observer.disconnect()
-    }
-  }, [isDiffSidebarOpen, storedDiffSidebarWidth])
 
   // Track changed files across all sub-chats for throttled diff refresh
   const subChatFiles = useAtomValue(subChatFilesAtom)
