@@ -192,6 +192,8 @@ import { useFocusInputOnEnter } from "../hooks/use-focus-input-on-enter"
 import { usePastedTextFiles } from "../hooks/use-pasted-text-files"
 import { useTextContextSelection } from "../hooks/use-text-context-selection"
 import { useToggleFocusOnCmdEsc } from "../hooks/use-toggle-focus-on-cmd-esc"
+import { useChatViewSetup } from "../hooks/use-chat-view-setup"
+import { ChatInputProvider } from "../context/chat-input-context"
 import {
   clearSubChatDraft,
   getSubChatDraftFull
@@ -716,6 +718,26 @@ const ChatViewInner = memo(function ChatViewInner({
   stopRef.current = stop
 
   const isStreaming = status === "streaming" || status === "submitted"
+
+  // Setup ChatView registration for multi-instance support
+  // This hook registers this ChatView to ChatInputContext (if available)
+  // Enables future support for shared ChatInput across multiple ChatViews
+  const { instanceId: chatViewInstanceId, isActiveInstance } = useChatViewSetup({
+    chatId: parentChatId,
+    subChatId,
+    projectPath,
+    sandboxId,
+    teamId,
+    isActive,
+    isStreaming,
+    isArchived,
+    sandboxSetupStatus: sandboxSetupStatus === "cloning" ? "loading" : sandboxSetupStatus,
+    sendMessageRef,
+    stopRef,
+    editorRef,
+    shouldAutoScrollRef,
+    scrollToBottom,
+  })
 
   // Memory router: scroll to target message when navigated via useNavigate
   // messagesLoaded ensures we wait for messages before scrolling to specific messageId
@@ -5334,6 +5356,7 @@ Make sure to preserve all functionality from both branches when resolving confli
   }, [setGlobalCommentInputState])
 
   return (
+    <ChatInputProvider>
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
     {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
@@ -6068,5 +6091,6 @@ Make sure to preserve all functionality from both branches when resolving confli
     </div>
     </TextSelectionProvider>
     </FileOpenProvider>
+    </ChatInputProvider>
   )
 }
