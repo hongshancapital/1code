@@ -207,6 +207,7 @@ export function initDatabase() {
         messages TEXT DEFAULT '[]' NOT NULL,
         created_at INTEGER,
         updated_at INTEGER,
+        archived_at INTEGER,
         stats_json TEXT,
         has_pending_plan INTEGER DEFAULT 0,
         manually_renamed INTEGER DEFAULT 0
@@ -226,6 +227,17 @@ export function initDatabase() {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
       console.log("[DB] manually_renamed column check (sub_chats):", error.message)
+    }
+  }
+
+  // Ensure archived_at column exists on sub_chats table (added in migration 0018)
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN archived_at INTEGER`)
+    console.log("[DB] Added archived_at column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      console.log("[DB] archived_at column check (sub_chats):", error.message)
     }
   }
 
