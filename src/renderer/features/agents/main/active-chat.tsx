@@ -5682,12 +5682,10 @@ Make sure to preserve all functionality from both branches when resolving confli
           "agent",
       }
     })
-    console.log('[active-chat] dbSubChats length:', dbSubChats.length, 'chatId:', chatId)
     const dbSubChatIds = new Set(dbSubChats.map((sc) => sc.id))
 
     // Start with DB sub-chats
     const allSubChats: SubChatMeta[] = [...dbSubChats]
-    console.log('[active-chat] allSubChats length:', allSubChats.length)
 
     // For each open tab ID that's NOT in DB, add placeholder (like Canvas)
     // This prevents losing tabs during race conditions
@@ -5723,7 +5721,6 @@ Make sure to preserve all functionality from both branches when resolving confli
       const hasAllDbSubChats = dbSubChats.every(sc => currentOpenSet.has(sc.id))
 
       if (!hasAllDbSubChats && dbSubChats.length > 0) {
-        console.log('[active-chat] Initializing openSubChatIds with all DB sub-chats:', dbSubChats.length)
         // Add all DB sub-chat IDs to openSubChatIds (oldest first, so newest are at the end)
         const allOpenIds = [...dbSubChats.map(sc => sc.id)]
         freshState.setOpenSubChats(allOpenIds)
@@ -5750,10 +5747,6 @@ Make sure to preserve all functionality from both branches when resolving confli
     if (validOpenIds.length > 0) {
       // Have valid open tabs
       if (validOpenIds.length !== currentOpenIds.length) {
-        console.log('[init] Filtering invalid open tabs', {
-          before: currentOpenIds.length,
-          after: validOpenIds.length,
-        })
         freshState.setOpenSubChats(validOpenIds)
       }
 
@@ -5765,10 +5758,6 @@ Make sure to preserve all functionality from both branches when resolving confli
           .filter(Boolean) as SubChatMeta[]
         const latest = findLatest(openSubChats)
         const targetId = latest?.id || validOpenIds[0]
-        console.log('[init] Invalid activeSubChatId, switching to latest valid', {
-          currentActive,
-          targetId,
-        })
         freshState.setActiveSubChat(targetId)
       }
     } else if (dbSubChats.length > 0) {
@@ -5779,22 +5768,16 @@ Make sure to preserve all functionality from both branches when resolving confli
 
       if (hasExplicitEmptyState) {
         // User closed all tabs — respect their choice, don't auto-open
-        console.log('[init] User closed all tabs, keeping empty state')
         freshState.setOpenSubChats([])
         freshState.setActiveSubChat(null)
       } else {
         // First time opening this chat — open the most recent subchat
         const latest = findLatest(dbSubChats)!
-        console.log('[init] No valid open tabs, opening latest subchat from DB', {
-          id: latest.id,
-          updated_at: latest.updated_at,
-        })
         freshState.setOpenSubChats([latest.id])
         freshState.setActiveSubChat(latest.id)
       }
     } else {
       // DB has no subchats — clear state (UI will show new chat input)
-      console.log('[init] No subchats in DB, clearing state')
       freshState.setOpenSubChats([])
       freshState.setActiveSubChat(null)
     }
