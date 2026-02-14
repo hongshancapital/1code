@@ -95,7 +95,7 @@ import { AgentsRenameSubChatDialog } from "../agents/components/agents-rename-su
 import { OpenLocallyDialog } from "../agents/components/open-locally-dialog"
 import { useAutoImport } from "../agents/hooks/use-auto-import"
 import { ConfirmArchiveDialog } from "../../components/confirm-archive-dialog"
-import { trpc } from "../../lib/trpc"
+import { trpc, trpcClient } from "../../lib/trpc"
 import { toast } from "sonner"
 import {
   trackClickNewWorkspace,
@@ -2345,10 +2345,11 @@ export function AgentsSidebar({
             restoreChatMutation.mutate({ id: lastItem.chatId })
           }
         } else if (lastItem.type === "subchat") {
-          // Restore sub-chat tab (re-add to open tabs)
+          // Restore sub-chat tab (re-add to open tabs + unarchive in database)
           const store = useAgentSubChatStore.getState()
           store.addToOpenSubChats(lastItem.subChatId)
           store.setActiveSubChat(lastItem.subChatId)
+          trpcClient.subChats.unarchiveSubChat.mutate({ id: lastItem.subChatId }).catch(console.error)
         }
       }
     }

@@ -325,7 +325,15 @@ export function SubChatSelector({
     })
   }, [])
 
-  const archiveMutation = trpc.subChats.archiveSubChat.useMutation()
+  const apiUtils = api.useUtils()
+  const archiveMutation = trpc.subChats.archiveSubChat.useMutation({
+    onSuccess: () => {
+      // Invalidate chat query so archived sub-chats don't reappear from stale cache
+      if (parentChatId) {
+        apiUtils.agents.getAgentChat.invalidate({ chatId: parentChatId })
+      }
+    },
+  })
 
   const onCloseTab = useCallback((subChatId: string) => {
     // Remove from open tabs immediately (optimistic update)

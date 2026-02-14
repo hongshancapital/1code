@@ -51,7 +51,6 @@ import { toast } from "sonner"
 import { useShallow } from "zustand/react/shallow"
 import type { FileStatus } from "../../../../shared/changes-types"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
-import { getWindowId } from "../../../contexts/WindowContext"
 import {
   trackClickNewChat,
   trackClickPlanApprove,
@@ -5684,23 +5683,10 @@ Make sure to preserve all functionality from both branches when resolving confli
     })
     const dbSubChatIds = new Set(dbSubChats.map((sc) => sc.id))
 
-    // Start with DB sub-chats
-    const allSubChats: SubChatMeta[] = [...dbSubChats]
-
-    // For each open tab ID that's NOT in DB, add placeholder (like Canvas)
-    // This prevents losing tabs during race conditions
-    const currentOpenIds = freshState.openSubChatIds
-    currentOpenIds.forEach((id) => {
-      if (!dbSubChatIds.has(id)) {
-        allSubChats.push({
-          id,
-          name: "New Chat",
-          created_at: new Date().toISOString(),
-        })
-      }
-    })
-
-    freshState.setAllSubChats(allSubChats)
+    // DB is the source of truth — archived sub-chats are already filtered out.
+    // New sub-chats are added to the store directly via addToAllSubChats + React Query setData
+    // at creation time, so no placeholder logic is needed here.
+    freshState.setAllSubChats(dbSubChats)
 
     // Initialize atomFamily mode for each sub-chat from database
     // IMPORTANT: Only do this when chatId changes (new chat loaded), not on every agentChat update
@@ -5713,73 +5699,43 @@ Make sure to preserve all functionality from both branches when resolving confli
         }
       }
 
-      // FIX: When switching to a new chat, if openSubChatIds is empty or doesn't contain all DB sub-chats,
-      // initialize it with all DB sub-chat IDs. This fixes the issue where copying production DB
-      // results in only 1 tab showing (because localStorage openSubChatIds only had 1 ID).
-      const dbSubChatIdSet = new Set(dbSubChats.map(sc => sc.id))
-      const currentOpenSet = new Set(freshState.openSubChatIds)
-      const hasAllDbSubChats = dbSubChats.every(sc => currentOpenSet.has(sc.id))
-
-      if (!hasAllDbSubChats && dbSubChats.length > 0) {
-        // Add all DB sub-chat IDs to openSubChatIds (oldest first, so newest are at the end)
-        const allOpenIds = [...dbSubChats.map(sc => sc.id)]
-        freshState.setOpenSubChats(allOpenIds)
+      // Initialize openSubChatIds from DB.
+      // DB already filters out archived sub-chats (via archived_at),
+      // so we trust DB as source of truth.
+      if (dbSubChats.length > 0) {
+        freshState.setOpenSubChats(dbSubChats.map(sc => sc.id))
       }
     }
 
-    // Validate localStorage state against DB
-    const currentActive = freshState.activeSubChatId
-    const isActiveIdValid = currentActive && dbSubChatIds.has(currentActive)
-
-    // Only keep open tabs that exist in DB
+    // Validate openSubChatIds — remove any IDs that no longer exist in DB
+    // (e.g. sub-chat was archived or deleted since last session)
+    const currentOpenIds = freshState.openSubChatIds
     const validOpenIds = currentOpenIds.filter(id => dbSubChatIds.has(id))
-
-    // Helper: find the most recently updated subchat from a list
-    const findLatest = (list: SubChatMeta[]) => {
-      if (list.length === 0) return null
-      return list.reduce((latest, sc) => {
-        const latestTime = latest.updated_at || latest.created_at || ""
-        const scTime = sc.updated_at || sc.created_at || ""
-        return scTime > latestTime ? sc : latest
-      })
+    if (validOpenIds.length !== currentOpenIds.length) {
+      freshState.setOpenSubChats(validOpenIds)
     }
 
-    if (validOpenIds.length > 0) {
-      // Have valid open tabs
-      if (validOpenIds.length !== currentOpenIds.length) {
-        freshState.setOpenSubChats(validOpenIds)
-      }
-
-      // Validate activeSubChatId
-      if (!isActiveIdValid || !validOpenIds.includes(currentActive!)) {
-        // Pick the most recently updated among valid open tabs
-        const openSubChats = validOpenIds
-          .map(id => dbSubChats.find(sc => sc.id === id))
-          .filter(Boolean) as SubChatMeta[]
-        const latest = findLatest(openSubChats)
-        const targetId = latest?.id || validOpenIds[0]
-        freshState.setActiveSubChat(targetId)
-      }
-    } else if (dbSubChats.length > 0) {
-      // No valid open tabs, but DB has subchats
-      // Check if user explicitly closed all tabs (localStorage has key with empty array)
-      const storageKey = `${getWindowId()}:agent-open-sub-chats-${chatId}`
-      const hasExplicitEmptyState = localStorage.getItem(storageKey) === '[]'
-
-      if (hasExplicitEmptyState) {
-        // User closed all tabs — respect their choice, don't auto-open
-        freshState.setOpenSubChats([])
-        freshState.setActiveSubChat(null)
-      } else {
-        // First time opening this chat — open the most recent subchat
-        const latest = findLatest(dbSubChats)!
-        freshState.setOpenSubChats([latest.id])
+    // Validate activeSubChatId
+    const currentActive = freshState.activeSubChatId
+    if (!currentActive || !dbSubChatIds.has(currentActive)) {
+      // Pick the most recently updated sub-chat from open tabs, or from all DB sub-chats
+      const candidates = validOpenIds.length > 0
+        ? validOpenIds.map(id => dbSubChats.find(sc => sc.id === id)).filter(Boolean) as SubChatMeta[]
+        : dbSubChats
+      if (candidates.length > 0) {
+        const latest = candidates.reduce((a, b) => {
+          const aTime = a.updated_at || a.created_at || ""
+          const bTime = b.updated_at || b.created_at || ""
+          return bTime > aTime ? b : a
+        })
         freshState.setActiveSubChat(latest.id)
+        // If no open tabs, also open this one
+        if (validOpenIds.length === 0) {
+          freshState.setOpenSubChats([latest.id])
+        }
+      } else {
+        freshState.setActiveSubChat(null)
       }
-    } else {
-      // DB has no subchats — clear state (UI will show new chat input)
-      freshState.setOpenSubChats([])
-      freshState.setActiveSubChat(null)
     }
   }, [agentChat, chatId])
 
@@ -6365,8 +6321,10 @@ Make sure to preserve all functionality from both branches when resolving confli
             idsToClose.forEach((id) => {
               store.removeFromOpenSubChats(id)
               addSubChatToUndoStack(id)
-              // Archive in database
-              trpcClient.subChats.archiveSubChat.mutate({ id }).catch(console.error)
+              // Archive in database, then invalidate cache so archived sub-chats don't reappear
+              trpcClient.subChats.archiveSubChat.mutate({ id })
+                .then(() => utils.agents.getAgentChat.invalidate({ chatId }))
+                .catch(console.error)
             })
           }
           clearSubChatSelection()
@@ -6382,8 +6340,10 @@ Make sure to preserve all functionality from both branches when resolving confli
         if (activeId && openIds.length > 1) {
           store.removeFromOpenSubChats(activeId)
           addSubChatToUndoStack(activeId)
-          // Archive in database
-          trpcClient.subChats.archiveSubChat.mutate({ id: activeId }).catch(console.error)
+          // Archive in database, then invalidate cache so archived sub-chats don't reappear
+          trpcClient.subChats.archiveSubChat.mutate({ id: activeId })
+            .then(() => utils.agents.getAgentChat.invalidate({ chatId }))
+            .catch(console.error)
         }
       }
     }
