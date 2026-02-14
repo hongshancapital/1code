@@ -53,3 +53,9 @@ export {
   type BranchData,
   type PrStatusData,
 } from "./use-git-data"
+
+export {
+  useCommentHandlers,
+  type CommentHandlersOptions,
+  type CommentHandlersResult,
+} from "./use-comment-handlers"
