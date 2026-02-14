@@ -317,7 +317,14 @@ function AppContent() {
   } else {
     // No more SelectRepoPage - AgentsLayout handles the "no project" state
     // with the new-chat-form showing "Select a folder to get started"
-    content = <AgentsLayout />
+    // Wrap with ChatInputProvider and ChatViewLayoutProvider for multi-ChatView support
+    content = (
+      <ChatInputProvider>
+        <ChatViewLayoutProvider>
+          <AgentsLayout />
+        </ChatViewLayoutProvider>
+      </ChatInputProvider>
+    )
   }
 
   return (
@@ -400,17 +407,13 @@ export function App() {
                 <VSCodeThemeProvider>
                   <TooltipProvider delayDuration={100}>
                     <TRPCProvider>
-                      <ChatInputProvider>
-                        <ChatViewLayoutProvider>
-                          <div
-                            data-agents-page
-                            className="h-screen w-screen bg-background text-foreground overflow-hidden"
-                          >
-                            <AppContent />
-                          </div>
-                          <ThemedToaster />
-                        </ChatViewLayoutProvider>
-                      </ChatInputProvider>
+                      <div
+                        data-agents-page
+                        className="h-screen w-screen bg-background text-foreground overflow-hidden"
+                      >
+                        <AppContent />
+                      </div>
+                      <ThemedToaster />
                     </TRPCProvider>
                   </TooltipProvider>
                 </VSCodeThemeProvider>
