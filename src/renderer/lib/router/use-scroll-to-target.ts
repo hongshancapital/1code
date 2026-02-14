@@ -42,7 +42,8 @@ export function useScrollToTarget(
     if (!container) return
 
     // Create a unique key for this scroll target to track if we've processed it
-    const targetKey = `${scrollTarget.messageId}-${scrollTarget.highlight || ""}`
+    // Include subChatId to ensure each subchat gets its own scroll initialization
+    const targetKey = `${subChatId}-${scrollTarget.messageId}-${scrollTarget.highlight || ""}`
     if (processedTargetRef.current === targetKey) return
 
     // For specific message targets (not SCROLL_TO_BOTTOM), wait for messages to load
