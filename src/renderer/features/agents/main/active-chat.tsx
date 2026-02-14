@@ -7350,7 +7350,7 @@ Make sure to preserve all functionality from both branches when resolving confli
           remoteChat={remoteAgentChat ?? null}
           matchingProjects={openLocallyMatchingProjects}
           allProjects={projects ?? []}
-          remoteSubChatId={activeSubChatId}
+          remoteSubChatId={null}
         />
 
         {/* Unified Details Sidebar - combines all right sidebars into one (rightmost) */}

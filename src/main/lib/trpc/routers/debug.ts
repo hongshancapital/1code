@@ -29,7 +29,7 @@ const simulatedInstallState: SimulatedInstallState = {
 }
 
 // Protocol constant (must match main/index.ts)
-const IS_DEV = !!process.env.ELECTRON_RENDERER_URL
+const IS_DEV = !app.isPackaged
 const PROTOCOL = IS_DEV ? "hong-dev" : "hong"
 
 // Helper function for delays
@@ -513,9 +513,9 @@ export const debugRouter = router({
 
     // Production database path - try multiple possible locations
     const possibleProductionPaths = [
-      join(appSupportPath, "hong-desktop", "data", "agents.db"),  // Current production
-      join(appSupportPath, "Hong Cowork", "data", "agents.db"),   // Legacy name
-      join(appSupportPath, "Hong", "data", "agents.db"),          // Alternative name
+      join(appSupportPath, "Hong Cowork", "data", "agents.db"),         // Current production (Tinker)
+      join(appSupportPath, "hong-desktop", "data", "agents.db"),        // Legacy standalone
+      join(appSupportPath, "Hong", "data", "agents.db"),                // Alternative name
     ]
 
     const productionDbPath = possibleProductionPaths.find(p => existsSync(p))
