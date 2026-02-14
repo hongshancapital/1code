@@ -4225,6 +4225,7 @@ export function ChatView({
     [activeSubChatIdForPlan],
   )
   const planEditRefetchTrigger = useAtomValue(planEditRefetchTriggerAtom)
+  const triggerPlanRefetch = useSetAtom(planEditRefetchTriggerAtom)
 
   // Handler for plan sidebar "Build plan" button
   // Uses getState() to get fresh activeSubChatId (avoids stale closure)
@@ -4234,6 +4235,15 @@ export function ChatView({
       setPendingBuildPlanSubChatId(activeSubChatId)
     }
   }, [setPendingBuildPlanSubChatId])
+
+  // Handler for expanding plan sidebar - opens sidebar and triggers refetch
+  // This ensures plan content is refreshed when "View plan" is clicked,
+  // even if the sidebar is already open
+  const handleExpandPlan = useCallback(() => {
+    setIsPlanSidebarOpen(true)
+    // Always trigger refetch when expanding to ensure fresh content
+    triggerPlanRefetch()
+  }, [setIsPlanSidebarOpen, triggerPlanRefetch])
 
   // Per-chat terminal sidebar state - each chat remembers its own open/close state
   const terminalSidebarAtom = useMemo(
@@ -7365,7 +7375,7 @@ Make sure to preserve all functionality from both branches when resolving confli
             onCommit={handleCommitToPr}
             isCommitting={isCommittingToPr}
             onExpandTerminal={() => setIsTerminalSidebarOpen(true)}
-            onExpandPlan={() => setIsPlanSidebarOpen(true)}
+            onExpandPlan={handleExpandPlan}
             onExpandDiff={() => setIsDiffSidebarOpen(true)}
             onExpandExplorer={() => setIsExplorerPanelOpen(true)}
             isExplorerSidebarOpen={isExplorerPanelOpen}
