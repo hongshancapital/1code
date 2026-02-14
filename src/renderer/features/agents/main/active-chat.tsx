@@ -110,6 +110,7 @@ import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sid
 import { FileViewerSidebar } from "../../file-viewer"
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog"
 import { BrowserPanel } from "../../browser-sidebar"
+import { browserPendingScreenshotAtomFamily } from "../../browser-sidebar/atoms"
 import { terminalSidebarOpenAtomFamily, terminalDisplayModeAtom, terminalBottomHeightAtom } from "../../terminal/atoms"
 import { TerminalSidebar, TerminalBottomPanelContent } from "../../terminal/terminal-sidebar"
 import { ResizableBottomPanel } from "@/components/ui/resizable-bottom-panel"
@@ -138,7 +139,6 @@ import {
   diffViewDisplayModeAtom,
   expiredUserQuestionsAtom,
   filteredDiffFilesAtom,
-  filteredSubChatIdAtom,
   isCreatingPrAtom,
   justCreatedIdsAtom,
   lastSelectedModelIdAtom,
@@ -195,6 +195,8 @@ import { useChatViewSetup } from "../hooks/use-chat-view-setup"
 import { useSidebarMutualExclusion } from "../hooks/use-sidebar-mutual-exclusion"
 import { useDiffData } from "../hooks/use-diff-data"
 import { useBrowserSidebar } from "../hooks/use-browser-sidebar"
+import { useSubChatNameSync } from "../hooks/use-subchat-name-sync"
+import { usePrGitOperations } from "../hooks/use-pr-git-operations"
 import {
   clearSubChatDraft,
   getSubChatDraftFull
@@ -252,7 +254,6 @@ import { ReviewButton } from "../ui/review-button"
 import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
 import { autoRenameAgentChat } from "../utils/auto-rename"
-import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } from "../utils/pr-message"
 import { ChatInputArea } from "./chat-input-area"
 import { CHAT_LAYOUT, PLAYBACK_SPEEDS, type PlaybackSpeed } from "./constants"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
@@ -2917,6 +2918,15 @@ export function ChatView({
   // Check if any chat has unseen changes
   const hasAnyUnseenChanges = unseenChanges.size > 0
   const [, forceUpdate] = useState({})
+  // Track pending force updates to defer them after render
+  const pendingForceUpdateRef = useRef(false)
+  // Process deferred force updates after render to avoid "update while rendering" error
+  useEffect(() => {
+    if (pendingForceUpdateRef.current) {
+      pendingForceUpdateRef.current = false
+      forceUpdate({})
+    }
+  })
   const [isPreviewSidebarOpen, setIsPreviewSidebarOpen] = useAtom(
     agentsPreviewSidebarOpenAtom,
   )
@@ -2986,51 +2996,7 @@ export function ChatView({
   }, [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw])
 
   // Listen for AI-generated sub-chat name from backend (success or failure)
-  useEffect(() => {
-    if (!window.desktopApi.onSubChatAINameReady) return
-    const cleanup = window.desktopApi.onSubChatAINameReady((data) => {
-      console.log("[active-chat] AI name confirmed via IPC:", data)
-      // Confirm the name (stop shimmer) - this happens for both AI success and AI failure
-      confirmName(setUnconfirmedNameSubChats, data.subChatId)
-      // Update the sub-chat name in the store
-      useAgentSubChatStore.getState().updateSubChatName(data.subChatId, data.name)
-      // Optimistic update for sub-chat in single chat query
-      utils.agents.getAgentChat.setData(
-        { chatId: data.chatId },
-        (old) => {
-          if (!old) return old
-          return {
-            ...old,
-            subChats: old.subChats.map((sc: { id: string; name: string }) =>
-              sc.id === data.subChatId ? { ...sc, name: data.name } : sc,
-            ),
-          }
-        },
-      )
-      // If it's the first sub-chat, also update the parent chat name
-      if (data.isFirstSubChat && data.chatId) {
-        // Update sidebar list
-        utils.agents.getAgentChats.setData(
-          { teamId: selectedTeamId },
-          (old: { id: string; name: string | null }[] | undefined) => {
-            if (!old) return old
-            return old.map((c) =>
-              c.id === data.chatId ? { ...c, name: data.name } : c,
-            )
-          },
-        )
-        // Update single chat header
-        utils.agents.getAgentChat.setData(
-          { chatId: data.chatId },
-          (old) => {
-            if (!old) return old
-            return { ...old, name: data.name }
-          },
-        )
-      }
-    })
-    return cleanup
-  }, [setUnconfirmedNameSubChats, utils.agents.getAgentChat, utils.agents.getAgentChats, selectedTeamId])
+  useSubChatNameSync({ selectedTeamId })
 
   // Resolved hotkeys for tooltips
   const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
@@ -3298,13 +3264,6 @@ export function ChatView({
   const generateSubChatNameMutation =
     api.agents.generateSubChatName.useMutation()
 
-  // PR creation loading state - using atom to allow ChatViewInner to reset it
-  const [isCreatingPr, setIsCreatingPr] = useAtom(isCreatingPrAtom)
-  // Review loading state
-  const [isReviewing, setIsReviewing] = useState(false)
-  // Subchat filter setter - used by handleReview to filter by active subchat
-  const setFilteredSubChatId = useSetAtom(filteredSubChatIdAtom)
-
   // Determine if we're in sandbox mode
   const chatSourceMode = useAtomValue(chatSourceModeAtom)
 
@@ -3468,105 +3427,6 @@ export function ChatView({
     [activeSubChatId, pinnedSubChatIds, openSubChatIds, allSubChats, agentSubChats]
   )
 
-  // Get PR status when PR exists (for checking if it's open/merged/closed)
-  const hasPrNumber = !!agentChat?.prNumber
-  const { data: prStatusData, isLoading: isPrStatusLoading } = trpc.chats.getPrStatus.useQuery(
-    { chatId },
-    {
-      enabled: hasPrNumber,
-      refetchInterval: 30000, // Poll every 30 seconds
-    }
-  )
-  const prState = prStatusData?.pr?.state as "open" | "draft" | "merged" | "closed" | undefined
-  const prMergeable = prStatusData?.pr?.mergeable
-  const hasMergeConflicts = prMergeable === "CONFLICTING"
-  // PR is open if state is explicitly "open" or "draft"
-  // When PR status is still loading, assume open to avoid showing wrong button
-  const isPrOpen = hasPrNumber && (isPrStatusLoading || prState === "open" || prState === "draft")
-
-  // Merge PR mutation
-  const trpcUtils = trpc.useUtils()
-
-  // Direct PR creation mutation (push branch and open GitHub)
-  const createPrMutation = trpc.changes.createPR.useMutation({
-    onSuccess: () => {
-      toast.success("Opening GitHub to create PR...", { position: "top-center" })
-      refetchGitStatus()
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create PR", { position: "top-center" })
-    },
-  })
-
-  // Sync from main mutation (for resolving merge conflicts)
-  const mergeFromDefaultMutation = trpc.changes.mergeFromDefault.useMutation({
-    onSuccess: () => {
-      toast.success("Branch synced with main. You can now merge the PR.", { position: "top-center" })
-      // Invalidate PR status to refresh mergeability
-      trpcUtils.chats.getPrStatus.invalidate({ chatId })
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to sync with main", { position: "top-center" })
-    },
-  })
-
-  const mergePrMutation = trpc.chats.mergePr.useMutation({
-    onSuccess: () => {
-      toast.success("PR merged successfully!", { position: "top-center" })
-      // Invalidate PR status to update button state
-      trpcUtils.chats.getPrStatus.invalidate({ chatId })
-    },
-    onError: (error) => {
-      const errorMsg = error.message || "Failed to merge PR"
-
-      // Check if it's a merge conflict error
-      if (errorMsg.includes("MERGE_CONFLICT")) {
-        toast.error(
-          "PR has merge conflicts. Sync with main to resolve.",
-          {
-            position: "top-center",
-            duration: 8000,
-            action: worktreePath ? {
-              label: "Sync with Main",
-              onClick: () => {
-                mergeFromDefaultMutation.mutate({ worktreePath, useRebase: false })
-              },
-            } : undefined,
-          }
-        )
-      } else {
-        toast.error(errorMsg, { position: "top-center" })
-      }
-    },
-  })
-
-  const handleMergePr = useCallback(() => {
-    mergePrMutation.mutate({ chatId, method: "squash" })
-  }, [chatId, mergePrMutation])
-
-  // Restore archived workspace mutation (silent - no toast)
-  const restoreWorkspaceMutation = trpc.chats.restore.useMutation({
-    onSuccess: (restoredChat) => {
-      if (restoredChat) {
-        // Update the main chat list cache
-        trpcUtils.chats.list.setData({}, (oldData) => {
-          if (!oldData) return [restoredChat]
-          if (oldData.some((c) => c.id === restoredChat.id)) return oldData
-          return [restoredChat, ...oldData]
-        })
-      }
-      // Invalidate both lists to refresh
-      trpcUtils.chats.list.invalidate()
-      trpcUtils.chats.listArchived.invalidate()
-      // Invalidate this chat's data to update isArchived state
-      utils.agents.getAgentChat.invalidate({ chatId })
-    },
-  })
-
-  const handleRestoreWorkspace = useCallback(() => {
-    restoreWorkspaceMutation.mutate({ id: chatId })
-  }, [chatId, restoreWorkspaceMutation])
-
   // Check if this workspace is archived
   const isArchived = !!agentChat?.archivedAt
 
@@ -3714,270 +3574,51 @@ export function ChatView({
   // The sidebar render is guarded by canOpenDiff, so it naturally hides.
   // Per-chat state (diffSidebarOpenAtomFamily) preserves each chat's preference.
 
-  // Handle Create PR (Direct) - pushes branch and opens GitHub compare URL
-  const handleCreatePrDirect = useCallback(async () => {
-    if (!worktreePath) {
-      toast.error("No workspace path available", { position: "top-center" })
-      return
-    }
-
-    setIsCreatingPr(true)
-    try {
-      await createPrMutation.mutateAsync({ worktreePath })
-    } finally {
-      setIsCreatingPr(false)
-    }
-  }, [worktreePath, createPrMutation])
-
-  // Handle Create PR with AI - sends a message to Claude to create the PR
-  const setPendingPrMessage = useSetAtom(pendingPrMessageAtom)
-
-  const handleCreatePr = useCallback(async () => {
-    if (!chatId) {
-      toast.error("Chat ID is required", { position: "top-center" })
-      return
-    }
-
-    setIsCreatingPr(true)
-    try {
-      // Get PR context from backend
-      const context = await trpcClient.chats.getPrContext.query({ chatId })
-      if (!context) {
-        toast.error("Could not get git context", { position: "top-center" })
-        setIsCreatingPr(false)
-        return
-      }
-
-      // Generate message and set it for ChatViewInner to send
-      const message = generatePrMessage(context)
-      setPendingPrMessage(message)
-      // Don't reset isCreatingPr here - it will be reset after message is sent
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to prepare PR request",
-        { position: "top-center" },
-      )
-      setIsCreatingPr(false)
-    }
-  }, [chatId, setPendingPrMessage])
-
-  // Handle Commit to existing PR - sends a message to Claude to commit and push
-  // selectedPaths parameter is optional - if provided, only those files will be mentioned
-  const [isCommittingToPr, setIsCommittingToPr] = useState(false)
-  const handleCommitToPr = useCallback(async (_selectedPaths?: string[]) => {
-    if (!chatId) {
-      toast.error("Chat ID is required", { position: "top-center" })
-      return
-    }
-
-    try {
-      setIsCommittingToPr(true)
-      const context = await trpcClient.chats.getPrContext.query({ chatId })
-      if (!context) {
-        toast.error("Could not get git context", { position: "top-center" })
-        return
-      }
-
-      const message = generateCommitToPrMessage(context)
-      setPendingPrMessage(message)
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to prepare commit request",
-        { position: "top-center" },
-      )
-    } finally {
-      setIsCommittingToPr(false)
-    }
-  }, [chatId, setPendingPrMessage])
-
-  // Handle Review - sends a message to Claude to review the diff
-  const setPendingReviewMessage = useSetAtom(pendingReviewMessageAtom)
-
-  const handleReview = useCallback(async () => {
-    if (!chatId) {
-      toast.error("Chat ID is required", { position: "top-center" })
-      return
-    }
-
-    setIsReviewing(true)
-    try {
-      // Get PR context from backend
-      const context = await trpcClient.chats.getPrContext.query({ chatId })
-      if (!context) {
-        toast.error("Could not get git context", { position: "top-center" })
-        return
-      }
-
-      // Set filter to show only files from the active subchat
-      if (activeSubChatId) {
-        setFilteredSubChatId(activeSubChatId)
-      }
-
-      // Generate review message and set it for ChatViewInner to send
-      const message = generateReviewMessage(context)
-      setPendingReviewMessage(message)
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to start review",
-        { position: "top-center" },
-      )
-    } finally {
-      setIsReviewing(false)
-    }
-  }, [chatId, activeSubChatId, setPendingReviewMessage, setFilteredSubChatId])
-
-  // Review system - document comments for plan sidebar (scoped by activeSubChatId)
-  const { comments: reviewComments, commentsByDocument, clearComments } = useDocumentComments(activeSubChatIdForPlan || "")
-
-  // Handler for submitting review from plan sidebar (document comments)
-  const handleSubmitReview = useCallback((summary: string) => {
-    if (reviewComments.length === 0) {
-      toast.error("No comments to submit")
-      return
-    }
-
-    // Build review message
-    const messageParts: string[] = []
-    messageParts.push("## Review\n")
-
-    // Only show Summary section if there's a summary message
-    if (summary.trim()) {
-      messageParts.push(`### Summary\n${summary.trim()}\n`)
-      messageParts.push("\n### Comments\n")
-    }
-
-    // Group comments by document
-    for (const [path, docComments] of Object.entries(commentsByDocument)) {
-      for (const comment of docComments) {
-        // Format: **filename:L12-34**
-        const fileName = path.split("/").pop() || path
-        const lineRange = comment.anchor.lineStart
-          ? comment.anchor.lineEnd && comment.anchor.lineEnd !== comment.anchor.lineStart
-            ? `:L${comment.anchor.lineStart}-${comment.anchor.lineEnd}`
-            : `:L${comment.anchor.lineStart}`
-          : ""
-        messageParts.push(`\n**${fileName}${lineRange}**\n`)
-
-        // Quote the selected text
-        const quoteText = comment.anchor.selectedText.slice(0, 100)
-        const truncated = comment.anchor.selectedText.length > 100 ? "..." : ""
-        messageParts.push(`\n> ${quoteText}${truncated}\n`)
-
-        // Comment content
-        messageParts.push(`\n${comment.content}\n`)
-      }
-    }
-
-    const message = messageParts.join("")
-
-    // Set pending review message - will be picked up by ChatViewInner
-    setPendingReviewMessage(message)
-
-    // Clear comments after submission
-    clearComments()
-
-    // Close sidebar panels to focus on chat input
-    setIsPlanSidebarOpen(false)
-    setIsDiffSidebarOpen(false)
-  }, [reviewComments, commentsByDocument, clearComments, setPendingReviewMessage, setIsPlanSidebarOpen, setIsDiffSidebarOpen])
-
-  // Handle Fix Conflicts - sends a message to Claude to sync with main and fix merge conflicts
-  const setPendingConflictResolutionMessage = useSetAtom(pendingConflictResolutionMessageAtom)
-
-  const handleFixConflicts = useCallback(() => {
-    const message = `This PR has merge conflicts with the main branch. Please:
-
-1. First, fetch and merge the latest changes from main branch using git commands
-2. If there are any merge conflicts, resolve them carefully by keeping the correct code from both branches
-3. After resolving conflicts, commit the merge
-4. Push the changes to update the PR
-
-Make sure to preserve all functionality from both branches when resolving conflicts.`
-
-    setPendingConflictResolutionMessage(message)
-  }, [setPendingConflictResolutionMessage])
-
-  // Fetch branch data for diff sidebar header
-  const { data: branchData } = trpc.changes.getBranches.useQuery(
-    { worktreePath: worktreePath || "" },
-    { enabled: !!worktreePath }
-  )
-
-  // Fetch git status for sync counts (pushCount, pullCount, hasUpstream)
-  const { data: gitStatus, refetch: refetchGitStatus, isLoading: isGitStatusLoading } = trpc.changes.getStatus.useQuery(
-    { worktreePath: worktreePath || "" },
-    { enabled: !!worktreePath && isDiffSidebarOpen, staleTime: 30000 }
-  )
-
-  // Refetch git status when window gains focus (but not diff - let user manually refresh)
-  useEffect(() => {
-    if (!worktreePath || !isDiffSidebarOpen) return
-
-    const handleWindowFocus = () => {
-      // Refetch git status (sync counts, etc.)
-      refetchGitStatus()
-      // Don't auto-refresh diff - just mark as pending so user can choose when to refresh
-      // This prevents disrupting the user's review when switching windows
-      setHasPendingDiffChanges(true)
-    }
-
-    window.addEventListener('focus', handleWindowFocus)
-    return () => window.removeEventListener('focus', handleWindowFocus)
-  }, [worktreePath, isDiffSidebarOpen, refetchGitStatus, setHasPendingDiffChanges])
-
-  // Sync parsedFileDiffs with git status - clear diff data when all files are committed
-  // This fixes the issue where diff sidebar shows stale files after external git commit
-  useEffect(() => {
-    if (!gitStatus || isGitStatusLoading) return
-
-    // Check if git status shows no uncommitted changes
-    const hasUncommittedChanges =
-      (gitStatus.staged?.length ?? 0) > 0 ||
-      (gitStatus.unstaged?.length ?? 0) > 0 ||
-      (gitStatus.untracked?.length ?? 0) > 0
-
-    // If git shows no changes but we still have parsedFileDiffs, clear them
-    if (!hasUncommittedChanges && parsedFileDiffs && parsedFileDiffs.length > 0) {
-      console.log('[active-chat] Git status empty but parsedFileDiffs has files, refreshing diff data')
-      setParsedFileDiffs([])
-      setPrefetchedFileContents({})
-      setDiffContent(null)
-      setDiffStats({
-        fileCount: 0,
-        additions: 0,
-        deletions: 0,
-        isLoading: false,
-        hasChanges: false,
-      })
-    }
-  }, [gitStatus, isGitStatusLoading, parsedFileDiffs])
-
-  // Stable callbacks for DiffSidebarHeader to prevent re-renders
-  const handleRefreshGitStatus = useCallback(() => {
-    refetchGitStatus()
-  }, [refetchGitStatus])
-
-  // Manual refresh for diff view - called when user clicks "Refresh" button
-  const handleRefreshDiff = useCallback(() => {
-    setHasPendingDiffChanges(false)
-    fetchDiffStats()
-  }, [setHasPendingDiffChanges, fetchDiffStats])
-
-  const handleExpandAll = useCallback(() => {
-    diffViewRef.current?.expandAll()
-  }, [])
-
-  const handleCollapseAll = useCallback(() => {
-    diffViewRef.current?.collapseAll()
-  }, [])
-
-  const handleMarkAllViewed = useCallback(() => {
-    diffViewRef.current?.markAllViewed()
-  }, [])
-
-  const handleMarkAllUnviewed = useCallback(() => {
-    diffViewRef.current?.markAllUnviewed()
-  }, [])
+  // PR/Git operations - extracted to usePrGitOperations hook
+  const {
+    hasPrNumber,
+    isPrOpen,
+    hasMergeConflicts,
+    branchData,
+    gitStatus,
+    isGitStatusLoading,
+    isCreatingPr,
+    isReviewing,
+    isCommittingToPr,
+    mergePrMutation,
+    restoreWorkspaceMutation,
+    handleCreatePrDirect,
+    handleCreatePr,
+    handleMergePr,
+    handleCommitToPr,
+    handleReview,
+    handleSubmitReview,
+    handleFixConflicts,
+    handleRestoreWorkspace,
+    handleRefreshGitStatus,
+    handleRefreshDiff,
+    handleExpandAll,
+    handleCollapseAll,
+    handleMarkAllViewed,
+    handleMarkAllUnviewed,
+  } = usePrGitOperations({
+    chatId,
+    worktreePath,
+    isDiffSidebarOpen,
+    activeSubChatId,
+    activeSubChatIdForPlan,
+    agentChat,
+    setHasPendingDiffChanges,
+    parsedFileDiffs,
+    setParsedFileDiffs,
+    setPrefetchedFileContents,
+    setDiffContent,
+    setDiffStats,
+    fetchDiffStats,
+    diffViewRef,
+    setIsPlanSidebarOpen,
+    setIsDiffSidebarOpen,
+  })
 
   // Track if we've initialized mode for this chatId to avoid overwriting user's mode changes
   const initializedChatIdRef = useRef<string | null>(null)
@@ -4403,7 +4044,8 @@ Make sure to preserve all functionality from both branches when resolving confli
       // Store streamId at creation time to prevent resume during active streaming
       // tRPC refetch would update stream_id in DB, but store stays stable
       chatRegistry.registerStreamId(subChatId, subChat?.stream_id || null)
-      forceUpdate({}) // Trigger re-render to use new chat
+      // Defer force update to avoid "update while rendering" error
+      pendingForceUpdateRef.current = true
       return newChat
     },
     [
@@ -4606,7 +4248,8 @@ Make sure to preserve all functionality from both branches when resolving confli
       })
       chatRegistry.register(newId, newChat, chatId, worktreePath || undefined, transport instanceof IPCChatTransport ? transport : undefined)
       chatRegistry.registerStreamId(newId, null) // New chat has no active stream
-      forceUpdate({}) // Trigger re-render
+      // Defer force update to avoid "update while rendering" error
+      pendingForceUpdateRef.current = true
     }
   }, [
     worktreePath,
