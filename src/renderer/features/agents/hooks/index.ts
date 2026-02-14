@@ -85,3 +85,15 @@ export {
   type DiffTextContext,
   type PastedTextFile,
 } from "./use-message-sending"
+
+// Panel state management (unified panel system)
+export {
+  usePanelState,
+  usePanelGroup,
+  useRightSidebar,
+  type UsePanelStateOptions,
+  type UsePanelStateResult,
+  type UsePanelGroupOptions,
+  type UsePanelGroupResult,
+  type UseRightSidebarOptions,
+} from "./use-panel-state"
