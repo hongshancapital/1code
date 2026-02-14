@@ -97,3 +97,11 @@ export {
   type UsePanelGroupResult,
   type UseRightSidebarOptions,
 } from "./use-panel-state"
+
+// ChatView setup (multi-instance integration)
+export {
+  useChatViewSetup,
+  useIsActiveChatView,
+  type ChatViewSetupOptions,
+  type ChatViewSetupResult,
+} from "./use-chat-view-setup"
