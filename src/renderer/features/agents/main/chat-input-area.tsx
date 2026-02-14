@@ -149,7 +149,7 @@ function ProviderModelSection({
   onSelectModel: (modelId: string) => void
 }) {
   const { t } = useTranslation("chat")
-  const { data: modelsData, isLoading } = trpc.providers.getModels.useQuery(
+  const { data: modelsData, isLoading, error } = trpc.providers.getModels.useQuery(
     { providerId: provider.id },
   )
   const allModels = modelsData?.models || []
@@ -158,7 +158,11 @@ function ProviderModelSection({
     ? allModels.filter((m) => enabledModelIds.includes(m.id))
     : allModels
 
-  if (!isLoading && models.length === 0) return null
+  // 优化：即使刷新失败,如果当前 provider 有已选择的模型,也要显示它
+  const hasSelectedModel = isCurrentProvider && currentModelId && enabledModelIds.includes(currentModelId)
+  const shouldShowSection = !isLoading && (models.length > 0 || hasSelectedModel)
+
+  if (!isLoading && !shouldShowSection) return null
 
   return (
     <div className="py-1">
@@ -171,12 +175,15 @@ function ProviderModelSection({
         {provider.type === "custom" && (
           <span className="text-[10px] bg-muted px-1 rounded">Custom</span>
         )}
+        {error && (
+          <span className="text-[10px] bg-destructive/20 text-destructive px-1 rounded">加载失败</span>
+        )}
       </div>
 
       {/* Models list */}
       {isLoading ? (
         <div className="px-2 py-1 text-xs text-muted-foreground">{t("model.loading")}</div>
-      ) : (
+      ) : models.length > 0 ? (
         models.map((model: ModelInfo) => {
           const isSelected = isCurrentProvider && currentModelId === model.id
           return (
@@ -195,7 +202,22 @@ function ProviderModelSection({
             </DropdownMenuItem>
           )
         })
-      )}
+      ) : hasSelectedModel ? (
+        // 刷新失败但有已选择的模型：显示为不可用状态
+        <DropdownMenuItem
+          key={currentModelId}
+          onClick={() => onSelectModel(currentModelId)}
+          disabled
+          className="gap-2 justify-between pl-4 opacity-60"
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <ClaudeCodeIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="truncate">{currentModelId}</span>
+            <span className="text-[10px] text-destructive">(不可用)</span>
+          </div>
+          <CheckIcon className="h-3.5 w-3.5 shrink-0" />
+        </DropdownMenuItem>
+      ) : null}
     </div>
   )
 }
