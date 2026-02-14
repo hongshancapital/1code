@@ -18,7 +18,6 @@ import {
   initSensors,
   login as sensorsLogin,
   shutdown as shutdownSensors,
-  track as sensorsTrack,
 } from "./lib/sensors-analytics"
 import {
   checkForUpdates,
@@ -402,12 +401,8 @@ if (gotTheLock) {
     }
   })
 
-  // Record app start time for Cowork_App_Duration tracking
-  let appStartTime: number
-
   // App ready
   app.whenReady().then(async () => {
-    appStartTime = Date.now()
 
     // Set dev mode app name (userData path was already set before requestSingleInstanceLock)
     // Skip if embedded in Tinker (Tinker manages its own app name)
@@ -1011,11 +1006,7 @@ if (gotTheLock) {
     cancelAllPendingOAuth()
     AutomationEngine.getInstance().cleanup()
     await cleanupGitWatchers()
-    // Track app duration before shutdown
-    if (appStartTime) {
-      const durationMs = Date.now() - appStartTime
-      sensorsTrack("Cowork_App_Duration", { DurationMs: durationMs })
-    }
+    // App duration is now tracked in renderer via beacon (survives page unload)
     await shutdownSensors()
     await closeDatabase()
   })
