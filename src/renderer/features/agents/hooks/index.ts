@@ -74,3 +74,14 @@ export {
   type UseAutoRenameOptions,
   type UseAutoRenameResult,
 } from "./use-auto-rename"
+
+export {
+  useMessageSending,
+  type MessageSendingOptions,
+  type MessageSendingResult,
+  type ImageAttachment,
+  type FileAttachment,
+  type TextContext,
+  type DiffTextContext,
+  type PastedTextFile,
+} from "./use-message-sending"
