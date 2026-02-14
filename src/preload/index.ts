@@ -37,50 +37,6 @@ contextBridge.exposeInMainWorld("desktopApi", {
   getVersion: () => ipcRenderer.invoke("app:version"),
   isPackaged: () => ipcRenderer.invoke("app:isPackaged"),
 
-  // Auto-update methods
-  checkForUpdates: (force?: boolean) => ipcRenderer.invoke("update:check", force),
-  downloadUpdate: () => ipcRenderer.invoke("update:download"),
-  installUpdate: () => ipcRenderer.invoke("update:install"),
-  setUpdateChannel: (channel: "latest" | "beta") => ipcRenderer.invoke("update:set-channel", channel),
-  getUpdateChannel: () => ipcRenderer.invoke("update:get-channel") as Promise<"latest" | "beta">,
-
-  // Auto-update event listeners
-  onUpdateChecking: (callback: () => void) => {
-    const handler = () => callback()
-    ipcRenderer.on("update:checking", handler)
-    return () => ipcRenderer.removeListener("update:checking", handler)
-  },
-  onUpdateAvailable: (callback: (info: { version: string; releaseDate?: string }) => void) => {
-    const handler = (_event: unknown, info: { version: string; releaseDate?: string }) => callback(info)
-    ipcRenderer.on("update:available", handler)
-    return () => ipcRenderer.removeListener("update:available", handler)
-  },
-  onUpdateNotAvailable: (callback: () => void) => {
-    const handler = () => callback()
-    ipcRenderer.on("update:not-available", handler)
-    return () => ipcRenderer.removeListener("update:not-available", handler)
-  },
-  onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
-    const handler = (_event: unknown, progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => callback(progress)
-    ipcRenderer.on("update:progress", handler)
-    return () => ipcRenderer.removeListener("update:progress", handler)
-  },
-  onUpdateDownloaded: (callback: (info: { version: string }) => void) => {
-    const handler = (_event: unknown, info: { version: string }) => callback(info)
-    ipcRenderer.on("update:downloaded", handler)
-    return () => ipcRenderer.removeListener("update:downloaded", handler)
-  },
-  onUpdateError: (callback: (error: string) => void) => {
-    const handler = (_event: unknown, error: string) => callback(error)
-    ipcRenderer.on("update:error", handler)
-    return () => ipcRenderer.removeListener("update:error", handler)
-  },
-  onUpdateManualCheck: (callback: () => void) => {
-    const handler = () => callback()
-    ipcRenderer.on("update:manual-check", handler)
-    return () => ipcRenderer.removeListener("update:manual-check", handler)
-  },
-
   // Window controls
   windowMinimize: () => ipcRenderer.invoke("window:minimize"),
   windowMaximize: () => ipcRenderer.invoke("window:maximize"),
@@ -344,11 +300,6 @@ contextBridge.exposeInMainWorld("desktopApi", {
 })
 
 // Type definitions
-export interface UpdateInfo {
-  version: string
-  releaseDate?: string
-}
-
 export interface CertificateInfo {
   subject: {
     commonName: string
@@ -364,13 +315,6 @@ export interface CertificateInfo {
   validTo: string
   fingerprint: string
   serialNumber: string
-}
-
-export interface UpdateProgress {
-  percent: number
-  bytesPerSecond: number
-  transferred: number
-  total: number
 }
 
 export type EditorSource = "vscode" | "vscode-insiders" | "cursor" | "windsurf"
@@ -422,19 +366,6 @@ export interface DesktopApi {
   arch: string
   getVersion: () => Promise<string>
   isPackaged: () => Promise<boolean>
-  // Auto-update
-  checkForUpdates: (force?: boolean) => Promise<UpdateInfo | null>
-  downloadUpdate: () => Promise<boolean>
-  installUpdate: () => void
-  setUpdateChannel: (channel: "latest" | "beta") => Promise<boolean>
-  getUpdateChannel: () => Promise<"latest" | "beta">
-  onUpdateChecking: (callback: () => void) => () => void
-  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => () => void
-  onUpdateNotAvailable: (callback: () => void) => () => void
-  onUpdateProgress: (callback: (progress: UpdateProgress) => void) => () => void
-  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void
-  onUpdateError: (callback: (error: string) => void) => () => void
-  onUpdateManualCheck: (callback: () => void) => () => void
   // Window controls
   windowMinimize: () => Promise<void>
   windowMaximize: () => Promise<void>

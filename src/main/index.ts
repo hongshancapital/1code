@@ -19,19 +19,9 @@ import {
   login as sensorsLogin,
   shutdown as shutdownSensors,
 } from "./lib/sensors-analytics"
-import {
-  checkForUpdates,
-  downloadUpdate,
-  initAutoUpdater,
-  setupFocusUpdateCheck,
-} from "./lib/auto-updater"
+import { buildHongMenuTemplate } from "./lib/menu"
 import { closeDatabase, initDatabase } from "./lib/db"
-import {
-  isCliInstalled,
-  installCli,
-  uninstallCli,
-  parseLaunchDirectory,
-} from "./lib/cli"
+import { parseLaunchDirectory } from "./lib/cli"
 import { cleanupGitWatchers } from "./lib/git/watcher"
 import { AutomationEngine } from "./lib/automation/engine"
 import { migrateOldPlaygroundSubChats } from "./lib/playground/migrate-playground"
@@ -616,172 +606,16 @@ if (gotTheLock) {
       copyright: "Copyright © 2026 Hóng",
     })
 
-    // Track update availability for menu
-    let updateAvailable = false
-    let availableVersion: string | null = null
     // Track devtools unlock state (hidden feature - 5 clicks on Beta tab)
     let devToolsUnlocked = false
 
-    // Function to build and set application menu
+    // Function to build and set application menu (uses shared template from lib/menu.ts)
     const buildMenu = () => {
-      // Show devtools menu item only in dev mode or when unlocked
-      const showDevTools = !app.isPackaged || devToolsUnlocked
-      const template: Electron.MenuItemConstructorOptions[] = [
-        {
-          label: app.name,
-          submenu: [
-            { role: "about", label: "About Hong" },
-            {
-              label: updateAvailable
-                ? `Update to v${availableVersion}...`
-                : "Check for Updates...",
-              click: () => {
-                // Send event to renderer to clear dismiss state
-                const win = getWindow()
-                if (win) {
-                  win.webContents.send("update:manual-check")
-                }
-                // If update is already available, start downloading immediately
-                if (updateAvailable) {
-                  downloadUpdate()
-                } else {
-                  checkForUpdates(true)
-                }
-              },
-            },
-            { type: "separator" },
-            {
-              label: isCliInstalled()
-                ? "Uninstall 'hong' Command..."
-                : "Install 'hong' Command in PATH...",
-              click: async () => {
-                const { dialog } = await import("electron")
-                if (isCliInstalled()) {
-                  const result = await uninstallCli()
-                  if (result.success) {
-                    dialog.showMessageBox({
-                      type: "info",
-                      message: "CLI command uninstalled",
-                      detail: "The 'hong' command has been removed from your PATH.",
-                    })
-                    buildMenu()
-                  } else {
-                    dialog.showErrorBox("Uninstallation Failed", result.error || "Unknown error")
-                  }
-                } else {
-                  const result = await installCli()
-                  if (result.success) {
-                    dialog.showMessageBox({
-                      type: "info",
-                      message: "CLI command installed",
-                      detail:
-                        "You can now use 'hong .' in any terminal to open Hong in that directory.",
-                    })
-                    buildMenu()
-                  } else {
-                    dialog.showErrorBox("Installation Failed", result.error || "Unknown error")
-                  }
-                }
-              },
-            },
-            { type: "separator" },
-            { role: "services" },
-            { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { role: "quit" },
-          ],
-        },
-        {
-          label: "File",
-          submenu: [
-            {
-              label: "New Chat",
-              accelerator: "CmdOrCtrl+N",
-              click: () => {
-                console.log("[Menu] New Chat clicked (Cmd+N)")
-                const win = getWindow()
-                if (win) {
-                  console.log("[Menu] Sending shortcut:new-agent to renderer")
-                  win.webContents.send("shortcut:new-agent")
-                } else {
-                  console.log("[Menu] No window found!")
-                }
-              },
-            },
-            {
-              label: "New Window",
-              accelerator: "CmdOrCtrl+Shift+N",
-              click: () => {
-                console.log("[Menu] New Window clicked (Cmd+Shift+N)")
-                createWindow()
-              },
-            },
-            { type: "separator" },
-            {
-              label: "Close Window",
-              accelerator: "CmdOrCtrl+W",
-              click: () => {
-                const win = getWindow()
-                if (win) {
-                  win.close()
-                }
-              },
-            },
-          ],
-        },
-        {
-          label: "Edit",
-          submenu: [
-            { role: "undo" },
-            { role: "redo" },
-            { type: "separator" },
-            { role: "cut" },
-            { role: "copy" },
-            { role: "paste" },
-            { role: "selectAll" },
-          ],
-        },
-        {
-          label: "View",
-          submenu: [
-            // Cmd+R is disabled to prevent accidental page refresh
-            // Use Cmd+Shift+R (Force Reload) for intentional reloads
-            { role: "forceReload" },
-            // Only show DevTools in dev mode or when unlocked via hidden feature
-            ...(showDevTools ? [{ role: "toggleDevTools" as const }] : []),
-            { type: "separator" },
-            { role: "resetZoom" },
-            { role: "zoomIn" },
-            { role: "zoomOut" },
-            { type: "separator" },
-            { role: "togglefullscreen" },
-          ],
-        },
-        {
-          label: "Window",
-          submenu: [
-            { role: "minimize" },
-            { role: "zoom" },
-            { type: "separator" },
-            { role: "front" },
-          ],
-        },
-        {
-          role: "help",
-          submenu: [
-            {
-              label: "Learn More",
-              click: async () => {
-                const { shell } = await import("electron")
-                await shell.openExternal("https://hongshan.com")
-              },
-            },
-          ],
-        },
-      ]
+      const template = buildHongMenuTemplate({
+        getWindow,
+        showDevTools: !app.isPackaged || devToolsUnlocked,
+        onMenuChanged: () => buildMenu(),
+      })
       Menu.setApplicationMenu(Menu.buildFromTemplate(template))
     }
 
@@ -799,13 +633,6 @@ if (gotTheLock) {
       app.dock?.setMenu(dockMenu)
     }
 
-    // Set update state and rebuild menu
-    const setUpdateAvailable = (available: boolean, version?: string) => {
-      updateAvailable = available
-      availableVersion = version || null
-      buildMenu()
-    }
-
     // Unlock devtools and rebuild menu (called from renderer via IPC)
     const unlockDevTools = () => {
       if (!devToolsUnlocked) {
@@ -815,8 +642,6 @@ if (gotTheLock) {
       }
     }
 
-    // Expose setUpdateAvailable globally for auto-updater
-    globalThis.__setUpdateAvailable = setUpdateAvailable
     // Expose unlockDevTools globally for IPC handler
     globalThis.__unlockDevTools = unlockDevTools
 
@@ -951,17 +776,6 @@ if (gotTheLock) {
 
     // Create main window
     createMainWindow()
-
-    // Initialize auto-updater (production only)
-    if (app.isPackaged) {
-      await initAutoUpdater(getAllWindows)
-      // Setup update check on window focus (instead of periodic interval)
-      setupFocusUpdateCheck(getAllWindows)
-      // Check for updates 5 seconds after startup (force to bypass interval check)
-      setTimeout(() => {
-        checkForUpdates(true)
-      }, 5000)
-    }
 
     // Warm up MCP cache 3 seconds after startup (background, non-blocking)
     // This populates the cache so all future sessions can use filtered MCP servers
