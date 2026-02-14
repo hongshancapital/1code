@@ -44,3 +44,12 @@ export {
   type ChatMutationsOptions,
   type ChatMutationsResult,
 } from "./use-chat-mutations"
+
+export {
+  useGitData,
+  type GitDataOptions,
+  type GitDataResult,
+  type GitStatusData,
+  type BranchData,
+  type PrStatusData,
+} from "./use-git-data"
