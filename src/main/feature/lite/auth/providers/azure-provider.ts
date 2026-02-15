@@ -8,7 +8,7 @@
 import { PublicClientApplication, LogLevel } from "@azure/msal-node"
 import { randomBytes, createHash } from "crypto"
 import { shell } from "electron"
-import { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
+import type { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
 import { getEnv } from "../../../../lib/env"
 import { OKTA_CALLBACK_PORT } from "../../../../constants"
 
@@ -56,7 +56,7 @@ function parseIdToken(idToken: string): AuthUser {
     }
   } catch (error) {
     console.error("[Azure] Failed to parse id_token:", error)
-    throw new Error("Failed to parse user information from token")
+    throw new Error("Failed to parse user information from token", { cause: error })
   }
 }
 

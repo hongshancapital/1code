@@ -29,7 +29,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { app } from "electron";
 import { browserManager } from "./manager";
-import type { CapturedNetworkRequest, SnapshotResult } from "./types";
+import type { SnapshotResult } from "./types";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import sharp from "sharp";

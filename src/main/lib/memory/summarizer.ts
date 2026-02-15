@@ -13,7 +13,6 @@
 
 import type { ParsedObservation, ObservationType } from "./types"
 import { OBSERVATION_TYPES, OBSERVATION_CONCEPTS } from "./types"
-import type { SummaryAIUsage } from "../trpc/routers/summary-ai"
 
 /** Usage data from memory LLM calls, to be recorded in model_usage */
 export interface MemoryLLMUsage {
@@ -54,7 +53,7 @@ export function isSummaryModelConfigured(): boolean {
 
 // ============ Observation Enhancement ============
 
-const VALID_TYPES = OBSERVATION_TYPES.map((t) => t.id)
+const VALID_TYPES = new Set(OBSERVATION_TYPES.map((t) => t.id))
 const VALID_CONCEPTS = OBSERVATION_CONCEPTS as readonly string[]
 
 /** Confidence threshold: below this, call LLM for refinement */
@@ -383,7 +382,7 @@ function normalizeType(raw: string | null): ObservationType {
     editing: "edit",
   }
 
-  return typeMap[cleaned] || (VALID_TYPES.includes(cleaned as ObservationType) ? cleaned as ObservationType : "explore")
+  return typeMap[cleaned] || (VALID_TYPES.has(cleaned as ObservationType) ? cleaned as ObservationType : "explore")
 }
 
 /**

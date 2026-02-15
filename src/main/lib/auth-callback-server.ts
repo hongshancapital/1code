@@ -1,5 +1,6 @@
 import { appendFileSync } from "fs"
-import { createServer, Server } from "http"
+import type { Server } from "http";
+import { createServer } from "http"
 import { join } from "path"
 import { app, session } from "electron"
 import { getAuthManager } from "../auth-manager"

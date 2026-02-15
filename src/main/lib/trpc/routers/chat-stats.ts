@@ -8,7 +8,6 @@ import { z } from "zod"
 import { getDatabase, modelUsage, subChats } from "../../db"
 import { publicProcedure, router } from "../index"
 import {
-  aggregateInputs,
   computePreviewStatsFromMessages,
   lazyMigrateStats,
   resolveSubChatStats,
@@ -194,10 +193,7 @@ export const chatStatsRouter = router({
     lazyMigrateStats(db, subChatsToUpdate)
 
     // Convert to array for easier consumption
-    return Array.from(statsMap.entries()).map(([chatId, stats]) => ({
-      chatId,
-      ...stats,
-    }))
+    return Array.from(statsMap.entries()).map(([chatId, stats]) => (Object.assign({chatId}, stats)))
   }),
 
   /**

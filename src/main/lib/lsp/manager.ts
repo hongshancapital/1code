@@ -6,7 +6,8 @@
  * - tsgo (TypeScript Go port - beta, requires manual installation)
  */
 
-import { spawn, ChildProcess } from "node:child_process"
+import type { ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process"
 import { EventEmitter } from "node:events"
 import { resolve } from "node:path"
 import { access } from "node:fs/promises"

@@ -3,8 +3,8 @@
  * 从 model_usage 表计算 Insight 所需的统计数据
  */
 
-import { and, gte, lte, sql, count, eq } from "drizzle-orm"
-import { getDatabase, modelUsage, projects, chats, subChats } from "../db"
+import { and, gte, lte, sql, eq } from "drizzle-orm"
+import { getDatabase, modelUsage, projects } from "../db"
 import type { InsightStats, ReportType } from "./types"
 
 /**

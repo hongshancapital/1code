@@ -496,11 +496,11 @@ export const chatGitRouter = router({
         ) {
           throw new Error(
             "MERGE_CONFLICT: This PR has merge conflicts with the base branch. " +
-            "Please sync your branch with the latest changes from main to resolve conflicts."
+            "Please sync your branch with the latest changes from main to resolve conflicts.", { cause: error }
           )
         }
 
-        throw new Error(errorMsg)
+        throw new Error(errorMsg, { cause: error })
       }
     }),
 

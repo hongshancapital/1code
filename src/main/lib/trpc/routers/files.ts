@@ -512,7 +512,7 @@ export const filesRouter = router({
         if (msg.includes("ENOENT") || msg.includes("no such file")) {
           return { ok: false as const, reason: "not-found" as const, byteLength: 0 }
         }
-        throw new Error(`Failed to read file: ${msg}`)
+        throw new Error(`Failed to read file: ${msg}`, { cause: error })
       }
     }),
 
@@ -951,7 +951,7 @@ export const filesRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { draftKey, attachmentId, filename, base64Data, mediaType } = input
+      const { draftKey, attachmentId: _attachmentId, filename, base64Data, mediaType } = input
       const draftsDir = join(
         app.getPath("userData"),
         "draft-attachments",
@@ -1023,10 +1023,7 @@ function sanitizeDraftKey(key: string): string {
   return key.replace(/[:/\\?*"<>|]/g, "_")
 }
 
-function sanitizeFilename(name: string, fallbackExt: string): string {
-  const sanitized = name.replace(/[/\\?*"<>|:]/g, "_").slice(0, 100)
-  return sanitized || `attachment.${fallbackExt}`
-}
+
 
 /**
  * Standalone cleanup function for stale draft attachment directories.

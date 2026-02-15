@@ -16,9 +16,11 @@
 import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { AuthManager } from "../../auth-manager";
 import { getBundledClaudeBinaryPath } from "./env";
-import { ClaudeConfigLoader, getConfigLoader } from "./config-loader";
+import type { ClaudeConfigLoader} from "./config-loader";
+import { getConfigLoader } from "./config-loader";
+import type {
+  PromptBuilder} from "./prompt-builder";
 import {
-  PromptBuilder,
   getPromptBuilder,
   ChatPromptStrategy,
   AutomationPromptStrategy,

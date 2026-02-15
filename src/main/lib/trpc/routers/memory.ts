@@ -14,9 +14,9 @@ import {
   subChats,
   userPrompts,
 } from "../../db"
-import { eq, desc, and, like, sql, count } from "drizzle-orm"
-import type { Observation, MemorySession, UserPrompt } from "../../db/schema"
-import { hybridSearch, findRelated, type HybridSearchResult } from "../../memory/hybrid-search"
+import { eq, desc, and, sql, count } from "drizzle-orm"
+import type { Observation } from "../../db/schema"
+import { hybridSearch, findRelated } from "../../memory/hybrid-search"
 import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding } from "../../memory/vector-store"
 import { parseToolToObservation, buildObservationText } from "../../memory/observation-parser"
 

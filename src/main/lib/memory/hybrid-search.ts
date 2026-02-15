@@ -4,10 +4,9 @@
  * (Reciprocal Rank Fusion) for optimal results
  */
 
-import { getDatabase, observations, userPrompts, memorySessions } from "../db"
-import { eq, desc, sql } from "drizzle-orm"
+import { getDatabase, observations } from "../db"
+import { eq, sql } from "drizzle-orm"
 import { searchSimilar } from "./vector-store"
-import type { Observation, UserPrompt, MemorySession } from "../db/schema"
 
 // ============ Types ============
 
@@ -121,7 +120,7 @@ async function searchObservationsFts(
       `)
 
       // Assign synthetic ranks for RRF (0-based index)
-      return results.map((r, i) => ({ ...r, rank: -(limit - i) }))
+      return results.map((r, i) => (Object.assign(r, {rank:-(limit-i)})))
     }
 
     // Build FTS5 query with prefix matching (English/Latin text)
@@ -200,7 +199,7 @@ async function searchPromptsFts(
         LIMIT ${limit}
       `)
 
-      return results.map((r, i) => ({ ...r, rank: -(limit - i) }))
+      return results.map((r, i) => (Object.assign(r, {rank:-(limit-i)})))
     }
 
     const ftsQuery = trimmedQuery

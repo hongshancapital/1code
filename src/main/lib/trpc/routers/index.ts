@@ -22,7 +22,7 @@ import { editorRouter } from "./editor"
 import { createGitRouter } from "../../git"
 import { tagsRouter } from "./tags"
 import { internalToolsRouter } from "./internal-tools"
-import { BrowserWindow } from "electron"
+import type { BrowserWindow } from "electron"
 import { getExtensionManager } from "../../extension"
 
 /**

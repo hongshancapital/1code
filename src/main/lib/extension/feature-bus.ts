@@ -87,7 +87,7 @@ export class FeatureBus implements IFeatureBus {
 
     const collected: EventResponse<E>[] = []
     for (const r of results) {
-      if (r.status === "fulfilled" && r.value != null) {
+      if (r.status === "fulfilled" && r.value !== null && r.value !== undefined) {
         collected.push(r.value as unknown as EventResponse<E>)
       } else if (r.status === "rejected") {
         console.error(`[FeatureBus] broadcast "${key}" handler 错误:`, r.reason)

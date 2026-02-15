@@ -4,7 +4,7 @@
  * Creates platform-specific runtime providers
  */
 
-import type { RuntimeProvider, SupportedPlatform } from "./types"
+import type { RuntimeProvider } from "./types"
 import { WindowsRuntimeProvider } from "./windows-provider"
 import { MacOSRuntimeProvider } from "./macos-provider"
 import { LinuxRuntimeProvider } from "./linux-provider"

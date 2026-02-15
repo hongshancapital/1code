@@ -34,15 +34,11 @@ import {
 import { getEnv } from "../../env";
 import {
   getProjectMcpServers,
-  GLOBAL_MCP_PATH,
   readClaudeConfig,
-  readAgentConfig,
-  resolveProjectPathFromWorktree,
   updateMcpServerConfig,
   removeMcpServerConfig,
   writeClaudeConfig,
   type McpServerConfig,
-  type ProjectConfig,
 } from "../../claude-config";
 import {
   chats,
@@ -52,11 +48,8 @@ import {
 import { createRollbackStash } from "../../git/stash";
 import {
   ensureMcpTokensFresh,
-  fetchMcpTools,
-  fetchMcpToolsStdio,
   getMcpAuthStatus,
   startMcpOAuth,
-  type McpToolInfo,
 } from "../../mcp-auth";
 import { fetchOAuthMetadata, getMcpBaseUrl } from "../../oauth";
 import { publicProcedure, router } from "../index";
@@ -70,12 +63,6 @@ import {
   discoverInstalledPlugins,
   discoverPluginMcpServers,
 } from "../../plugins";
-import {
-  injectBuiltinMcp,
-  BUILTIN_MCP_NAME,
-  getBuiltinMcpConfig,
-  getBuiltinMcpPlaceholder,
-} from "../../builtin-mcp";
 import { getAuthManager } from "../../../index";
 import { getCachedRuntimeEnvironment } from "./runner";
 import { getHooks } from "../../extension";
@@ -632,7 +619,7 @@ export const claudeRouter = router({
               finalPrompt,
               input.cwd,
             );
-            let prompt: string | AsyncIterable<SDKUserMessage> = imagePrompt || finalPrompt;
+            const prompt: string | AsyncIterable<SDKUserMessage> = imagePrompt || finalPrompt;
 
             // Build full environment for Claude SDK (includes HOME, PATH, etc.)
             const claudeEnv = buildClaudeEnv({
@@ -2357,7 +2344,7 @@ export const claudeRouter = router({
           scope = null;
         } else if (groupName.startsWith("Plugin:")) {
           // Plugin MCP servers - need to look in plugin configs
-          const plugins = await discoverInstalledPlugins();
+          const _plugins = await discoverInstalledPlugins();
           const pluginConfigs = await discoverPluginMcpServers();
 
           for (const pluginMcp of pluginConfigs) {

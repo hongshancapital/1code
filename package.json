@@ -35,6 +35,8 @@
     "ts:check": "tsgo --noEmit",
     "lint": "oxlint -c oxlintrc.json src",
     "lint:fix": "oxlint -c oxlintrc.json --fix src",
+    "lint:main": "oxlint -c oxlintrc.json --deny-warnings src/main",
+    "lint:main:fix": "oxlint -c oxlintrc.json --fix src/main",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {

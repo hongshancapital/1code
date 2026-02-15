@@ -61,9 +61,9 @@ async function refreshWindowsPath(): Promise<void> {
     const registryPath = stdout.trim()
     if (registryPath) {
       // Merge: keep any Electron-only paths, add registry paths that are missing
-      const currentSegments = (process.env.PATH || "").split(";").map((s) => s.toLowerCase())
+      const currentSegments = new Set((process.env.PATH || "").split(";").map((s) => s.toLowerCase()))
       const newSegments = registryPath.split(";").filter(
-        (s) => s && !currentSegments.includes(s.toLowerCase()),
+        (s) => s && !currentSegments.has(s.toLowerCase()),
       )
       if (newSegments.length > 0) {
         process.env.PATH = `${process.env.PATH};${newSegments.join(";")}`
@@ -1003,7 +1003,7 @@ export class WindowsPackageManagerRegistry {
             output: result.stdout,
           }
         }
-      } catch (error) {
+      } catch  {
         // Continue to next provider
         continue
       }
@@ -1051,7 +1051,7 @@ export class WindowsPackageManagerRegistry {
         }
 
         lastError = result.stderr || "INSTALL_FAILED"
-      } catch (error) {
+      } catch  {
         // Continue to next provider
         continue
       }

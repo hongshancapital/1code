@@ -687,16 +687,7 @@ export function createTransformer(options?: {
               }[];
             };
             error?: string;
-          }) => ({
-            name: s.name,
-            status: (["connected", "failed", "pending", "needs-auth"].includes(
-              s.status,
-            )
-              ? s.status
-              : "pending") as MCPServerStatus,
-            ...(s.serverInfo && { serverInfo: s.serverInfo }),
-            ...(s.error && { error: s.error }),
-          }),
+          }) => (Object.assign({name:s.name,status:([`connected`,`failed`,`pending`,`needs-auth`].includes(s.status)?s.status:`pending`) as MCPServerStatus}, s.serverInfo&&{serverInfo:s.serverInfo}, s.error&&{error:s.error})),
         );
         yield {
           type: "session-init",

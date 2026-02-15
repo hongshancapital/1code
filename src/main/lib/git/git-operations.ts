@@ -1,5 +1,5 @@
 import { shell } from "electron";
-import simpleGit from "simple-git";
+import type simpleGit from "simple-git";
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import { isUpstreamMissingError } from "./git-utils";
@@ -28,7 +28,7 @@ async function hasUpstreamBranch(
 }
 
 /** Protected branches that should not be force-pushed to */
-const PROTECTED_BRANCHES = ["main", "master", "develop", "production", "staging"];
+const PROTECTED_BRANCHES = new Set(["main", "master", "develop", "production", "staging"]);
 
 export const createGitOperationsRouter = () => {
 	return router({
@@ -283,10 +283,11 @@ export const createGitOperationsRouter = () => {
 							// Pop stashed changes
 							try {
 								await git.stash(["pop"]);
-							} catch {
+							} catch (stashErr) {
 								// Stash pop failed (likely conflict)
 								throw new Error(
-									"Pull succeeded but failed to restore your stashed changes. Your changes are saved in git stash. Run 'git stash pop' to restore them."
+									"Pull succeeded but failed to restore your stashed changes. Your changes are saved in git stash. Run 'git stash pop' to restore them.",
+									{ cause: stashErr },
 								);
 							}
 						}
@@ -296,6 +297,7 @@ export const createGitOperationsRouter = () => {
 						if (isUpstreamMissingError(message)) {
 							throw new Error(
 								"No upstream branch to pull from. The remote branch may have been deleted.",
+								{ cause: error },
 							);
 						}
 						// Check for rebase conflicts
@@ -303,7 +305,8 @@ export const createGitOperationsRouter = () => {
 							// Abort the rebase
 							await git.rebase(["--abort"]).catch(() => {});
 							throw new Error(
-								"Pull failed due to conflicts. The operation has been aborted. Please resolve conflicts manually or try a different approach."
+								"Pull failed due to conflicts. The operation has been aborted. Please resolve conflicts manually or try a different approach.",
+								{ cause: error },
 							);
 						}
 						throw error;
@@ -353,9 +356,10 @@ export const createGitOperationsRouter = () => {
 						if (input.autoStash && hasChanges) {
 							try {
 								await git.stash(["pop"]);
-							} catch {
+							} catch (stashErr) {
 								throw new Error(
-									"Sync pull succeeded but failed to restore your stashed changes. Your changes are saved in git stash."
+									"Sync pull succeeded but failed to restore your stashed changes. Your changes are saved in git stash.",
+									{ cause: stashErr },
 								);
 							}
 						}
@@ -374,7 +378,8 @@ export const createGitOperationsRouter = () => {
 						if (message.includes("CONFLICT") || message.includes("could not apply")) {
 							await git.rebase(["--abort"]).catch(() => {});
 							throw new Error(
-								"Sync failed due to conflicts. The operation has been aborted. Please resolve conflicts manually."
+								"Sync failed due to conflicts. The operation has been aborted. Please resolve conflicts manually.",
+								{ cause: error },
 							);
 						}
 						throw error;
@@ -402,7 +407,7 @@ export const createGitOperationsRouter = () => {
 					const branch = (await git.revparse(["--abbrev-ref", "HEAD"])).trim();
 
 					// Check if it's a protected branch
-					if (PROTECTED_BRANCHES.includes(branch) && !input.confirmProtectedBranch) {
+					if (PROTECTED_BRANCHES.has(branch) && !input.confirmProtectedBranch) {
 						throw new Error(
 							`Cannot force push to protected branch '${branch}'. This action requires explicit confirmation.`
 						);
@@ -457,8 +462,8 @@ export const createGitOperationsRouter = () => {
 						try {
 							await git.raw(["rev-parse", "--verify", "origin/master"]);
 							defaultBranch = "master";
-						} catch {
-							throw new Error("Could not find default branch (main or master)");
+						} catch (masterErr) {
+							throw new Error("Could not find default branch (main or master)", { cause: masterErr });
 						}
 					}
 
@@ -489,7 +494,7 @@ export const createGitOperationsRouter = () => {
 								await git.merge(["--abort"]).catch(() => {});
 							}
 							throw new Error(
-								`${input.useRebase ? "Rebase" : "Merge"} failed due to conflicts. The operation has been aborted. Please resolve conflicts manually or use a different strategy.`
+								`${input.useRebase ? "Rebase" : "Merge"} failed due to conflicts. The operation has been aborted. Please resolve conflicts manually or use a different strategy.`, { cause: error }
 							);
 						}
 						throw error;

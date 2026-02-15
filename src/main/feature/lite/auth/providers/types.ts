@@ -4,7 +4,7 @@
  * Common interfaces for Okta and Azure AD authentication providers.
  */
 
-import { BrowserWindow } from "electron"
+import type { BrowserWindow } from "electron"
 
 /**
  * Supported authentication providers

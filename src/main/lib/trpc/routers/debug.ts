@@ -5,7 +5,7 @@ import { z } from "zod"
 import { clearNetworkCache } from "../../ollama/network-detector"
 import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
-import { existsSync, copyFileSync, mkdirSync, rmSync, readdirSync, unlinkSync, rmdirSync, statSync } from "fs"
+import { existsSync, mkdirSync, rmSync, unlinkSync } from "fs"
 import { spawn } from "child_process"
 import { EventEmitter } from "events"
 

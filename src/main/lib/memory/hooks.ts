@@ -5,7 +5,7 @@
  */
 
 import { getDatabase, memorySessions, observations, userPrompts, modelUsage } from "../db"
-import { eq, desc } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import {
   parseToolToObservation,
   parseAssistantMessage,

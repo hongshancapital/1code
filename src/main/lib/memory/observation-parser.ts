@@ -365,7 +365,7 @@ function classifyBashCommand(command: string, output: string | null): {
   confidence: number
 } {
   const cmd = command.toLowerCase()
-  const combined = output ? `${cmd} ${output.toLowerCase()}` : cmd
+  const _combined = output ? `${cmd} ${output.toLowerCase()}` : cmd
 
   // Git operations
   if (cmd.includes("git")) {

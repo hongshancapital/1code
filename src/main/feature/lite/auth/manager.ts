@@ -1,13 +1,14 @@
-import { AuthStore, AuthData, AuthUser, AuthProviderType } from "./store"
+import type { AuthData, AuthUser, AuthProviderType } from "./store";
+import { AuthStore } from "./store"
 import { app, BrowserWindow } from "electron"
 import { getEnv, getApiOrigin } from "../../../lib/env"
 import { BROWSER_USER_AGENT } from "../../../lib/constants"
+import type {
+  PkceState} from "./providers";
 import {
-  PkceState,
   getCurrentProvider,
   getProvider,
   getEffectiveAuthProvider,
-  isAuthRequired,
 } from "./providers"
 import { startOktaServer, stopOktaServer, type AuthCallbackHandlers } from "../../../lib/auth-callback-server"
 

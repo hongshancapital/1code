@@ -5,7 +5,7 @@
 
 import { desc, eq, and, gte, lte, sql, or } from "drizzle-orm"
 import { getDatabase, insights, modelUsage } from "../db"
-import type { TriggerCheckResult, ReportType, InsightStatus } from "./types"
+import type { TriggerCheckResult } from "./types"
 import { DAILY_THRESHOLDS, WEEKLY_THRESHOLDS } from "./types"
 import { calculateDateRange } from "./stats-calculator"
 

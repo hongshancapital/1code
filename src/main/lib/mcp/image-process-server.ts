@@ -142,17 +142,17 @@ function buildAnnotationSvg(
     const sw = a.stroke_width || 3
     const fs = a.font_size || 16
 
-    if (a.type === "rect" && a.x != null && a.y != null && a.w != null && a.h != null) {
+    if (a.type === "rect" && a.x !== undefined && a.y !== undefined && a.w !== undefined && a.h !== undefined) {
       elements.push(
         `<rect x="${a.x}" y="${a.y}" width="${a.w}" height="${a.h}" ` +
           `fill="none" stroke="${color}" stroke-width="${sw}" />`,
       )
-    } else if (a.type === "arrow" && a.x != null && a.y != null && a.x2 != null && a.y2 != null) {
+    } else if (a.type === "arrow" && a.x !== undefined && a.y !== undefined && a.x2 !== undefined && a.y2 !== undefined) {
       elements.push(
         `<line x1="${a.x}" y1="${a.y}" x2="${a.x2}" y2="${a.y2}" ` +
           `stroke="${color}" stroke-width="${sw}" marker-end="url(#arrowhead)" />`,
       )
-    } else if (a.type === "text" && a.x != null && a.y != null && a.text) {
+    } else if (a.type === "text" && a.x !== undefined && a.y !== undefined && a.text) {
       elements.push(
         `<text x="${a.x}" y="${a.y}" font-size="${fs}" fill="${color}" ` +
           `font-family="Arial, Helvetica, sans-serif">${escapeXml(a.text)}</text>`,
@@ -647,7 +647,7 @@ image_rotate(path="/path/to/photo.jpg", flop=true)`,
           try {
             let pipeline = sharp(args.path)
 
-            if (args.angle != null) {
+            if (args.angle !== undefined) {
               pipeline = pipeline.rotate(args.angle, { background: args.background })
             }
             if (args.flip) pipeline = pipeline.flip()
@@ -657,7 +657,7 @@ image_rotate(path="/path/to/photo.jpg", flop=true)`,
             const info = await pipeline.toFile(outputPath)
 
             const ops: string[] = []
-            if (args.angle != null) ops.push(`rotated ${args.angle}°`)
+            if (args.angle !== undefined) ops.push(`rotated ${args.angle}°`)
             if (args.flip) ops.push("flipped vertically")
             if (args.flop) ops.push("flipped horizontally")
             const desc = ops.join(", ") || "no changes"

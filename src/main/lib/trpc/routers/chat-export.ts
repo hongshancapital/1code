@@ -4,7 +4,6 @@
  */
 
 import { and, eq } from "drizzle-orm"
-import * as path from "path"
 import { z } from "zod"
 import { chats, getDatabase, projects, subChats } from "../../db"
 import { publicProcedure, router } from "../index"

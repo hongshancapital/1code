@@ -10,7 +10,7 @@
  * 3. Neither configured → "none" (no authentication required)
  */
 
-import { AuthProviderType } from "./types"
+import type { AuthProviderType } from "./types"
 
 /**
  * Check if Okta configuration is available

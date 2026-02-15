@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDatabase, chats } from "../db";
-import simpleGit from "simple-git";
+import type simpleGit from "simple-git";
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
 import {
@@ -188,7 +188,7 @@ export const createBranchesRouter = () => {
 							const message = error instanceof Error ? error.message : String(error);
 							// Ignore if remote branch doesn't exist
 							if (!message.includes("remote ref does not exist")) {
-								throw new Error(`Local branch deleted, but failed to delete remote: ${message}`);
+								throw new Error(`Local branch deleted, but failed to delete remote: ${message}`, { cause: error });
 							}
 						}
 					}

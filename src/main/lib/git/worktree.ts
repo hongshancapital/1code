@@ -199,7 +199,7 @@ export async function createWorktree(
 				`Failed to create worktree: The git repository is locked by another process. ` +
 					`This usually happens when another git operation is in progress, or a previous operation crashed. ` +
 					`Please wait for the other operation to complete, or manually remove the lock file ` +
-					`(e.g., .git/config.lock or .git/index.lock) if you're sure no git operations are running.`,
+					`(e.g., .git/config.lock or .git/index.lock) if you're sure no git operations are running.`, { cause: error },
 			);
 		}
 
@@ -214,12 +214,12 @@ export async function createWorktree(
 			console.error(`Git LFS error during worktree creation: ${errorMessage}`);
 			throw new Error(
 				`Failed to create worktree: This repository uses Git LFS, but git-lfs was not found or failed. ` +
-					`Please install git-lfs (e.g., 'brew install git-lfs') and run 'git lfs install'.`,
+					`Please install git-lfs (e.g., 'brew install git-lfs') and run 'git lfs install'.`, { cause: error },
 			);
 		}
 
 		console.error(`Failed to create worktree: ${errorMessage}`);
-		throw new Error(`Failed to create worktree: ${errorMessage}`);
+		throw new Error(`Failed to create worktree: ${errorMessage}`, { cause: error });
 	}
 }
 
@@ -301,10 +301,10 @@ export async function getDefaultBranch(mainRepoPath: string): Promise<string> {
 		// Check remote branches for common default branch names
 		try {
 			const branches = await git.branch(["-r"]);
-			const remoteBranches = branches.all.map((b) => b.replace("origin/", ""));
+			const remoteBranches = new Set(branches.all.map((b) => b.replace("origin/", "")));
 
 			for (const candidate of ["main", "master", "develop", "trunk"]) {
-				if (remoteBranches.includes(candidate)) {
+				if (remoteBranches.has(candidate)) {
 					return candidate;
 				}
 			}

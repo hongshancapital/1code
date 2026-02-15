@@ -3,7 +3,7 @@
  * 提供 Insight 报告的 API 接口
  */
 
-import { eq, desc } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { safeStorage } from "electron"
 import { z } from "zod"
 import { getDatabase, insights, claudeCodeCredentials } from "../../db"
@@ -21,7 +21,7 @@ import {
   cleanupOldDataDirs,
   generateInsightReport,
 } from "../../insights"
-import type { InsightStats, InsightReport, ReportType } from "../../insights"
+import type { InsightStats, InsightReport } from "../../insights"
 
 /**
  * 认证配置类型（从前端传入）

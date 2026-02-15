@@ -10,7 +10,7 @@ export * from "./detector"
 export { OktaProvider } from "./okta-provider"
 export { AzureProvider } from "./azure-provider"
 
-import { AuthProvider, AuthProviderType } from "./types"
+import type { AuthProvider, AuthProviderType } from "./types"
 import { getEffectiveAuthProvider } from "./detector"
 import { OktaProvider } from "./okta-provider"
 import { AzureProvider } from "./azure-provider"

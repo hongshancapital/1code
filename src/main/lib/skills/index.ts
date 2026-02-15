@@ -300,7 +300,7 @@ export class SkillManager {
    */
   private sanitizeForDirName(str: string): string {
     return str
-      .replace(/[@:\/\\]/g, "-")
+      .replace(/[@:/\\]/g, "-")
       .replace(/[^a-zA-Z0-9\-_.]/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "")

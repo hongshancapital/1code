@@ -140,7 +140,7 @@ export class HookRegistry implements IHookRegistry {
     )
     const collected: unknown[] = []
     for (const r of results) {
-      if (r.status === "fulfilled" && r.value != null) {
+      if (r.status === "fulfilled" && r.value !== null && r.value !== undefined) {
         if (Array.isArray(r.value)) {
           collected.push(...r.value)
         } else {

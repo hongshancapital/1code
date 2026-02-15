@@ -275,7 +275,7 @@ async function transcribeWithWhisper(
     return cleanTranscribedText(text)
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      throw new Error("Transcription timed out. Please try again.")
+      throw new Error("Transcription timed out. Please try again.", { cause: err })
     }
     throw err
   } finally {
@@ -348,7 +348,7 @@ export const voiceRouter = router({
 
             // If provider is 'local', don't fall back
             if (provider === "local") {
-              throw new Error(`Local transcription failed: ${err instanceof Error ? err.message : String(err)}`)
+              throw new Error(`Local transcription failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
             }
 
             // Fall through to OpenAI
@@ -521,7 +521,7 @@ export const voiceRouter = router({
         return { success: true, alreadyDownloaded: false }
       } catch (err) {
         console.error(`[Voice] Failed to download model ${input.modelId}:`, err)
-        throw new Error(`Download failed: ${err instanceof Error ? err.message : String(err)}`)
+        throw new Error(`Download failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
       }
     }),
 

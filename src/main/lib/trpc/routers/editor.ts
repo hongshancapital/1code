@@ -326,7 +326,7 @@ export const editorRouter = router({
         return { success: true, editor: editorCommand }
       } catch (error) {
         throw new Error(
-          `Failed to open editor: ${error instanceof Error ? error.message : "Unknown error"}`
+          `Failed to open editor: ${error instanceof Error ? error.message : "Unknown error"}`, { cause: error }
         )
       }
     }),

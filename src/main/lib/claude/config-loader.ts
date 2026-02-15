@@ -18,7 +18,6 @@ import {
   readAgentConfig,
   getProjectMcpServers,
   resolveProjectPathFromWorktree,
-  type McpServerConfig,
   type ClaudeConfig,
 } from "../claude-config"
 import { getBuiltinMcpConfig, BUILTIN_MCP_NAME } from "../builtin-mcp"

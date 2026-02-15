@@ -3,7 +3,7 @@
  * Handles sub-chat operations (create, read, update, delete, rename, rollback)
  */
 
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { BrowserWindow } from "electron"
 import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"

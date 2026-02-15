@@ -8,7 +8,7 @@
 import { EventEmitter } from "node:events"
 import * as fs from "node:fs/promises"
 import * as https from "node:https"
-import * as tls from "node:tls"
+import type * as tls from "node:tls"
 import { BrowserWindow, ipcMain, webContents, session } from "electron"
 import type {
   BrowserOperation,
@@ -582,7 +582,7 @@ export class BrowserManager extends EventEmitter {
           if (["fetch", "xhr", "document", "script", "stylesheet"].includes(req.type) ||
               (req.contentType && (req.contentType.includes("json") || req.contentType.includes("text") || req.contentType.includes("xml")))) {
             try {
-              const { body, base64Encoded } = await wc.debugger.sendCommand("Network.getResponseBody", { requestId })
+              const { body, base64Encoded: _base64Encoded } = await wc.debugger.sendCommand("Network.getResponseBody", { requestId })
               if (body) {
                 const maxBodySize = this.networkOptions.maxBodySize || 1024 * 1024 // Default 1MB
                 if (body.length > maxBodySize) {
@@ -591,7 +591,7 @@ export class BrowserManager extends EventEmitter {
                   req.responseBody = body
                 }
               }
-            } catch (e) {
+            } catch  {
               // Ignore body fetch errors (e.g. for redirects or empty bodies)
             }
           }
@@ -1035,7 +1035,7 @@ export class BrowserManager extends EventEmitter {
     this.clearLockTimeout()
 
     // Clear all pending operations
-    for (const [id, op] of this.pending) {
+    for (const [_id, op] of this.pending) {
       clearTimeout(op.timer)
       op.reject(new Error("Browser manager shutting down"))
     }

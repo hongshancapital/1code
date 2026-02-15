@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
 import { getDatabase, projects, chats, subChats } from "../../db"
-import { eq, desc, and, isNull } from "drizzle-orm"
+import { eq, desc } from "drizzle-orm"
 import { dialog, BrowserWindow, app } from "electron"
 import { basename, join, dirname } from "path"
 import { exec } from "node:child_process"
@@ -803,7 +803,7 @@ export const projectsRouter = router({
         if ((err as NodeJS.ErrnoException).code === "EXDEV") {
           // For cross-device moves, we'd need to implement recursive copy
           // For now, throw a more helpful error
-          throw new Error("Cannot move across different drives. Please choose a location on the same drive.")
+          throw new Error("Cannot move across different drives. Please choose a location on the same drive.", { cause: err })
         }
         throw err
       }
@@ -886,7 +886,7 @@ export const projectsRouter = router({
    */
   pickMigrateDestination: publicProcedure
     .input(z.object({ suggestedName: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input: _input, ctx }) => {
       const window = ctx.getWindow?.() ?? BrowserWindow.getFocusedWindow()
 
       if (!window) {

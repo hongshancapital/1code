@@ -25,15 +25,6 @@ interface EmbeddingQueueItem {
 const embeddingQueue: EmbeddingQueueItem[] = []
 let isProcessingQueue = false
 
-// Table schema
-interface ObservationVector {
-  id: string
-  vector: number[]
-  projectId: string | null
-  type: string
-  createdAtEpoch: number
-}
-
 /**
  * Get the LanceDB database path
  */
@@ -96,7 +87,7 @@ export async function initVectorStore(): Promise<void> {
       observationsTable = await db.createTable("observations", [
         {
           id: "__placeholder__",
-          vector: new Array(EMBEDDING_DIMENSION).fill(0),
+          vector: Array.from({ length: EMBEDDING_DIMENSION }, () => 0),
           projectId: "", // Use empty string, not null (LanceDB can't infer null type)
           type: "placeholder",
           createdAtEpoch: 0,
@@ -229,7 +220,7 @@ export async function searchSimilar(
     const queryEmbedding = await generateEmbedding(`query: ${query}`)
 
     // Build the search query
-    let searchQuery = observationsTable
+    const searchQuery = observationsTable
       .vectorSearch(Array.from(queryEmbedding))
       .limit(limit * 2) // Get more results for filtering
 

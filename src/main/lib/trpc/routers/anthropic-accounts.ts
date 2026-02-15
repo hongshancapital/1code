@@ -30,11 +30,7 @@ export const anthropicAccountsRouter = router({
 
       // If we have accounts in new table, return them
       if (accounts.length > 0) {
-        return accounts.map((acc) => ({
-          ...acc,
-          connectedAt: acc.connectedAt?.toISOString() ?? null,
-          lastUsedAt: acc.lastUsedAt?.toISOString() ?? null,
-        }))
+        return accounts.map((acc) => (Object.assign(acc, {connectedAt:acc.connectedAt?.toISOString()??null,lastUsedAt:acc.lastUsedAt?.toISOString()??null})))
       }
     } catch {
       // Table doesn't exist yet, fall through to legacy

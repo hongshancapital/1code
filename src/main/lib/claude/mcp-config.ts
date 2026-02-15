@@ -40,11 +40,9 @@ import {
   getApprovedPluginMcpServers,
 } from "../trpc/routers/claude-settings";
 import {
-  discoverInstalledPlugins,
   discoverPluginMcpServers,
 } from "../plugins";
 import {
-  injectBuiltinMcp,
   BUILTIN_MCP_NAME,
   getBuiltinMcpConfig,
   getBuiltinMcpPlaceholder,

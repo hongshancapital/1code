@@ -3,7 +3,6 @@
  */
 
 import fs from "node:fs"
-import path from "node:path"
 import https from "node:https"
 import {
   getWhisperModelsDir,
@@ -100,7 +99,7 @@ export async function downloadModel(
     return
   }
 
-  const modelsDir = getWhisperModelsDir()
+  const _modelsDir = getWhisperModelsDir()
   const modelPath = getModelPath(modelId)
   const tempPath = `${modelPath}.download`
 
@@ -198,7 +197,7 @@ function downloadFile(
 
     const request = (url: string) => {
       const urlObj = new URL(url)
-      const isHttps = urlObj.protocol === "https:"
+      const _isHttps = urlObj.protocol === "https:"
 
       const options = {
         hostname: urlObj.hostname,

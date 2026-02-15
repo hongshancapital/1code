@@ -42,7 +42,7 @@ async function ensureMarketplacesDir(): Promise<void> {
  */
 export function extractRepoName(gitUrl: string): string {
   // Remove trailing .git if present
-  let url = gitUrl.replace(/\.git$/, "")
+  const url = gitUrl.replace(/\.git$/, "")
 
   // Extract the last path segment
   const lastSlash = url.lastIndexOf("/")

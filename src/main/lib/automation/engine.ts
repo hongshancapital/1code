@@ -9,8 +9,9 @@ import {
 import { SchedulerService } from "./scheduler"
 import { INBOX_PROJECT_ID } from "./inbox-project"
 import type { TriggerData, TriggerConfig } from "./types"
+import type {
+  ClaudeEngine} from "../claude";
 import {
-  ClaudeEngine,
   createAutomationEngine as createClaudeAutomationEngine,
   AutomationPromptStrategy,
   createAutomationPolicy,

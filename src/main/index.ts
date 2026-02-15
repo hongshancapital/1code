@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/electron/main"
 import { validateEnv, getEnv } from "./lib/env"
-import { app, BrowserWindow, Menu, protocol, session, shell } from "electron"
+import { app, BrowserWindow, Menu, protocol, session } from "electron"
 
 // Increase V8 heap memory limit to prevent OOM with large chat histories
 // Default is ~2GB, increase to 8GB for safety
@@ -12,8 +12,9 @@ validateEnv()
 import { createReadStream, existsSync, readFileSync, readlinkSync, statSync, unlinkSync } from "fs"
 import { join } from "path"
 import { startAuthCallbackServers,  handleAuthCode, type AuthCallbackHandlers } from "./lib/auth-callback-server"
-import { Readable } from "stream"
-import { AuthManager, initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
+import type { Readable } from "stream"
+import type { AuthManager} from "./auth-manager";
+import { initAuthManager, getAuthManager as getAuthManagerFromModule } from "./auth-manager"
 import {
   initSensors,
   login as sensorsLogin,
@@ -34,7 +35,6 @@ import {
   getAllWindows,
 } from "./windows/main"
 import { windowManager } from "./windows/window-manager"
-import { BROWSER_USER_AGENT } from "./lib/constants"
 import { initBrowserSession, registerWebviewHandlers } from "./lib/browser/init"
 import { IS_DEV } from "./constants"
 

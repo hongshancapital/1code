@@ -172,13 +172,7 @@ export const commandsRouter = router({
           const commands = await scanCommandsDirectory(paths.commands, "plugin")
           // Add namespace prefix for plugin commands: "pluginName:commandName"
           // This helps distinguish commands with the same name from different plugins
-          return commands.map((cmd) => ({
-            ...cmd,
-            displayName: cmd.name, // Keep original name for display
-            name: `${plugin.name}:${cmd.name}`, // Namespaced: "review_by_blair:review"
-            pluginName: plugin.source, // "review_by_blair@hs-dev-marketplace"
-            pluginDisplayName: formatPluginName(plugin.name), // "Review By Blair"
-          }))
+          return commands.map((cmd) => (Object.assign(cmd, {displayName:cmd.name,name:`${plugin.name}:${cmd.name}`,pluginName:plugin.source,pluginDisplayName:formatPluginName(plugin.name)})))
         } catch {
           return []
         }

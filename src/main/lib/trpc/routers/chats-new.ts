@@ -293,10 +293,7 @@ const chatsCoreRouter = router({
       .orderBy(desc(chats.updatedAt))
       .all()
 
-    return playgroundChats.map(({ chat, project }) => ({
-      ...chat,
-      project,
-    }))
+    return playgroundChats.map(({ chat, project }) => (Object.assign(chat, {project})))
   }),
 
   /**
@@ -841,7 +838,7 @@ const chatsCoreRouter = router({
         if (code !== "EXDEV" && code !== "EBUSY" && code !== "EPERM") {
           // Unrecoverable — restore watcher and rethrow
           await gitWatcherRegistry.getOrCreate(chat.worktreePath).catch(() => {})
-          throw new Error(`Failed to move directory: ${(err as Error).message}`)
+          throw new Error(`Failed to move directory: ${(err as Error).message}`, { cause: err })
         }
       }
 
@@ -854,7 +851,7 @@ const chatsCoreRouter = router({
           await fsRm(newWorktreePath, { recursive: true, force: true }).catch(() => {})
           await gitWatcherRegistry.getOrCreate(chat.worktreePath).catch(() => {})
           throw new Error(
-            `Copy failed: ${(copyErr as Error).message}. Original directory unchanged.`
+            `Copy failed: ${(copyErr as Error).message}. Original directory unchanged.`, { cause: copyErr }
           )
         }
 

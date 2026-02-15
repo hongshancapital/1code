@@ -97,7 +97,7 @@ export async function fetchMcpTools(
 /**
  * Sensitive env vars to filter out when spawning MCP subprocesses
  */
-const BLOCKED_ENV_VARS = [
+const BLOCKED_ENV_VARS = new Set([
   'ANTHROPIC_API_KEY',
   'CLAUDE_CODE_OAUTH_TOKEN',
   'AWS_ACCESS_KEY_ID',
@@ -106,7 +106,7 @@ const BLOCKED_ENV_VARS = [
   'GITHUB_TOKEN',
   'GH_TOKEN',
   'OPENAI_API_KEY',
-];
+]);
 
 /**
  * Fetch tools from a stdio-based MCP server
@@ -133,7 +133,7 @@ export async function fetchMcpToolsStdio(config: {
     // Filter sensitive env vars
     const safeEnv: Record<string, string> = {};
     for (const [key, value] of Object.entries(shellEnv)) {
-      if (!BLOCKED_ENV_VARS.includes(key)) {
+      if (!BLOCKED_ENV_VARS.has(key)) {
         safeEnv[key] = value;
       }
     }

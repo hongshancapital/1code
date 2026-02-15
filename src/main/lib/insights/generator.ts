@@ -397,7 +397,7 @@ export async function generateInsightReport(
     let hasError = false;
     let errorMessage = "";
     const toolCalls: string[] = [];
-    let turnCount = 0;
+    let _turnCount = 0;
 
     for await (const msg of claudeQuery(queryOptions)) {
       // 提取工具调用信息
@@ -430,7 +430,7 @@ export async function generateInsightReport(
             }
           }
         }
-        turnCount++;
+        _turnCount++;
       }
 
       // 处理 system init 消息
@@ -454,7 +454,7 @@ export async function generateInsightReport(
     }
 
     // 清理报告内容（移除可能的代码块标记）
-    let fullOutput = reportMarkdown
+    const fullOutput = reportMarkdown
       .replace(/^```markdown\n?/i, "")
       .replace(/^```html\n?/i, "")
       .replace(/\n?```$/i, "")
@@ -515,15 +515,3 @@ export async function generateInsightReport(
   }
 }
 
-/**
- * 格式化大数字
- */
-function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
-  }
-  return num.toString();
-}

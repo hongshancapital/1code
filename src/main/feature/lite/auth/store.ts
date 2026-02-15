@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from "
 import { join, dirname } from "path"
 import { safeStorage } from "electron"
 
-import { PkceState } from "./providers/types"
+import type { PkceState } from "./providers/types"
 
 export interface AuthUser {
   id: string
