@@ -9,6 +9,10 @@ import { toast } from "sonner"
 import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, Loader2, Brain, Trash2 } from "lucide-react"
 import { showMessageJsonAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("agentsDebugTab")
+
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -200,7 +204,7 @@ export function AgentsDebugTab() {
       }
     } catch (error) {
       toast.error("Failed to toggle React Scan")
-      console.error(error)
+      log.error(error)
     } finally {
       setReactScanLoading(false)
     }
@@ -649,6 +653,7 @@ const LOG_LEVEL_COLORS: Record<string, string> = {
 }
 
 function LogViewerSection() {
+  const { t } = useTranslation("settings")
   const [active, setActive] = useState(false)
   const [levelFilter, setLevelFilter] = useState<string>("debug")
   const [scopeFilter, setScopeFilter] = useState("")
@@ -710,7 +715,7 @@ function LogViewerSection() {
   const clearBufferMutation = trpc.logger.clearBuffer.useMutation({
     onSuccess: () => {
       setEntries([])
-      toast.success("Log buffer cleared")
+      toast.success(t('debug.logViewer.bufferCleared'))
     },
   })
 
@@ -722,7 +727,7 @@ function LogViewerSection() {
   return (
     <div className="flex flex-col gap-3">
       <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-        Log Viewer
+        {t('debug.logViewer.title')}
       </h4>
       <div className="rounded-lg border bg-muted/30 overflow-hidden">
         {!active ? (
@@ -732,7 +737,7 @@ function LogViewerSection() {
             className="w-full h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
           >
             <Play className="h-8 w-8" />
-            <span className="text-sm">Start Log Viewer</span>
+            <span className="text-sm">{t('debug.logViewer.start')}</span>
           </button>
         ) : (
           <div className="p-3 flex flex-col gap-2">
@@ -740,7 +745,7 @@ function LogViewerSection() {
             <div className="flex items-center gap-2 flex-wrap">
               <Select value={levelFilter} onValueChange={setLevelFilter}>
                 <SelectTrigger className="h-7 w-[100px] text-xs">
-                  <SelectValue placeholder="Level" />
+                  <SelectValue placeholder={t('debug.logViewer.levelPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="error">error</SelectItem>
@@ -754,7 +759,7 @@ function LogViewerSection() {
 
               <input
                 type="text"
-                placeholder="Filter scope..."
+                placeholder={t('debug.logViewer.scopePlaceholder')}
                 value={scopeFilter}
                 onChange={(e) => setScopeFilter(e.target.value)}
                 className="h-7 px-2 text-xs rounded-md border bg-background w-[140px] outline-none focus:ring-1 focus:ring-ring"
@@ -768,7 +773,7 @@ function LogViewerSection() {
                 className="h-7 text-xs px-2"
                 onClick={() => setAutoScroll(!autoScroll)}
               >
-                {autoScroll ? "Auto ↓" : "Manual"}
+                {autoScroll ? t('debug.logViewer.autoScroll') : t('debug.logViewer.manualScroll')}
               </Button>
 
               <Button
@@ -778,7 +783,7 @@ function LogViewerSection() {
                 onClick={() => clearBufferMutation.mutate()}
               >
                 <Trash2 className="h-3 w-3 mr-1" />
-                Clear
+                {t('debug.logViewer.clear')}
               </Button>
 
               {logPath && (
@@ -789,7 +794,7 @@ function LogViewerSection() {
                   onClick={() => openLogFolderMutation.mutate()}
                 >
                   <FolderOpen className="h-3 w-3 mr-1" />
-                  Logs
+                  {t('debug.logViewer.logs')}
                 </Button>
               )}
 
@@ -799,7 +804,7 @@ function LogViewerSection() {
                 className="h-7 text-xs px-2 text-destructive hover:text-destructive"
                 onClick={handleStop}
               >
-                Stop
+                {t('debug.logViewer.stop')}
               </Button>
             </div>
 
@@ -817,7 +822,7 @@ function LogViewerSection() {
             >
               {entries.length === 0 ? (
                 <div className="text-muted-foreground text-center py-8">
-                  Waiting for log entries...
+                  {t('debug.logViewer.waiting')}
                 </div>
               ) : (
                 entries.map((entry, i) => {
@@ -842,7 +847,7 @@ function LogViewerSection() {
 
             {/* Footer */}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{entries.length} entries</span>
+              <span>{entries.length} {t('debug.logViewer.entries')}</span>
               {logPath && (
                 <span className="truncate max-w-[300px]" title={logPath}>
                   {logPath}

@@ -810,6 +810,20 @@
       "offlineSimDisabledDesc": "网络检测已恢复正常",
       "productionDbCopied": "生产数据库已复制",
       "productionDbCopiedDesc": "正在使用新数据重新加载..."
+    },
+    "logViewer": {
+      "title": "日志查看器",
+      "start": "启动日志查看器",
+      "levelPlaceholder": "级别",
+      "scopePlaceholder": "过滤作用域...",
+      "autoScroll": "自动 ↓",
+      "manualScroll": "手动",
+      "clear": "清除",
+      "logs": "日志",
+      "stop": "停止",
+      "waiting": "等待日志条目...",
+      "entries": "条",
+      "bufferCleared": "日志缓冲区已清除"
     }
   },
   "sidebar": {

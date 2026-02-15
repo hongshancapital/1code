@@ -810,6 +810,20 @@
       "offlineSimDisabledDesc": "Network detection restored to normal",
       "productionDbCopied": "Production database copied",
       "productionDbCopiedDesc": "Reloading with new data..."
+    },
+    "logViewer": {
+      "title": "Log Viewer",
+      "start": "Start Log Viewer",
+      "levelPlaceholder": "Level",
+      "scopePlaceholder": "Filter scope...",
+      "autoScroll": "Auto ↓",
+      "manualScroll": "Manual",
+      "clear": "Clear",
+      "logs": "Logs",
+      "stop": "Stop",
+      "waiting": "Waiting for log entries...",
+      "entries": "entries",
+      "bufferCleared": "Log buffer cleared"
     }
   },
   "sidebar": {
