@@ -9,7 +9,7 @@
  */
 
 import EventEmitter from "events"
-import { readFileSync } from "fs"
+import * as fs from "fs/promises"
 import * as os from "os"
 import path from "path"
 import type { McpServerConfig, ProjectConfig } from "../claude-config"
@@ -17,6 +17,10 @@ import { GLOBAL_MCP_PATH } from "../claude-config"
 import { mcpCacheKey, workingMcpServers } from "../claude"
 import { ensureMcpTokensFresh } from "../mcp-auth"
 import { fetchToolsForServer } from "./mcp-config"
+import { createLogger } from "../logger"
+
+const log = createLogger("mcpWarmupManager")
+
 
 const RETRY_DELAYS = [2000, 30000, 30000] // 2s, 30s, 30s
 const MAX_RETRIES = 3
@@ -101,7 +105,7 @@ export class McpWarmupManager extends EventEmitter {
     this.aborted = true
     this.state = "failed"
     this.emit("stateChange", "failed")
-    console.log("[MCP Warmup] Aborted by user")
+    log.info("[MCP Warmup] Aborted by user")
   }
 
   /**
@@ -110,7 +114,7 @@ export class McpWarmupManager extends EventEmitter {
   async startWarmup(): Promise<void> {
     // 防止重复启动
     if (this.warmupPromise) {
-      console.log("[MCP Warmup] Already running, reusing existing promise")
+      log.info("[MCP Warmup] Already running, reusing existing promise")
       return this.warmupPromise
     }
 
@@ -123,14 +127,14 @@ export class McpWarmupManager extends EventEmitter {
 
     this.warmupPromise = (async () => {
       try {
-        // 读取 ~/.claude.json
+        // 读取 ~/.claude.json (异步化避免阻塞主进程)
         const claudeJsonPath = path.join(os.homedir(), ".claude.json")
         let config: any
         try {
-          const configContent = readFileSync(claudeJsonPath, "utf-8")
+          const configContent = await fs.readFile(claudeJsonPath, "utf-8")
           config = JSON.parse(configContent)
         } catch {
-          console.log("[MCP Warmup] No ~/.claude.json found - skipping warmup")
+          log.info("[MCP Warmup] No ~/.claude.json found - skipping warmup")
           this.state = "completed"
           this.emit("stateChange", "completed")
           return
@@ -172,13 +176,13 @@ export class McpWarmupManager extends EventEmitter {
         }
 
         if (contexts.length === 0) {
-          console.log("[MCP Warmup] No MCP servers configured - skipping warmup")
+          log.info("[MCP Warmup] No MCP servers configured - skipping warmup")
           this.state = "completed"
           this.emit("stateChange", "completed")
           return
         }
 
-        console.log(`[MCP Warmup] Starting warmup for ${contexts.length} servers...`)
+        log.info(`[MCP Warmup] Starting warmup for ${contexts.length} servers...`)
 
         // 并行预热所有服务器
         await Promise.allSettled(
@@ -190,7 +194,7 @@ export class McpWarmupManager extends EventEmitter {
           (s) => s.status === "connected",
         ).length
 
-        console.log(
+        log.info(
           `[MCP Warmup] Completed in ${duration}ms. Success: ${successCount}/${contexts.length}`,
         )
 
@@ -198,7 +202,7 @@ export class McpWarmupManager extends EventEmitter {
         this.emit("stateChange", "completed")
         this.emit("completed", { duration, successCount, total: contexts.length })
       } catch (error) {
-        console.error("[MCP Warmup] Unexpected error:", error)
+        log.error("[MCP Warmup] Unexpected error:", error)
         this.state = "failed"
         this.emit("stateChange", "failed")
       } finally {
@@ -232,7 +236,7 @@ export class McpWarmupManager extends EventEmitter {
 
     while (retryCount <= MAX_RETRIES) {
       if (this.aborted) {
-        console.log(`[MCP Warmup] ${name} - Aborted`)
+        log.info(`[MCP Warmup] ${name} - Aborted`)
         return
       }
 
@@ -265,7 +269,7 @@ export class McpWarmupManager extends EventEmitter {
             lastSuccess: Date.now(),
             tools: tools.map((t) => t.name),
           })
-          console.log(`[MCP Warmup] ${name} - Connected (${tools.length} tools) in ${Date.now() - serverStartTime}ms`)
+          log.info(`[MCP Warmup] ${name} - Connected (${tools.length} tools) in ${Date.now() - serverStartTime}ms`)
           return
         }
 
@@ -277,7 +281,7 @@ export class McpWarmupManager extends EventEmitter {
           retryCount,
           lastAttempt: Date.now(),
         })
-        console.warn(`[MCP Warmup] ${name} - No tools found (${Date.now() - serverStartTime}ms)`)
+        log.warn(`[MCP Warmup] ${name} - No tools found (${Date.now() - serverStartTime}ms)`)
         return
       } catch (error: any) {
         const isTimeout = error?.message?.includes("Timeout")
@@ -293,7 +297,7 @@ export class McpWarmupManager extends EventEmitter {
           })
 
           const delay = RETRY_DELAYS[retryCount - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1]
-          console.log(
+          log.info(
             `[MCP Warmup] ${name} - Retry ${retryCount}/${MAX_RETRIES} in ${delay}ms (${isTimeout ? "timeout" : "error"})`,
           )
 
@@ -307,7 +311,7 @@ export class McpWarmupManager extends EventEmitter {
             retryCount,
             lastAttempt: Date.now(),
           })
-          console.error(`[MCP Warmup] ${name} - Failed after ${MAX_RETRIES} retries (${Date.now() - serverStartTime}ms total)`)
+          log.error(`[MCP Warmup] ${name} - Failed after ${MAX_RETRIES} retries (${Date.now() - serverStartTime}ms total)`)
           return
         }
       }

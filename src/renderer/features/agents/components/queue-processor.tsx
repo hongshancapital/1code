@@ -11,9 +11,14 @@ import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { appStore } from "../../../lib/jotai-store"
 import { loadingSubChatsAtom, setLoading, clearLoading } from "../atoms"
 import { trackSendMessage } from "../../../lib/sensors-analytics"
+import { createLogger } from "../../../lib/logger"
 
-// Delay between processing queue items (ms)
-const QUEUE_PROCESS_DELAY = 1000
+const queueProcessorLog = createLogger("QueueProcessor")
+
+
+// 智能队列处理延迟配置
+const QUEUE_SMART_DELAY_MS = 100  // 快速检查间隔 (从 1000ms 优化为 100ms)
+const QUEUE_MAX_WAIT_MS = 3000    // 最大等待时间 (安全网,避免无限等待)
 
 /**
  * Global queue processor component.
@@ -148,7 +153,7 @@ export function QueueProcessor() {
         await chat.sendMessage({ role: "user", parts })
 
       } catch (error) {
-        console.error(`[QueueProcessor] Error processing queue:`, error)
+        queueProcessorLog.error(`Error processing queue:`, error)
 
         // Requeue all popped items at the front in original order so they can be retried
         for (let i = poppedItems.length - 1; i >= 0; i--) {
@@ -178,21 +183,41 @@ export function QueueProcessor() {
       }
     }
 
-    // Schedule processing for a sub-chat with delay
+    // 智能调度策略: 基于流状态的动态等待,而非固定 1 秒延迟
     const scheduleProcessing = (subChatId: string) => {
-      // If already scheduled, don't reset the timer - let it fire
-      // This prevents infinite deferral when checkAllQueues is called frequently
+      // 如果已调度,不重复设置,避免无限延迟
       const existingTimer = timersRef.current.get(subChatId)
       if (existingTimer) {
         return
       }
 
-      // Schedule new processing
-      const timer = setTimeout(() => {
-        timersRef.current.delete(subChatId)
-        processQueue(subChatId)
-      }, QUEUE_PROCESS_DELAY)
+      const startTime = Date.now()
 
+      const checkAndProcess = async () => {
+        const status = useStreamingStatusStore.getState().getStatus(subChatId)
+        const elapsed = Date.now() - startTime
+
+        // 条件 1: 流已就绪或出错,立即处理
+        if (status === "ready" || status === "error") {
+          timersRef.current.delete(subChatId)
+          await processQueue(subChatId)
+          return
+        }
+
+        // 条件 2: 超过最大等待时间,放弃等待并警告
+        if (elapsed >= QUEUE_MAX_WAIT_MS) {
+          queueProcessorLog.warn(`Max wait time reached for ${subChatId}, status: ${status}`)
+          timersRef.current.delete(subChatId)
+          return
+        }
+
+        // 条件 3: 继续等待,100ms 后重试
+        const timer = setTimeout(checkAndProcess, QUEUE_SMART_DELAY_MS)
+        timersRef.current.set(subChatId, timer)
+      }
+
+      // 首次检查 (100ms 后)
+      const timer = setTimeout(checkAndProcess, QUEUE_SMART_DELAY_MS)
       timersRef.current.set(subChatId, timer)
     }
 

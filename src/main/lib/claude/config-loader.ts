@@ -32,6 +32,11 @@ import type {
   SkillConfig,
   AgentConfig,
 } from "./engine-types"
+import { createLogger } from "../logger"
+
+const claudeConfigLoaderLog = createLogger("ClaudeConfigLoader")
+const configLoaderLog = createLogger("ConfigLoader")
+
 
 /**
  * Global scope sentinel for MCP cache keys
@@ -304,7 +309,7 @@ export class ClaudeConfigLoader {
 
     const skipped = Object.keys(servers).length - Object.keys(filtered).length
     if (skipped > 0) {
-      console.log(`[ClaudeConfigLoader] Filtered out ${skipped} non-working MCP(s)`)
+      claudeConfigLoaderLog.info(`Filtered out ${skipped} non-working MCP(s)`)
     }
 
     return filtered
@@ -331,7 +336,7 @@ export class ClaudeConfigLoader {
 
     const skipped = Object.keys(servers).length - Object.keys(filtered).length
     if (skipped > 0) {
-      console.log(
+      log.info(
         `[ClaudeConfigLoader] Disabled ${skipped} MCP server(s) by user preference: ${disabledServers.join(", ")}`
       )
     }
@@ -353,7 +358,7 @@ export class ClaudeConfigLoader {
     authManager?: AuthManager,
     override?: ConfigOverride
   ): Promise<LoadedConfig> {
-    // 如果缓存为空(首次调用),等待预热完成(最多 15 秒)
+    // 智能分级等待策略:避免无脑等待 15 秒
     if (workingMcpServers.size === 0) {
       const { getMcpWarmupManager } = await import("./mcp-warmup-manager")
       const warmupManager = getMcpWarmupManager()
@@ -361,24 +366,45 @@ export class ClaudeConfigLoader {
 
       if (warmupPromise) {
         const warmupWaitStart = Date.now()
-        console.log("[ConfigLoader] Waiting for MCP warmup (max 15s)... workingMcpServers.size=0")
+        configLoaderLog.info("MCP warmup strategy: quick wait (500ms) → extended wait (2s) → proceed")
 
+        // 策略 1: 快速等待 500ms (捕获本地 stdio MCP,通常 < 200ms)
         try {
           await Promise.race([
             warmupPromise,
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Warmup timeout")), 15000)
+              setTimeout(() => reject(new Error("Quick wait timeout")), 500)
             ),
           ])
-          console.log(`[ConfigLoader] MCP warmup completed in ${Date.now() - warmupWaitStart}ms, cache size now: ${workingMcpServers.size}`)
-        } catch (error) {
-          console.warn(`[ConfigLoader] Warmup timeout after ${Date.now() - warmupWaitStart}ms, cache size: ${workingMcpServers.size}`)
+          configLoaderLog.info(`✓ MCP warmup completed in quick wait (<500ms), cache size: ${workingMcpServers.size}`)
+        } catch {
+          // 检查是否已有部分 MCP 就绪
+          if (workingMcpServers.size > 0) {
+            configLoaderLog.info(`✓ ${workingMcpServers.size} MCPs ready after quick wait — proceeding`)
+          } else {
+            // 策略 2: 扩展等待 2s (捕获 HTTP MCP 或慢速 stdio)
+            try {
+              await Promise.race([
+                warmupPromise,
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("Extended wait timeout")), 2000)
+                ),
+              ])
+              configLoaderLog.info(`✓ MCP warmup completed in extended wait (<2.5s), cache size: ${workingMcpServers.size}`)
+            } catch {
+              // 策略 3: 放弃等待,继续流程 (MCP 后台继续预热)
+              log.warn(
+                `[ConfigLoader] ⚠ MCP warmup still pending after 2.5s — proceeding without waiting. ` +
+                `Cache size: ${workingMcpServers.size}. Warmup will continue in background.`
+              )
+            }
+          }
         }
       } else {
-        console.log("[ConfigLoader] No warmup promise (warmup not started?), cache size:", workingMcpServers.size)
+        configLoaderLog.info("No warmup promise (warmup not started?), cache size:", workingMcpServers.size)
       }
     } else {
-      console.log(`[ConfigLoader] MCP cache hit, ${workingMcpServers.size} servers cached — skipping warmup wait`)
+      configLoaderLog.info(`✓ MCP cache hit (${workingMcpServers.size} servers) — skipping warmup wait`)
     }
 
     // Load all MCP servers in parallel

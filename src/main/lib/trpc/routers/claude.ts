@@ -2,7 +2,6 @@ import { observable } from "@trpc/server/observable";
 import { eq } from "drizzle-orm";
 import { app, BrowserWindow } from "electron";
 import * as fs from "fs/promises";
-import { existsSync } from "fs";
 import * as os from "os";
 import path from "path";
 import { z } from "zod";
@@ -83,6 +82,61 @@ import {
   buildImagePrompt,
   buildOllamaContext,
 } from "../../claude/prompt-utils";
+import { createLogger } from "../../logger"
+
+const claudeLog = createLogger("claude")
+const perfLog = createLogger("PERF")
+const hookLog = createLogger("Hook")
+const ollamaLog = createLogger("Ollama")
+const sdLog = createLogger("SD")
+const dbLog = createLogger("DB")
+const getMcpConfigLog = createLogger("getMcpConfig")
+const mcpLog = createLogger("MCP")
+
+
+/**
+ * 异步包装器 - 将同步数据库操作放到 setImmediate 中执行
+ * 避免阻塞主进程事件循环
+ */
+function dbGetAsync<T>(query: { get: () => T }): Promise<T> {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      const result = query.get();
+      resolve(result);
+    });
+  });
+}
+
+function dbRunAsync(query: { run: () => void }): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      query.run();
+      resolve();
+    });
+  });
+}
+
+/**
+ * 异步包装器 - 将 JSON 序列化/反序列化放到 setImmediate 中执行
+ * 避免大 JSON 阻塞主进程
+ */
+function jsonParseAsync<T>(text: string): Promise<T> {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      const result = JSON.parse(text);
+      resolve(result);
+    });
+  });
+}
+
+function jsonStringifyAsync(value: any): Promise<string> {
+  return new Promise((resolve) => {
+    setImmediate(() => {
+      const result = JSON.stringify(value);
+      resolve(result);
+    });
+  });
+}
 
 /**
  * Type for Claude SDK streaming messages
@@ -232,7 +286,7 @@ export type ImageAttachment = z.infer<typeof imageAttachmentSchema>;
 export function clearClaudeCaches() {
   symlinksCreated.clear();
   clearConfigCache(); // Clear ClaudeConfigLoader cache
-  console.log("[claude] All caches cleared");
+  claudeLog.info("All caches cleared");
 }
 
 export const claudeRouter = router({
@@ -316,7 +370,7 @@ export const claudeRouter = router({
         // Shared state for cleanup closure to access
         let currentSessionId: string | null = null;
         let resolvedProjectId = "";
-        console.log(
+        log.info(
           `[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`,
         );
 
@@ -350,8 +404,8 @@ export const claudeRouter = router({
             error instanceof Error ? error.message : String(error);
           const errorStack = error instanceof Error ? error.stack : undefined;
 
-          console.error(`[claude] ${context}:`, errorMessage);
-          if (errorStack) console.error("[claude] Stack:", errorStack);
+          claudeLog.error(`${context}:`, errorMessage);
+          if (errorStack) claudeLog.error("Stack:", errorStack);
 
           // Send detailed error to frontend (safely)
           safeEmit({
@@ -376,21 +430,23 @@ export const claudeRouter = router({
 
             const db = getDatabase();
 
-            // 1. Get existing messages from DB
-            const existing = db
-              .select()
-              .from(subChats)
-              .where(eq(subChats.id, input.subChatId))
-              .get();
-            const existingMessages = JSON.parse(existing?.messages || "[]");
+            // 1. Get existing messages from DB (异步化避免阻塞主进程)
+            const existing = await dbGetAsync(
+              db
+                .select()
+                .from(subChats)
+                .where(eq(subChats.id, input.subChatId))
+            );
+            const existingMessages = await jsonParseAsync(existing?.messages || "[]");
             const existingSessionId = existing?.sessionId || null;
 
             // Get projectId from chat record (needed for usage tracking)
-            const chatRecord = db
-              .select({ projectId: chats.projectId })
-              .from(chats)
-              .where(eq(chats.id, input.chatId))
-              .get();
+            const chatRecord = await dbGetAsync(
+              db
+                .select({ projectId: chats.projectId })
+                .from(chats)
+                .where(eq(chats.id, input.chatId))
+            );
             const projectId = chatRecord?.projectId;
             resolvedProjectId = projectId || "";
 
@@ -468,21 +524,24 @@ export const claudeRouter = router({
               };
               messagesToSave = [...existingMessages, userMessage];
 
-              db.update(subChats)
-                .set({
-                  messages: JSON.stringify(messagesToSave),
-                  streamId,
-                  updatedAt: new Date(),
-                })
-                .where(eq(subChats.id, input.subChatId))
-                .run();
+              // 异步化数据库写入和 JSON 序列化
+              const messagesJson = await jsonStringifyAsync(messagesToSave);
+              await dbRunAsync(
+                db.update(subChats)
+                  .set({
+                    messages: messagesJson,
+                    streamId,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(subChats.id, input.subChatId))
+              );
             }
 
             // === PERF TIMING: Track each phase to diagnose first-message delay ===
             const perfStart = Date.now();
             const perf = (label: string) => {
               const elapsed = Date.now() - perfStart;
-              console.log(`[PERF] +${elapsed}ms  ${label}`);
+              perfLog.info(`+${elapsed}ms  ${label}`);
             };
             perf("Start message pipeline");
 
@@ -515,7 +574,7 @@ export const claudeRouter = router({
                 promptNumber,
               })
               .catch((err) =>
-                console.error("[Hook] chat:userPrompt error:", err),
+                hookLog.error("chat:userPrompt error:", err),
               );
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
@@ -539,12 +598,12 @@ export const claudeRouter = router({
                   token: litellmApiKey || "litellm",
                   baseUrl: litellmBaseUrl.replace(/\/+$/, ""),
                 };
-                console.log(
+                log.info(
                   `[SD] Using LiteLLM mode: model=${input.customConfig.model} baseUrl=${litellmBaseUrl}`,
                 );
               } else {
                 // LiteLLM not configured, fall back to no custom config
-                console.log(
+                log.info(
                   `[SD] LiteLLM mode requested but MAIN_VITE_LITELLM_BASE_URL not configured`,
                 );
                 resolvedCustomConfig = undefined;
@@ -611,7 +670,7 @@ export const claudeRouter = router({
 
             // Log if agents were mentioned
             if (agentMentions.length > 0) {
-              console.log(
+              log.info(
                 `[claude] Registering agents via SDK:`,
                 Object.keys(agentsOption),
               );
@@ -619,7 +678,7 @@ export const claudeRouter = router({
 
             // Log if skills were mentioned
             if (skillMentions.length > 0) {
-              console.log(`[claude] Skills mentioned:`, skillMentions);
+              claudeLog.info(`Skills mentioned:`, skillMentions);
             }
 
             // Build final prompt with skill instructions if needed
@@ -751,13 +810,13 @@ export const claudeRouter = router({
                   mcpServersForSdk = loadedConfig.mcpServers;
                 }
               } catch (configErr) {
-                console.error(
+                log.error(
                   `[claude] Failed to load MCP config via ClaudeConfigLoader:`,
                   configErr,
                 );
               }
             } catch (mkdirErr) {
-              console.error(
+              log.error(
                 `[claude] Failed to setup isolated config dir:`,
                 mkdirErr,
               );
@@ -771,7 +830,7 @@ export const claudeRouter = router({
             );
 
             if (hasExistingApiConfig) {
-              console.log(
+              log.info(
                 `[claude] Using existing CLI config - API_KEY: ${claudeEnv.ANTHROPIC_API_KEY ? "set" : "not set"}, BASE_URL: ${claudeEnv.ANTHROPIC_BASE_URL || "default"}`,
               );
             }
@@ -807,35 +866,43 @@ export const claudeRouter = router({
 
             // If session file doesn't exist (e.g. CWD changed after migrate),
             // skip resume to avoid SDK crash with exit code 1
-            if (resumeSessionId && expectedSessionPath && !existsSync(expectedSessionPath)) {
-              console.log(
-                `[claude] Session file not found at ${expectedSessionPath}, skipping resume`,
-              );
-              resumeSessionId = undefined;
-              // Also clear stale sessionId from DB
-              db.update(subChats)
-                .set({ sessionId: null })
-                .where(eq(subChats.id, input.subChatId))
-                .run();
+            if (resumeSessionId && expectedSessionPath) {
+              // 异步检查文件存在性,避免阻塞主进程
+              const sessionExists = await fs.access(expectedSessionPath)
+                .then(() => true)
+                .catch(() => false);
+
+              if (!sessionExists) {
+                log.info(
+                  `[claude] Session file not found at ${expectedSessionPath}, skipping resume`,
+                );
+                resumeSessionId = undefined;
+                // Also clear stale sessionId from DB (异步化)
+                await dbRunAsync(
+                  db.update(subChats)
+                    .set({ sessionId: null })
+                    .where(eq(subChats.id, input.subChatId))
+                );
+              }
             }
-            console.log(`[claude] ========== SESSION DEBUG ==========`);
-            console.log(`[claude] subChatId: ${input.subChatId}`);
-            console.log(`[claude] cwd: ${input.cwd}`);
-            console.log(
+            claudeLog.info(`========== SESSION DEBUG ==========`);
+            claudeLog.info(`subChatId: ${input.subChatId}`);
+            claudeLog.info(`cwd: ${input.cwd}`);
+            log.info(
               `[claude] sanitized cwd (expected): ${expectedSanitizedCwd}`,
             );
-            console.log(`[claude] CLAUDE_CONFIG_DIR: ${isolatedConfigDir}`);
-            console.log(
+            claudeLog.info(`CLAUDE_CONFIG_DIR: ${isolatedConfigDir}`);
+            log.info(
               `[claude] Expected session path: ${expectedSessionPath}`,
             );
-            console.log(`[claude] Session ID to resume: ${resumeSessionId}`);
-            console.log(
+            claudeLog.info(`Session ID to resume: ${resumeSessionId}`);
+            log.info(
               `[claude] Existing sessionId from DB: ${existingSessionId}`,
             );
-            console.log(`[claude] Resume at UUID: ${resumeAtUuid}`);
-            console.log(`[claude] ========== END SESSION DEBUG ==========`);
+            claudeLog.info(`Resume at UUID: ${resumeAtUuid}`);
+            claudeLog.info(`========== END SESSION DEBUG ==========`);
 
-            console.log(
+            log.info(
               `[SD] Query options - cwd: ${input.cwd}, projectPath: ${input.projectPath || "(not set)"}, mcpServers: ${mcpServersForSdk ? Object.keys(mcpServersForSdk).join(", ") : "(none)"}`,
             );
             if (finalCustomConfig) {
@@ -844,11 +911,11 @@ export const claudeRouter = router({
                 token: `${finalCustomConfig.token.slice(0, 6)}...`,
               };
               if (isUsingOllama) {
-                console.log(
+                log.info(
                   `[Ollama] Using offline mode - Model: ${finalCustomConfig.model}, Base URL: ${finalCustomConfig.baseUrl}`,
                 );
               } else {
-                console.log(
+                log.info(
                   `[claude] Custom config: ${JSON.stringify(redactedConfig)}`,
                 );
               }
@@ -858,7 +925,7 @@ export const claudeRouter = router({
 
             // DEBUG: If using Ollama, test if it's actually responding
             if (isUsingOllama && finalCustomConfig) {
-              console.log("[Ollama Debug] Testing Ollama connectivity...");
+              log.info("[Ollama Debug] Testing Ollama connectivity...");
               try {
                 const testResponse = await fetch(
                   `${finalCustomConfig.baseUrl}/api/tags`,
@@ -869,32 +936,32 @@ export const claudeRouter = router({
                 if (testResponse.ok) {
                   const data = await testResponse.json();
                   const models = data.models?.map((m: any) => m.name) || [];
-                  console.log(
+                  log.info(
                     "[Ollama Debug] Ollama is responding. Available models:",
                     models,
                   );
 
                   if (!models.includes(finalCustomConfig.model)) {
-                    console.error(
+                    log.error(
                       `[Ollama Debug] WARNING: Model "${finalCustomConfig.model}" not found in Ollama!`,
                     );
-                    console.error(`[Ollama Debug] Available models:`, models);
-                    console.error(
+                    log.error(`[Ollama Debug] Available models:`, models);
+                    log.error(
                       `[Ollama Debug] This will likely cause the stream to hang or fail silently.`,
                     );
                   } else {
-                    console.log(
+                    log.info(
                       `[Ollama Debug] ✓ Model "${finalCustomConfig.model}" is available`,
                     );
                   }
                 } else {
-                  console.error(
+                  log.error(
                     "[Ollama Debug] Ollama returned error:",
                     testResponse.status,
                   );
                 }
               } catch (err) {
-                console.error(
+                log.error(
                   "[Ollama Debug] Failed to connect to Ollama:",
                   err,
                 );
@@ -906,7 +973,7 @@ export const claudeRouter = router({
             let mcpServersFiltered: Record<string, any> | undefined;
 
             if (isUsingOllama) {
-              console.log(
+              log.info(
                 "[Ollama] Skipping MCP servers to speed up initialization",
               );
               mcpServersFiltered = undefined;
@@ -948,7 +1015,7 @@ export const claudeRouter = router({
               }
               perf(`chat:collectMcpServers done (${collectedMcps.length} injected)`);
               if (collectedMcps.length > 0) {
-                console.log(
+                log.info(
                   `[MCP] Extensions injected ${collectedMcps.length} server(s):`,
                   collectedMcps.map((e) => e.name).join(", "),
                 );
@@ -957,7 +1024,7 @@ export const claudeRouter = router({
 
             // Log SDK configuration for debugging
             if (isUsingOllama) {
-              console.log("[Ollama Debug] SDK Configuration:", {
+              log.info("[Ollama Debug] SDK Configuration:", {
                 model: resolvedModel,
                 baseUrl: finalEnv.ANTHROPIC_BASE_URL,
                 cwd: input.cwd,
@@ -966,7 +1033,7 @@ export const claudeRouter = router({
                 tokenPreview:
                   finalEnv.ANTHROPIC_AUTH_TOKEN?.slice(0, 10) + "...",
               });
-              console.log("[Ollama Debug] Session settings:", {
+              log.info("[Ollama Debug] Session settings:", {
                 resumeSessionId: resumeSessionId || "none (first message)",
                 mode: resumeSessionId ? "resume" : "continue",
                 note: resumeSessionId
@@ -981,7 +1048,7 @@ export const claudeRouter = router({
               const agentsMdPath = path.join(input.cwd, "AGENTS.md");
               agentsMdContent = await fs.readFile(agentsMdPath, "utf-8");
               if (agentsMdContent.trim()) {
-                console.log(
+                log.info(
                   `[claude] Found AGENTS.md at ${agentsMdPath} (${agentsMdContent.length} chars)`,
                 );
               } else {
@@ -1047,7 +1114,7 @@ export const claudeRouter = router({
               input.cwd,
             );
             perf("buildSystemPrompt done");
-            console.log(
+            log.info(
               "[claude] systemPromptConfig append:",
               systemPromptConfig.append
                 ? systemPromptConfig.append.slice(0, 200)
@@ -1099,7 +1166,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      console.log(
+                      log.info(
                         "[Ollama] Fixed Read tool: file -> file_path",
                       );
                     }
@@ -1111,7 +1178,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      console.log(
+                      log.info(
                         "[Ollama] Fixed Write tool: file -> file_path",
                       );
                     }
@@ -1123,7 +1190,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      console.log(
+                      log.info(
                         "[Ollama] Fixed Edit tool: file -> file_path",
                       );
                     }
@@ -1132,14 +1199,14 @@ export const claudeRouter = router({
                       if (toolInput.directory && !toolInput.path) {
                         toolInput.path = toolInput.directory;
                         delete toolInput.directory;
-                        console.log(
+                        log.info(
                           "[Ollama] Fixed Glob tool: directory -> path",
                         );
                       }
                       if (toolInput.dir && !toolInput.path) {
                         toolInput.path = toolInput.dir;
                         delete toolInput.dir;
-                        console.log("[Ollama] Fixed Glob tool: dir -> path");
+                        ollamaLog.info("Fixed Glob tool: dir -> path");
                       }
                     }
                     // Grep: "query" -> "pattern", "directory" -> "path"
@@ -1147,14 +1214,14 @@ export const claudeRouter = router({
                       if (toolInput.query && !toolInput.pattern) {
                         toolInput.pattern = toolInput.query;
                         delete toolInput.query;
-                        console.log(
+                        log.info(
                           "[Ollama] Fixed Grep tool: query -> pattern",
                         );
                       }
                       if (toolInput.directory && !toolInput.path) {
                         toolInput.path = toolInput.directory;
                         delete toolInput.directory;
-                        console.log(
+                        log.info(
                           "[Ollama] Fixed Grep tool: directory -> path",
                         );
                       }
@@ -1167,7 +1234,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.command = toolInput.cmd;
                       delete toolInput.cmd;
-                      console.log("[Ollama] Fixed Bash tool: cmd -> command");
+                      ollamaLog.info("Fixed Bash tool: cmd -> command");
                     }
                   }
 
@@ -1299,9 +1366,9 @@ export const claudeRouter = router({
                 stderr: (data: string) => {
                   stderrLines.push(data);
                   if (isUsingOllama) {
-                    console.error("[Ollama stderr]", data);
+                    log.error("[Ollama stderr]", data);
                   } else {
-                    console.error("[claude stderr]", data);
+                    log.error("[claude stderr]", data);
                   }
                 },
                 // Use bundled binary
@@ -1392,12 +1459,12 @@ export const claudeRouter = router({
               stream = claudeQuery(queryOptions as Parameters<typeof claudeQuery>[0]);
               perf("claudeQuery (SDK create) done — now waiting for first stream message");
             } catch (queryError) {
-              console.error(
+              log.error(
                 "[CLAUDE] ✗ Failed to create SDK query:",
                 queryError,
               );
               emitError(queryError, "Failed to start Claude query");
-              console.log(
+              log.info(
                 `[SD] M:END sub=${subId} reason=query_error n=${chunkCount}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -1417,13 +1484,13 @@ export const claudeRouter = router({
             let exitPlanModeToolCallId: string | null = null;
 
             if (isUsingOllama) {
-              console.log(`[Ollama] ===== STARTING STREAM ITERATION =====`);
-              console.log(`[Ollama] Model: ${finalCustomConfig?.model}`);
-              console.log(`[Ollama] Base URL: ${finalCustomConfig?.baseUrl}`);
-              console.log(
+              ollamaLog.info(`===== STARTING STREAM ITERATION =====`);
+              ollamaLog.info(`Model: ${finalCustomConfig?.model}`);
+              ollamaLog.info(`Base URL: ${finalCustomConfig?.baseUrl}`);
+              log.info(
                 `[Ollama] Prompt: "${typeof input.prompt === "string" ? input.prompt.slice(0, 100) : "N/A"}..."`,
               );
-              console.log(`[Ollama] CWD: ${input.cwd}`);
+              ollamaLog.info(`CWD: ${input.cwd}`);
             }
 
             try {
@@ -1432,7 +1499,7 @@ export const claudeRouter = router({
                 // to get token usage data. Only break immediately if it's not plan completion.
                 if (abortController.signal.aborted && !planCompleted) {
                   if (isUsingOllama)
-                    console.log(`[Ollama] Stream aborted by user`);
+                    ollamaLog.info(`Stream aborted by user`);
                   break;
                 }
 
@@ -1441,25 +1508,25 @@ export const claudeRouter = router({
                 // Extra logging for Ollama to diagnose issues
                 if (isUsingOllama) {
                   const sdkMsgPreview = msg as SdkStreamMessage;
-                  console.log(`[Ollama] ===== MESSAGE #${messageCount} =====`);
-                  console.log(`[Ollama] Type: ${sdkMsgPreview.type}`);
-                  console.log(
+                  ollamaLog.info(`===== MESSAGE #${messageCount} =====`);
+                  ollamaLog.info(`Type: ${sdkMsgPreview.type}`);
+                  log.info(
                     `[Ollama] Subtype: ${sdkMsgPreview.subtype || "none"}`,
                   );
                   if (sdkMsgPreview.event) {
-                    console.log(`[Ollama] Event: ${sdkMsgPreview.event.type}`, {
+                    ollamaLog.info(`Event: ${sdkMsgPreview.event.type}`, {
                       delta_type: sdkMsgPreview.event.delta?.type,
                       content_block_type:
                         sdkMsgPreview.event.content_block?.type,
                     });
                   }
                   if (sdkMsgPreview.message?.content) {
-                    console.log(
+                    log.info(
                       `[Ollama] Message content blocks:`,
                       sdkMsgPreview.message.content.length,
                     );
                     sdkMsgPreview.message.content.forEach((block, idx) => {
-                      console.log(
+                      log.info(
                         `[Ollama]   Block ${idx}: type=${block.type}, text_length=${block.text?.length || 0}`,
                       );
                     });
@@ -1472,12 +1539,12 @@ export const claudeRouter = router({
                   const timeToFirstMessage = Date.now() - streamIterationStart;
                   perf(`FIRST STREAM MESSAGE received (stream wait: ${timeToFirstMessage}ms, total: ${Date.now() - perfStart}ms)`);
                   if (isUsingOllama) {
-                    console.log(
+                    log.info(
                       `[Ollama] Time to first message: ${timeToFirstMessage}ms`,
                     );
                   }
                   if (timeToFirstMessage > 5000) {
-                    console.warn(
+                    log.warn(
                       `[claude] SDK initialization took ${(timeToFirstMessage / 1000).toFixed(1)}s (MCP servers loading?)`,
                     );
                   }
@@ -1500,42 +1567,42 @@ export const claudeRouter = router({
                     messageText || errorValue || "Unknown SDK error";
 
                   // Detailed SDK error logging in main process
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] ========================================`,
                   );
-                  console.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`);
-                  console.error(
+                  log.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`);
+                  log.error(
                     `[CLAUDE SDK ERROR] Message type: ${sdkMsg.type}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] SubChat ID: ${input.subChatId}`,
                   );
-                  console.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`);
-                  console.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`);
-                  console.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`);
-                  console.error(
+                  log.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`);
+                  log.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`);
+                  log.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`);
+                  log.error(
                     `[CLAUDE SDK ERROR] Session ID: ${sdkMsg.session_id || "none"}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] Has custom config: ${!!finalCustomConfig}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] Is using Ollama: ${isUsingOllama}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] Model: ${resolvedModel || "default"}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] Has OAuth token: ${!!claudeCodeToken}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] MCP servers: ${mcpServersFiltered ? Object.keys(mcpServersFiltered).join(", ") : "none"}`,
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] Full message:`,
                     JSON.stringify(sdkMsg, null, 2),
                   );
-                  console.error(
+                  log.error(
                     `[CLAUDE SDK ERROR] ========================================`,
                   );
 
@@ -1609,10 +1676,10 @@ export const claudeRouter = router({
                     },
                   } as UIMessageChunk);
 
-                  console.log(
+                  log.info(
                     `[SD] M:END sub=${subId} reason=sdk_error cat=${errorCategory} n=${chunkCount}`,
                   );
-                  console.error(`[SD] SDK Error details:`, {
+                  sdLog.error(`SDK Error details:`, {
                     errorCategory,
                     errorContext: errorContext.slice(0, 200), // Truncate for log readability
                     rawErrorCode,
@@ -1650,7 +1717,7 @@ export const claudeRouter = router({
                 // Debug: Log system messages from SDK
                 if (sdkMsg.type === "system") {
                   // Full log to see all fields including MCP errors
-                  console.log(
+                  log.info(
                     `[SD] SYSTEM message: subtype=${sdkMsg.subtype}`,
                     JSON.stringify(
                       {
@@ -1686,7 +1753,7 @@ export const claudeRouter = router({
                   // Use safeEmit to prevent throws when observer is closed
                   if (!safeEmit(chunk)) {
                     // Observer closed (user clicked Stop), break out of loop
-                    console.log(
+                    log.info(
                       `[SD] M:EMIT_CLOSED sub=${subId} type=${chunk.type} n=${chunkCount}`,
                     );
                     break;
@@ -1705,7 +1772,7 @@ export const claudeRouter = router({
                       break;
                     case "tool-input-available":
                       // DEBUG: Log tool calls
-                      console.log(
+                      log.info(
                         `[SD] M:TOOL_CALL sub=${subId} toolName="${chunk.toolName}" mode=${input.mode} callId=${chunk.toolCallId}`,
                       );
 
@@ -1714,7 +1781,7 @@ export const claudeRouter = router({
                         input.mode === "plan" &&
                         chunk.toolName === "ExitPlanMode"
                       ) {
-                        console.log(
+                        log.info(
                           `[SD] M:PLAN_TOOL_DETECTED sub=${subId} callId=${chunk.toolCallId}`,
                         );
                         exitPlanModeToolCallId = chunk.toolCallId;
@@ -1750,7 +1817,7 @@ export const claudeRouter = router({
                           if (filePath && shouldTrackAsArtifact(filePath)) {
                             // Extract contexts from all tool calls in this message
                             const contexts = extractArtifactContexts(parts);
-                            console.log(
+                            log.info(
                               `[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`,
                             );
                             const windows = BrowserWindow.getAllWindows();
@@ -1778,7 +1845,7 @@ export const claudeRouter = router({
                                     : "create",
                               })
                               .catch((err) =>
-                                console.error(
+                                log.error(
                                   "[Hook] chat:fileChanged error:",
                                   err,
                                 ),
@@ -1801,7 +1868,7 @@ export const claudeRouter = router({
                           );
                           if (commitMatch) {
                             const [, branchInfo, commitHash] = commitMatch;
-                            console.log(
+                            log.info(
                               `[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`,
                             );
                             const windows = BrowserWindow.getAllWindows();
@@ -1825,7 +1892,7 @@ export const claudeRouter = router({
                                 commitMessage: commitMsg,
                               })
                               .catch((err) =>
-                                console.error(
+                                log.error(
                                   "[Hook] chat:gitCommit error:",
                                   err,
                                 ),
@@ -1840,7 +1907,7 @@ export const claudeRouter = router({
                           exitPlanModeToolCallId &&
                           chunk.toolCallId === exitPlanModeToolCallId
                         ) {
-                          console.log(
+                          log.info(
                             `[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, aborting to get result with usage data`,
                           );
                           planCompleted = true;
@@ -1867,7 +1934,7 @@ export const claudeRouter = router({
                               promptNumber,
                             })
                             .catch((err) => {
-                              console.error(
+                              log.error(
                                 "[Hook] chat:toolOutput error:",
                                 err,
                               );
@@ -1901,13 +1968,13 @@ export const claudeRouter = router({
                 }
                 // Break from stream loop if observer closed (user clicked Stop)
                 if (!isObservableActive) {
-                  console.log(`[SD] M:OBSERVER_CLOSED_STREAM sub=${subId}`);
+                  sdLog.info(`M:OBSERVER_CLOSED_STREAM sub=${subId}`);
                   break;
                 }
                 // Break from stream loop if plan completed AND we've received the result message
                 // The result message contains token usage data which we need to record
                 if (planCompleted && sdkMsg.type === "result") {
-                  console.log(`[SD] M:PLAN_BREAK_STREAM sub=${subId} - Got result message after ExitPlanMode`);
+                  sdLog.info(`M:PLAN_BREAK_STREAM sub=${subId} - Got result message after ExitPlanMode`);
                   break;
                 }
               }
@@ -1915,44 +1982,44 @@ export const claudeRouter = router({
               // Warn if stream yielded no messages (offline mode issue)
               const streamDuration = Date.now() - streamIterationStart;
               if (isUsingOllama) {
-                console.log(`[Ollama] ===== STREAM COMPLETED =====`);
-                console.log(`[Ollama] Total messages: ${messageCount}`);
-                console.log(`[Ollama] Duration: ${streamDuration}ms`);
-                console.log(`[Ollama] Chunks emitted: ${chunkCount}`);
+                ollamaLog.info(`===== STREAM COMPLETED =====`);
+                ollamaLog.info(`Total messages: ${messageCount}`);
+                ollamaLog.info(`Duration: ${streamDuration}ms`);
+                ollamaLog.info(`Chunks emitted: ${chunkCount}`);
               }
 
               if (messageCount === 0) {
-                console.error(
+                log.error(
                   `[claude] Stream yielded no messages - model not responding`,
                 );
                 if (isUsingOllama) {
-                  console.error(`[Ollama] ===== DIAGNOSIS =====`);
-                  console.error(
+                  ollamaLog.error(`===== DIAGNOSIS =====`);
+                  log.error(
                     `[Ollama] Problem: Stream completed but NO messages received from SDK`,
                   );
-                  console.error(`[Ollama] This usually means:`);
-                  console.error(
+                  ollamaLog.error(`This usually means:`);
+                  log.error(
                     `[Ollama]   1. Ollama doesn't support Anthropic Messages API format (/v1/messages)`,
                   );
-                  console.error(
+                  log.error(
                     `[Ollama]   2. Model failed to start generating (check Ollama logs: ollama logs)`,
                   );
-                  console.error(
+                  log.error(
                     `[Ollama]   3. Network issue between Claude SDK and Ollama`,
                   );
-                  console.error(`[Ollama] ===== NEXT STEPS =====`);
-                  console.error(
+                  ollamaLog.error(`===== NEXT STEPS =====`);
+                  log.error(
                     `[Ollama]   1. Check if model works: curl http://localhost:11434/api/generate -d '{"model":"${finalCustomConfig?.model}","prompt":"test"}'`,
                   );
-                  console.error(
+                  log.error(
                     `[Ollama]   2. Check Ollama version supports Messages API`,
                   );
-                  console.error(
+                  log.error(
                     `[Ollama]   3. Try using a proxy that converts Anthropic API → Ollama format`,
                   );
                 }
               } else if (messageCount === 1 && isUsingOllama) {
-                console.warn(
+                log.warn(
                   `[Ollama] Only received 1 message (likely just init). No actual content generated.`,
                 );
               }
@@ -1962,14 +2029,14 @@ export const claudeRouter = router({
               const stderrOutput = stderrLines.join("\n");
 
               if (isUsingOllama) {
-                console.error(`[Ollama] ===== STREAM ERROR =====`);
-                console.error(`[Ollama] Error message: ${err.message}`);
-                console.error(`[Ollama] Error stack:`, err.stack);
-                console.error(
+                ollamaLog.error(`===== STREAM ERROR =====`);
+                ollamaLog.error(`Error message: ${err.message}`);
+                ollamaLog.error(`Error stack:`, err.stack);
+                log.error(
                   `[Ollama] Messages received before error: ${messageCount}`,
                 );
                 if (stderrOutput) {
-                  console.error(`[Ollama] Claude binary stderr:`, stderrOutput);
+                  ollamaLog.error(`Claude binary stderr:`, stderrOutput);
                 }
               }
 
@@ -1984,13 +2051,15 @@ export const claudeRouter = router({
 
               if (isSessionNotFound) {
                 // Clear the invalid session ID from database so next attempt starts fresh
-                console.log(
+                log.info(
                   `[claude] Session not found - clearing invalid sessionId from database`,
                 );
-                db.update(subChats)
-                  .set({ sessionId: null })
-                  .where(eq(subChats.id, input.subChatId))
-                  .run();
+                // 异步化数据库写入
+                await dbRunAsync(
+                  db.update(subChats)
+                    .set({ sessionId: null })
+                    .where(eq(subChats.id, input.subChatId))
+                );
 
                 errorContext = "Previous session expired. Please try again.";
                 errorCategory = "SESSION_EXPIRED";
@@ -2068,7 +2137,7 @@ export const claudeRouter = router({
               }
 
               // ALWAYS save accumulated parts before returning (even on abort/error)
-              console.log(
+              log.info(
                 `[SD] M:CATCH_SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
               );
               if (currentText.trim()) {
@@ -2083,25 +2152,30 @@ export const claudeRouter = router({
                   createdAt: new Date().toISOString(),
                 };
                 const finalMessages = [...messagesToSave, assistantMessage];
-                const finalMessagesJson = JSON.stringify(finalMessages);
+                // 异步化 JSON 序列化,避免大消息阻塞主进程
+                const finalMessagesJson = await jsonStringifyAsync(finalMessages);
                 const stats = computePreviewStatsFromMessages(
                   finalMessagesJson,
                   input.mode,
                 );
-                db.update(subChats)
-                  .set({
-                    messages: finalMessagesJson,
-                    statsJson: JSON.stringify(stats),
-                    sessionId: metadata.sessionId,
-                    streamId: null,
-                    updatedAt: new Date(),
-                  })
-                  .where(eq(subChats.id, input.subChatId))
-                  .run();
-                db.update(chats)
-                  .set({ updatedAt: new Date() })
-                  .where(eq(chats.id, input.chatId))
-                  .run();
+                const statsJson = await jsonStringifyAsync(stats);
+                // 异步化数据库写入
+                await dbRunAsync(
+                  db.update(subChats)
+                    .set({
+                      messages: finalMessagesJson,
+                      statsJson,
+                      sessionId: metadata.sessionId,
+                      streamId: null,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(subChats.id, input.subChatId))
+                );
+                await dbRunAsync(
+                  db.update(chats)
+                    .set({ updatedAt: new Date() })
+                    .where(eq(chats.id, input.chatId))
+                );
 
                 // Create snapshot stash for rollback support (on error)
                 if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
@@ -2123,11 +2197,11 @@ export const claudeRouter = router({
                     durationMs: metadata.durationMs,
                   })
                   .catch((err) => {
-                    console.error("[Hook] chat:streamError error:", err);
+                    hookLog.error("chat:streamError error:", err);
                   });
               }
 
-              console.log(
+              log.info(
                 `[SD] M:END sub=${subId} reason=stream_error cat=${errorCategory} n=${chunkCount} last=${lastChunkType}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -2141,7 +2215,7 @@ export const claudeRouter = router({
                 new Error("No response received from Claude"),
                 "Empty response",
               );
-              console.log(
+              log.info(
                 `[SD] M:END sub=${subId} reason=no_response n=${chunkCount}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -2151,7 +2225,7 @@ export const claudeRouter = router({
 
             // 7. Save final messages to DB
             // ALWAYS save accumulated parts, even on abort (so user sees partial responses after reload)
-            console.log(
+            log.info(
               `[SD] M:SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
             );
 
@@ -2172,7 +2246,7 @@ export const claudeRouter = router({
               };
 
               // Log for debugging rollback issues
-              console.log("[SD] Saving assistant message:", {
+              sdLog.info("Saving assistant message:", {
                 subChatId: input.subChatId,
                 messageId: assistantMessage.id,
                 hasSdkMessageUuid: !!metadata.sdkMessageUuid,
@@ -2181,43 +2255,49 @@ export const claudeRouter = router({
               });
 
               const finalMessages = [...messagesToSave, assistantMessage];
-              const finalMessagesJson = JSON.stringify(finalMessages);
+              // 异步化 JSON 序列化,避免大消息阻塞主进程
+              const finalMessagesJson = await jsonStringifyAsync(finalMessages);
               const stats = computePreviewStatsFromMessages(
                 finalMessagesJson,
                 input.mode,
               );
+              const statsJson = await jsonStringifyAsync(stats);
 
-              db.update(subChats)
-                .set({
-                  messages: finalMessagesJson,
-                  statsJson: JSON.stringify(stats),
-                  sessionId: savedSessionId,
-                  streamId: null,
-                  updatedAt: new Date(),
-                })
-                .where(eq(subChats.id, input.subChatId))
-                .run();
+              // 异步化数据库写入
+              await dbRunAsync(
+                db.update(subChats)
+                  .set({
+                    messages: finalMessagesJson,
+                    statsJson,
+                    sessionId: savedSessionId,
+                    streamId: null,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(subChats.id, input.subChatId))
+              );
             } else {
               // No assistant response - just clear streamId
-              db.update(subChats)
-                .set({
-                  sessionId: savedSessionId,
-                  streamId: null,
-                  updatedAt: new Date(),
-                })
-                .where(eq(subChats.id, input.subChatId))
-                .run();
+              await dbRunAsync(
+                db.update(subChats)
+                  .set({
+                    sessionId: savedSessionId,
+                    streamId: null,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(subChats.id, input.subChatId))
+              );
             }
 
             // Update parent chat timestamp
-            db.update(chats)
-              .set({ updatedAt: new Date() })
-              .where(eq(chats.id, input.chatId))
-              .run();
+            await dbRunAsync(
+              db.update(chats)
+                .set({ updatedAt: new Date() })
+                .where(eq(chats.id, input.chatId))
+            );
 
             // Record usage statistics (if we have token data and projectId)
             // Prefer per-model breakdown from SDK for accurate model attribution
-            console.log(
+            log.info(
               `[Usage] metadata at finish:`,
               JSON.stringify({
                 hasModelUsage: !!metadata.modelUsage,
@@ -2244,7 +2324,7 @@ export const claudeRouter = router({
                 durationMs: metadata.durationMs,
               })
               .catch((err) => {
-                console.error("[Hook] chat:streamComplete error:", err);
+                hookLog.error("chat:streamComplete error:", err);
               });
 
             // Create snapshot stash for rollback support
@@ -2264,7 +2344,7 @@ export const claudeRouter = router({
                   promptNumber,
                 })
                 .catch((err) => {
-                  console.error("[Hook] chat:assistantMessage error:", err);
+                  hookLog.error("chat:assistantMessage error:", err);
                 });
             }
 
@@ -2276,17 +2356,17 @@ export const claudeRouter = router({
                 projectId: projectId || "",
               })
               .catch((err) => {
-                console.error("[Hook] chat:sessionEnd error:", err);
+                hookLog.error("chat:sessionEnd error:", err);
               });
 
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
-            console.log(
+            log.info(
               `[SD] M:END sub=${subId} reason=ok n=${chunkCount} last=${lastChunkType} t=${duration}s`,
             );
             safeComplete();
           } catch (error) {
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
-            console.log(
+            log.info(
               `[SD] M:END sub=${subId} reason=unexpected_error n=${chunkCount} t=${duration}s`,
             );
             emitError(error, "Unexpected error");
@@ -2299,7 +2379,7 @@ export const claudeRouter = router({
 
         // Cleanup on unsubscribe
         return () => {
-          console.log(
+          log.info(
             `[SD] M:CLEANUP sub=${subId} sessionId=${currentSessionId || "none"}`,
           );
           isObservableActive = false; // Prevent emit after unsubscribe
@@ -2314,7 +2394,7 @@ export const claudeRouter = router({
               projectId: resolvedProjectId,
             })
             .catch((err) =>
-              console.error("[Hook] chat:cleanup error:", err),
+              hookLog.error("chat:cleanup error:", err),
             );
 
           // Clear streamId since we're no longer streaming.
@@ -2322,10 +2402,12 @@ export const claudeRouter = router({
           // handles it (saves on normal completion, clears on abort). This avoids
           // a redundant DB write that the cancel mutation would then overwrite.
           const db = getDatabase();
-          db.update(subChats)
-            .set({ streamId: null })
-            .where(eq(subChats.id, input.subChatId))
-            .run();
+          // 异步化数据库写入 (fire-and-forget)
+          dbRunAsync(
+            db.update(subChats)
+              .set({ streamId: null })
+              .where(eq(subChats.id, input.subChatId))
+          ).catch((err) => dbLog.error("Failed to clear streamId:", err));
         };
       });
     }),
@@ -2387,7 +2469,7 @@ export const claudeRouter = router({
 
         return { mcpServers, projectPath: input.projectPath };
       } catch (error) {
-        console.error("[getMcpConfig] Error reading config:", error);
+        getMcpConfigLog.error("Error reading config:", error);
         return {
           mcpServers: [],
           projectPath: input.projectPath,
@@ -2416,7 +2498,7 @@ export const claudeRouter = router({
     )
     .mutation(async ({ input }) => {
       const { serverName, groupName } = input;
-      console.log(
+      log.info(
         `[MCP] Retrying connection to ${serverName} in group ${groupName}`,
       );
 
@@ -2485,7 +2567,7 @@ export const claudeRouter = router({
 
         if (tools.length > 0) {
           workingMcpServers.set(cacheKey, true);
-          console.log(
+          log.info(
             `[MCP] Successfully connected to ${serverName}: ${tools.length} tools`,
           );
           return {
@@ -2510,7 +2592,7 @@ export const claudeRouter = router({
         }
 
         const status = needsAuth ? "needs-auth" : "failed";
-        console.log(
+        log.info(
           `[MCP] Failed to connect to ${serverName}: status=${status}`,
         );
 
@@ -2522,7 +2604,7 @@ export const claudeRouter = router({
           error: needsAuth ? "Authentication required" : "Connection failed",
         };
       } catch (error) {
-        console.error(`[MCP] Error retrying ${serverName}:`, error);
+        mcpLog.error(`Error retrying ${serverName}:`, error);
         return {
           success: false,
           status: "failed" as const,
@@ -2785,11 +2867,11 @@ export const claudeRouter = router({
         if (input.disabled) {
           // 禁用时标记为不可用
           workingMcpServers.set(cacheKey, false)
-          console.log(`[MCP] Disabled server ${input.name}, updated cache`)
+          mcpLog.info(`Disabled server ${input.name}, updated cache`)
         } else {
           // 启用时移除缓存(下次 query 会重新检测)
           workingMcpServers.delete(cacheKey)
-          console.log(`[MCP] Enabled server ${input.name}, cache will refresh on next query`)
+          mcpLog.info(`Enabled server ${input.name}, cache will refresh on next query`)
         }
       }
 
@@ -2955,7 +3037,7 @@ export const claudeRouter = router({
           })
         })
         .catch((error) => {
-          console.error("[MCP Status] Failed to load warmup manager:", error)
+          log.error("[MCP Status] Failed to load warmup manager:", error)
         })
     })
   }),
@@ -2974,7 +3056,7 @@ export const claudeRouter = router({
         ),
       }
     } catch (error) {
-      console.error("[MCP Warmup State] Error:", error)
+      log.error("[MCP Warmup State] Error:", error)
       return {
         state: "idle" as const,
         servers: [],
