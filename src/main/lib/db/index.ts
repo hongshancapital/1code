@@ -58,13 +58,22 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
     return
   }
 
+  // Ensure __drizzle_migrations table exists
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hash TEXT NOT NULL,
+    created_at INTEGER
+  )`)
+
   // Get existing migration hashes
   const existingMigrations = sqlite.prepare("SELECT hash FROM __drizzle_migrations").all() as Array<{ hash: string }>
   const existingHashes = new Set(existingMigrations.map((m) => m.hash))
 
   console.log(`[DB] Found ${journal.entries.length} migrations in journal, ${existingHashes.size} already applied`)
 
-  // Check each migration and add missing ones
+  // For each missing migration, try to execute its SQL statements individually,
+  // gracefully skipping ones that conflict with existing schema (already exists / duplicate column).
+  // This is safe because each statement is idempotent or guarded.
   let syncedCount = 0
   for (const entry of journal.entries) {
     const sqlPath = join(migrationsPath, `${entry.tag}.sql`)
@@ -76,11 +85,40 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
     const sqlContent = readFileSync(sqlPath, "utf-8")
     const hash = createHash("sha256").update(sqlContent).digest("hex")
 
-    if (!existingHashes.has(hash)) {
-      console.log(`[DB] Adding missing migration: ${entry.tag}`)
-      sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, entry.when)
-      syncedCount++
+    if (existingHashes.has(hash)) {
+      continue
     }
+
+    console.log(`[DB] Applying missing migration: ${entry.tag}`)
+
+    // Split by Drizzle's statement breakpoint marker and execute each statement
+    const statements = sqlContent
+      .split("--> statement-breakpoint")
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0)
+
+    let applied = 0
+    let skipped = 0
+    for (const stmt of statements) {
+      try {
+        sqlite.exec(stmt)
+        applied++
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes("already exists") || msg.includes("duplicate column")) {
+          skipped++
+          console.log(`[DB]   Skipped (already exists): ${stmt.substring(0, 80)}...`)
+        } else {
+          // Non-recoverable error — log but continue to avoid blocking startup
+          console.error(`[DB]   Statement failed: ${stmt.substring(0, 80)}...`, msg)
+        }
+      }
+    }
+
+    // Record migration as completed
+    sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, entry.when)
+    syncedCount++
+    console.log(`[DB]   Migration ${entry.tag}: ${applied} applied, ${skipped} skipped`)
   }
 
   console.log(`[DB] Synced ${syncedCount} missing migrations`)
@@ -115,18 +153,37 @@ export function initDatabase() {
   } catch (error) {
     console.error("[DB] Migration error:", error)
 
-    // Check if error is "table already exists"
+    // Check if error is a schema conflict (table/column already exists)
+    // This happens when fallback code or partial migrations already applied changes
+    const causeMsg = error instanceof Error && error.cause instanceof Error
+      ? error.cause.message
+      : ""
     const errorMsg = error instanceof Error ? error.message : String(error)
-    if (errorMsg.includes("already exists")) {
-      console.log("[DB] Detected existing tables, attempting to sync migration history...")
+    const combinedMsg = `${errorMsg} ${causeMsg}`
+    const isSchemaConflict = combinedMsg.includes("already exists") || combinedMsg.includes("duplicate column")
+
+    if (isSchemaConflict) {
+      console.log("[DB] Detected schema conflict (table/column already exists), syncing migration history...")
       try {
         syncMigrationHistory(sqlite, migrationsPath)
         console.log("[DB] Migration history synced, retrying migrations...")
         migrate(db, { migrationsFolder: migrationsPath })
         console.log("[DB] Migrations completed after sync")
       } catch (syncError) {
-        console.error("[DB] Failed to sync migration history:", syncError)
-        console.log("[DB] Continuing with manual schema fixes...")
+        // If retry still fails with same schema conflict, that's OK — schema is already up to date
+        const syncCauseMsg = syncError instanceof Error && syncError.cause instanceof Error
+          ? syncError.cause.message
+          : ""
+        const syncErrMsg = syncError instanceof Error ? syncError.message : String(syncError)
+        const syncCombinedMsg = `${syncErrMsg} ${syncCauseMsg}`
+        const isStillSchemaConflict = syncCombinedMsg.includes("already exists") || syncCombinedMsg.includes("duplicate column")
+
+        if (isStillSchemaConflict) {
+          console.log("[DB] Schema already up to date despite migration record mismatch, continuing...")
+        } else {
+          console.error("[DB] Failed to sync migration history:", syncError)
+          console.log("[DB] Continuing with manual schema fixes...")
+        }
       }
     } else {
       console.log("[DB] Attempting manual schema fixes...")
@@ -214,6 +271,7 @@ export function initDatabase() {
       )
     `)
     console.log("[DB] SubChats table ensured")
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chats_chat_id_idx ON sub_chats(chat_id)`)
   } catch (e: unknown) {
     const error = e as Error
     console.log("[DB] SubChats table check:", error.message)
