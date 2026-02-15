@@ -944,131 +944,133 @@ function DeviceInfoSection() {
         </Button>
       </div>
 
-      {/* System Information */}
-      <div className="flex flex-col gap-2">
-        <h5 className="text-xs font-medium text-muted-foreground">
-          {t('debug.deviceInfo.system')}
-        </h5>
-        <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow
-            label={t('debug.deviceInfo.platform')}
-            value={deviceInfo?.platformName}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.osVersion')}
-            value={deviceInfo?.osVersion}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.osRelease')}
-            value={deviceInfo?.osRelease}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.arch')}
-            value={deviceInfo?.arch}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Machine Information */}
-      <div className="flex flex-col gap-2">
-        <h5 className="text-xs font-medium text-muted-foreground">
-          {t('debug.deviceInfo.machine')}
-        </h5>
-        <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow
-            label={t('debug.deviceInfo.hostname')}
-            value={deviceInfo?.hostname}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.username')}
-            value={deviceInfo?.username}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Hardware Information */}
-      <div className="flex flex-col gap-2">
-        <h5 className="text-xs font-medium text-muted-foreground">
-          {t('debug.deviceInfo.hardware')}
-        </h5>
-        <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow
-            label={t('debug.deviceInfo.cpuModel')}
-            value={deviceInfo?.cpuModel}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.cpuCores')}
-            value={deviceInfo ? `${deviceInfo.cpuCores} ${t('debug.deviceInfo.cores')}` : undefined}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.totalMemory')}
-            value={deviceInfo?.totalMemoryGB}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Network Information */}
-      <div className="flex flex-col gap-2">
-        <h5 className="text-xs font-medium text-muted-foreground">
-          {t('debug.deviceInfo.network')}
-        </h5>
-        <div className="rounded-lg border bg-muted/30 divide-y">
-          <InfoRow
-            label={t('debug.deviceInfo.macAddress')}
-            value={deviceInfo?.macAddress || t('debug.deviceInfo.notAvailable')}
-            isLoading={isLoading}
-          />
-          <InfoRow
-            label={t('debug.deviceInfo.networkInterfaces')}
-            value={deviceInfo?.networkInterfaces?.join(', ')}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
-
-      {/* Device Identifier */}
-      <div className="flex flex-col gap-2">
-        <h5 className="text-xs font-medium text-muted-foreground">
-          {t('debug.deviceInfo.identifier')}
-        </h5>
-        <div className="rounded-lg border bg-muted/30 divide-y">
-          <div className="flex items-center justify-between p-3">
-            <span className="text-sm text-muted-foreground">
-              {t('debug.deviceInfo.deviceId')}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-mono text-xs">
-                {isLoading ? "..." : deviceInfo?.deviceId?.slice(0, 16) + "..."}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyDeviceId}
-                disabled={isLoading || !deviceInfo}
-                className="h-6 w-6 p-0"
-              >
-                {copied ? (
-                  <Check className="h-3 w-3 text-green-500" />
-                ) : (
-                  <Copy className="h-3 w-3" />
-                )}
-              </Button>
-            </div>
+      <div className="rounded-lg border bg-muted/30">
+        {/* System Information */}
+        <div className="flex flex-col">
+          <h5 className="text-xs font-medium text-muted-foreground px-3 pt-3 pb-2">
+            {t('debug.deviceInfo.system')}
+          </h5>
+          <div className="divide-y">
+            <InfoRow
+              label={t('debug.deviceInfo.platform')}
+              value={deviceInfo?.platformName}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.osVersion')}
+              value={deviceInfo?.osVersion}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.osRelease')}
+              value={deviceInfo?.osRelease}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.arch')}
+              value={deviceInfo?.arch}
+              isLoading={isLoading}
+            />
           </div>
-          <InfoRow
-            label={t('debug.deviceInfo.uptime')}
-            value={deviceInfo ? formatUptime(deviceInfo.uptime) : undefined}
-            isLoading={isLoading}
-          />
+        </div>
+
+        {/* Machine Information */}
+        <div className="flex flex-col border-t">
+          <h5 className="text-xs font-medium text-muted-foreground px-3 pt-3 pb-2">
+            {t('debug.deviceInfo.machine')}
+          </h5>
+          <div className="divide-y">
+            <InfoRow
+              label={t('debug.deviceInfo.hostname')}
+              value={deviceInfo?.hostname}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.username')}
+              value={deviceInfo?.username}
+              isLoading={isLoading}
+            />
+          </div>
+        </div>
+
+        {/* Hardware Information */}
+        <div className="flex flex-col border-t">
+          <h5 className="text-xs font-medium text-muted-foreground px-3 pt-3 pb-2">
+            {t('debug.deviceInfo.hardware')}
+          </h5>
+          <div className="divide-y">
+            <InfoRow
+              label={t('debug.deviceInfo.cpuModel')}
+              value={deviceInfo?.cpuModel}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.cpuCores')}
+              value={deviceInfo ? `${deviceInfo.cpuCores} ${t('debug.deviceInfo.cores')}` : undefined}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.totalMemory')}
+              value={deviceInfo?.totalMemoryGB}
+              isLoading={isLoading}
+            />
+          </div>
+        </div>
+
+        {/* Network Information */}
+        <div className="flex flex-col border-t">
+          <h5 className="text-xs font-medium text-muted-foreground px-3 pt-3 pb-2">
+            {t('debug.deviceInfo.network')}
+          </h5>
+          <div className="divide-y">
+            <InfoRow
+              label={t('debug.deviceInfo.macAddress')}
+              value={deviceInfo?.macAddress || t('debug.deviceInfo.notAvailable')}
+              isLoading={isLoading}
+            />
+            <InfoRow
+              label={t('debug.deviceInfo.networkInterfaces')}
+              value={deviceInfo?.networkInterfaces?.join(', ')}
+              isLoading={isLoading}
+            />
+          </div>
+        </div>
+
+        {/* Device Identifier */}
+        <div className="flex flex-col border-t">
+          <h5 className="text-xs font-medium text-muted-foreground px-3 pt-3 pb-2">
+            {t('debug.deviceInfo.identifier')}
+          </h5>
+          <div className="divide-y">
+            <div className="flex items-center justify-between p-3">
+              <span className="text-sm text-muted-foreground">
+                {t('debug.deviceInfo.deviceId')}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono text-xs">
+                  {isLoading ? "..." : deviceInfo?.deviceId?.slice(0, 16) + "..."}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyDeviceId}
+                  disabled={isLoading || !deviceInfo}
+                  className="h-6 w-6 p-0"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <InfoRow
+              label={t('debug.deviceInfo.uptime')}
+              value={deviceInfo ? formatUptime(deviceInfo.uptime) : undefined}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
       </div>
     </div>
