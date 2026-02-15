@@ -4,6 +4,9 @@
  * All environment variables are injected at build time via Vite's import.meta.env.
  * This module validates that required variables are set and provides typed access.
  */
+import { createLogger } from "./logger"
+
+const envLog = createLogger("Env")
 
 /**
  * Environment variables for renderer (all optional)

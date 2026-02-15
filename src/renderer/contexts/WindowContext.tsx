@@ -1,4 +1,7 @@
 import { createContext, useContext, useMemo } from "react"
+import { createLogger } from "../lib/logger"
+
+const windowContextLog = createLogger("WindowContext")
 
 const WindowContext = createContext<string>("default")
 

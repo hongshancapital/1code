@@ -1,4 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
+import { createLogger } from "../logger"
+
+const voiceRecordingLog = createLogger("VoiceRecording")
 
 interface UseVoiceRecordingOptions {
   /** Callback fired periodically with current audio chunks for real-time transcription */

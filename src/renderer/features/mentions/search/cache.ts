@@ -4,6 +4,9 @@
  * Multi-layer caching system for mention search results.
  * Supports LRU eviction, TTL expiration, and git-aware invalidation.
  */
+import { createLogger } from "../../../lib/logger"
+
+const gitAwareCacheLog = createLogger("GitAwareCache")
 
 /**
  * Cache entry with expiration
