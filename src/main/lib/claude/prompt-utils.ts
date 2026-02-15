@@ -10,7 +10,34 @@
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 import * as fs from "fs/promises";
+import * as os from "os";
+import * as crypto from "crypto";
 import path from "path";
+
+/**
+ * Schedule cleanup of uploaded files after a delay.
+ * Silently swallows errors to avoid breaking the main flow.
+ *
+ * @param paths - Array of file paths to delete
+ * @param delayMs - Delay in milliseconds (default: 10 minutes)
+ */
+function scheduleUploadCleanup(
+  paths: string[],
+  delayMs: number = 10 * 60 * 1000,
+): void {
+  if (paths.length === 0) return;
+
+  setTimeout(async () => {
+    for (const filePath of paths) {
+      try {
+        await fs.unlink(filePath);
+        console.log(`[claude] Cleaned up uploaded file: ${filePath}`);
+      } catch (err) {
+        // Silently swallow errors (file may have been deleted already)
+      }
+    }
+  }, delayMs);
+}
 
 /**
  * Merge previous unanswered user messages into the current prompt.
@@ -79,7 +106,8 @@ export async function buildImagePrompt(
   if (!images || images.length === 0) return null;
 
   // Save uploaded images to disk so MCP tools (e.g. edit_image) can access them by path
-  const uploadsDir = path.join(cwd, "uploads");
+  // 使用系统临时目录，避免污染项目目录
+  const uploadsDir = path.join(os.tmpdir(), "hong-uploads");
   await fs.mkdir(uploadsDir, { recursive: true });
   const savedImagePaths: string[] = [];
   for (const img of images) {
@@ -91,12 +119,9 @@ export async function buildImagePrompt(
         "image/webp": ".webp",
       };
       const ext = extMap[img.mediaType] || ".png";
-      const baseName = img.filename
-        ? path
-            .basename(img.filename, path.extname(img.filename))
-            .replace(/[^a-zA-Z0-9._-]/g, "_")
-        : String(Date.now());
-      const filename = `upload_${baseName}${ext}`;
+      // 使用 UUID 确保文件名唯一，避免覆盖
+      const uuid = crypto.randomUUID();
+      const filename = `${uuid}${ext}`;
       const filePath = path.join(uploadsDir, filename);
 
       await fs.writeFile(
@@ -131,6 +156,9 @@ export async function buildImagePrompt(
       text: (finalPrompt + imagePathsHint).trim(),
     });
   }
+
+  // Schedule cleanup of saved images (10 minutes after upload)
+  scheduleUploadCleanup(savedImagePaths);
 
   // Create an async generator that yields a single SDKUserMessage
   async function* createPromptWithImages(): AsyncGenerator<SDKUserMessage> {
