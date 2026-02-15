@@ -6,7 +6,7 @@ import { Switch } from "../../ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Loader2, Brain, Trash2 } from "lucide-react"
+import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, Loader2, Brain, Trash2 } from "lucide-react"
 import { showMessageJsonAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
 
