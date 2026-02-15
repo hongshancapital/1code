@@ -16,50 +16,19 @@ export { useTextContextSelection } from "./use-text-context-selection"
 export { useToggleFocusOnCmdEsc } from "./use-toggle-focus-on-cmd-esc"
 export { useWorkspaceSwitch } from "./use-workspace-switch"
 
-// New refactored hooks (Phase 2)
-export {
-  usePrOperations,
-  type PrOperationsResult,
-} from "./use-pr-operations"
-
+// Refactored hooks
 export {
   useChatKeyboardShortcuts,
   type ChatKeyboardShortcutsOptions,
 } from "./use-chat-keyboard-shortcuts"
 
 export {
-  useSidebarManager,
-  type SidebarManagerOptions,
-  type SidebarManagerResult,
-  type SidebarState,
-  type DiffSidebarState,
-  type PlanSidebarState,
-  type TerminalSidebarState,
-  type BrowserSidebarState,
-  type FileViewerState,
-} from "./use-sidebar-manager"
+  useAutoRename,
+  type UseAutoRenameOptions,
+  type UseAutoRenameResult,
+} from "./use-auto-rename"
 
-export {
-  useChatMutations,
-  type ChatMutationsOptions,
-  type ChatMutationsResult,
-} from "./use-chat-mutations"
-
-export {
-  useGitData,
-  type GitDataOptions,
-  type GitDataResult,
-  type GitStatusData,
-  type BranchData,
-  type PrStatusData,
-} from "./use-git-data"
-
-export {
-  useCommentHandlers,
-  type CommentHandlersOptions,
-  type CommentHandlersResult,
-} from "./use-comment-handlers"
-
+// @experimental — 已提取但尚未接入 ChatViewInner，与内联版存在导入路径漂移
 export {
   useQuestionHandlers,
   type QuestionHandlersOptions,
@@ -69,12 +38,7 @@ export {
   type EditorRef,
 } from "./use-question-handlers"
 
-export {
-  useAutoRename,
-  type UseAutoRenameOptions,
-  type UseAutoRenameResult,
-} from "./use-auto-rename"
-
+// @experimental — 已提取但尚未接入 ChatViewInner，需以 active-chat.tsx 为准重新对齐
 export {
   useMessageSending,
   type MessageSendingOptions,

@@ -313,8 +313,9 @@ export const claudeRouter = router({
         const streamStart = Date.now();
         let chunkCount = 0;
         let lastChunkType = "";
-        // Shared sessionId for cleanup to save on abort
+        // Shared state for cleanup closure to access
         let currentSessionId: string | null = null;
+        let resolvedProjectId = "";
         console.log(
           `[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`,
         );
@@ -391,6 +392,7 @@ export const claudeRouter = router({
               .where(eq(chats.id, input.chatId))
               .get();
             const projectId = chatRecord?.projectId;
+            resolvedProjectId = projectId || "";
 
             // Get resumeSessionAt UUID only if shouldResume flag was set (by rollbackToMessage)
             const lastAssistantMsg = [...existingMessages]
@@ -502,6 +504,19 @@ export const claudeRouter = router({
               summaryModelId: input.summaryModelId,
             });
             perf("chat:sessionStart hook done");
+
+            // 2.4b. Notify user prompt received (fire-and-forget)
+            getHooks()
+              .call("chat:userPrompt", {
+                sessionId: input.sessionId || null,
+                subChatId: input.subChatId,
+                projectId: projectId || "",
+                prompt: input.prompt,
+                promptNumber,
+              })
+              .catch((err) =>
+                console.error("[Hook] chat:userPrompt error:", err),
+              );
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
             let resolvedCustomConfig = input.customConfig;
@@ -1748,6 +1763,27 @@ export const claudeRouter = router({
                               });
                             }
                           }
+
+                          // Hook: 通知文件变更 (fire-and-forget)
+                          if (filePath) {
+                            getHooks()
+                              .call("chat:fileChanged", {
+                                sessionId: currentSessionId,
+                                projectId: projectId || "",
+                                subChatId: input.subChatId,
+                                filePath,
+                                changeType:
+                                  toolPart.type === "tool-Edit"
+                                    ? "modify"
+                                    : "create",
+                              })
+                              .catch((err) =>
+                                console.error(
+                                  "[Hook] chat:fileChanged error:",
+                                  err,
+                                ),
+                              );
+                          }
                         }
 
                         // Detect git commit success from Bash output
@@ -1776,6 +1812,24 @@ export const claudeRouter = router({
                                 branchInfo,
                               });
                             }
+
+                            // Hook: 通知 git commit (fire-and-forget)
+                            const commitMsg =
+                              output.match(/\[.+?\]\s+(.+)/)?.[1] || "";
+                            getHooks()
+                              .call("chat:gitCommit", {
+                                sessionId: currentSessionId,
+                                projectId: projectId || "",
+                                subChatId: input.subChatId,
+                                commitHash,
+                                commitMessage: commitMsg,
+                              })
+                              .catch((err) =>
+                                console.error(
+                                  "[Hook] chat:gitCommit error:",
+                                  err,
+                                ),
+                              );
                           }
                         }
 
@@ -2252,6 +2306,16 @@ export const claudeRouter = router({
           abortController.abort();
           activeSessions.delete(input.subChatId);
           clearPendingApprovals("Session ended.", input.subChatId);
+
+          // Hook: 会话清理通知 (fire-and-forget)
+          getHooks()
+            .call("chat:cleanup", {
+              subChatId: input.subChatId,
+              projectId: resolvedProjectId,
+            })
+            .catch((err) =>
+              console.error("[Hook] chat:cleanup error:", err),
+            );
 
           // Clear streamId since we're no longer streaming.
           // sessionId is NOT saved here — the save block in the async function
