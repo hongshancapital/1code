@@ -40,7 +40,7 @@ export const memoryEnabledAtom = atomWithStorage<boolean>(
 // Browser Settings
 const _betaBrowserEnabledStorageAtom = atomWithStorage<boolean>(
   "preferences:beta-browser-enabled",
-  false,
+  true,
   undefined,
   { getOnInit: true },
 )
