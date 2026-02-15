@@ -884,7 +884,7 @@ function InfoRow({
     <div className="flex items-center justify-between p-3">
       <span className="text-sm text-muted-foreground">{label}</span>
       <span
-        className={`text-sm font-medium ${
+        className={`text-sm font-medium text-right ${
           status === "success"
             ? "text-green-500"
             : status === "warning"
@@ -897,6 +897,15 @@ function InfoRow({
         {isLoading ? "..." : value ?? "-"}
       </span>
     </div>
+  )
+}
+
+// Tag component for displaying values with badge style
+function InfoTag({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`inline-block px-2 py-0.5 bg-muted/50 border border-border rounded text-xs font-mono ${className}`}>
+      {children}
+    </span>
   )
 }
 
@@ -1023,16 +1032,36 @@ function DeviceInfoSection() {
             {t('debug.deviceInfo.network')}
           </h5>
           <div className="divide-y">
-            <InfoRow
-              label={t('debug.deviceInfo.macAddress')}
-              value={deviceInfo?.macAddress || t('debug.deviceInfo.notAvailable')}
-              isLoading={isLoading}
-            />
-            <InfoRow
-              label={t('debug.deviceInfo.networkInterfaces')}
-              value={deviceInfo?.networkInterfaces?.join(', ')}
-              isLoading={isLoading}
-            />
+            <div className="flex items-center justify-between p-3">
+              <span className="text-sm text-muted-foreground">
+                {t('debug.deviceInfo.macAddress')}
+              </span>
+              <div className="text-right">
+                {isLoading ? (
+                  <span className="text-sm">...</span>
+                ) : deviceInfo?.macAddress ? (
+                  <InfoTag>{deviceInfo.macAddress}</InfoTag>
+                ) : (
+                  <span className="text-sm text-muted-foreground">{t('debug.deviceInfo.notAvailable')}</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-start justify-between p-3 gap-3">
+              <span className="text-sm text-muted-foreground flex-shrink-0">
+                {t('debug.deviceInfo.networkInterfaces')}
+              </span>
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                {isLoading ? (
+                  <span className="text-sm">...</span>
+                ) : deviceInfo?.networkInterfaces && deviceInfo.networkInterfaces.length > 0 ? (
+                  deviceInfo.networkInterfaces.map((iface) => (
+                    <InfoTag key={iface}>{iface}</InfoTag>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">-</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1046,23 +1075,31 @@ function DeviceInfoSection() {
               <span className="text-sm text-muted-foreground flex-shrink-0 pt-0.5">
                 {t('debug.deviceInfo.deviceId')}
               </span>
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="text-xs font-mono break-all flex-1">
-                  {isLoading ? "..." : deviceInfo?.deviceId}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyDeviceId}
-                  disabled={isLoading || !deviceInfo}
-                  className="h-6 w-6 p-0 flex-shrink-0"
-                >
-                  {copied ? (
-                    <Check className="h-3 w-3 text-green-500" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                </Button>
+              <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                {isLoading ? (
+                  <span className="text-sm">...</span>
+                ) : deviceInfo?.deviceId ? (
+                  <>
+                    <InfoTag className="break-all text-right flex-1">
+                      {deviceInfo.deviceId}
+                    </InfoTag>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyDeviceId}
+                      disabled={isLoading || !deviceInfo}
+                      className="h-6 w-6 p-0 flex-shrink-0"
+                    >
+                      {copied ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">-</span>
+                )}
               </div>
             </div>
             <InfoRow
