@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAtom } from "jotai"
 import { useTranslation } from "react-i18next"
-import { X } from "lucide-react"
+import { X, Search } from "lucide-react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,27 +18,17 @@ import {
   WIDGET_REGISTRY,
   type WidgetId,
 } from "./atoms"
+import { diffSidebarOpenAtomFamily } from "../agents/atoms"
+import { useChatInstance } from "../agents/context/chat-instance-context"
+import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
 import { InfoSection } from "./sections/info-section"
 import { PlanSection } from "./sections/plan-section"
 import { TerminalSection } from "./sections/terminal-section"
 import { DiffSection } from "./sections/diff-section"
-import { Search } from "lucide-react"
 
 interface ExpandedWidgetSidebarProps {
-  /** Workspace/chat ID */
-  chatId: string
-  /** Worktree path for terminal */
-  worktreePath: string | null
-  /** Plan path for plan section */
   planPath: string | null
-  /** Plan refetch trigger */
   planRefetchTrigger?: number
-  /** Active sub-chat ID for plan */
-  activeSubChatId?: string | null
-  /** Diff-related props */
-  canOpenDiff: boolean
-  isDiffSidebarOpen: boolean
-  setIsDiffSidebarOpen: (open: boolean) => void
   diffStats?: { additions: number; deletions: number; fileCount: number } | null
 }
 
@@ -58,17 +48,16 @@ const WIDGET_I18N_KEYS: Record<WidgetId, string> = {
 }
 
 export function ExpandedWidgetSidebar({
-  chatId,
-  worktreePath,
   planPath,
   planRefetchTrigger,
-  activeSubChatId,
-  canOpenDiff: _canOpenDiff,
-  isDiffSidebarOpen,
-  setIsDiffSidebarOpen,
   diffStats,
 }: ExpandedWidgetSidebarProps) {
   const { t } = useTranslation("sidebar")
+
+  // Self-sourced state from context/atoms/stores
+  const { chatId, worktreePath } = useChatInstance()
+  const activeSubChatId = useAgentSubChatStore((s) => s.activeSubChatId)
+  const [isDiffSidebarOpen, setIsDiffSidebarOpen] = useAtom(diffSidebarOpenAtomFamily(chatId))
 
   // Search state for plan section
   const [isPlanSearchOpen, setIsPlanSearchOpen] = useState(false)

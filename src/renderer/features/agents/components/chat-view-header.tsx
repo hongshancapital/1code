@@ -1,7 +1,7 @@
 /**
  * ChatViewHeader - Renders the header section of ChatView
  *
- * Extracted from active-chat.tsx to improve maintainability.
+ * Self-contained component that sources most state from atoms/context.
  * Handles:
  * - Mobile vs Desktop header layouts
  * - SubChat selector and controls
@@ -9,16 +9,18 @@
  */
 
 import { memo, type ReactNode } from "react"
-import { GitFork, SquareTerminal, ChevronDown } from "lucide-react"
+import { useAtom, useAtomValue } from "jotai"
+import { GitFork, SquareTerminal } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { useChatInstance } from "../context/chat-instance-context"
+import { useChatCapabilities } from "../context/chat-capabilities-context"
 import { Button } from "../../../components/ui/button"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip"
-import { IconSpinner, IconTextUndo, IconCloseSidebarRight, IconOpenSidebarRight } from "../../../components/ui/icons"
+import { IconSpinner, IconTextUndo, IconOpenSidebarRight } from "../../../components/ui/icons"
 import { Kbd } from "../../../components/ui/kbd"
 import { MobileChatHeader } from "../ui/mobile-chat-header"
 import { AgentsHeaderControls } from "../ui/agents-header-controls"
@@ -26,49 +28,28 @@ import { SubChatSelector } from "../ui/sub-chat-selector"
 import { PreviewSetupHoverCard } from "./preview-setup-hover-card"
 import { CHAT_LAYOUT } from "../main/constants"
 import type { DiffStats } from "../hooks/use-diff-data"
+import { isFullscreenAtom, chatSourceModeAtom } from "../../../lib/atoms"
+import { agentsPreviewSidebarOpenAtom, agentsSubChatsSidebarModeAtom, diffSidebarOpenAtomFamily } from "../atoms"
+import { terminalSidebarOpenAtomFamily } from "../../terminal/atoms"
+import { detailsSidebarOpenAtom, unifiedSidebarEnabledAtom } from "../../details-sidebar/atoms"
+import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
 
 export interface ChatViewHeaderProps {
-  // Layout state
-  isMobileFullscreen: boolean
-  subChatsSidebarMode: "tabs" | "sidebar"
-  shouldHideChatHeader: boolean
-
-  // Sidebar state
+  // Sidebar state (parent-owned)
   isSidebarOpen: boolean
   onToggleSidebar: () => void
   hasAnyUnseenChanges: boolean
+  shouldHideChatHeader: boolean
 
   // Sub-chat actions
   handleCreateNewSubChat: () => void
   onBackToChats?: () => void
 
-  // Git features
-  hideGitFeatures: boolean
-
-  // Preview
-  canOpenPreview: boolean
+  // Preview callback (parent-owned)
   onOpenPreview?: () => void
-  isPreviewSidebarOpen: boolean
-  setIsPreviewSidebarOpen: (open: boolean) => void
-  chatSourceMode: "local" | "sandbox"
 
-  // Diff
-  canShowDiffButton: boolean
-  canOpenDiff: boolean
-  isDiffSidebarOpen: boolean
-  setIsDiffSidebarOpen: (open: boolean) => void
+  // Diff stats (computed by parent)
   diffStats: DiffStats
-
-  // Terminal
-  isTerminalSidebarOpen: boolean
-  setIsTerminalSidebarOpen: (open: boolean) => void
-  toggleTerminalHotkey?: string | null
-
-  // Details sidebar (unified)
-  isUnifiedSidebarEnabled: boolean
-  isDetailsSidebarOpen: boolean
-  setIsDetailsSidebarOpen: (open: boolean) => void
-  toggleDetailsHotkey?: string | null
 
   // Archive
   handleRestoreWorkspace: () => void
@@ -87,47 +68,21 @@ export interface ChatViewHeaderProps {
  * ChatViewHeader - Header component for ChatView
  */
 export const ChatViewHeader = memo(function ChatViewHeader({
-  // Layout state
-  isMobileFullscreen,
-  subChatsSidebarMode,
-  shouldHideChatHeader,
-
   // Sidebar state
   isSidebarOpen,
   onToggleSidebar,
   hasAnyUnseenChanges,
+  shouldHideChatHeader,
 
   // Sub-chat actions
   handleCreateNewSubChat,
   onBackToChats,
 
-  // Git features
-  hideGitFeatures,
-
-  // Preview
-  canOpenPreview,
+  // Preview callback
   onOpenPreview,
-  isPreviewSidebarOpen,
-  setIsPreviewSidebarOpen,
-  chatSourceMode,
 
-  // Diff
-  canShowDiffButton,
-  canOpenDiff,
-  isDiffSidebarOpen,
-  setIsDiffSidebarOpen,
+  // Diff stats
   diffStats,
-
-  // Terminal
-  isTerminalSidebarOpen,
-  setIsTerminalSidebarOpen,
-  toggleTerminalHotkey,
-
-  // Details sidebar (unified)
-  isUnifiedSidebarEnabled,
-  isDetailsSidebarOpen,
-  setIsDetailsSidebarOpen,
-  toggleDetailsHotkey,
 
   // Archive
   handleRestoreWorkspace,
@@ -141,8 +96,23 @@ export const ChatViewHeader = memo(function ChatViewHeader({
   // Custom slot
   rightHeaderSlot,
 }: ChatViewHeaderProps) {
-  // Get identity props from ChatInstanceContext (eliminates prop drilling)
+  // Self-sourced state from context/atoms
   const { chatId, worktreePath, sandboxId, isArchived } = useChatInstance()
+  const { hideGitFeatures, canOpenPreview, canShowDiffButton, canOpenDiff } = useChatCapabilities()
+
+  const isMobileFullscreen = useAtomValue(isFullscreenAtom) ?? false
+  const chatSourceMode = useAtomValue(chatSourceModeAtom)
+  const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom)
+  const isUnifiedSidebarEnabled = useAtomValue(unifiedSidebarEnabledAtom)
+
+  const [isPreviewSidebarOpen, setIsPreviewSidebarOpen] = useAtom(agentsPreviewSidebarOpenAtom)
+  const [isDiffSidebarOpen, setIsDiffSidebarOpen] = useAtom(diffSidebarOpenAtomFamily(chatId))
+  const [isTerminalSidebarOpen, setIsTerminalSidebarOpen] = useAtom(terminalSidebarOpenAtomFamily(chatId))
+  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useAtom(detailsSidebarOpenAtom)
+
+  const toggleTerminalHotkey = useResolvedHotkeyDisplay("toggle-terminal")
+  const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
+
   if (shouldHideChatHeader) {
     return null
   }

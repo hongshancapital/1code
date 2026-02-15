@@ -10,9 +10,12 @@
 
 import { memo } from "react"
 import type { Chat } from "@ai-sdk/react"
+import { useAtomValue } from "jotai"
 import { IconSpinner } from "../../../components/ui/icons"
 import { getFirstSubChatId } from "../main/chat-utils"
 import { useChatInstance } from "../context/chat-instance-context"
+import { isFullscreenAtom, chatSourceModeAtom } from "../../../lib/atoms"
+import { agentsSubChatsSidebarModeAtom } from "../atoms"
 
 /**
  * Props for the ChatViewInner component (passed through)
@@ -67,8 +70,6 @@ export interface SubChatTabsRendererProps {
   isLocalChatLoading: boolean
   /** Whether messages are loading */
   isLoadingMessages: boolean
-  /** Chat source mode ("local" or "sandbox") */
-  chatSourceMode: "local" | "sandbox"
   /** SubChat messages data (undefined when not yet loaded) */
   subChatMessagesData: unknown
   /** Function to get or create Chat instance for a subChatId */
@@ -81,10 +82,6 @@ export interface SubChatTabsRendererProps {
   selectedTeamId: string | null
   /** Repository string for PR operations */
   repositoryString?: string
-  /** Whether in mobile fullscreen mode */
-  isMobileFullscreen: boolean
-  /** SubChats sidebar mode */
-  subChatsSidebarMode: "tabs" | "sidebar"
   /** Handler for restoring archived workspace */
   handleRestoreWorkspace: () => void
   /** Existing PR URL if any */
@@ -157,22 +154,22 @@ export const SubChatTabsRenderer = memo(function SubChatTabsRenderer({
   allSubChats,
   isLocalChatLoading,
   isLoadingMessages,
-  chatSourceMode,
   subChatMessagesData,
   getOrCreateChat,
   handleAutoRename,
   handleCreateNewSubChat,
   selectedTeamId,
   repositoryString,
-  isMobileFullscreen,
-  subChatsSidebarMode,
   handleRestoreWorkspace,
   existingPrUrl,
   ChatViewInnerComponent,
-  collapsedIndicator,
 }: SubChatTabsRendererProps) {
-  // Get identity props from ChatInstanceContext (eliminates prop drilling)
+  // Self-sourced state from context/atoms
   const { chatId, worktreePath, sandboxId, isArchived } = useChatInstance()
+  const chatSourceMode = useAtomValue(chatSourceModeAtom)
+  const isMobileFullscreen = useAtomValue(isFullscreenAtom) ?? false
+  const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom)
+
   // Show loading gate to prevent getOrCreateChat() from caching empty messages before data is ready
   // Distinguish between "loading" and "loaded but no data"
   // - isLoadingMessages: query is executing

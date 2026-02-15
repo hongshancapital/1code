@@ -60,7 +60,6 @@ import {
 } from "../../../lib/atoms/model-config"
 import { useFileChangeListener, useGitWatcher } from "../../../lib/hooks/use-file-change-listener"
 import { useRemoteChat } from "../../../lib/hooks/use-remote-chats"
-import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
 import { appStore } from "../../../lib/jotai-store"
 import { api } from "../../../lib/mock-api"
 import { trpc, trpcClient } from "../../../lib/trpc"
@@ -250,6 +249,7 @@ import type { AgentChat, ChatProject } from "../types"
 import { isRemoteChat, getSandboxId, getProjectPath, getRemoteStats } from "../types"
 import { ChatInstanceValueProvider, type ChatInstanceContextValue } from "../context/chat-instance-context"
 import { ChatCapabilitiesProvider } from "../context/chat-capabilities-context"
+import { ProjectModeProvider } from "../context/project-mode-context"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -2520,10 +2520,6 @@ export function ChatView({
   // Listen for AI-generated sub-chat name from backend (success or failure)
   useSubChatNameSync({ selectedTeamId })
 
-  // Resolved hotkeys for tooltips
-  const toggleDetailsHotkey = useResolvedHotkeyDisplay("toggle-details")
-  const toggleTerminalHotkey = useResolvedHotkeyDisplay("toggle-terminal")
-
   // Close plan sidebar when switching to a sub-chat that has no plan
   const prevSubChatIdRef = useRef(activeSubChatIdForPlan)
   useEffect(() => {
@@ -2983,14 +2979,6 @@ export function ChatView({
     meta?.sandboxConfig?.port
   )
 
-  // Check if diff button can be shown (stats available)
-  // This shows the Changes button with stats in header
-  const canShowDiffButton = !!worktreePath || !!sandboxId
-
-  // Check if diff sidebar can be opened (actual diff content available)
-  // Desktop remote chats (sandboxId without worktree) cannot open diff sidebar - only stats in header
-  const canOpenDiff = !!worktreePath || (!!sandboxId && !isDesktopPlatform)
-
   // Create list of subchats with changed files for filtering
   // Only include subchats that have uncommitted changes, sorted by most recent first
   const subChatsWithFiles = useMemo(() => {
@@ -3033,10 +3021,6 @@ export function ChatView({
       setIsPreviewSidebarOpen(false)
     }
   }, [canOpenPreview, isPreviewSidebarOpen, setIsPreviewSidebarOpen])
-
-  // Note: We no longer forcibly close diff sidebar when canOpenDiff is false.
-  // The sidebar render is guarded by canOpenDiff, so it naturally hides.
-  // Per-chat state (diffSidebarOpenAtomFamily) preserves each chat's preference.
 
   // PR/Git operations - extracted to usePrGitOperations hook
   const {
@@ -3904,6 +3888,7 @@ export function ChatView({
 
   return (
     <ChatInstanceValueProvider value={chatInstanceValue}>
+    <ProjectModeProvider>
     <ChatCapabilitiesProvider hideGitFeaturesOverride={hideGitFeatures}>
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
@@ -3932,32 +3917,14 @@ export function ChatView({
         >
           {/* Chat Header - extracted to ChatViewHeader component */}
           <ChatViewHeader
-            isMobileFullscreen={isMobileFullscreen}
-            subChatsSidebarMode={subChatsSidebarMode}
             shouldHideChatHeader={shouldHideChatHeader}
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={onToggleSidebar}
             hasAnyUnseenChanges={hasAnyUnseenChanges}
             handleCreateNewSubChat={handleCreateNewSubChat}
             onBackToChats={onBackToChats}
-            hideGitFeatures={hideGitFeatures}
-            canOpenPreview={canOpenPreview}
             onOpenPreview={onOpenPreview}
-            isPreviewSidebarOpen={isPreviewSidebarOpen}
-            setIsPreviewSidebarOpen={setIsPreviewSidebarOpen}
-            chatSourceMode={chatSourceMode}
-            canShowDiffButton={canShowDiffButton}
-            canOpenDiff={canOpenDiff}
-            isDiffSidebarOpen={isDiffSidebarOpen}
-            setIsDiffSidebarOpen={setIsDiffSidebarOpen}
             diffStats={diffStats}
-            isTerminalSidebarOpen={isTerminalSidebarOpen}
-            setIsTerminalSidebarOpen={setIsTerminalSidebarOpen}
-            toggleTerminalHotkey={toggleTerminalHotkey}
-            isUnifiedSidebarEnabled={isUnifiedSidebarEnabled}
-            isDetailsSidebarOpen={isDetailsSidebarOpen}
-            setIsDetailsSidebarOpen={setIsDetailsSidebarOpen}
-            toggleDetailsHotkey={toggleDetailsHotkey}
             handleRestoreWorkspace={handleRestoreWorkspace}
             isRestorePending={restoreWorkspaceMutation.isPending}
             showOpenLocally={showOpenLocally}
@@ -3975,15 +3942,12 @@ export function ChatView({
             allSubChats={allSubChats}
             isLocalChatLoading={isLocalChatLoading}
             isLoadingMessages={isLoadingMessages}
-            chatSourceMode={chatSourceMode}
             subChatMessagesData={subChatMessagesData}
             getOrCreateChat={getOrCreateChat}
             handleAutoRename={handleAutoRename}
             handleCreateNewSubChat={handleCreateNewSubChat}
             selectedTeamId={selectedTeamId}
             repositoryString={repositoryString}
-            isMobileFullscreen={isMobileFullscreen}
-            subChatsSidebarMode={subChatsSidebarMode}
             handleRestoreWorkspace={handleRestoreWorkspace}
             existingPrUrl={agentChat?.prUrl}
             ChatViewInnerComponent={ChatViewInner}
@@ -4015,14 +3979,8 @@ export function ChatView({
         {/* Expanded Widget Sidebar — 暂时保留（DetailsPanel 内部尚未整合） */}
         {isUnifiedSidebarEnabled && !isMobileFullscreen && worktreePath && (
           <ExpandedWidgetSidebar
-            chatId={chatId}
-            worktreePath={worktreePath}
             planPath={currentPlanPath}
             planRefetchTrigger={planEditRefetchTrigger}
-            activeSubChatId={activeSubChatIdForPlan}
-            canOpenDiff={canOpenDiff}
-            isDiffSidebarOpen={isDiffSidebarOpen}
-            setIsDiffSidebarOpen={setIsDiffSidebarOpen}
             diffStats={diffStats}
           />
         )}
@@ -4034,6 +3992,7 @@ export function ChatView({
     </TextSelectionProvider>
     </FileOpenProvider>
     </ChatCapabilitiesProvider>
+    </ProjectModeProvider>
     </ChatInstanceValueProvider>
   )
 }
