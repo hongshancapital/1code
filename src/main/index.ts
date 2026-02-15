@@ -24,7 +24,7 @@ import { buildHongMenuTemplate } from "./lib/menu"
 import { closeDatabase, initDatabase } from "./lib/db"
 import { parseLaunchDirectory } from "./lib/cli"
 import { cleanupGitWatchers } from "./lib/git/watcher"
-import { AutomationEngine } from "./lib/automation/engine"
+// AutomationEngine 初始化已迁入 feature/automation Extension lifecycle
 import { migrateOldPlaygroundSubChats } from "./lib/playground/migrate-playground"
 import { cleanupStaleDraftAttachmentDirs } from "./lib/trpc/routers/files"
 import { cancelAllPendingOAuth, handleMcpOAuthCallback } from "./lib/mcp-auth"
@@ -35,8 +35,9 @@ import {
   getAllWindows,
 } from "./windows/main"
 import { windowManager } from "./windows/window-manager"
-import { initBrowserSession, registerWebviewHandlers } from "./lib/browser/init"
+import { initBrowserSession, registerWebviewHandlers } from "./feature/browser-mcp/lib/init"
 import { IS_DEV } from "./constants"
+import { initializeLogger, createLogger } from "./lib/logger"
 
 // Deep link protocol (must match package.json build.protocols.schemes)
 // Use different protocol in dev to avoid conflicts with production app
@@ -91,6 +92,14 @@ if (isEmbeddedInTinker) {
   console.log("[App] Skipping Sentry init (dev mode)")
 }
 
+// Initialize unified logger (must be after Sentry, before everything else)
+initializeLogger()
+const log = createLogger("App")
+const authLog = createLogger("Auth")
+const deepLinkLog = createLogger("DeepLink")
+const localFileLog = createLogger("LocalFile")
+const protocolLog = createLogger("Protocol")
+
 // URL configuration (exported for use in other modules)
 // Returns undefined in no-auth mode
 export function getBaseUrl(): string | undefined {
@@ -135,7 +144,7 @@ export const authCallbackHandlers: AuthCallbackHandlers = {
         }
       } catch (error) {
         // Window may have been destroyed during iteration
-        console.warn("[Auth] Failed to reload window:", error)
+        authLog.warn("Failed to reload window:", error)
       }
     }
     // Focus the first window
@@ -157,7 +166,7 @@ export const authCallbackHandlers: AuthCallbackHandlers = {
 
 // Handle deep link
 function handleDeepLink(url: string): void {
-  console.log("[DeepLink] Received:", url)
+  deepLinkLog.info("Received:", url)
 
   try {
     const parsed = new URL(url)
@@ -195,7 +204,7 @@ function handleDeepLink(url: string): void {
           highlight: parsed.searchParams.get("highlight") || undefined,
           timestamp: Date.now(),
         }
-        console.log("[DeepLink] Navigate route:", route)
+        deepLinkLog.info("Navigate route:", route)
         const windows = getAllWindows()
         for (const win of windows) {
           if (!win.isDestroyed()) {
@@ -208,7 +217,7 @@ function handleDeepLink(url: string): void {
       }
     }
   } catch (e) {
-    console.error("[DeepLink] Failed to parse:", e)
+    deepLinkLog.error("Failed to parse:", e)
   }
 }
 
@@ -221,7 +230,7 @@ if (!isEmbeddedInTinker) {
 // Register custom scheme for local file access BEFORE app is ready
 // This must be called before app.whenReady()
 // CRITICAL: This registration happens at module load time, before any async code
-console.log("[local-file] Registering scheme as privileged (before app ready)...")
+localFileLog.info("Registering scheme as privileged (before app ready)...")
 try {
   protocol.registerSchemesAsPrivileged([
     {
@@ -236,17 +245,17 @@ try {
       },
     },
   ])
-  console.log("[local-file] Scheme registered successfully")
+  localFileLog.info("Scheme registered successfully")
 } catch (err) {
-  console.error("[local-file] Failed to register scheme:", err)
+  localFileLog.error("Failed to register scheme:", err)
 }
 
 // Register protocol BEFORE app is ready
-console.log("[Protocol] ========== PROTOCOL REGISTRATION ==========")
-console.log("[Protocol] Protocol:", PROTOCOL)
-console.log("[Protocol] Is dev mode (process.defaultApp):", process.defaultApp)
-console.log("[Protocol] process.execPath:", process.execPath)
-console.log("[Protocol] process.argv:", process.argv)
+protocolLog.info("========== PROTOCOL REGISTRATION ==========")
+protocolLog.info("Protocol:", PROTOCOL)
+protocolLog.info("Is dev mode (process.defaultApp):", process.defaultApp)
+protocolLog.info("process.execPath:", process.execPath)
+protocolLog.info("process.argv:", process.argv)
 
 /**
  * Register the app as the handler for our custom protocol.
@@ -262,18 +271,18 @@ function registerProtocol(): boolean {
       success = app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [
         process.argv[1]!,
       ])
-      console.log(
-        `[Protocol] Dev mode registration:`,
+      protocolLog.info(
+        "Dev mode registration:",
         success ? "success" : "failed",
       )
     } else {
-      console.warn("[Protocol] Dev mode: insufficient argv for registration")
+      protocolLog.warn("Dev mode: insufficient argv for registration")
     }
   } else {
     // Production mode
     success = app.setAsDefaultProtocolClient(PROTOCOL)
-    console.log(
-      `[Protocol] Production registration:`,
+    protocolLog.info(
+      "Production registration:",
       success ? "success" : "failed",
     )
   }
@@ -292,20 +301,20 @@ function verifyProtocolRegistration(): void {
       ])
     : app.isDefaultProtocolClient(PROTOCOL)
 
-  console.log(`[Protocol] Verification - isDefaultProtocolClient: ${isDefault}`)
+  protocolLog.info(`Verification - isDefaultProtocolClient: ${isDefault}`)
 
   if (!isDefault && initialRegistration) {
-    console.warn(
-      "[Protocol] Registration returned success but verification failed.",
+    protocolLog.warn(
+      "Registration returned success but verification failed.",
     )
-    console.warn(
-      "[Protocol] This is common on first install - macOS Launch Services may need time to update.",
+    protocolLog.warn(
+      "This is common on first install - macOS Launch Services may need time to update.",
     )
-    console.warn("[Protocol] The protocol should work after app restart.")
+    protocolLog.warn("The protocol should work after app restart.")
   }
 }
 
-console.log("[Protocol] =============================================")
+protocolLog.info("=============================================")
 
 // Note: app.on("open-url") will be registered in app.whenReady()
 
@@ -331,11 +340,11 @@ function cleanupStaleLocks(): boolean {
         // Check if process is running (signal 0 doesn't kill, just checks)
         process.kill(pid, 0)
         // Process exists, lock is valid
-        console.log("[App] Lock held by running process:", pid)
+        log.info("Lock held by running process:", pid)
         return false
       } catch {
         // Process doesn't exist, clean up stale locks
-        console.log("[App] Cleaning stale locks (pid", pid, "not running)")
+        log.info("Cleaning stale locks (pid", pid, "not running)")
         const filesToRemove = ["SingletonLock", "SingletonSocket", "SingletonCookie"]
         for (const file of filesToRemove) {
           const filePath = join(userDataPath, file)
@@ -343,7 +352,7 @@ function cleanupStaleLocks(): boolean {
             try {
               unlinkSync(filePath)
             } catch (e) {
-              console.warn("[App] Failed to remove", file, e)
+              log.warn("Failed to remove", file, e)
             }
           }
         }
@@ -351,7 +360,7 @@ function cleanupStaleLocks(): boolean {
       }
     }
   } catch (e) {
-    console.warn("[App] Failed to check lock file:", e)
+    log.warn("Failed to check lock file:", e)
   }
   return false
 }
@@ -492,12 +501,12 @@ if (gotTheLock) {
 
       // Security: only allow reading files, no directory traversal
       if (filePath.includes("..")) {
-        console.warn("[local-file] Blocked path traversal:", filePath)
+        localFileLog.warn("Blocked path traversal:", filePath)
         return new Response("Forbidden", { status: 403 })
       }
 
       if (!existsSync(filePath)) {
-        console.warn("[local-file] File not found:", filePath)
+        localFileLog.warn("File not found:", filePath)
         return new Response("Not Found", { status: 404 })
       }
 
@@ -526,7 +535,7 @@ if (gotTheLock) {
             const stream = createReadStream(filePath, { start, end })
             const readableStream = convertNodeStreamToWeb(stream)
 
-            console.log("[local-file] 206 Partial Content:", filePath, `${start}-${end}/${fileSize}`)
+            localFileLog.info("206 Partial Content:", filePath, `${start}-${end}/${fileSize}`)
 
             return new Response(readableStream, {
               status: 206,
@@ -544,7 +553,7 @@ if (gotTheLock) {
         const stream = createReadStream(filePath)
         const readableStream = convertNodeStreamToWeb(stream)
 
-        console.log("[local-file] 200 OK:", filePath, `${fileSize} bytes`)
+        localFileLog.info("200 OK:", filePath, `${fileSize} bytes`)
 
         return new Response(readableStream, {
           status: 200,
@@ -555,18 +564,18 @@ if (gotTheLock) {
           },
         })
       } catch (error) {
-        console.error("[local-file] Error reading file:", filePath, error)
+        localFileLog.error("Error reading file:", filePath, error)
         return new Response("Internal Server Error", { status: 500 })
       }
     })
-    console.log("[local-file] Protocol handler registered with Range request support")
+    localFileLog.info("Protocol handler registered with Range request support")
 
     // Handle webview new-window events - convert popups to same-page navigation
     registerWebviewHandlers()
 
     // Handle deep link on macOS (app already running)
     app.on("open-url", (event, url) => {
-      console.log("[Protocol] open-url event received:", url)
+      protocolLog.info("open-url event received:", url)
       event.preventDefault()
       handleDeepLink(url)
     })
@@ -576,7 +585,7 @@ if (gotTheLock) {
       app.setAppUserModelId(IS_DEV ? "com.hongshan.hong.dev" : "com.hongshan.hong")
     }
 
-    console.log(`[App] Starting Hong${IS_DEV ? " (DEV)" : ""}...`)
+    log.info(`Starting Hong${IS_DEV ? " (DEV)" : ""}...`)
 
     // Verify protocol registration after app is ready
     // This helps diagnose first-install issues where the protocol isn't recognized yet
@@ -595,7 +604,7 @@ if (gotTheLock) {
         claudeCodeVersion = versionContent.split("\n")[0]?.trim() || "unknown"
       }
     } catch (error) {
-      console.warn("[App] Failed to read Claude Code version:", error)
+      log.warn("Failed to read Claude Code version:", error)
     }
 
     // Set About panel options with Claude Code version
@@ -625,7 +634,7 @@ if (gotTheLock) {
         {
           label: "New Window",
           click: () => {
-            console.log("[Dock] New Window clicked")
+            log.info("New Window clicked")
             createWindow()
           },
         },
@@ -637,7 +646,7 @@ if (gotTheLock) {
     const unlockDevTools = () => {
       if (!devToolsUnlocked) {
         devToolsUnlocked = true
-        console.log("[App] DevTools unlocked via hidden feature")
+        log.info("DevTools unlocked via hidden feature")
         buildMenu()
       }
     }
@@ -650,7 +659,7 @@ if (gotTheLock) {
 
     // Initialize auth manager (uses singleton from auth-manager module)
     authManager = initAuthManager(!!process.env.ELECTRON_RENDERER_URL)
-    console.log("[App] Auth manager initialized")
+    log.info("Auth manager initialized")
 
     // Set auth callback handlers to AuthManager for on-demand Okta server startup
     authManager.setAuthCallbackHandlers(authCallbackHandlers)
@@ -662,7 +671,7 @@ if (gotTheLock) {
 
     // If user already authenticated from previous session, validate token and refresh user info
     if (authManager.isAuthenticated()) {
-      console.log("[App] Validating saved authentication...")
+      log.info("Validating saved authentication...")
       const validatedUser = await authManager.validateAndRefreshUser()
 
       if (validatedUser) {
@@ -670,7 +679,7 @@ if (gotTheLock) {
         sensorsLogin(validatedUser.email)
       } else {
         // Token expired (401), try to refresh first
-        console.log("[App] Token expired, attempting refresh...")
+        log.info("Token expired, attempting refresh...")
         const refreshed = await authManager.refresh()
 
         if (refreshed) {
@@ -681,7 +690,7 @@ if (gotTheLock) {
           }
         } else {
           // Refresh failed, auto-start OAuth for returning users
-          console.log("[App] Token refresh failed, auto-starting OAuth for returning user...")
+          log.info("Token refresh failed, auto-starting OAuth for returning user...")
           const windows = getAllWindows()
           if (windows.length > 0) {
             // Notify renderer that we're re-authenticating
@@ -695,10 +704,10 @@ if (gotTheLock) {
 
     // Set up callback to update cookie when token is refreshed
     authManager.setOnTokenRefresh(async (authData) => {
-      console.log("[Auth] Token refreshed, updating cookie...")
+      authLog.info("Token refreshed, updating cookie...")
       const baseUrl = getBaseUrl()
       if (!baseUrl) {
-        console.log("[Auth] API URL not configured, skipping cookie update")
+        authLog.info("API URL not configured, skipping cookie update")
         return
       }
       const ses = session.fromPartition("persist:main")
@@ -714,44 +723,36 @@ if (gotTheLock) {
           secure: baseUrl.startsWith("https"),
           sameSite: "lax" as const,
         })
-        console.log("[Auth] Desktop token cookie updated after refresh")
+        authLog.info("Desktop token cookie updated after refresh")
       } catch (err) {
-        console.error("[Auth] Failed to update cookie:", err)
+        authLog.error("Failed to update cookie:", err)
       }
     })
 
     // Initialize database
     try {
       initDatabase()
-      console.log("[App] Database initialized")
+      log.info("Database initialized")
     } catch (error) {
-      console.error("[App] Failed to initialize database:", error)
+      log.error("Failed to initialize database:", error)
     }
 
     // Cleanup stale draft attachment files (older than 7 days)
     cleanupStaleDraftAttachmentDirs().catch((err) => {
-      console.warn("[App] Failed to cleanup stale draft attachments:", err)
+      log.warn("Failed to cleanup stale draft attachments:", err)
     })
 
     // Migrate old playground format to new independent format
     try {
       const { migrated, skipped } = await migrateOldPlaygroundSubChats()
       if (migrated > 0 || skipped > 0) {
-        console.log(`[App] Playground migration: ${migrated} migrated, ${skipped} skipped`)
+        log.info(`Playground migration: ${migrated} migrated, ${skipped} skipped`)
       }
     } catch (error) {
-      console.error("[App] Playground migration failed:", error)
+      log.error("Playground migration failed:", error)
     }
 
-    // Initialize AutomationEngine
-    try {
-      await AutomationEngine.getInstance().initialize()
-      console.log("[App] AutomationEngine initialized")
-    } catch (error) {
-      console.error("[App] AutomationEngine init failed:", error)
-    }
-
-    // Initialize ExtensionManager
+    // Initialize ExtensionManager（AutomationEngine 由其 Extension lifecycle 初始化）
     try {
       const { getExtensionManager } = await import("./lib/extension")
       // 加载 chat lifecycle hooks（运行时模式注册副作用）
@@ -788,9 +789,9 @@ if (gotTheLock) {
       em.register(ollamaExtension)
       em.register(pluginSystemExtension)
       await em.initializeAll()
-      console.log("[App] ExtensionManager initialized")
+      log.info("ExtensionManager initialized")
     } catch (error) {
-      console.error("[App] ExtensionManager init failed:", error)
+      log.error("ExtensionManager init failed:", error)
     }
 
     // Sync all skills (builtin + enabled plugins) via SkillManager
@@ -801,7 +802,7 @@ if (gotTheLock) {
 
       // Also sync skills from enabled plugins
       const { getEnabledPlugins } = await import("./lib/trpc/routers/claude-settings")
-      const { discoverInstalledPlugins } = await import("./lib/plugins")
+      const { discoverInstalledPlugins } = await import("./feature/plugin-system/lib")
       const [enabledSources, allPlugins] = await Promise.all([
         getEnabledPlugins(),
         discoverInstalledPlugins(),
@@ -811,25 +812,31 @@ if (gotTheLock) {
           await sm.syncPluginSkills(plugin.source, plugin.path)
         }
       }
-      console.log("[App] Skills synced (builtin + enabled plugins)")
+      log.info("Skills synced (builtin + enabled plugins)")
     } catch (error) {
-      console.warn("[App] Failed to sync skills:", error)
+      log.warn("Failed to sync skills:", error)
     }
 
     // Create main window
     createMainWindow()
 
-    // MCP 预热(非阻塞,立即启动,返回 Promise 供首次 query 等待)
-    // 不再使用 setTimeout 延迟,最大化预热时间
-    const { getMcpWarmupManager } = await import("./lib/claude/mcp-warmup-manager")
-    const warmupManager = getMcpWarmupManager()
+    // 异步预加载 shell 环境 → 然后启动 MCP 预热
+    // 整体不 await，不阻塞窗口显示和后续逻辑
+    ;(async () => {
+      // 先异步加载 shell 环境到缓存，避免 warmup 中 execSync 阻塞主线程
+      const { preloadShellEnvironment } = await import("./lib/claude/env")
+      await preloadShellEnvironment()
 
-    // 启动预热(不等待完成,不阻塞窗口显示)
-    warmupManager.startWarmup().catch((error) => {
-      console.error("[App] MCP warmup failed:", error)
+      // MCP 预热(返回 Promise 供首次 query 等待)
+      const { getMcpWarmupManager } = await import("./lib/claude/mcp-warmup-manager")
+      const warmupManager = getMcpWarmupManager()
+      warmupManager.startWarmup().catch((error) => {
+        log.error("MCP warmup failed:", error)
+      })
+      log.info("MCP warmup started immediately after app ready")
+    })().catch((error) => {
+      log.error("Shell env preload / MCP warmup init failed:", error)
     })
-
-    console.log("[App] MCP warmup started immediately after app ready")
 
     // Handle directory argument from CLI (e.g., `hong /path/to/project`)
     parseLaunchDirectory()
@@ -859,9 +866,9 @@ if (gotTheLock) {
 
   // Cleanup before quit
   app.on("before-quit", async () => {
-    console.log("[App] Shutting down...")
+    log.info("Shutting down...")
     cancelAllPendingOAuth()
-    AutomationEngine.getInstance().cleanup()
+    // AutomationEngine cleanup 由 ExtensionManager.cleanupAll() 统一处理
     try {
       const { getExtensionManager } = await import("./lib/extension")
       await getExtensionManager().cleanupAll()
@@ -876,11 +883,11 @@ if (gotTheLock) {
 
   // Handle uncaught exceptions
   process.on("uncaughtException", (error) => {
-    console.error("[App] Uncaught exception:", error)
+    log.error("Uncaught exception:", error)
   })
 
   process.on("unhandledRejection", (reason, promise) => {
-    console.error("[App] Unhandled rejection at:", promise, "reason:", reason)
+    log.error("Unhandled rejection at:", promise, "reason:", reason)
   })
 }
 

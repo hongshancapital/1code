@@ -1,9 +1,11 @@
 import { app } from "electron"
-import { execSync } from "node:child_process"
+import { execSync, execFile } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { stripVTControlCharacters } from "node:util"
+import { stripVTControlCharacters, promisify } from "node:util"
+
+const execFileAsync = promisify(execFile)
 import {
   getDefaultShell,
   isWindows,
@@ -269,6 +271,52 @@ export function buildClaudeEnv(options?: {
   env.CLAUDE_CODE_ENABLE_TASKS = options?.enableTasks !== false ? "true" : "false"
 
   return env
+}
+
+/**
+ * Asynchronously preload shell environment into cache.
+ * Call this early in app startup (before MCP warmup) so that
+ * subsequent sync getClaudeShellEnvironment() calls hit cache
+ * instead of blocking the main thread with execSync.
+ */
+export async function preloadShellEnvironment(): Promise<void> {
+  if (cachedShellEnv !== null) return
+
+  if (isWindows()) {
+    // Windows path is already non-blocking
+    getClaudeShellEnvironment()
+    return
+  }
+
+  const shell = getDefaultShell()
+  const command = `echo -n "${DELIMITER}"; env; echo -n "${DELIMITER}"; exit`
+
+  try {
+    const { stdout } = await execFileAsync(shell, ["-ilc", command], {
+      encoding: "utf8",
+      timeout: 10000,
+      env: {
+        DISABLE_AUTO_UPDATE: "true",
+        HOME: os.homedir(),
+        USER: os.userInfo().username,
+        SHELL: shell,
+      },
+    })
+
+    const env = parseEnvOutput(stdout)
+    stripSensitiveKeys(env)
+
+    console.log(
+      `[claude-env] Async preload: ${Object.keys(env).length} environment variables loaded`
+    )
+    cachedShellEnv = env
+  } catch (error) {
+    console.warn("[claude-env] Async preload failed, will use fallback:", (error as Error).message)
+    // Fill cache with fallback so sync call won't block either
+    const env = platform.buildEnvironment()
+    stripSensitiveKeys(env)
+    cachedShellEnv = env
+  }
 }
 
 /**
