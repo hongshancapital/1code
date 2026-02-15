@@ -6,11 +6,10 @@ import { Switch } from "../../ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
-import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, ChevronDown, ChevronRight, ChevronLeft, Trash2 } from "lucide-react"
+import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, Trash2 } from "lucide-react"
 import { showMessageJsonAtom } from "../../../lib/atoms"
 import { runtimeSimulatedModeAtom, runtimeInitBannerDismissedAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -378,6 +377,9 @@ export function AgentsDebugTab() {
       {isDev && (
         <SimulatedInstallSection />
       )}
+
+      {/* Log Viewer */}
+      <LogViewerSection />
 
       {/* Quick Actions */}
       <div className="flex flex-col gap-3">
@@ -823,6 +825,224 @@ function SimulatedInstallSection() {
         <p className="text-xs text-muted-foreground">
           {t("debug.simulatedInstall.description")}
         </p>
+      </div>
+    </div>
+  )
+}
+
+// Log Viewer Section
+const LOG_LEVEL_COLORS: Record<string, string> = {
+  error: "text-red-500",
+  warn: "text-yellow-500",
+  info: "text-foreground",
+  verbose: "text-muted-foreground",
+  debug: "text-muted-foreground/70",
+  silly: "text-muted-foreground/50",
+}
+
+function LogViewerSection() {
+  const [active, setActive] = useState(false)
+  const [levelFilter, setLevelFilter] = useState<string>("debug")
+  const [scopeFilter, setScopeFilter] = useState("")
+  const [entries, setEntries] = useState<Array<{
+    timestamp: string
+    level: string
+    scope: string
+    message: string
+  }>>([])
+  const [autoScroll, setAutoScroll] = useState(true)
+  const logContainerRef = useRef<HTMLDivElement>(null)
+
+  // Load initial logs (only when active)
+  const { data: initialLogs } = trpc.logger.query.useQuery(
+    { level: levelFilter as any, scope: scopeFilter || undefined, limit: 500 },
+    { enabled: active },
+  )
+
+  // Subscribe to real-time logs (only when active)
+  trpc.logger.subscribe.useSubscription(
+    { level: levelFilter as any, scope: scopeFilter || undefined },
+    {
+      enabled: active,
+      onData: (entry) => {
+        setEntries((prev) => {
+          const next = [...prev, entry]
+          if (next.length > 2000) return next.slice(-1500)
+          return next
+        })
+      },
+    },
+  )
+
+  // Populate initial logs when they arrive
+  useEffect(() => {
+    if (initialLogs) {
+      setEntries(initialLogs)
+    }
+  }, [initialLogs])
+
+  // Reset entries when filter changes
+  useEffect(() => {
+    if (active) setEntries([])
+  }, [levelFilter, scopeFilter, active])
+
+  // Auto-scroll
+  useEffect(() => {
+    if (autoScroll && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight
+    }
+  }, [entries, autoScroll])
+
+  // Open log folder
+  const openLogFolderMutation = trpc.debug.openUserDataFolder.useMutation()
+  const { data: logPath } = trpc.logger.getLogPath.useQuery(undefined, {
+    enabled: active,
+  })
+
+  const clearBufferMutation = trpc.logger.clearBuffer.useMutation({
+    onSuccess: () => {
+      setEntries([])
+      toast.success("Log buffer cleared")
+    },
+  })
+
+  const handleStop = () => {
+    setActive(false)
+    setEntries([])
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        Log Viewer
+      </h4>
+      <div className="rounded-lg border bg-muted/30 overflow-hidden">
+        {!active ? (
+          <button
+            type="button"
+            onClick={() => setActive(true)}
+            className="w-full h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+          >
+            <Play className="h-8 w-8" />
+            <span className="text-sm">Start Log Viewer</span>
+          </button>
+        ) : (
+          <div className="p-3 flex flex-col gap-2">
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={levelFilter} onValueChange={setLevelFilter}>
+                <SelectTrigger className="h-7 w-[100px] text-xs">
+                  <SelectValue placeholder="Level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="error">error</SelectItem>
+                  <SelectItem value="warn">warn</SelectItem>
+                  <SelectItem value="info">info</SelectItem>
+                  <SelectItem value="verbose">verbose</SelectItem>
+                  <SelectItem value="debug">debug</SelectItem>
+                  <SelectItem value="silly">silly</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <input
+                type="text"
+                placeholder="Filter scope..."
+                value={scopeFilter}
+                onChange={(e) => setScopeFilter(e.target.value)}
+                className="h-7 px-2 text-xs rounded-md border bg-background w-[140px] outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              <div className="flex-1" />
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => setAutoScroll(!autoScroll)}
+              >
+                {autoScroll ? "Auto ↓" : "Manual"}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={() => clearBufferMutation.mutate()}
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Clear
+              </Button>
+
+              {logPath && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  onClick={() => openLogFolderMutation.mutate()}
+                >
+                  <FolderOpen className="h-3 w-3 mr-1" />
+                  Logs
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2 text-destructive hover:text-destructive"
+                onClick={handleStop}
+              >
+                Stop
+              </Button>
+            </div>
+
+            {/* Log entries */}
+            <div
+              ref={logContainerRef}
+              className="bg-background border rounded-md p-2 h-56 overflow-y-auto font-mono text-[11px] leading-relaxed select-text"
+              onScroll={() => {
+                if (!logContainerRef.current) return
+                const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current
+                const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+                if (!isAtBottom && autoScroll) setAutoScroll(false)
+                if (isAtBottom && !autoScroll) setAutoScroll(true)
+              }}
+            >
+              {entries.length === 0 ? (
+                <div className="text-muted-foreground text-center py-8">
+                  Waiting for log entries...
+                </div>
+              ) : (
+                entries.map((entry, i) => {
+                  const time = entry.timestamp.slice(11, 23) // HH:mm:ss.SSS
+                  const colorClass = LOG_LEVEL_COLORS[entry.level] || ""
+                  return (
+                    <div
+                      key={`${entry.timestamp}-${i}`}
+                      className={`whitespace-pre-wrap break-all ${colorClass}`}
+                    >
+                      <span className="text-muted-foreground">[{time}]</span>{" "}
+                      <span className="font-semibold">[{entry.level.toUpperCase()}]</span>
+                      {entry.scope && (
+                        <span className="text-blue-400"> ({entry.scope})</span>
+                      )}{" "}
+                      {entry.message}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>{entries.length} entries</span>
+              {logPath && (
+                <span className="truncate max-w-[300px]" title={logPath}>
+                  {logPath}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
