@@ -1,22 +1,36 @@
 /**
  * Panel System - Plugin-based panel management
  *
- * This module provides a flexible panel registration and rendering system
- * that allows panels to be dynamically added, removed, and conditionally shown.
+ * Architecture:
+ *   PanelRegistry     → 元数据（id, displayModes, group, priority）
+ *   PanelStateManager → 运行时状态（isOpen, displayMode, size, 互斥）
+ *   usePanel()        → 消费接口（PanelHandle）
+ *   PanelDefinition   → 渲染配置（component, useIsAvailable）
+ *   PanelsProvider    → 实例生命周期管理 + Context
+ *   PanelZone         → 投影区域，根据 position 渲染匹配的 Panel + 容器
  *
- * Key components:
- * - PanelRegistry: Singleton registry for panel configurations
- * - PanelGate: Conditional rendering based on panel availability
- * - PanelListRenderer: Render all available panels for a position
- * - usePanelContext: Build context for availability checks
+ * Usage:
+ *   <PanelsProvider panels={builtinPanelDefinitions}>
+ *     <div className="flex h-full flex-col">
+ *       <div className="flex-1 overflow-hidden flex">
+ *         <ChatArea />
+ *         <PanelZone position="right" />
+ *       </div>
+ *       <PanelZone position="bottom" />
+ *     </div>
+ *     <PanelZone position="overlay" />
+ *   </PanelsProvider>
  */
 
-// Registry
+// Registry (config + groups)
 export {
   panelRegistry,
   PANEL_IDS,
+  PANEL_GROUP_IDS,
+  PANEL_GROUPS,
   DEFAULT_PANELS,
   initializeDefaultPanels,
+  getPanelGroup,
   panelRegistryVersionAtom,
   panelStateAtomFamily,
   usePanels,
@@ -28,9 +42,26 @@ export {
   type PanelPosition,
   type PanelState,
   type PanelId,
+  type DisplayMode,
+  type PanelGroupConfig,
 } from "../../stores/panel-registry"
 
-// Renderer components
+// State management
+export {
+  panelIsOpenAtomFamily,
+  panelDisplayModeAtomFamily,
+  panelSizeAtomFamily,
+  getDefaultPanelState,
+  type PanelStateValue,
+} from "../../stores/panel-state-manager"
+
+// Core hook
+export {
+  usePanel,
+  type PanelHandle,
+} from "../../hooks/use-panel-state"
+
+// Renderer components (legacy — PanelGate still used for inline availability checks)
 export {
   PanelGate,
   PanelListRenderer,
@@ -38,3 +69,26 @@ export {
   type PanelGateProps,
   type PanelListRendererProps,
 } from "./panel-renderer"
+
+// Types
+export {
+  type ZonePosition,
+  type PanelRenderProps,
+  type PanelDefinition,
+  type PanelZoneProps,
+} from "./types"
+
+// Provider + Zone
+export {
+  PanelsProvider,
+  usePanelsContext,
+  type PanelsProviderProps,
+} from "./panels-provider"
+
+export {
+  PanelZone,
+  displayModeToZone,
+} from "./panel-zone"
+
+// Definitions
+export { builtinPanelDefinitions } from "./panel-definitions"

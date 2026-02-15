@@ -1,282 +1,326 @@
 /**
- * PanelStateManager - 实例隔离的面板状态管理
+ * PanelStateManager - 统一面板状态管理
  *
  * 解决的问题:
- * 1. 每个 ChatView 实例有独立的面板状态
- * 2. 同一互斥组内的面板自动互斥
- * 3. 统一的 open/close/toggle API
+ * 1. 每个 ChatView 实例有独立的面板状态 (isOpen, size, displayMode)
+ * 2. 同一 PanelGroup 内的 side-peek 面板自动互斥
+ * 3. 关闭当前面板时恢复上一个被自动关闭的面板
+ * 4. 统一 open/close/toggle API，替代散落的 atom 管理
  *
  * 设计理念:
- * - 与 PanelRegistry 配合使用
- * - PanelRegistry 管理配置（静态）
- * - PanelStateManager 管理状态（动态）
- * - 使用 Jotai atomFamily 实现实例隔离
+ * - PanelRegistry 管理配置（静态元数据 + group 分配）
+ * - PanelStateManager 管理运行时状态（动态 open/close/size/displayMode）
+ * - 使用 Jotai atom 实现每 chat 隔离
+ * - 互斥逻辑在 open action 内主动执行，而非 useEffect 监听
  */
 
 import { atom } from "jotai"
-import { atomFamily } from "jotai/utils"
-import type { PanelConfig } from "./panel-registry"
+import { atomFamily, atomWithStorage } from "jotai/utils"
+import { atomWithWindowStorage } from "../../../lib/window-storage"
+import {
+  type DisplayMode,
+  type PanelConfig,
+  type PanelGroupConfig,
+  panelRegistry,
+  getPanelGroup,
+  PANEL_GROUP_IDS,
+  PANEL_IDS,
+} from "./panel-registry"
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface PanelOpenState {
+/**
+ * Per-panel runtime state value
+ */
+export interface PanelStateValue {
   isOpen: boolean
-  /** Display mode: "full" = full sidebar, "side-peek" = narrow peek */
-  displayMode: "full" | "side-peek"
-  /** Size in pixels (if resizable) */
+  displayMode: DisplayMode
   size: number
 }
 
-export interface ExclusiveGroupConfig {
-  /** Group ID (e.g., "right-sidebar", "bottom-panel") */
-  id: string
-  /** Panel IDs in this group */
-  panelIds: string[]
-  /** Allow multiple panels to be open in side-peek mode */
-  allowSidePeek?: boolean
-  /** Maximum panels open simultaneously (default: 1) */
-  maxOpen?: number
+/**
+ * Stack entry for restoration after mutual exclusion auto-close
+ */
+export interface ClosedStackEntry {
+  panelId: string
+  displayMode: DisplayMode
 }
 
 // =============================================================================
-// Exclusive Group Definitions
+// Default State Helpers
 // =============================================================================
 
 /**
- * Pre-defined exclusive groups
- * Panels in the same group will close each other when opened
+ * Get default state for a panel from its config
  */
-export const EXCLUSIVE_GROUPS: ExclusiveGroupConfig[] = [
-  {
-    id: "right-sidebar",
-    panelIds: ["diff", "plan", "preview", "browser", "file-viewer", "details"],
-    allowSidePeek: true,
-    maxOpen: 2, // Allow 2 panels in side-peek mode
-  },
-  {
-    id: "bottom-panel",
-    panelIds: ["terminal"],
-    maxOpen: 1,
-  },
-  {
-    id: "left-sidebar",
-    panelIds: ["explorer"],
-    maxOpen: 1,
-  },
-]
-
-/**
- * Get exclusive group for a panel
- */
-export function getExclusiveGroup(panelId: string): ExclusiveGroupConfig | undefined {
-  return EXCLUSIVE_GROUPS.find((g) => g.panelIds.includes(panelId))
-}
-
-/**
- * Get sibling panels in the same exclusive group
- */
-export function getSiblingPanels(panelId: string): string[] {
-  const group = getExclusiveGroup(panelId)
-  if (!group) return []
-  return group.panelIds.filter((id) => id !== panelId)
-}
-
-// =============================================================================
-// Atom Factory Functions
-// =============================================================================
-
-/**
- * Create a unique key for panel state atom
- * Format: `${chatId}:${panelId}`
- */
-export function createPanelStateKey(chatId: string, panelId: string): string {
-  return `${chatId}:${panelId}`
-}
-
-/**
- * Default panel state factory
- */
-function createDefaultPanelState(panelConfig?: PanelConfig): PanelOpenState {
+export function getDefaultPanelState(panelId: string): PanelStateValue {
+  const config = panelRegistry.get(panelId)
   return {
-    isOpen: panelConfig?.defaultOpen ?? false,
-    displayMode: "full",
-    size: panelConfig?.defaultSize ?? 400,
+    isOpen: config?.defaultOpen ?? false,
+    displayMode: config?.defaultDisplayMode ?? config?.displayModes?.[0] ?? "side-peek",
+    size: config?.defaultSize ?? 400,
   }
 }
 
+// =============================================================================
+// Panel State Atoms (per-panel, per-chat)
+// =============================================================================
+
+// Open state — window-scoped storage (per chatId, per panelId)
+// Key format: "panel:{panelId}"
+// Value format: Record<chatId, boolean>
+
+const panelOpenStorageAtomFamily = atomFamily((panelId: string) =>
+  atomWithWindowStorage<Record<string, boolean>>(
+    `panel:${panelId}:open`,
+    {},
+    { getOnInit: true },
+  )
+)
+
+// Display mode — persisted globally per panel (not per-chat, because user preference)
+const panelDisplayModeStorageAtomFamily = atomFamily((panelId: string) =>
+  atomWithStorage<DisplayMode>(
+    `panel:${panelId}:displayMode`,
+    getDefaultPanelState(panelId).displayMode,
+    undefined,
+    { getOnInit: true },
+  )
+)
+
+// Size — persisted per panel per subChat (different subchat tabs can have different panel widths)
+const panelSizeStorageAtomFamily = atomFamily(
+  ({ panelId, subChatId }: { panelId: string; subChatId: string }) =>
+    atomWithStorage<number>(
+      subChatId
+        ? `panel:${panelId}:size:${subChatId}`
+        : `panel:${panelId}:size`,
+      getDefaultPanelState(panelId).size,
+      undefined,
+      { getOnInit: true },
+    ),
+  (a, b) => a.panelId === b.panelId && a.subChatId === b.subChatId,
+)
+
+// Runtime open state — for non-side-peek modes (dialog/fullscreen should not auto-restore on page load)
+const panelOpenRuntimeAtomFamily = atomFamily((_panelId: string) =>
+  atom<Record<string, boolean>>({})
+)
+
+// =============================================================================
+// Panel State Atom Family — unified read/write per (chatId, panelId)
+// =============================================================================
+
 /**
- * Panel state atom family - stores open/size state per panel per chat instance
- *
- * Key format: `${chatId}:${panelId}`
- *
- * This ensures each ChatView instance has its own panel states,
- * supporting multiple ChatView instances without state conflicts.
+ * Get/set panel open state for a specific chat.
+ * For side-peek mode: reads from persisted storage (survives page reload).
+ * For center-peek/full-page: reads from runtime state only (doesn't auto-restore).
  */
-export const panelOpenStateAtomFamily = atomFamily((key: string) =>
-  atom<PanelOpenState>({
-    isOpen: false,
-    displayMode: "full",
-    size: 400,
-  })
+export const panelIsOpenAtomFamily = atomFamily(
+  ({ chatId, panelId }: { chatId: string; panelId: string }) =>
+    atom(
+      (get) => {
+        const displayMode = get(panelDisplayModeStorageAtomFamily(panelId))
+        const runtimeOpen = get(panelOpenRuntimeAtomFamily(panelId))[chatId]
+
+        // Runtime value takes priority (user explicitly opened/closed in this session)
+        if (runtimeOpen !== undefined) {
+          return runtimeOpen
+        }
+
+        // For initial load: only restore persisted state for side-peek mode
+        if (displayMode !== "side-peek") {
+          return false
+        }
+        return get(panelOpenStorageAtomFamily(panelId))[chatId] ?? false
+      },
+      (get, set, isOpen: boolean) => {
+        // Update runtime state
+        const currentRuntime = get(panelOpenRuntimeAtomFamily(panelId))
+        set(panelOpenRuntimeAtomFamily(panelId), { ...currentRuntime, [chatId]: isOpen })
+
+        // Also persist
+        const current = get(panelOpenStorageAtomFamily(panelId))
+        set(panelOpenStorageAtomFamily(panelId), { ...current, [chatId]: isOpen })
+      },
+    ),
+  (a, b) => a.chatId === b.chatId && a.panelId === b.panelId,
 )
 
 /**
- * Get all panel state atoms for a specific chat instance
- * Useful for bulk operations like closing all panels
+ * Get/set display mode for a panel (global, not per-chat)
  */
-export function getPanelStatesForChat(
-  chatId: string,
-  panelIds: string[]
-): Map<string, ReturnType<typeof panelOpenStateAtomFamily>> {
-  const result = new Map<string, ReturnType<typeof panelOpenStateAtomFamily>>()
-  for (const panelId of panelIds) {
-    const key = createPanelStateKey(chatId, panelId)
-    result.set(panelId, panelOpenStateAtomFamily(key))
-  }
-  return result
-}
+export const panelDisplayModeAtomFamily = atomFamily(
+  (panelId: string) =>
+    atom(
+      (get) => get(panelDisplayModeStorageAtomFamily(panelId)),
+      (get, set, mode: DisplayMode) => {
+        set(panelDisplayModeStorageAtomFamily(panelId), mode)
+      },
+    ),
+)
+
+/**
+ * Get/set size for a panel, scoped per subChatId.
+ * Different subchat tabs can have different panel widths/heights.
+ * When subChatId is empty string, falls back to a global default.
+ */
+export const panelSizeAtomFamily = atomFamily(
+  ({ panelId, subChatId }: { panelId: string; subChatId: string }) =>
+    atom(
+      (get) => get(panelSizeStorageAtomFamily({ panelId, subChatId })),
+      (get, set, size: number) => {
+        set(panelSizeStorageAtomFamily({ panelId, subChatId }), size)
+      },
+    ),
+  (a, b) => a.panelId === b.panelId && a.subChatId === b.subChatId,
+)
 
 // =============================================================================
-// Panel State Actions
-// =============================================================================
-
-/**
- * Action types for panel state changes
- * These can be used with a reducer pattern or directly
- */
-export type PanelStateAction =
-  | { type: "open"; panelId: string; displayMode?: "full" | "side-peek" }
-  | { type: "close"; panelId: string }
-  | { type: "toggle"; panelId: string; displayMode?: "full" | "side-peek" }
-  | { type: "setSize"; panelId: string; size: number }
-  | { type: "closeGroup"; groupId: string }
-  | { type: "closeAll" }
-
-/**
- * Create open panel action
- */
-export function openPanel(
-  panelId: string,
-  displayMode: "full" | "side-peek" = "full"
-): PanelStateAction {
-  return { type: "open", panelId, displayMode }
-}
-
-/**
- * Create close panel action
- */
-export function closePanel(panelId: string): PanelStateAction {
-  return { type: "close", panelId }
-}
-
-/**
- * Create toggle panel action
- */
-export function togglePanel(
-  panelId: string,
-  displayMode: "full" | "side-peek" = "full"
-): PanelStateAction {
-  return { type: "toggle", panelId, displayMode }
-}
-
-// =============================================================================
-// Utility Functions
+// Mutual Exclusion — Closed Stack (per group, per chat)
 // =============================================================================
 
 /**
- * Check if opening a panel would exceed the group's maxOpen limit
+ * Stack of auto-closed panels for restoration.
+ * When panel A opens and auto-closes panel B (same group, side-peek),
+ * B is pushed onto the stack. When A closes, B is restored.
+ *
+ * Key: `${chatId}:${groupId}`
  */
-export function wouldExceedMaxOpen(
-  panelId: string,
-  currentOpenPanels: Set<string>
-): boolean {
-  const group = getExclusiveGroup(panelId)
-  if (!group) return false
-
-  const maxOpen = group.maxOpen ?? 1
-  const openInGroup = Array.from(currentOpenPanels).filter((id) =>
-    group.panelIds.includes(id)
-  )
-
-  return openInGroup.length >= maxOpen
-}
-
-/**
- * Get panels to close when opening a new panel (for exclusive groups)
- */
-export function getPanelsToClose(
-  panelId: string,
-  currentOpenPanels: Set<string>,
-  displayMode: "full" | "side-peek" = "full"
-): string[] {
-  const group = getExclusiveGroup(panelId)
-  if (!group) return []
-
-  const maxOpen = group.maxOpen ?? 1
-
-  // In full mode or if side-peek is not allowed, close all siblings
-  if (displayMode === "full" || !group.allowSidePeek) {
-    return getSiblingPanels(panelId).filter((id) => currentOpenPanels.has(id))
-  }
-
-  // In side-peek mode, only close if exceeding maxOpen
-  const openInGroup = group.panelIds.filter(
-    (id) => currentOpenPanels.has(id) && id !== panelId
-  )
-
-  if (openInGroup.length < maxOpen) {
-    return [] // Room for one more
-  }
-
-  // Close the oldest (first in array) to make room
-  return [openInGroup[0]]
-}
-
-/**
- * Determine display mode based on how many panels are open
- */
-export function determineDisplayMode(
-  panelId: string,
-  currentOpenPanels: Set<string>
-): "full" | "side-peek" {
-  const group = getExclusiveGroup(panelId)
-  if (!group || !group.allowSidePeek) return "full"
-
-  // If another panel in the group is already open, use side-peek
-  const othersOpen = group.panelIds.filter(
-    (id) => currentOpenPanels.has(id) && id !== panelId
-  )
-
-  return othersOpen.length > 0 ? "side-peek" : "full"
-}
+const closedStackAtomFamily = atomFamily(
+  ({ chatId, groupId }: { chatId: string; groupId: string }) =>
+    atom<ClosedStackEntry[]>([]),
+  (a, b) => a.chatId === b.chatId && a.groupId === b.groupId,
+)
 
 // =============================================================================
-// Migration Helper
+// Panel Actions — Open / Close / Toggle with mutual exclusion
 // =============================================================================
 
 /**
- * Map old sidebar atom names to new panel IDs
- * For gradual migration from scattered atoms to unified panel system
+ * Open a panel with automatic mutual exclusion handling.
+ *
+ * When opening a side-peek panel in an exclusive group:
+ * 1. Find conflicting side-peek panels in the same group
+ * 2. Push them onto the closed stack (for later restoration)
+ * 3. Close them
+ * 4. Open the requested panel
  */
-export const LEGACY_ATOM_MAPPING: Record<string, string> = {
-  isDiffSidebarOpen: "diff",
-  isPlanSidebarOpen: "plan",
-  isPreviewSidebarOpen: "preview",
-  isTerminalSidebarOpen: "terminal",
-  isBrowserSidebarOpen: "browser",
-  isFileViewerOpen: "file-viewer",
-  isExplorerPanelOpen: "explorer",
-  isDetailsSidebarOpen: "details",
+export function createOpenPanelAction(panelId: string, chatId: string) {
+  return atom(null, (get, set) => {
+    const config = panelRegistry.get(panelId)
+    if (!config) return
+
+    const groupId = config.group ?? PANEL_GROUP_IDS.DEFAULT
+    const group = getPanelGroup(groupId)
+    const currentDisplayMode = get(panelDisplayModeAtomFamily(panelId))
+
+    // Only apply mutual exclusion for side-peek mode in exclusive groups
+    if (group.exclusive && currentDisplayMode === "side-peek") {
+      const allPanelsInGroup = panelRegistry.getByGroup(groupId)
+      const conflicting: ClosedStackEntry[] = []
+
+      for (const p of allPanelsInGroup) {
+        if (p.id === panelId) continue
+        const pIsOpen = get(panelIsOpenAtomFamily({ chatId, panelId: p.id }))
+        const pDisplayMode = get(panelDisplayModeAtomFamily(p.id))
+
+        if (pIsOpen && pDisplayMode === "side-peek") {
+          conflicting.push({ panelId: p.id, displayMode: pDisplayMode })
+          // Close conflicting panel
+          set(panelIsOpenAtomFamily({ chatId, panelId: p.id }), false)
+        }
+      }
+
+      // Push conflicting panels onto restoration stack
+      if (conflicting.length > 0 && group.restoreOnClose) {
+        set(closedStackAtomFamily({ chatId, groupId }), conflicting)
+      }
+    }
+
+    // Open the requested panel
+    set(panelIsOpenAtomFamily({ chatId, panelId }), true)
+  })
 }
 
 /**
- * Get legacy atom name for a panel ID
+ * Close a panel with automatic restoration of previously auto-closed panels.
  */
-export function getLegacyAtomName(panelId: string): string | undefined {
-  for (const [atomName, id] of Object.entries(LEGACY_ATOM_MAPPING)) {
-    if (id === panelId) return atomName
-  }
-  return undefined
+export function createClosePanelAction(panelId: string, chatId: string) {
+  return atom(null, (get, set) => {
+    const config = panelRegistry.get(panelId)
+    if (!config) return
+
+    const groupId = config.group ?? PANEL_GROUP_IDS.DEFAULT
+    const group = getPanelGroup(groupId)
+
+    // Close the panel
+    set(panelIsOpenAtomFamily({ chatId, panelId }), false)
+
+    // Restore previously auto-closed panels
+    if (group.restoreOnClose) {
+      const stack = get(closedStackAtomFamily({ chatId, groupId }))
+      if (stack.length > 0) {
+        // Restore all panels from stack
+        for (const entry of stack) {
+          set(panelIsOpenAtomFamily({ chatId, panelId: entry.panelId }), true)
+        }
+        // Clear the stack
+        set(closedStackAtomFamily({ chatId, groupId }), [])
+      }
+    }
+  })
+}
+
+/**
+ * Toggle a panel (open if closed, close if open)
+ */
+export function createTogglePanelAction(panelId: string, chatId: string) {
+  return atom(null, (get, set) => {
+    const isOpen = get(panelIsOpenAtomFamily({ chatId, panelId }))
+    if (isOpen) {
+      set(createClosePanelAction(panelId, chatId))
+    } else {
+      set(createOpenPanelAction(panelId, chatId))
+    }
+  })
+}
+
+// =============================================================================
+// Legacy Atom Mapping (for gradual migration)
+// =============================================================================
+
+/**
+ * Maps old scattered atom storage keys to panel IDs.
+ * Used for one-time migration when unified system is first loaded.
+ */
+export const LEGACY_ATOM_MAPPING: Record<string, { panelId: string; storageKey: string }> = {
+  diff: { panelId: PANEL_IDS.DIFF, storageKey: "agents:diffSidebarOpen" },
+  plan: { panelId: PANEL_IDS.PLAN, storageKey: "agents:planSidebarOpen" },
+  terminal: { panelId: PANEL_IDS.TERMINAL, storageKey: "terminal-sidebar-open-by-chat" },
+  details: { panelId: PANEL_IDS.DETAILS, storageKey: "overview:sidebarOpen" },
+  browser: { panelId: PANEL_IDS.BROWSER, storageKey: "" }, // runtime only
+  preview: { panelId: PANEL_IDS.PREVIEW, storageKey: "agents-preview-sidebar-open" },
+  explorer: { panelId: PANEL_IDS.EXPLORER, storageKey: "agents:explorerPanelOpen" },
+  fileViewer: { panelId: PANEL_IDS.FILE_VIEWER, storageKey: "" }, // runtime only
+}
+
+export const LEGACY_SIZE_MAPPING: Record<string, { panelId: string; storageKey: string; defaultSize: number }> = {
+  diff: { panelId: PANEL_IDS.DIFF, storageKey: "agents-diff-sidebar-width", defaultSize: 800 },
+  plan: { panelId: PANEL_IDS.PLAN, storageKey: "agents-plan-sidebar-width", defaultSize: 500 },
+  terminal: { panelId: PANEL_IDS.TERMINAL, storageKey: "terminal-sidebar-width", defaultSize: 500 },
+  details: { panelId: PANEL_IDS.DETAILS, storageKey: "overview:sidebarWidth", defaultSize: 500 },
+  browser: { panelId: PANEL_IDS.BROWSER, storageKey: "agents-browser-sidebar-width", defaultSize: 480 },
+  preview: { panelId: PANEL_IDS.PREVIEW, storageKey: "agents-preview-sidebar-width", defaultSize: 500 },
+  explorer: { panelId: PANEL_IDS.EXPLORER, storageKey: "agents-explorer-sidebar-width", defaultSize: 350 },
+  fileViewer: { panelId: PANEL_IDS.FILE_VIEWER, storageKey: "agents:fileViewerSidebarWidth", defaultSize: 500 },
+}
+
+export const LEGACY_DISPLAY_MODE_MAPPING: Record<string, { panelId: string; storageKey: string }> = {
+  diff: { panelId: PANEL_IDS.DIFF, storageKey: "agents:diffViewDisplayMode" },
+  terminal: { panelId: PANEL_IDS.TERMINAL, storageKey: "terminal-display-mode" },
+  explorer: { panelId: PANEL_IDS.EXPLORER, storageKey: "agents:explorerDisplayMode" },
+  fileViewer: { panelId: PANEL_IDS.FILE_VIEWER, storageKey: "agents:fileViewerDisplayMode" },
 }

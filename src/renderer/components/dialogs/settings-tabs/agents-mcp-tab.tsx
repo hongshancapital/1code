@@ -461,10 +461,26 @@ export function AgentsMcpTab() {
     isPending: false,
   }
 
-  const groups = useMemo(
-    () => (allMcpConfig?.groups || []).filter(g => g.mcpServers.length > 0),
-    [allMcpConfig?.groups]
-  )
+  // Deduplicate groups by groupName to prevent React key warnings
+  const groups = useMemo(() => {
+    const rawGroups = allMcpConfig?.groups || []
+    const seen = new Set<string>()
+    const unique: typeof rawGroups = []
+    for (const g of rawGroups) {
+      if (g.mcpServers.length > 0 && !seen.has(g.groupName)) {
+        seen.add(g.groupName)
+        // Also deduplicate servers within the group
+        const seenServers = new Set<string>()
+        const uniqueServers = g.mcpServers.filter(s => {
+          if (seenServers.has(s.name)) return false
+          seenServers.add(s.name)
+          return true
+        })
+        unique.push({ ...g, mcpServers: uniqueServers })
+      }
+    }
+    return unique
+  }, [allMcpConfig?.groups])
   const totalServers = useMemo(
     () => groups.reduce((acc, g) => acc + g.mcpServers.length, 0),
     [groups]

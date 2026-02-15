@@ -66,7 +66,8 @@ import { api } from "../../../lib/mock-api"
 import { trpc, trpcClient } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { usePlatform } from "../../../contexts/PlatformContext"
-import { PanelGate, usePanelContext, PANEL_IDS } from "../ui/panel-system"
+import { PanelGate, usePanelContext, PANEL_IDS, PanelsProvider, PanelZone } from "../ui/panel-system"
+import { builtinPanelDefinitions } from "../ui/panel-system/panel-definitions"
 import { useChatKeyboardShortcuts } from "../hooks/use-chat-keyboard-shortcuts"
 import { useDraftRestoration } from "../hooks/use-draft-restoration"
 import { usePendingMessageHandling } from "../hooks/use-pending-message-handling"
@@ -3938,6 +3939,7 @@ export function ChatView({
         onSelectFile={setFileViewerPath}
       />
     )}
+    <PanelsProvider panels={builtinPanelDefinitions}>
     <div className="flex h-full flex-col">
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex">
@@ -4013,166 +4015,10 @@ export function ChatView({
           )}
         </div>
 
-        {/* Plan Sidebar - shows plan files on the right (leftmost right sidebar) */}
-        {/* Only show when we have an active sub-chat with a plan */}
-        {/* Note: Plan is not a Git feature, so it should be available in cowork mode too */}
-        {!isMobileFullscreen && activeSubChatIdForPlan && (
-          <ResizableSidebar
-            isOpen={isPlanSidebarOpen && !!currentPlanPath}
-            onClose={() => setIsPlanSidebarOpen(false)}
-            widthAtom={agentsPlanSidebarWidthAtom}
-            minWidth={400}
-            maxWidth={800}
-            side="right"
-            animationDuration={0}
-            initialWidth={0}
-            exitWidth={0}
-            showResizeTooltip={true}
-            className="bg-tl-background border-l"
-            style={{ borderLeftWidth: "0.5px" }}
-          >
-            <AgentPlanSidebar
-              chatId={chatId}
-              subChatId={activeSubChatIdForPlan || ""}
-              planPath={currentPlanPath}
-              onClose={() => setIsPlanSidebarOpen(false)}
-              onBuildPlan={handleApprovePlanFromSidebar}
-              refetchTrigger={planEditRefetchTrigger}
-              mode={currentMode}
-              onSubmitReview={handleSubmitReview}
-            />
-          </ResizableSidebar>
-        )}
-
-        {/* Browser Sidebar - shows web browser panel (only when beta feature is enabled) */}
-        {betaBrowserEnabled && !isMobileFullscreen && (
-          <ResizableSidebar
-            isOpen={isBrowserSidebarOpen}
-            onClose={() => setIsBrowserSidebarOpen(false)}
-            widthAtom={agentsBrowserSidebarWidthAtom}
-            minWidth={400}
-            maxWidth={900}
-            side="right"
-            animationDuration={0}
-            initialWidth={0}
-            exitWidth={0}
-            showResizeTooltip={true}
-            className="bg-tl-background border-l"
-            style={{ borderLeftWidth: "0.5px" }}
-          >
-            <BrowserPanel
-              chatId={chatId}
-              projectId={(agentChat as any)?.projectId || chatId}
-              onCollapse={() => setIsBrowserSidebarOpen(false)}
-              onClose={() => {
-                setIsBrowserSidebarOpen(false)
-                setBrowserActive(false)
-              }}
-              onScreenshot={(imageData) => {
-                // Set pending screenshot to be picked up by ChatViewInner
-                setBrowserPendingScreenshot(imageData)
-              }}
-            />
-          </ResizableSidebar>
-        )}
-
-        {/* Diff View - hidden on mobile fullscreen, when diff is not available, or when hideGitFeatures is true */}
-        {/* Supports three display modes: side-peek (sidebar), center-peek (dialog), full-page */}
-        {/* Wrapped in DiffStateProvider to isolate diff state and prevent ChatView re-renders */}
-        {!hideGitFeatures && canOpenDiff && !isMobileFullscreen && (
-          <DiffStateProvider
-            isDiffSidebarOpen={isDiffSidebarOpen}
-            parsedFileDiffs={parsedFileDiffs}
-            isDiffSidebarNarrow={isDiffSidebarNarrow}
-            setIsDiffSidebarOpen={setIsDiffSidebarOpen}
-            setDiffStats={setDiffStats}
-            setDiffContent={setDiffContent}
-            setParsedFileDiffs={setParsedFileDiffs}
-            setPrefetchedFileContents={setPrefetchedFileContents}
-            fetchDiffStats={fetchDiffStats}
-          >
-            <DiffSidebarRenderer
-              worktreePath={worktreePath}
-              chatId={chatId}
-              sandboxId={sandboxId}
-              repository={repository}
-              diffStats={diffStats}
-              diffContent={diffContent}
-              parsedFileDiffs={parsedFileDiffs}
-              prefetchedFileContents={prefetchedFileContents}
-              setDiffCollapseState={setDiffCollapseState}
-              diffViewRef={diffViewRef}
-              diffSidebarRef={diffSidebarRef}
-              agentChat={agentChat}
-              branchData={branchData}
-              gitStatus={gitStatus}
-              isGitStatusLoading={isGitStatusLoading}
-              isDiffSidebarOpen={isDiffSidebarOpen}
-              diffDisplayMode={diffDisplayMode}
-              diffSidebarWidth={diffSidebarWidth}
-              handleReview={handleReview}
-              isReviewing={isReviewing}
-              handleCreatePrDirect={handleCreatePrDirect}
-              handleCreatePr={handleCreatePr}
-              isCreatingPr={isCreatingPr}
-              handleMergePr={handleMergePr}
-              mergePrMutation={mergePrMutation}
-              handleRefreshGitStatus={handleRefreshGitStatus}
-              hasPrNumber={hasPrNumber}
-              isPrOpen={isPrOpen}
-              hasMergeConflicts={hasMergeConflicts}
-              handleFixConflicts={handleFixConflicts}
-              handleExpandAll={handleExpandAll}
-              handleCollapseAll={handleCollapseAll}
-              diffMode={diffMode}
-              setDiffMode={setDiffMode}
-              handleMarkAllViewed={handleMarkAllViewed}
-              handleMarkAllUnviewed={handleMarkAllUnviewed}
-              isDesktop={isDesktop}
-              isFullscreen={isFullscreen}
-              setDiffDisplayMode={setDiffDisplayMode}
-              handleCommitToPr={handleCommitToPr}
-              isCommittingToPr={isCommittingToPr}
-              subChatsWithFiles={subChatsWithFiles}
-              setDiffStats={setDiffStats}
-              activeSubChatId={activeSubChatId}
-              onSubmitReview={handleSubmitReview}
-              hasPendingDiffChanges={hasPendingDiffChanges}
-              onRefreshDiff={handleRefreshDiff}
-            />
-          </DiffStateProvider>
-        )}
-
-        {/* Preview Sidebar - hidden on mobile fullscreen, when preview is not available, or when hideGitFeatures is true */}
-        {!hideGitFeatures && canOpenPreview && !isMobileFullscreen && (
-          <PreviewSidebarPanel
-            isOpen={isPreviewSidebarOpen}
-            onClose={() => setIsPreviewSidebarOpen(false)}
-            chatId={chatId}
-            sandboxId={sandboxId}
-            port={previewPort}
-            repository={repositoryString}
-            isQuickSetup={isQuickSetup}
-          />
-        )}
-
-        {/* File Viewer - opens when a file is clicked (supports side-peek/center-peek/full-page) */}
-        <FileViewerPanel
-          filePath={fileViewerPath}
-          projectPath={worktreePath}
-          displayMode={fileViewerDisplayMode}
-          isMobileFullscreen={isMobileFullscreen}
-          onClose={() => setFileViewerPath(null)}
-        />
-
-        {/* Terminal Sidebar - shows when worktree exists (desktop only), hidden when hideGitFeatures is true */}
-        {!hideGitFeatures && worktreePath && (
-          <TerminalSidebar
-            chatId={chatId}
-            cwd={worktreePath}
-            workspaceId={chatId}
-          />
-        )}
+        {/* ── PanelZone: 统一面板渲染 ── */}
+        {/* 每个 Panel 通过 PanelZone 自动管理容器（ResizableSidebar/CenterPeekDialog 等） */}
+        {/* Panel 组件从 Context/Atom/Store 自行获取数据，keepMounted 优化重型组件 */}
+        <PanelZone position="right" />
 
         {/* Open Locally Dialog - for importing sandbox chats to local */}
         <OpenLocallyDialog
@@ -4184,46 +4030,7 @@ export function ChatView({
           remoteSubChatId={activeSubChatId}
         />
 
-        {/* Unified Details Sidebar - combines all right sidebars into one (rightmost) */}
-        {/* Show for both local (worktreePath) and remote (sandboxId) chats */}
-        {isUnifiedSidebarEnabled && !isMobileFullscreen && (worktreePath || sandboxId) && (
-          <DetailsSidebar
-            chatId={chatId}
-            worktreePath={worktreePath}
-            planPath={currentPlanPath}
-            mode={currentMode}
-            onBuildPlan={handleApprovePlanFromSidebar}
-            planRefetchTrigger={planEditRefetchTrigger}
-            activeSubChatId={activeSubChatIdForPlan}
-            isPlanSidebarOpen={isPlanSidebarOpen && !!currentPlanPath}
-            isTerminalSidebarOpen={isTerminalSidebarOpen}
-            isDiffSidebarOpen={isDiffSidebarOpen}
-            diffDisplayMode={diffDisplayMode}
-            canOpenDiff={canOpenDiff}
-            setIsDiffSidebarOpen={setIsDiffSidebarOpen}
-            diffStats={diffStats}
-            parsedFileDiffs={parsedFileDiffs}
-            onCommit={handleCommitToPr}
-            isCommitting={isCommittingToPr}
-            onExpandTerminal={() => setIsTerminalSidebarOpen(true)}
-            onExpandPlan={handleExpandPlan}
-            onExpandDiff={() => setIsDiffSidebarOpen(true)}
-            onExpandExplorer={() => setIsExplorerPanelOpen(true)}
-            isExplorerSidebarOpen={isExplorerPanelOpen}
-            onFileSelect={(filePath) => {
-              // Set the selected file path
-              setSelectedFilePath(filePath)
-              // Set filtered files to just this file
-              setFilteredDiffFiles([filePath])
-              // Open the diff sidebar
-              setIsDiffSidebarOpen(true)
-            }}
-            remoteInfo={remoteInfo}
-            isRemoteChat={!!remoteInfo}
-          />
-        )}
-
-        {/* Expanded Widget Sidebar - for Info, Plan, Terminal, Diff widgets */}
+        {/* Expanded Widget Sidebar — 暂时保留（DetailsPanel 内部尚未整合） */}
         {isUnifiedSidebarEnabled && !isMobileFullscreen && worktreePath && (
           <ExpandedWidgetSidebar
             chatId={chatId}
@@ -4237,40 +4044,11 @@ export function ChatView({
             diffStats={diffStats}
           />
         )}
-
-        {/* Explorer Panel - supports sidebar/dialog/fullscreen modes */}
-        {worktreePath && (
-          <ExplorerPanel
-            chatId={chatId}
-            worktreePath={worktreePath}
-            isOpen={isExplorerPanelOpen}
-            onClose={() => setIsExplorerPanelOpen(false)}
-          />
-        )}
       </div>
-
-      {/* Terminal Bottom Panel — renders below the main row when displayMode is "bottom" */}
-      {terminalDisplayMode === "bottom" && worktreePath && !isMobileFullscreen && (
-        <ResizableBottomPanel
-          isOpen={isTerminalSidebarOpen}
-          onClose={() => setIsTerminalSidebarOpen(false)}
-          heightAtom={terminalBottomHeightAtom}
-          minHeight={150}
-          maxHeight={500}
-          showResizeTooltip={true}
-          closeHotkey={toggleTerminalHotkey ?? undefined}
-          className="bg-background border-t"
-          style={{ borderTopWidth: "0.5px" }}
-        >
-          <TerminalBottomPanelContent
-            chatId={chatId}
-            cwd={worktreePath}
-            workspaceId={chatId}
-            onClose={() => setIsTerminalSidebarOpen(false)}
-          />
-        </ResizableBottomPanel>
-      )}
+      <PanelZone position="bottom" />
     </div>
+    <PanelZone position="overlay" />
+    </PanelsProvider>
     </TextSelectionProvider>
     </FileOpenProvider>
     </ChatInstanceValueProvider>

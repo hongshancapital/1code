@@ -4,8 +4,9 @@
  * 参考 ChatRegistry 的设计理念，提供插件化的面板管理：
  * - 面板可动态注册/注销
  * - 每个面板有可用性检测（isAvailable）
- * - 支持面板分组（sidebar、bottom、floating）
+ * - 支持面板分组（sidebar、bottom、floating）+ Group 内互斥
  * - 支持面板优先级排序
+ * - 支持多种显示模式（side-peek、center-peek、full-page、bottom）
  *
  * 和 Linux 设备驱动注册表类似：注册表本身不含业务逻辑，
  * 只负责维护面板元数据。渲染逻辑由 React 组件根据注册信息动态生成。
@@ -22,6 +23,15 @@ import type { ComponentType, ReactNode } from "react"
  * Panel position types
  */
 export type PanelPosition = "left" | "right" | "bottom" | "floating"
+
+/**
+ * Display modes for panels
+ * - side-peek: panel as a resizable sidebar (participates in group mutual exclusion)
+ * - center-peek: panel as a centered dialog/overlay
+ * - full-page: panel occupies the entire content area
+ * - bottom: panel as a bottom drawer (e.g., terminal)
+ */
+export type DisplayMode = "side-peek" | "center-peek" | "full-page" | "bottom"
 
 /**
  * Panel metadata
@@ -76,6 +86,39 @@ export interface PanelConfig {
    * Keyboard shortcut to toggle (e.g., "Cmd+D")
    */
   shortcut?: string
+
+  /**
+   * Mutual exclusion group ID.
+   * Panels in the same group with exclusive=true will auto-close when another opens (side-peek only).
+   * Default: "default"
+   */
+  group?: string
+
+  /**
+   * Supported display modes for this panel.
+   * Default: ["side-peek"]
+   */
+  displayModes?: DisplayMode[]
+
+  /**
+   * Default display mode when opening.
+   * Must be one of the values in displayModes.
+   * Default: first item in displayModes
+   */
+  defaultDisplayMode?: DisplayMode
+
+  /**
+   * Whether panel state (open/size/displayMode) is persisted per chat.
+   * Default: true
+   */
+  persistPerChat?: boolean
+
+  /**
+   * Keep children mounted when panel is closed (CSS hide instead of unmount).
+   * Useful for heavy components like webviews that are expensive to re-create.
+   * Default: false
+   */
+  keepMounted?: boolean
 }
 
 /**
@@ -104,7 +147,65 @@ export interface PanelContext {
 export interface PanelState {
   isOpen: boolean
   size: number
+  displayMode?: DisplayMode
   isCollapsed?: boolean
+}
+
+// ============================================================================
+// Panel Group System
+// ============================================================================
+
+/**
+ * Panel group configuration - defines mutual exclusion rules
+ */
+export interface PanelGroupConfig {
+  /** Unique group identifier */
+  id: string
+
+  /**
+   * Whether panels in this group are mutually exclusive (side-peek mode only).
+   * When true, opening a side-peek panel auto-closes other side-peek panels in the same group.
+   */
+  exclusive: boolean
+
+  /**
+   * Whether closing the current panel should restore the previously auto-closed panel.
+   */
+  restoreOnClose: boolean
+}
+
+/**
+ * Pre-defined panel group IDs
+ */
+export const PANEL_GROUP_IDS = {
+  /** Default group: side-peek panels are mutually exclusive */
+  DEFAULT: "default",
+  /** Details group: independently managed (Details sidebar, expanded widgets) */
+  DETAILS: "details",
+} as const
+
+export type PanelGroupId = (typeof PANEL_GROUP_IDS)[keyof typeof PANEL_GROUP_IDS]
+
+/**
+ * Pre-defined panel groups
+ */
+export const PANEL_GROUPS: PanelGroupConfig[] = [
+  { id: PANEL_GROUP_IDS.DEFAULT, exclusive: true, restoreOnClose: true },
+  { id: PANEL_GROUP_IDS.DETAILS, exclusive: false, restoreOnClose: false },
+]
+
+/**
+ * Panel group registry - lookup by ID
+ */
+const panelGroupMap = new Map<string, PanelGroupConfig>(
+  PANEL_GROUPS.map((g) => [g.id, g])
+)
+
+/**
+ * Get group config by ID (returns default group if not found)
+ */
+export function getPanelGroup(groupId: string): PanelGroupConfig {
+  return panelGroupMap.get(groupId) ?? panelGroupMap.get(PANEL_GROUP_IDS.DEFAULT)!
 }
 
 // ============================================================================
@@ -191,6 +292,23 @@ class PanelRegistryClass {
     return panel.isAvailable(context)
   }
 
+  /**
+   * Get panels by group ID, sorted by priority
+   */
+  getByGroup(groupId: string): PanelConfig[] {
+    return this.getAll()
+      .filter((p) => (p.group ?? PANEL_GROUP_IDS.DEFAULT) === groupId)
+      .sort((a, b) => a.priority - b.priority)
+  }
+
+  /**
+   * Get the group config for a panel
+   */
+  getPanelGroup(panelId: string): PanelGroupConfig {
+    const panel = this.panels.get(panelId)
+    return getPanelGroup(panel?.group ?? PANEL_GROUP_IDS.DEFAULT)
+  }
+
   // ── Subscription ──
 
   /**
@@ -243,6 +361,10 @@ export type PanelId = (typeof PANEL_IDS)[keyof typeof PANEL_IDS]
 /**
  * Default panel configurations
  * These are registered at app startup
+ *
+ * Group assignments:
+ * - "default": side-peek panels that are mutually exclusive (plan, diff, terminal, browser, preview, file-viewer, explorer)
+ * - "details": independently managed panels (details, expanded-widget)
  */
 export const DEFAULT_PANELS: PanelConfig[] = [
   {
@@ -256,6 +378,9 @@ export const DEFAULT_PANELS: PanelConfig[] = [
     resizable: true,
     collapsible: true,
     shortcut: "Cmd+D",
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek", "center-peek", "full-page"],
+    defaultDisplayMode: "center-peek",
     isAvailable: (ctx) => !ctx.hideGitFeatures && ctx.canOpenDiff,
   },
   {
@@ -268,6 +393,8 @@ export const DEFAULT_PANELS: PanelConfig[] = [
     maxSize: 600,
     resizable: true,
     collapsible: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek"],
   },
   {
     id: PANEL_IDS.PREVIEW,
@@ -278,50 +405,64 @@ export const DEFAULT_PANELS: PanelConfig[] = [
     minSize: 300,
     maxSize: 800,
     resizable: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek"],
     isAvailable: (ctx) => ctx.canOpenPreview,
   },
   {
     id: PANEL_IDS.TERMINAL,
     name: "Terminal",
-    position: "bottom",
-    priority: 10,
-    defaultSize: 300,
+    position: "right",
+    priority: 40,
+    defaultSize: 500,
     minSize: 150,
-    maxSize: 500,
+    maxSize: 800,
     resizable: true,
     collapsible: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek", "bottom"],
+    defaultDisplayMode: "side-peek",
     isAvailable: (ctx) => ctx.isDesktop && ctx.canOpenTerminal,
   },
   {
     id: PANEL_IDS.BROWSER,
     name: "Browser",
     position: "right",
-    priority: 40,
+    priority: 50,
     defaultSize: 500,
     minSize: 400,
     maxSize: 1000,
     resizable: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek"],
+    keepMounted: true,
   },
   {
     id: PANEL_IDS.FILE_VIEWER,
     name: "File Viewer",
     position: "right",
-    priority: 50,
+    priority: 60,
     defaultSize: 500,
     minSize: 300,
     maxSize: 800,
     resizable: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek", "center-peek", "full-page"],
+    defaultDisplayMode: "side-peek",
   },
   {
     id: PANEL_IDS.EXPLORER,
     name: "Explorer",
-    position: "left",
-    priority: 10,
-    defaultSize: 280,
+    position: "right",
+    priority: 70,
+    defaultSize: 350,
     minSize: 200,
-    maxSize: 400,
+    maxSize: 600,
     resizable: true,
     collapsible: true,
+    group: PANEL_GROUP_IDS.DEFAULT,
+    displayModes: ["side-peek", "center-peek", "full-page"],
+    defaultDisplayMode: "side-peek",
     isAvailable: (ctx) => ctx.isDesktop,
   },
   {
@@ -333,6 +474,8 @@ export const DEFAULT_PANELS: PanelConfig[] = [
     minSize: 280,
     maxSize: 500,
     resizable: true,
+    group: PANEL_GROUP_IDS.DETAILS,
+    displayModes: ["side-peek"],
   },
 ]
 

@@ -151,7 +151,21 @@ export const McpWidget = memo(function McpWidget() {
     return map
   }, [sessionInfo?.tools, sessionInfo?.mcpServers])
 
-  if (!sessionInfo?.mcpServers || sessionInfo.mcpServers.length === 0) {
+  // Deduplicate servers by name to prevent React key warnings
+  const uniqueMcpServers = useMemo(
+    () => {
+      if (!sessionInfo?.mcpServers) return []
+      const seen = new Set<string>()
+      return sessionInfo.mcpServers.filter((s) => {
+        if (seen.has(s.name)) return false
+        seen.add(s.name)
+        return true
+      })
+    },
+    [sessionInfo?.mcpServers],
+  )
+
+  if (uniqueMcpServers.length === 0) {
     return (
       <div className="px-2 py-2">
         <button
@@ -208,7 +222,7 @@ export const McpWidget = memo(function McpWidget() {
       className="px-2 py-1.5 flex flex-col gap-0.5 overflow-y-auto"
       style={maxHeight ? { maxHeight } : undefined}
     >
-      {sessionInfo.mcpServers.map((server) => {
+      {uniqueMcpServers.map((server) => {
         const tools = toolsByServer.get(server.name) || []
         const isExpanded = expandedServers.has(server.name)
         const hasTools = tools.length > 0

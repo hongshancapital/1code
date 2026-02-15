@@ -88,6 +88,9 @@ export {
 
 // Panel state management (unified panel system)
 export {
+  usePanel,
+  type PanelHandle,
+  // Deprecated re-exports for backwards compatibility
   usePanelState,
   usePanelGroup,
   useRightSidebar,
