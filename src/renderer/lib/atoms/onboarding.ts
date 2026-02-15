@@ -63,13 +63,3 @@ export const welcomeNameInputCompletedAtom = atomWithStorage<boolean>(
   undefined,
   { getOnInit: true },
 )
-
-// Runtime init banner
-export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
-  "onboarding:runtime-init-banner-dismissed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-export const runtimeSimulatedModeAtom = atom<boolean>(false)

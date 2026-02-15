@@ -28,7 +28,6 @@ import { TooltipProvider } from "../../components/ui/tooltip"
 import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
 import { AgentsSidebar } from "../sidebar/agents-sidebar"
 import { AgentsContent } from "../agents/ui/agents-content"
-import { RuntimeInitBanner } from "../../components/runtime-init-banner"
 import { WindowsTitleBar } from "../../components/windows-title-bar"
 import { useTasksIdleNotifier } from "../../lib/hooks/use-tasks-idle-notifier"
 import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
@@ -382,8 +381,6 @@ export function AgentsLayout() {
           </div>
         </div>
 
-        {/* Runtime Init Banner (right bottom) */}
-        <RuntimeInitBanner />
         {/* Global Search Dialog (Cmd+K) */}
         <GlobalSearchDialog />
       </div>

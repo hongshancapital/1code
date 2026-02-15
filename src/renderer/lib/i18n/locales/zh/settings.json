@@ -38,7 +38,21 @@
       "sound": {
         "title": "声音通知",
         "description": "当您离开时 Agent 完成工作时播放提示音"
-      }
+      },
+      "sounds": {
+        "default": "默认",
+        "abstract1": "科技音 1",
+        "abstract2": "科技音 2",
+        "abstract3": "科技音 3",
+        "abstract4": "科技音 4",
+        "phoneVibration": "手机震动",
+        "cowMooing": "哞~",
+        "rooster": "公鸡打鸣",
+        "custom": "自定义"
+      },
+      "volume": "音量",
+      "notificationSound": "提示音",
+      "choose": "选择"
     },
     "navigation": {
       "quickSwitch": {
@@ -757,9 +771,7 @@
       "openUserData": "打开用户数据",
       "devTools": "开发工具",
       "reload": "重新加载",
-      "copyInfo": "复制信息",
-      "retriggerRuntimeInit": "重新初始化运行时",
-      "runtimeInitTriggered": "已重新触发运行时初始化"
+      "copyInfo": "复制信息"
     },
     "toastTesting": {
       "title": "Toast 测试",
@@ -798,32 +810,6 @@
       "offlineSimDisabledDesc": "网络检测已恢复正常",
       "productionDbCopied": "生产数据库已复制",
       "productionDbCopiedDesc": "正在使用新数据重新加载..."
-    },
-    "simulatedInstall": {
-      "title": "模拟运行时安装",
-      "description": "模拟初始运行时检测和安装流程，用于测试和调试目的。",
-      "start": "开始模拟",
-      "resetButton": "重置",
-      "injectError": "注入错误",
-      "started": "模拟安装已开始",
-      "reset": "模拟状态已重置",
-      "errors": {
-        "none": "无（正常流程）",
-        "detection": "检测阶段错误",
-        "download": "下载阶段错误",
-        "install": "安装阶段错误",
-        "timeout": "超时错误"
-      },
-      "steps": {
-        "initializing": "正在初始化...",
-        "detecting": "正在检测系统环境...",
-        "checking": "正在检查已有工具...",
-        "downloading": "正在下载...",
-        "installing": "正在安装...",
-        "verifying": "正在验证...",
-        "complete": "安装完成",
-        "error": "发生错误"
-      }
     }
   },
   "sidebar": {

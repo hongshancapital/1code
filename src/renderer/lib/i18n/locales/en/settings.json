@@ -38,7 +38,21 @@
       "sound": {
         "title": "Sound Notifications",
         "description": "Play a sound when agent completes work while you're away"
-      }
+      },
+      "sounds": {
+        "default": "Default",
+        "abstract1": "Abstract 1",
+        "abstract2": "Abstract 2",
+        "abstract3": "Abstract 3",
+        "abstract4": "Abstract 4",
+        "phoneVibration": "Phone Vibration",
+        "cowMooing": "Cow Mooing",
+        "rooster": "Rooster",
+        "custom": "Custom"
+      },
+      "volume": "Volume",
+      "notificationSound": "Notification Sound",
+      "choose": "Choose"
     },
     "navigation": {
       "quickSwitch": {
@@ -757,9 +771,7 @@
       "openUserData": "Open userData",
       "devTools": "DevTools",
       "reload": "Reload",
-      "copyInfo": "Copy Info",
-      "retriggerRuntimeInit": "Re-init Runtime",
-      "runtimeInitTriggered": "Runtime init banner re-triggered"
+      "copyInfo": "Copy Info"
     },
     "toastTesting": {
       "title": "Toast Testing",
@@ -798,32 +810,6 @@
       "offlineSimDisabledDesc": "Network detection restored to normal",
       "productionDbCopied": "Production database copied",
       "productionDbCopiedDesc": "Reloading with new data..."
-    },
-    "simulatedInstall": {
-      "title": "Simulated Runtime Installation",
-      "description": "Simulate the initial runtime detection and installation flow for testing and debugging purposes.",
-      "start": "Start Simulation",
-      "resetButton": "Reset",
-      "injectError": "Inject Error",
-      "started": "Simulated installation started",
-      "reset": "Simulation state reset",
-      "errors": {
-        "none": "None (normal flow)",
-        "detection": "Detection phase error",
-        "download": "Download phase error",
-        "install": "Install phase error",
-        "timeout": "Timeout error"
-      },
-      "steps": {
-        "initializing": "Initializing...",
-        "detecting": "Detecting system environment...",
-        "checking": "Checking existing tools...",
-        "downloading": "Downloading...",
-        "installing": "Installing...",
-        "verifying": "Verifying...",
-        "complete": "Installation complete",
-        "error": "Error occurred"
-      }
     }
   },
   "sidebar": {
