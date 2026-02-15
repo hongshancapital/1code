@@ -265,14 +265,15 @@ export const debugRouter = router({
 
     // Production database path - try multiple possible locations
     // Current userData paths:
+    // - "hong-desktop" (local production for testing, highest priority)
     // - "Hong Cowork" (production, embedded in Tinker)
     // - "Hong Cowork-开发版" (dev build, embedded in Tinker)
     // - "Hong" (standalone production, no Tinker)
     const possibleProductionPaths = [
+      join(appSupportPath, "hong-desktop", "data", "agents.db"),        // Local production (highest priority)
       join(appSupportPath, "Hong Cowork", "data", "agents.db"),         // Production (Tinker)
       join(appSupportPath, "Hong Cowork-开发版", "data", "agents.db"), // Dev build (Tinker)
       join(appSupportPath, "Hong", "data", "agents.db"),                // Standalone production
-      join(appSupportPath, "hong-desktop", "data", "agents.db"),        // Legacy
     ].filter(p => p !== join(userDataPath, "data", "agents.db")) // Exclude self
 
     const productionDbPath = possibleProductionPaths.find(p => existsSync(p))
