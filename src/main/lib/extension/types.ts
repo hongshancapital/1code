@@ -227,6 +227,9 @@ export interface ToolDefinition {
   inputSchema: Record<string, unknown>
 }
 
+/** initialize 返回的清理函数，类似 React useEffect 的 cleanup */
+export type CleanupFn = () => void | Promise<void>
+
 export interface ExtensionModule {
   name: string
   description?: string
@@ -238,6 +241,9 @@ export interface ExtensionModule {
   routers?: Record<string, AnyRouter>
   /** 声明此 Extension 提供的内部 Tools（供 internal-tools 发现） */
   listTools?(): Promise<{ category: string; tools: ToolDefinition[] }[]>
-  initialize?(ctx: ExtensionContext): void | Promise<void>
-  cleanup?(): void | Promise<void>
+  /**
+   * 初始化 Extension，可返回 cleanup 函数（类似 React useEffect）。
+   * ExtensionManager 会在 cleanupAll 时自动调用返回的 cleanup。
+   */
+  initialize?(ctx: ExtensionContext): void | CleanupFn | Promise<void | CleanupFn>
 }

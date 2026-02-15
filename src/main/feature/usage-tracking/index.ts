@@ -9,6 +9,7 @@
 import type {
   ExtensionModule,
   ExtensionContext,
+  CleanupFn,
 } from "../../lib/extension/types"
 import type {
   ChatStreamCompletePayload,
@@ -143,35 +144,29 @@ class UsageTrackingExtension implements ExtensionModule {
   name = "usage-tracking" as const
   description = "Token usage tracking for model_usage table"
 
-  private cleanupFns: Array<() => void> = []
-
-  async initialize(ctx: ExtensionContext): Promise<void> {
+  initialize(ctx: ExtensionContext): CleanupFn {
     // chat:streamComplete — 记录 token 使用（成功路径）
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:streamComplete",
-        async (payload) => {
-          recordUsage(payload)
-        },
-        { source: this.name },
-      ),
+    const offComplete = ctx.hooks.on(
+      "chat:streamComplete",
+      async (payload) => {
+        recordUsage(payload)
+      },
+      { source: this.name },
     )
 
     // chat:streamError — 记录 token 使用（错误路径）
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:streamError",
-        async (payload) => {
-          recordUsage(payload)
-        },
-        { source: this.name },
-      ),
+    const offError = ctx.hooks.on(
+      "chat:streamError",
+      async (payload) => {
+        recordUsage(payload)
+      },
+      { source: this.name },
     )
-  }
 
-  async cleanup(): Promise<void> {
-    for (const fn of this.cleanupFns) fn()
-    this.cleanupFns = []
+    return () => {
+      offComplete()
+      offError()
+    }
   }
 }
 

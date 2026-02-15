@@ -10,6 +10,7 @@ import type {
   ExtensionModule,
   ExtensionContext,
   ToolDefinition,
+  CleanupFn,
 } from "../../lib/extension/types"
 import { createBrowserMcpServer, browserManager } from "../../lib/browser"
 import { getBrowserToolDefinitions } from "../../lib/browser/mcp-server"
@@ -21,66 +22,65 @@ class BrowserMcpExtension implements ExtensionModule {
   router = browserRouter
   routerKey = "browser"
 
-  private cleanupFns: Array<() => void> = []
-
-  async initialize(ctx: ExtensionContext): Promise<void> {
+  initialize(ctx: ExtensionContext): CleanupFn {
     // chat:collectMcpServers — 注入 browser MCP server
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:collectMcpServers",
-        async (payload) => {
-          if (payload.isOllama) return []
+    const offCollect = ctx.hooks.on(
+      "chat:collectMcpServers",
+      async (payload) => {
+        if (payload.isOllama) return []
 
-          try {
-            const browserMcp = await createBrowserMcpServer()
-            if (payload.cwd) {
-              browserManager.workingDirectory = payload.cwd
-            }
-            ctx.log(
-              "[Browser MCP] Added browser MCP server (ready:",
-              browserManager.isReady,
-              ")",
-            )
-            return [{ name: "browser", config: browserMcp }]
-          } catch (err) {
-            ctx.error("[Browser MCP] Failed to create server:", err)
-            return []
+        try {
+          const browserMcp = await createBrowserMcpServer()
+          if (payload.cwd) {
+            browserManager.workingDirectory = payload.cwd
           }
-        },
-        { source: this.name },
-      ),
+          ctx.log(
+            "[Browser MCP] Added browser MCP server (ready:",
+            browserManager.isReady,
+            ")",
+          )
+          return [{ name: "browser", config: browserMcp }]
+        } catch (err) {
+          ctx.error("[Browser MCP] Failed to create server:", err)
+          return []
+        }
+      },
+      { source: this.name },
     )
 
     // chat:enhancePrompt — Browser context 注入（priority=200，在 Memory 之后）
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:enhancePrompt",
-        (payload) => {
-          if (
-            browserManager.isReady &&
-            browserManager.currentUrl &&
-            browserManager.currentUrl !== "about:blank"
-          ) {
-            const browserTitle = browserManager.currentTitle || "Unknown"
-            const browserUrl = browserManager.currentUrl
-            return {
-              ...payload,
-              appendSections: [
-                ...payload.appendSections,
-                `# Active Browser Context
+    const offEnhance = ctx.hooks.on(
+      "chat:enhancePrompt",
+      (payload) => {
+        if (
+          browserManager.isReady &&
+          browserManager.currentUrl &&
+          browserManager.currentUrl !== "about:blank"
+        ) {
+          const browserTitle = browserManager.currentTitle || "Unknown"
+          const browserUrl = browserManager.currentUrl
+          return {
+            ...payload,
+            appendSections: [
+              ...payload.appendSections,
+              `# Active Browser Context
 The user is currently using the built-in browser and viewing:
 - **Page Title**: ${browserTitle}
 - **URL**: ${browserUrl}
 
 If the user needs help with the page content, you can use the browser MCP tools (browser_lock, browser_snapshot, browser_click, browser_fill, browser_screenshot, etc.) to assist them. Remember to call browser_lock before and browser_unlock after using browser tools.`,
-              ],
-            }
+            ],
           }
-          return payload
-        },
-        { source: this.name, priority: 200 },
-      ),
+        }
+        return payload
+      },
+      { source: this.name, priority: 200 },
     )
+
+    return () => {
+      offCollect()
+      offEnhance()
+    }
   }
 
   async listTools(): Promise<{ category: string; tools: ToolDefinition[] }[]> {
@@ -99,10 +99,6 @@ If the user needs help with the page content, you can use the browser MCP tools 
     }
   }
 
-  async cleanup(): Promise<void> {
-    for (const fn of this.cleanupFns) fn()
-    this.cleanupFns = []
-  }
 }
 
 export const browserMcpExtension = new BrowserMcpExtension()

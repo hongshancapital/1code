@@ -9,6 +9,7 @@ import type {
   ExtensionModule,
   ExtensionContext,
   ToolDefinition,
+  CleanupFn,
 } from "../../lib/extension/types"
 import { createImageGenMcpServer, getImageGenToolDefinitions } from "../../lib/mcp/image-gen-server"
 import { createImageProcessMcpServer, getImageProcessToolDefinitions } from "../../lib/mcp/image-process-server"
@@ -18,56 +19,54 @@ class ImageMcpExtension implements ExtensionModule {
   name = "image-mcp" as const
   description = "Image generation and processing MCP server injection"
 
-  private cleanupFns: Array<() => void> = []
-
-  async initialize(ctx: ExtensionContext): Promise<void> {
+  initialize(ctx: ExtensionContext): CleanupFn {
     // chat:collectMcpServers — 注入 image MCP servers
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:collectMcpServers",
-        async (payload) => {
-          if (payload.isOllama) return []
+    const off = ctx.hooks.on(
+      "chat:collectMcpServers",
+      async (payload) => {
+        if (payload.isOllama) return []
 
-          const entries: McpServerEntry[] = []
+        const entries: McpServerEntry[] = []
 
-          // Image Gen（条件注入：需要 imageConfig）
-          if (payload.imageConfig) {
-            ctx.log(
-              "[Image Gen MCP] imageConfig:",
-              `provider=${payload.imageConfig.model} baseUrl=${payload.imageConfig.baseUrl}`,
-            )
-            try {
-              const imageGenMcp = await createImageGenMcpServer({
-                cwd: payload.cwd,
-                subChatId: payload.subChatId,
-                apiConfig: {
-                  baseUrl: payload.imageConfig.baseUrl,
-                  apiKey: payload.imageConfig.apiKey,
-                  model: payload.imageConfig.model,
-                },
-              })
-              entries.push({ name: "image-gen", config: imageGenMcp })
-            } catch (err) {
-              ctx.error("[Image Gen MCP] Failed to create server:", err)
-            }
-          }
-
-          // Image Process（无条件注入）
+        // Image Gen（条件注入：需要 imageConfig）
+        if (payload.imageConfig) {
+          ctx.log(
+            "[Image Gen MCP] imageConfig:",
+            `provider=${payload.imageConfig.model} baseUrl=${payload.imageConfig.baseUrl}`,
+          )
           try {
-            const imageProcessMcp = await createImageProcessMcpServer({
+            const imageGenMcp = await createImageGenMcpServer({
               cwd: payload.cwd,
               subChatId: payload.subChatId,
+              apiConfig: {
+                baseUrl: payload.imageConfig.baseUrl,
+                apiKey: payload.imageConfig.apiKey,
+                model: payload.imageConfig.model,
+              },
             })
-            entries.push({ name: "image-process", config: imageProcessMcp })
+            entries.push({ name: "image-gen", config: imageGenMcp })
           } catch (err) {
-            ctx.error("[Image Process MCP] Failed to create server:", err)
+            ctx.error("[Image Gen MCP] Failed to create server:", err)
           }
+        }
 
-          return entries
-        },
-        { source: this.name },
-      ),
+        // Image Process（无条件注入）
+        try {
+          const imageProcessMcp = await createImageProcessMcpServer({
+            cwd: payload.cwd,
+            subChatId: payload.subChatId,
+          })
+          entries.push({ name: "image-process", config: imageProcessMcp })
+        } catch (err) {
+          ctx.error("[Image Process MCP] Failed to create server:", err)
+        }
+
+        return entries
+      },
+      { source: this.name },
     )
+
+    return off
   }
 
   async listTools(): Promise<{ category: string; tools: ToolDefinition[] }[]> {
@@ -92,10 +91,6 @@ class ImageMcpExtension implements ExtensionModule {
     return results
   }
 
-  async cleanup(): Promise<void> {
-    for (const fn of this.cleanupFns) fn()
-    this.cleanupFns = []
-  }
 }
 
 export const imageMcpExtension = new ImageMcpExtension()
