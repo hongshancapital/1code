@@ -2,6 +2,10 @@
 
 import { atom } from "jotai"
 import { atomFamily } from "jotai/utils"
+import { createLogger } from "../../../lib/logger"
+
+const syncMessagesLog = createLogger("SyncMessages")
+
 
 // Types
 export interface MessagePart {
@@ -847,9 +851,18 @@ export const syncMessagesWithStatusAtom = atom(
             createdAtCache.set(msg.id, msg.createdAt)
           }
           // Deep clone message with new parts array and new part objects
+          // For new messages from SDK (no createdAt, no cache, no atom yet), stamp the
+          // time they first appeared so user messages always show a timestamp.
+          const resolvedCreatedAt = msg.createdAt
+            || createdAtCache.get(msg.id)
+            || currentAtomValue?.createdAt
+            || (!currentAtomValue ? new Date() : undefined)
+          if (resolvedCreatedAt && !createdAtCache.has(msg.id)) {
+            createdAtCache.set(msg.id, resolvedCreatedAt)
+          }
           const clonedMsg = {
             ...msg,
-            createdAt: msg.createdAt || createdAtCache.get(msg.id) || currentAtomValue?.createdAt,
+            createdAt: resolvedCreatedAt,
             parts: msg.parts?.map((part: any) => ({ ...part, input: part.input ? { ...part.input } : undefined })),
           }
           set(messageAtomFamily(msg.id), clonedMsg)
@@ -888,7 +901,7 @@ export const syncMessagesWithStatusAtom = atom(
 
     const duration = performance.now() - _syncStart
     if (duration > 5) {
-      console.log(`[SyncMessages] SLOW SYNC: ${duration.toFixed(2)}ms (msgs=${messages.length}, fullReset=${isFullReset})`)
+      syncMessagesLog.info(`SLOW SYNC: ${duration.toFixed(2)}ms (msgs=${messages.length}, fullReset=${isFullReset})`)
     }
   }
 )
