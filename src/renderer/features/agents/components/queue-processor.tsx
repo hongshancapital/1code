@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { useMessageQueueStore } from "../stores/message-queue-store"
+import type { AgentQueueItem } from "../lib/queue-utils"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { chatRegistry } from "../stores/chat-registry"
@@ -59,22 +60,65 @@ export function QueueProcessor() {
       // Mark as processing
       processingRef.current.add(subChatId)
 
-      // Pop the first item from queue (atomic operation)
-      const item = useMessageQueueStore.getState().popItem(subChatId, queue[0].id)
-      if (!item) {
+      // Merge consecutive text-only queue items into a single message.
+      // Items with attachments (images/files/textContexts/diffTextContexts) are
+      // sent individually to preserve their semantic context.
+      const isTextOnly = (item: AgentQueueItem) =>
+        !item.images?.length &&
+        !item.files?.length &&
+        !item.textContexts?.length &&
+        !item.diffTextContexts?.length
+
+      const store = useMessageQueueStore.getState()
+      const currentQueue = store.queues[subChatId] || []
+
+      let poppedItems: AgentQueueItem[] = []
+
+      if (isTextOnly(currentQueue[0]) && currentQueue.length > 1) {
+        // Greedily collect consecutive text-only items from queue head
+        const mergeableIds: string[] = []
+        for (const item of currentQueue) {
+          if (!isTextOnly(item)) break
+          mergeableIds.push(item.id)
+        }
+        for (const id of mergeableIds) {
+          const popped = useMessageQueueStore.getState().popItem(subChatId, id)
+          if (popped) poppedItems.push(popped)
+        }
+      } else {
+        // Single item (has attachments, or only 1 item in queue)
+        const popped = store.popItem(subChatId, currentQueue[0].id)
+        if (popped) poppedItems.push(popped)
+      }
+
+      if (poppedItems.length === 0) {
         processingRef.current.delete(subChatId)
         return
       }
 
       try {
-        // Build message parts from queued item
-        const parts: any[] = [
-          ...(item.images || []).map(buildImagePart),
-          ...(item.files || []).map(buildFilePart),
-        ]
+        // Build message parts — merge text from all popped items
+        const parts: any[] = []
 
-        if (item.message) {
-          parts.push({ type: "text", text: item.message })
+        if (poppedItems.length === 1) {
+          // Single item: preserve original behavior (attachments + text)
+          const item = poppedItems[0]
+          parts.push(
+            ...(item.images || []).map(buildImagePart),
+            ...(item.files || []).map(buildFilePart),
+          )
+          if (item.message) {
+            parts.push({ type: "text", text: item.message })
+          }
+        } else {
+          // Multiple text-only items: merge messages with \n\n
+          const mergedText = poppedItems
+            .map((item) => item.message)
+            .filter(Boolean)
+            .join("\n\n")
+          if (mergedText) {
+            parts.push({ type: "text", text: mergedText })
+          }
         }
 
         // Get mode from sub-chat store for analytics
@@ -106,8 +150,10 @@ export function QueueProcessor() {
       } catch (error) {
         console.error(`[QueueProcessor] Error processing queue:`, error)
 
-        // Requeue the item at the front so it can be retried
-        useMessageQueueStore.getState().prependItem(subChatId, item)
+        // Requeue all popped items at the front in original order so they can be retried
+        for (let i = poppedItems.length - 1; i >= 0; i--) {
+          useMessageQueueStore.getState().prependItem(subChatId, poppedItems[i])
+        }
 
         // Set error status (will be cleared on next successful send or manual retry)
         useStreamingStatusStore.getState().setStatus(subChatId, "error")
