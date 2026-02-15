@@ -91,6 +91,7 @@ function parseLocator(locator?: string): {
 
 /** Tool result type */
 type ToolResult = {
+  [key: string]: unknown;
   content: Array<{ type: "text"; text: string }>;
 };
 
@@ -136,26 +137,31 @@ export async function getBrowserToolDefinitions() {
     schema: T,
     handler: (params: z.infer<z.ZodObject<T>>) => Promise<ToolResult>,
   ) {
+    // SDK tool() accepts AnyZodRawShape = ZodRawShape (zod v3) | ZodRawShape_2 (zod/v4)
+    // Our zod v3 schema is structurally compatible but TS sees them as different declarations.
+    // We use a targeted type assertion to bridge the zod version gap.
+    type SdkTool = typeof tool;
+    type SdkSchema = Parameters<SdkTool>[2];
+    type SdkHandler = Parameters<SdkTool>[3];
+
+    const wrappedHandler: SdkHandler = async (params, _extra) => {
+      if (!browserManager.isLocked) {
+        return error(
+          "Browser lock is not active. The session may have timed out or been manually unlocked by the user. " +
+            "If you need to continue, you must call browser_lock again.",
+        );
+      }
+
+      browserManager.renewLock();
+
+      return handler(params as z.infer<z.ZodObject<T>>);
+    };
+
     return tool(
       name,
       description,
-      schema,
-      async (params: z.infer<z.ZodObject<T>>): Promise<ToolResult> => {
-        if (!browserManager.isLocked) {
-          // If the browser was unlocked (manually or by timeout), we should stop the AI
-          // by returning a clear error.
-          return error(
-            "Browser lock is not active. The session may have timed out or been manually unlocked by the user. " +
-              "If you need to continue, you must call browser_lock again.",
-          );
-        }
-
-        // Renew the lock timer on every successful tool call
-        // This prevents the 5-minute timer from expiring while the AI is working
-        browserManager.renewLock();
-
-        return handler(params);
-      },
+      schema as SdkSchema,
+      wrappedHandler,
     );
   }
 

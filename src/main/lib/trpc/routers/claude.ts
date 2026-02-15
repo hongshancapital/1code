@@ -6,7 +6,13 @@ import { existsSync } from "fs";
 import * as os from "os";
 import path from "path";
 import { z } from "zod";
-import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query as claudeQuery,
+  type SDKUserMessage,
+  type PermissionResult,
+  type McpServerConfig as SdkMcpServerConfig,
+  type SettingSource,
+} from "@anthropic-ai/claude-agent-sdk";
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config";
 import {
   buildClaudeEnv,
@@ -188,7 +194,16 @@ const pendingToolApprovals = new Map<
 let promptBuilderInitialized = false;
 function ensurePromptBuilderInitialized() {
   if (!promptBuilderInitialized) {
-    initializePromptBuilder(getCachedRuntimeEnvironment);
+    initializePromptBuilder(async () => {
+      const env = await getCachedRuntimeEnvironment();
+      return {
+        tools: env.tools.map((t) => ({
+          category: t.category,
+          name: t.name,
+          version: t.version ?? undefined,
+        })),
+      };
+    });
     promptBuilderInitialized = true;
   }
 }
@@ -617,7 +632,7 @@ export const claudeRouter = router({
               finalPrompt,
               input.cwd,
             );
-            let prompt: string | AsyncIterable<any> = imagePrompt || finalPrompt;
+            let prompt: string | AsyncIterable<SDKUserMessage> = imagePrompt || finalPrompt;
 
             // Build full environment for Claude SDK (includes HOME, PATH, etc.)
             const claudeEnv = buildClaudeEnv({
@@ -957,7 +972,7 @@ export const claudeRouter = router({
             }
 
             // For Ollama: embed context AND history directly in prompt
-            let finalQueryPrompt: string | AsyncIterable<any> = prompt;
+            let finalQueryPrompt: string | AsyncIterable<SDKUserMessage> = prompt;
             if (isUsingOllama && typeof prompt === "string") {
               finalQueryPrompt = await buildOllamaContext({
                 existingMessages,
@@ -967,7 +982,16 @@ export const claudeRouter = router({
                 resolvedModel,
                 agentsMdContent,
                 userProfile: input.userProfile,
-                getCachedRuntimeEnvironment: getCachedRuntimeEnvironment,
+                getCachedRuntimeEnvironment: async () => {
+                  const env = await getCachedRuntimeEnvironment();
+                  return {
+                    tools: env.tools.map((t) => ({
+                      category: t.category,
+                      name: t.name,
+                      version: t.version ?? undefined,
+                    })),
+                  };
+                },
               });
             }
 
@@ -1011,16 +1035,16 @@ export const claudeRouter = router({
               options: {
                 abortController, // Must be inside options!
                 cwd: input.cwd,
-                systemPrompt: systemPromptConfig,
+                systemPrompt: systemPromptConfig as { type: "preset"; preset: "claude_code"; append?: string },
                 // Register mentioned agents with SDK via options.agents (skip for Ollama - not supported)
                 ...(!isUsingOllama &&
                   Object.keys(agentsOption).length > 0 && {
-                    agents: agentsOption,
+                    agents: agentsOption as Record<string, { description: string; prompt: string; model?: string; tools?: string[] }>,
                   }),
                 // Pass filtered MCP servers (only working/unknown ones, skip failed/needs-auth)
                 ...(mcpServersFiltered &&
                   Object.keys(mcpServersFiltered).length > 0 && {
-                    mcpServers: mcpServersFiltered,
+                    mcpServers: mcpServersFiltered as Record<string, SdkMcpServerConfig>,
                   }),
                 env: finalEnv,
                 permissionMode:
@@ -1033,13 +1057,13 @@ export const claudeRouter = router({
                 includePartialMessages: true,
                 // Load skills from project and user directories (skip for Ollama - not supported)
                 ...(!isUsingOllama && {
-                  settingSources: ["project" as const, "user" as const],
+                  settingSources: ["project", "user"] as SettingSource[],
                 }),
                 canUseTool: async (
                   toolName: string,
                   toolInput: Record<string, unknown>,
                   options: { toolUseID: string },
-                ) => {
+                ): Promise<PermissionResult> => {
                   // Fix common parameter mistakes from Ollama models
                   // Local models often use slightly wrong parameter names
                   if (isUsingOllama) {
@@ -1340,7 +1364,7 @@ export const claudeRouter = router({
                 isUsingLitellm,
                 finalCustomConfig,
               });
-              stream = claudeQuery(queryOptions);
+              stream = claudeQuery(queryOptions as Parameters<typeof claudeQuery>[0]);
             } catch (queryError) {
               console.error(
                 "[CLAUDE] ✗ Failed to create SDK query:",
@@ -2504,7 +2528,7 @@ export const claudeRouter = router({
         transport: z.enum(["stdio", "http"]),
         command: z.string().optional(),
         args: z.array(z.string()).optional(),
-        env: z.record(z.string()).optional(),
+        env: z.record(z.string(), z.string()).optional(),
         url: z.string().url().optional(),
         authType: z.enum(["none", "oauth", "bearer"]).optional(),
         bearerToken: z.string().optional(),
@@ -2582,7 +2606,7 @@ export const claudeRouter = router({
           .optional(),
         command: z.string().optional(),
         args: z.array(z.string()).optional(),
-        env: z.record(z.string()).optional(),
+        env: z.record(z.string(), z.string()).optional(),
         url: z.string().url().optional(),
         authType: z.enum(["none", "oauth", "bearer"]).optional(),
         bearerToken: z.string().optional(),

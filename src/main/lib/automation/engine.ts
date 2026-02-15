@@ -161,8 +161,8 @@ export class AutomationEngine {
         .update(automations)
         .set({
           lastTriggeredAt: new Date(),
-          totalExecutions: automation.totalExecutions + 1,
-          successfulExecutions: automation.successfulExecutions + 1,
+          totalExecutions: (automation.totalExecutions ?? 0) + 1,
+          successfulExecutions: (automation.successfulExecutions ?? 0) + 1,
           updatedAt: new Date(),
         })
         .where(eq(automations.id, automationId))
@@ -190,8 +190,8 @@ export class AutomationEngine {
         await db
           .update(automations)
           .set({
-            totalExecutions: automation.totalExecutions + 1,
-            failedExecutions: automation.failedExecutions + 1,
+            totalExecutions: (automation.totalExecutions ?? 0) + 1,
+            failedExecutions: (automation.failedExecutions ?? 0) + 1,
             updatedAt: new Date(),
           })
           .where(eq(automations.id, automationId))

@@ -142,21 +142,9 @@ export class ClaudeEngine {
         // Yield message event
         yield { type: "message", chunk: message } as EngineEvent;
 
-        // Track tool calls
-        if (
-          message.type === "tool-output-available" &&
-          request.outputChannel?.onToolCall
-        ) {
-          request.outputChannel.onToolCall(
-            message.toolName || "unknown",
-            message.input,
-            message.output,
-          );
-        }
-
-        // Collect stats from finish message
-        if (message.type === "finish" && message.messageMetadata) {
-          Object.assign(stats, message.messageMetadata);
+        // Collect stats from result message
+        if (message.type === "result") {
+          Object.assign(stats, message);
         }
       }
 

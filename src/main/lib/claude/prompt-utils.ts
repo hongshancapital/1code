@@ -7,6 +7,8 @@
  * - buildOllamaContext — 为 Ollama 构建完整上下文（历史 + profile + runtime）
  */
 
+import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { ContentBlockParam } from "@anthropic-ai/sdk/resources/messages/messages";
 import * as fs from "fs/promises";
 import path from "path";
 
@@ -51,6 +53,9 @@ export function mergeUnansweredMessages(
   return currentPrompt;
 }
 
+/** Supported image media types (matches Anthropic SDK) */
+type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
 /** Image attachment type (matches claude.ts schema) */
 interface ImageInput {
   base64Data: string;
@@ -70,7 +75,7 @@ export async function buildImagePrompt(
   images: ImageInput[],
   finalPrompt: string,
   cwd: string,
-): Promise<AsyncIterable<any> | null> {
+): Promise<AsyncIterable<SDKUserMessage> | null> {
   if (!images || images.length === 0) return null;
 
   // Save uploaded images to disk so MCP tools (e.g. edit_image) can access them by path
@@ -106,11 +111,11 @@ export async function buildImagePrompt(
   }
 
   // Create message content array with images first, then text
-  const messageContent: any[] = images.map((img) => ({
+  const messageContent: ContentBlockParam[] = images.map((img) => ({
     type: "image" as const,
     source: {
       type: "base64" as const,
-      media_type: img.mediaType,
+      media_type: img.mediaType as ImageMediaType,
       data: img.base64Data,
     },
   }));
@@ -128,7 +133,7 @@ export async function buildImagePrompt(
   }
 
   // Create an async generator that yields a single SDKUserMessage
-  async function* createPromptWithImages() {
+  async function* createPromptWithImages(): AsyncGenerator<SDKUserMessage> {
     yield {
       type: "user" as const,
       message: {
@@ -136,6 +141,7 @@ export async function buildImagePrompt(
         content: messageContent,
       },
       parent_tool_use_id: null,
+      session_id: "", // SDK fills this automatically
     };
   }
 

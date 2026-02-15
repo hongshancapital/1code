@@ -15,6 +15,7 @@ import type {
   BrowserOperationType,
   BrowserResult,
   BrowserState,
+  CapturedNetworkRequest,
   CursorPosition,
   PendingOperation,
   RecentAction,

@@ -6,6 +6,7 @@
  * to configure and use the Claude Agent SDK with customized settings.
  */
 
+import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk"
 import type { AuthManager } from "../../auth-manager"
 
 // Re-export existing types
@@ -19,7 +20,7 @@ export interface McpServerWithMeta {
   args?: string[]
   env?: Record<string, string>
   url?: string
-  type?: "http" | "sse" | "stdio"
+  type?: "http" | "sse" | "stdio" | "sdk"
   authType?: "oauth" | "bearer" | "none"
   headers?: Record<string, string>
   _oauth?: {
@@ -242,7 +243,7 @@ export interface OutputChannel {
  */
 export interface EngineRequest {
   /** User prompt or message */
-  prompt: string | AsyncIterable<unknown>
+  prompt: string | AsyncIterable<SDKUserMessage>
   /** Prompt strategy for system prompt configuration */
   promptStrategy: PromptStrategy
   /** Configuration context */

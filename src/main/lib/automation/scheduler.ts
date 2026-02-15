@@ -1,4 +1,4 @@
-import cron from "node-cron"
+import cron, { type ScheduledTask } from "node-cron"
 import { eq } from "drizzle-orm"
 import { getDatabase, automations } from "../db"
 import type { AutomationEngine } from "./engine"
@@ -7,7 +7,7 @@ import type { AutomationEngine } from "./engine"
  * 定时任务调度服务
  */
 export class SchedulerService {
-  private tasks = new Map<string, cron.ScheduledTask[]>()
+  private tasks = new Map<string, ScheduledTask[]>()
   private engine: AutomationEngine | null = null
 
   setEngine(engine: AutomationEngine): void {

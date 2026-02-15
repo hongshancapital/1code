@@ -30,9 +30,9 @@ export const internalToolsRouter = router({
 
     // Artifact MCP（尚未 Extension 化，保留直接导入）
     const dummyContext = {
-      cwd: process.cwd(),
       subChatId: "internal-tool-discovery",
-      apiConfig: { baseUrl: "", apiKey: "", model: "" }
+      artifactsFilePath: "",
+      getContexts: () => [],
     }
 
     try {

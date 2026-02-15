@@ -288,8 +288,8 @@ function registerIpcHandlers(): void {
   )
 
   // Internal browser - forward to renderer to open browser sidebar
-  ipcMain.on("browser:open-url", (_event, url: string) => {
-    window.webContents.send("browser:navigate", url)
+  ipcMain.on("browser:open-url", (event, url: string) => {
+    event.sender.send("browser:navigate", url)
   })
 
   // Clipboard
@@ -334,8 +334,11 @@ function registerIpcHandlers(): void {
     // Clear cookie from persist:main partition
     const ses = session.fromPartition("persist:main")
     try {
-      await ses.cookies.remove(getBaseUrl(), "x-desktop-token")
-      console.log("[Auth] Cookie cleared on logout")
+      const baseUrl = getBaseUrl()
+      if (baseUrl) {
+        await ses.cookies.remove(baseUrl, "x-desktop-token")
+        console.log("[Auth] Cookie cleared on logout")
+      }
     } catch (err) {
       console.error("[Auth] Failed to clear cookie:", err)
     }
@@ -710,7 +713,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   window.on("focus", () => {
     window.webContents.send("window:focus-change", true)
   })
-  window.on("blur-sm", () => {
+  window.on("blur", () => {
     window.webContents.send("window:focus-change", false)
   })
 

@@ -336,9 +336,6 @@ export async function generateInsightReport(
     console.log("[Insights] Starting Agent generation in:", report.dataDir);
     console.log("[Insights] User config:", userConfig);
 
-    // 获取 Claude Agent SDK
-    const claudeQuery = await getClaudeQuery();
-
     // 更新进度：启动会话
     updateProgress(db, reportId, {
       step: "starting_session",
@@ -444,22 +441,11 @@ export async function generateInsightReport(
         });
       }
 
-      // 处理错误
-      if (msg.type === "error" || msg.error) {
+      // 处理错误 — SDKResultMessage with error subtype
+      if (msg.type === "result" && msg.subtype?.startsWith("error")) {
         hasError = true;
-        errorMessage =
-          typeof msg.error === "string"
-            ? msg.error
-            : msg.error?.message || "Unknown error";
+        errorMessage = msg.subtype || "Unknown error";
         console.error("[Insights] Agent error:", errorMessage);
-      }
-
-      // 处理结束
-      if (msg.type === "result" && msg.result) {
-        // 如果有最终结果，使用它
-        if (typeof msg.result === "string") {
-          reportMarkdown = msg.result;
-        }
       }
     }
 

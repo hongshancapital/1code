@@ -29,7 +29,7 @@ export const browserRouter = router({
   execute: publicProcedure
     .input(z.object({
       type: z.string() as z.ZodType<BrowserOperationType>,
-      params: z.record(z.unknown()),
+      params: z.record(z.string(), z.unknown()),
       timeout: z.number().optional(),
     }))
     .mutation(async ({ input }) => {

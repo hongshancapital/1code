@@ -55,6 +55,7 @@ export type BrowserOperationType =
   | "consoleQuery"
   | "consoleCollect"
   | "consoleClear"
+  | "getSelector"
 
 /** Captured network request */
 /** Captured network request */

@@ -124,6 +124,9 @@ export const sandboxImportRouter = router({
 		.mutation(async ({ input }) => {
 			const db = getDatabase();
 			const apiUrl = getBaseUrl();
+			if (!apiUrl) {
+				throw new Error("API URL not configured");
+			}
 
 			console.log(`[OPEN-LOCALLY] Starting import: remoteChatId=${input.remoteChatId}, remoteSubChatId=${input.remoteSubChatId || "all"}, sandboxId=${input.sandboxId}`);
 
@@ -355,6 +358,9 @@ export const sandboxImportRouter = router({
 
 			const db = getDatabase();
 			const apiUrl = getBaseUrl();
+			if (!apiUrl) {
+				throw new Error("API URL not configured");
+			}
 			console.log(`[OPEN-LOCALLY] API URL: ${apiUrl}`);
 
 			// Auth removed - sandbox clone requires manual token or alternative auth

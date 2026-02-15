@@ -12,50 +12,39 @@
  */
 
 import type {
+  SDKUserMessage,
+  Options as SdkOptions,
+  McpServerConfig,
+  PermissionResult,
+  CanUseTool,
+  SettingSource,
+} from "@anthropic-ai/claude-agent-sdk"
+import type {
   SystemPromptConfig,
   McpServerWithMeta,
   AgentConfig,
   ToolPermissionPolicy,
   ToolContext,
-  ToolPermissionDecision,
 } from "./engine-types"
 
 /**
- * SDK query options (matches Claude Agent SDK interface)
+ * SDK query parameters — directly matches `query()` function signature
  */
-export interface SdkQueryOptions {
-  prompt: string | AsyncIterable<unknown>
-  options?: {
-    abortController?: AbortController
-    cwd?: string
-    systemPrompt?: SystemPromptConfig
-    agents?: Record<string, AgentConfig>
-    mcpServers?: Record<string, McpServerWithMeta>
-    env?: Record<string, string>
-    permissionMode?: "plan" | "bypassPermissions"
-    allowDangerouslySkipPermissions?: boolean
-    includePartialMessages?: boolean
-    settingSources?: Array<"project" | "user">
-    canUseTool?: (
-      toolName: string,
-      toolInput: Record<string, unknown>,
-      options: { toolUseID: string }
-    ) => Promise<ToolPermissionDecision>
-    stderr?: (data: string) => void
-    pathToClaudeCodeExecutable?: string
-    resume?: string
-    resumeSessionAt?: string
-    continue?: boolean
-    model?: string
-    maxThinkingTokens?: number
-  }
+export type SdkQueryParams = {
+  prompt: string | AsyncIterable<SDKUserMessage>
+  options?: SdkOptions
 }
+
+/**
+ * @deprecated Use SdkQueryParams instead. Kept for backward compatibility.
+ */
+export type SdkQueryOptions = SdkQueryParams
 
 /**
  * SdkQueryBuilder - Fluent builder for SDK query options
  */
 export class SdkQueryBuilder {
-  private _prompt: string | AsyncIterable<unknown> = ""
+  private _prompt: string | AsyncIterable<SDKUserMessage> = ""
   private _systemPrompt?: SystemPromptConfig
   private _mcpServers?: Record<string, McpServerWithMeta>
   private _agents?: Record<string, AgentConfig>
@@ -77,7 +66,7 @@ export class SdkQueryBuilder {
   /**
    * Set the user prompt
    */
-  setPrompt(prompt: string | AsyncIterable<unknown>): this {
+  setPrompt(prompt: string | AsyncIterable<SDKUserMessage>): this {
     this._prompt = prompt
     return this
   }
@@ -219,9 +208,9 @@ export class SdkQueryBuilder {
   }
 
   /**
-   * Create the canUseTool callback with policy
+   * Create the canUseTool callback adapting ToolPermissionPolicy to SDK's CanUseTool
    */
-  private createCanUseToolCallback(): SdkQueryOptions["options"]["canUseTool"] | undefined {
+  private createCanUseToolCallback(): CanUseTool | undefined {
     if (!this._toolPermissionPolicy) {
       return undefined
     }
@@ -235,8 +224,8 @@ export class SdkQueryBuilder {
     return async (
       toolName: string,
       toolInput: Record<string, unknown>,
-      options: { toolUseID: string }
-    ): Promise<ToolPermissionDecision> => {
+      options: { signal: AbortSignal; toolUseID: string }
+    ): Promise<PermissionResult> => {
       const context: ToolContext = {
         mode,
         isPlayground,
@@ -245,15 +234,27 @@ export class SdkQueryBuilder {
         toolUseId: options.toolUseID,
       }
 
-      return policy.canUseTool(toolName, toolInput, context)
+      const decision = await policy.canUseTool(toolName, toolInput, context)
+
+      // Adapt ToolPermissionDecision → SDK PermissionResult (discriminated union)
+      if (decision.behavior === "allow") {
+        return {
+          behavior: "allow",
+          updatedInput: decision.updatedInput,
+        }
+      }
+      return {
+        behavior: "deny",
+        message: decision.message || "Permission denied by policy",
+      }
     }
   }
 
   /**
-   * Build the SDK query options
+   * Build the SDK query options — returns type directly compatible with `query()`
    */
-  build(): SdkQueryOptions {
-    const options: SdkQueryOptions["options"] = {
+  build(): SdkQueryParams {
+    const options: SdkOptions = {
       cwd: this._cwd,
       includePartialMessages: true,
     }
@@ -265,17 +266,19 @@ export class SdkQueryBuilder {
 
     // System prompt
     if (this._systemPrompt) {
-      options.systemPrompt = this._systemPrompt
+      options.systemPrompt = this._systemPrompt as SdkOptions["systemPrompt"]
     }
 
     // Agents (skip for Ollama)
+    // AgentConfig → AgentDefinition: SDK accepts superset fields at runtime
     if (this._agents && Object.keys(this._agents).length > 0 && !this._isOllama) {
-      options.agents = this._agents
+      options.agents = this._agents as SdkOptions["agents"]
     }
 
     // MCP servers
+    // McpServerWithMeta → McpServerConfig: extra metadata fields are ignored by SDK at runtime
     if (this._mcpServers && Object.keys(this._mcpServers).length > 0) {
-      options.mcpServers = this._mcpServers
+      options.mcpServers = this._mcpServers as Record<string, McpServerConfig>
     }
 
     // Environment
@@ -293,7 +296,7 @@ export class SdkQueryBuilder {
 
     // Skills (skip for Ollama)
     if (this._includeSkills && !this._isOllama) {
-      options.settingSources = ["project", "user"]
+      options.settingSources = ["project", "user"] as SettingSource[]
     }
 
     // Tool permission callback
