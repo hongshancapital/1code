@@ -11,8 +11,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
-// e2b API routes are used instead of useSandboxManager for agents
-// import { clearSubChatSelectionAtom, isSubChatMultiSelectModeAtom, selectedSubChatIdsAtom } from "@/lib/atoms/agent-subchat-selection"
 import { Chat, useChat } from "@ai-sdk/react";
 import type { DiffViewMode } from "../ui/agent-diff-view";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -45,6 +43,10 @@ import {
   isDesktopAtom,
   isFullscreenAtom,
   normalizeCustomClaudeConfig,
+  clearSubChatSelectionAtom,
+  isSubChatMultiSelectModeAtom,
+  selectedSubChatIdsAtom,
+  selectedTeamIdAtom,
   soundNotificationsEnabledAtom,
 } from "../../../lib/atoms";
 import {
@@ -287,17 +289,25 @@ import {
 } from "../context/chat-instance-context";
 import { ChatCapabilitiesProvider } from "../context/chat-capabilities-context";
 import { ProjectModeProvider } from "../context/project-mode-context";
-const clearSubChatSelectionAtom = atom(null, () => {});
-const isSubChatMultiSelectModeAtom = atom(false);
-const selectedSubChatIdsAtom = atom(new Set<string>());
-// import { selectedTeamIdAtom } from "@/lib/atoms/team"
-const selectedTeamIdAtom = atom<string | null>(null);
-// import type { PlanType } from "@/lib/config/subscription-plans"
-// PlanType stub - cloud subscription plans are disabled
 
 // Module-level Map to track pending cache cleanup timeouts
 // Used to cancel cleanup if component remounts with same subChatId
 const pendingCacheCleanups = new Map<string, ReturnType<typeof setTimeout>>();
+
+// 缓存 Audio 实例，避免每次完成时重复创建
+let _cachedNotificationAudio: HTMLAudioElement | null = null;
+function playCompletionSound() {
+  try {
+    if (!_cachedNotificationAudio) {
+      _cachedNotificationAudio = new Audio("./sound.mp3");
+    }
+    _cachedNotificationAudio.currentTime = 0;
+    _cachedNotificationAudio.volume = 1.0;
+    _cachedNotificationAudio.play().catch(() => {});
+  } catch {
+    // 音频播放失败静默忽略
+  }
+}
 
 // Inner chat component - only rendered when chat object is ready
 // Memoized to prevent re-renders when parent state changes (e.g., selectedFilePath)
@@ -516,6 +526,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // If it truly unmounts, the timeout will clear the caches
       const timeoutId = setTimeout(() => {
         clearSubChatCaches(currentSubChatId);
+        pendingCacheCleanups.delete(currentSubChatId);
       }, 100);
 
       // Store the timeout so it can be cancelled if the component remounts
@@ -3383,13 +3394,7 @@ export function ChatView({
                 soundNotificationsEnabledAtom,
               );
               if (isSoundEnabled) {
-                try {
-                  const audio = new Audio("./sound.mp3");
-                  audio.volume = 1.0;
-                  audio.play().catch(() => {});
-                } catch {
-                  // Ignore audio errors
-                }
+                playCompletionSound();
               }
 
               // Show native notification (desktop app, when window not focused)
@@ -3605,13 +3610,7 @@ export function ChatView({
                 soundNotificationsEnabledAtom,
               );
               if (isSoundEnabled) {
-                try {
-                  const audio = new Audio("./sound.mp3");
-                  audio.volume = 1.0;
-                  audio.play().catch(() => {});
-                } catch {
-                  // Ignore audio errors
-                }
+                playCompletionSound();
               }
 
               // Show native notification (desktop app, when window not focused)

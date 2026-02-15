@@ -2380,11 +2380,28 @@ export const claudeRouter = router({
             }
           }
         } else {
-          // Project-specific server
-          // groupName is the project path or name
-          // For now, check if it's in global (most common case)
-          serverConfig = config.mcpServers?.[serverName];
-          scope = null;
+          // Project-specific server — groupName 是项目路径
+          // 先从 projects 中查找，找不到再 fallback 到 global
+          const projectConfig = config.projects?.[groupName];
+          if (projectConfig?.mcpServers?.[serverName]) {
+            serverConfig = projectConfig.mcpServers[serverName];
+            scope = groupName;
+          } else {
+            // fallback: 可能 groupName 是显示名而非完整路径，尝试遍历
+            for (const [projectPath, pConfig] of Object.entries(config.projects ?? {})) {
+              const pc = pConfig as import("../../claude-config").ProjectConfig;
+              if (pc?.mcpServers?.[serverName]) {
+                serverConfig = pc.mcpServers[serverName];
+                scope = projectPath;
+                break;
+              }
+            }
+            // 最终 fallback 到 global
+            if (!serverConfig) {
+              serverConfig = config.mcpServers?.[serverName];
+              scope = null;
+            }
+          }
         }
 
         if (!serverConfig) {

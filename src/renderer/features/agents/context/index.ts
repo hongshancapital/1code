@@ -102,7 +102,6 @@ export {
   useSetActiveChat,
   useIsActiveChat,
   activeInstanceIdAtom,
-  chatViewRegistrationsAtom,
   buildUserMessage,
   type ChatInputContextValue,
   type ChatInputProviderProps,

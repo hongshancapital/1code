@@ -18,7 +18,7 @@
  * - 对比视图: horizontal 模式 (比较两个对话)
  */
 
-import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, type ReactNode } from "react"
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { cn } from "../../../lib/utils"
 
@@ -259,8 +259,8 @@ export function useChatViewLayoutSafe(): ChatViewLayoutContextValue | null {
 export function useChatViewSlot(slot: ChatViewSlot) {
   const layout = useChatViewLayoutSafe()
 
-  // 注册槽位
-  useMemo(() => {
+  // 注册槽位（副作用放在 useEffect 中，而非 useMemo）
+  useEffect(() => {
     if (!layout) return
     layout.addSlot(slot)
   }, [layout, slot.id, slot.chatId, slot.subChatId])

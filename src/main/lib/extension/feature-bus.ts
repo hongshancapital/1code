@@ -46,20 +46,23 @@ export class FeatureBus implements IFeatureBus {
     if (!handler) return null
 
     const input = args[0] as EventArgs<E>
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const result = await Promise.race([
         Promise.resolve(handler(input)),
-        new Promise<null>((resolve) =>
-          setTimeout(() => {
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => {
             console.warn(`[FeatureBus] request "${key}" 超时 (${REQUEST_TIMEOUT}ms)`)
             resolve(null)
-          }, REQUEST_TIMEOUT),
-        ),
+          }, REQUEST_TIMEOUT)
+        }),
       ])
       return result as EventResponse<E> | null
     } catch (err) {
       console.error(`[FeatureBus] request "${key}" 错误:`, err)
       return null
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
     }
   }
 

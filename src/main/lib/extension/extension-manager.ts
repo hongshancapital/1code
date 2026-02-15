@@ -9,7 +9,7 @@
  */
 
 import type { AnyRouter } from "@trpc/server"
-import type { ExtensionModule, ExtensionContext } from "./types"
+import type { ExtensionModule, ExtensionContext, CleanupFn } from "./types"
 import { HookRegistry } from "./hook-registry"
 import { FeatureBus } from "./feature-bus"
 
@@ -20,6 +20,8 @@ export class ExtensionManager {
   private hookRegistry = new HookRegistry()
   private featureBus = new FeatureBus()
   private initialized = false
+  /** initialize 返回的 cleanup 函数，按注册顺序存储 */
+  private cleanups = new Map<string, CleanupFn>()
 
   private constructor() {}
 
@@ -76,7 +78,10 @@ export class ExtensionManager {
 
       const ctx = this._createContext(ext.name)
       try {
-        await ext.initialize(ctx)
+        const cleanup = await ext.initialize(ctx)
+        if (typeof cleanup === "function") {
+          this.cleanups.set(ext.name, cleanup)
+        }
         console.log(`[Extension:${ext.name}] 初始化完成`)
       } catch (err) {
         console.error(`[Extension:${ext.name}] 初始化失败:`, err)
@@ -91,13 +96,15 @@ export class ExtensionManager {
     const reversed = [...this.extensions].reverse()
     for (const ext of reversed) {
       try {
-        await ext.cleanup?.()
+        const cleanup = this.cleanups.get(ext.name)
+        if (cleanup) await cleanup()
         this.hookRegistry.removeBySource(ext.name)
         console.log(`[Extension:${ext.name}] 已清理`)
       } catch (err) {
         console.error(`[Extension:${ext.name}] 清理失败:`, err)
       }
     }
+    this.cleanups.clear()
     this.extensions = []
     this.initialized = false
   }
@@ -108,14 +115,28 @@ export class ExtensionManager {
    */
   getRouters(): Record<string, AnyRouter> {
     const routers: Record<string, AnyRouter> = {}
+    // 记录 key → 来源 Extension，用于碰撞时给出精确报错
+    const keyOwners: Record<string, string> = {}
     for (const ext of this.extensions) {
       if (ext.router) {
         const key = ext.routerKey ?? ext.name
+        if (routers[key]) {
+          throw new Error(
+            `[ExtensionManager] Router key "${key}" 碰撞: "${ext.name}" 与 "${keyOwners[key]}" 注册了相同的 key。请修改 routerKey 或 Extension name 避免冲突。`
+          )
+        }
         routers[key] = ext.router
+        keyOwners[key] = ext.name
       }
       if (ext.routers) {
         for (const [key, r] of Object.entries(ext.routers)) {
+          if (routers[key]) {
+            throw new Error(
+              `[ExtensionManager] Router key "${key}" 碰撞: "${ext.name}.routers" 与 "${keyOwners[key]}" 注册了相同的 key。请修改 router key 避免冲突。`
+            )
+          }
           routers[key] = r
+          keyOwners[key] = `${ext.name}.routers`
         }
       }
     }

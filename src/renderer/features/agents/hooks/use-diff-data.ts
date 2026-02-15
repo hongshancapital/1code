@@ -207,27 +207,17 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
 
   // Fetch diff stats function
   const fetchDiffStats = useCallback(async () => {
-    console.log("[fetchDiffStats] Called with:", {
-      worktreePath,
-      sandboxId,
-      chatId,
-      isDesktop: isDesktopPlatform,
-    })
-
     // Desktop uses worktreePath, web uses sandboxId
     // Don't reset stats if worktreePath is temporarily undefined - just skip the fetch
     if (!worktreePath && !sandboxId) {
-      console.log("[fetchDiffStats] Skipping - no worktreePath or sandboxId")
       return
     }
 
     // Prevent duplicate parallel fetches
     if (isFetchingDiffRef.current) {
-      console.log("[fetchDiffStats] Skipping - already fetching")
       return
     }
     isFetchingDiffRef.current = true
-    console.log("[fetchDiffStats] Starting fetch...")
 
     try {
       // Desktop: use new getParsedDiff endpoint (all-in-one: parsing + file contents)
@@ -269,15 +259,9 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
 
       // Remote sandbox: use stats from chat data (desktop) or fetch diff (web)
       if (sandboxId) {
-        console.log("[fetchDiffStats] Sandbox mode - sandboxId:", sandboxId)
-
         // Desktop app: use stats already provided in chat data
         if (isDesktopPlatform) {
           const normalizedStats = getRemoteStats(agentChat)
-          console.log(
-            "[fetchDiffStats] Desktop remote chat - using remoteStats:",
-            normalizedStats
-          )
 
           if (normalizedStats) {
             setDiffStats({
@@ -312,20 +296,10 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
         const data = await response.json()
         rawDiff = data.diff || null
 
-        console.log(
-          "[fetchDiffStats] Setting diff content, length:",
-          rawDiff?.length ?? 0
-        )
         setDiffContent(rawDiff)
 
         if (rawDiff && rawDiff.trim()) {
-          console.log("[fetchDiffStats] Parsing diff...")
           const parsedFiles = splitUnifiedDiffByFile(rawDiff)
-          console.log(
-            "[fetchDiffStats] Parsed files:",
-            parsedFiles.length,
-            "files"
-          )
           setParsedFileDiffs(parsedFiles as CachedParsedDiffFile[])
 
           let additions = 0
@@ -335,11 +309,6 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
             deletions += file.deletions
           }
 
-          console.log("[fetchDiffStats] Setting stats:", {
-            fileCount: parsedFiles.length,
-            additions,
-            deletions,
-          })
           setDiffStats({
             fileCount: parsedFiles.length,
             additions,
@@ -348,7 +317,6 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
             hasChanges: parsedFiles.length > 0,
           })
         } else {
-          console.log("[fetchDiffStats] No diff content, setting empty stats")
           setDiffStats({
             fileCount: 0,
             additions: 0,
@@ -364,7 +332,6 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
       console.error("[fetchDiffStats] Error:", error)
       setDiffStats((prev) => ({ ...prev, isLoading: false }))
     } finally {
-      console.log("[fetchDiffStats] Done")
       isFetchingDiffRef.current = false
     }
   }, [

@@ -54,9 +54,6 @@ import { defaultAgentModeAtom } from "../../../lib/atoms"
 import { ProjectSelector } from "../components/project-selector"
 import { ProjectModeToggleWithSlogan } from "../components/project-mode-selector"
 import { BranchModeSelector } from "../components/branch-mode-selector"
-// import { selectedTeamIdAtom } from "@/lib/atoms/team"
-import { atom } from "jotai"
-const selectedTeamIdAtom = atom<string | null>(null)
 import {
   agentsSettingsDialogOpenAtom,
   agentsSettingsDialogActiveTabAtom,
@@ -69,6 +66,7 @@ import {
   chatSourceModeAtom,
   overrideModelModeAtom,
   litellmSelectedModelAtom,
+  selectedTeamIdAtom,
 } from "../../../lib/atoms"
 import {
   activeModelIdAtom,

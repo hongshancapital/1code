@@ -20,7 +20,7 @@ import { useCallback } from "react"
 import type { MutableRefObject } from "react"
 import { trpcClient } from "../../../lib/trpc"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
-import { useAgentSubChatStore } from "../stores/agent-sub-chat-store"
+import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { useMessageQueueStore, type AgentQueueItem } from "../stores/message-queue-store"
 import {
   createQueueItem,

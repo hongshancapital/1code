@@ -4,7 +4,7 @@
  * 整合 WSS 实时通道、HTTP API、Auth 认证。
  */
 
-import type { ExtensionModule, ExtensionContext } from "../../lib/extension/types"
+import type { ExtensionModule, ExtensionContext, CleanupFn } from "../../lib/extension/types"
 import { LiteService } from "./service"
 import { getAuthManager } from "./auth/manager"
 import { getEffectiveAuthProvider } from "./auth/providers"
@@ -16,16 +16,14 @@ class LiteExtension implements ExtensionModule {
   name = "lite" as const
   description = "Lite WSS + HTTP + Auth integration"
 
-  private cleanupFns: Array<() => void> = []
-  private ctx: ExtensionContext | null = null
   private service = new LiteService()
 
-  async initialize(ctx: ExtensionContext): Promise<void> {
-    this.ctx = ctx
+  async initialize(ctx: ExtensionContext): Promise<CleanupFn> {
+    const offs: Array<() => void> = []
 
     // ----- Hook handlers（生命周期注入）-----
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.hooks.on(
         "chat:collectMcpServers",
         async (_payload) => {
@@ -36,7 +34,7 @@ class LiteExtension implements ExtensionModule {
       ),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.hooks.on(
         "chat:enhancePrompt",
         (payload) => {
@@ -47,7 +45,7 @@ class LiteExtension implements ExtensionModule {
       ),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.hooks.on(
         "chat:sessionStart",
         async (_payload) => {
@@ -59,7 +57,7 @@ class LiteExtension implements ExtensionModule {
 
     // ----- Bus handlers（主动调用响应）-----
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onRequest("lite:auth-status", async () => {
         const authManager = getAuthManager()
         if (!authManager || !authManager.isAuthenticated()) {
@@ -76,39 +74,39 @@ class LiteExtension implements ExtensionModule {
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onRequest("lite:fetch-user", async (args) => {
         return this.service.userApi.fetchUser(args.userId)
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onRequest("lite:fetch-avatar", async (args) => {
         return this.service.userApi.fetchAvatarUrl(args.userId)
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onRequest("lite:http-get", async (args) => {
         const res = await this.service.http.get(args.path)
         return { ok: res.ok, status: res.status, data: res.data, error: res.error }
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onRequest("lite:http-post", async (args) => {
         const res = await this.service.http.post(args.path, args.body)
         return { ok: res.ok, status: res.status, data: res.data, error: res.error }
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onNotify("lite:wss-send", (args) => {
         this.service.wss.send(args.channel, args.data)
       }),
     )
 
-    this.cleanupFns.push(
+    offs.push(
       ctx.bus.onNotify("lite:auth-logout", (args) => {
         const authManager = getAuthManager()
         if (authManager) {
@@ -118,21 +116,21 @@ class LiteExtension implements ExtensionModule {
     )
 
     // WSS 消息转发到 Bus broadcast
-    this.service.wss.on("message", (msg: { channel: string; data: unknown }) => {
+    const wssMessageHandler = (msg: { channel: string; data: unknown }) => {
       ctx.bus.broadcast("lite:wss-message", { channel: msg.channel, data: msg.data })
-    })
+    }
+    this.service.wss.on("message", wssMessageHandler)
 
     // 启动服务
     await this.service.start()
     ctx.log("初始化完成")
-  }
 
-  async cleanup(): Promise<void> {
-    await this.service.stop()
-    for (const fn of this.cleanupFns) fn()
-    this.cleanupFns = []
-    this.ctx?.log("已清理")
-    this.ctx = null
+    return async () => {
+      this.service.wss.off("message", wssMessageHandler)
+      await this.service.stop()
+      for (const fn of offs) fn()
+      ctx.log("已清理")
+    }
   }
 }
 

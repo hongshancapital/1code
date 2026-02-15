@@ -201,6 +201,9 @@ export class McpWarmupManager extends EventEmitter {
         console.error("[MCP Warmup] Unexpected error:", error)
         this.state = "failed"
         this.emit("stateChange", "failed")
+      } finally {
+        // 重置 promise，允许后续重新预热（如用户新增 MCP 服务器）
+        this.warmupPromise = null
       }
     })()
 

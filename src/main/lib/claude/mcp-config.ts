@@ -4,19 +4,13 @@
  * 从 claude.ts 提取的 MCP 服务器配置相关函数：
  * - getClaudeCodeToken — 凭证解密
  * - getServerStatusFromConfig — 服务器状态判断
- * - warmupMcpCache — 启动时 MCP 预热
  * - fetchToolsForServer — 单服务器工具拉取
  * - getAllMcpConfigHandler — 完整 MCP 配置聚合（global + project + plugin + builtin）
  */
 
 import { eq } from "drizzle-orm";
-import { readFileSync } from "fs";
-import * as os from "os";
 import path from "path";
-import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
 import {
-  buildClaudeEnv,
-  getBundledClaudeBinaryPath,
   mcpCacheKey,
   workingMcpServers,
 } from "../claude";
@@ -49,13 +43,6 @@ import {
 } from "../builtin-mcp";
 import { getAuthManager } from "../../index";
 import { decryptToken } from "../crypto";
-
-/** SDK stream message type (for warmup) */
-interface SdkStreamMessage {
-  type: string;
-  subtype?: string;
-  mcp_servers?: unknown;
-}
 
 /**
  * Get Claude Code OAuth token from local SQLite
@@ -124,123 +111,6 @@ export function getServerStatusFromConfig(serverConfig: McpServerConfig): string
 const MCP_FETCH_TIMEOUT_MS = 10_000;
 
 /**
- * Warm up MCP server cache by initializing servers for all configured projects
- * This runs once at app startup to populate the cache, so all future sessions
- * can use filtered MCP servers without delays
- */
-export async function warmupMcpCache(): Promise<void> {
-  try {
-    const warmupStart = Date.now();
-
-    // Read ~/.claude.json to get all projects with MCP servers
-    const claudeJsonPath = path.join(os.homedir(), ".claude.json");
-    let config: any;
-    try {
-      const configContent = readFileSync(claudeJsonPath, "utf-8");
-      config = JSON.parse(configContent);
-    } catch {
-      console.log(
-        "[MCP Warmup] No ~/.claude.json found or failed to read - skipping warmup",
-      );
-      return;
-    }
-
-    if (!config.projects || Object.keys(config.projects).length === 0) {
-      console.log("[MCP Warmup] No projects configured - skipping warmup");
-      return;
-    }
-
-    // Find projects with MCP servers (excluding worktrees)
-    const projectsWithMcp: Array<{
-      path: string;
-      servers: Record<string, McpServerConfig>;
-    }> = [];
-    for (const [projectPath, projectConfig] of Object.entries(
-      config.projects,
-    ) as [string, ProjectConfig][]) {
-      if (projectConfig?.mcpServers) {
-        // Skip worktrees - they're temporary git working directories and inherit MCP from parent
-        if (
-          projectPath.includes("/.hong/worktrees/") ||
-          projectPath.includes("\\.hong\\worktrees\\")
-        ) {
-          continue;
-        }
-
-        projectsWithMcp.push({
-          path: projectPath,
-          servers: projectConfig.mcpServers,
-        });
-      }
-    }
-
-    if (projectsWithMcp.length === 0) {
-      console.log(
-        "[MCP Warmup] No MCP servers configured (excluding worktrees) - skipping warmup",
-      );
-      return;
-    }
-
-    // Warm up each project
-    for (const project of projectsWithMcp) {
-      try {
-        // Create a minimal query to initialize MCP servers
-        const warmupQuery = claudeQuery({
-          prompt: "ping",
-          options: {
-            cwd: project.path,
-            mcpServers: project.servers as Record<
-              string,
-              { command: string; args?: string[]; env?: Record<string, string> }
-            >,
-            systemPrompt: {
-              type: "preset" as const,
-              preset: "claude_code" as const,
-            },
-            env: buildClaudeEnv(),
-            permissionMode: "bypassPermissions" as const,
-            allowDangerouslySkipPermissions: true,
-            // Use bundled binary to avoid "spawn node ENOENT" errors
-            pathToClaudeCodeExecutable: getBundledClaudeBinaryPath(),
-          },
-        });
-
-        // Wait for init message with MCP server statuses
-        let gotInit = false;
-        for await (const msg of warmupQuery) {
-          const sdkMsg = msg as SdkStreamMessage;
-          if (
-            sdkMsg.type === "system" &&
-            sdkMsg.subtype === "init" &&
-            sdkMsg.mcp_servers
-          ) {
-            gotInit = true;
-            break; // We only need the init message
-          }
-        }
-
-        if (!gotInit) {
-          console.warn(
-            `[MCP Warmup] Did not receive init message for ${project.path}`,
-          );
-        }
-      } catch (err) {
-        console.error(
-          `[MCP Warmup] Failed to warm up MCP for ${project.path}:`,
-          err,
-        );
-      }
-    }
-
-    console.log(
-      `[MCP Warmup] Initialized ${projectsWithMcp.length} projects in ${Date.now() - warmupStart}ms`,
-    );
-  } catch (error) {
-    console.error("[MCP Warmup] Warmup failed:", error);
-  }
-}
-
-/**
  * Fetch tools from an MCP server (HTTP or stdio transport)
  * Times out after 10 seconds to prevent slow MCPs from blocking the cache update
  */
@@ -295,8 +165,8 @@ export async function getAllMcpConfigHandler() {
   try {
     const totalStart = Date.now();
 
-    // Clear cache before repopulating
-    workingMcpServers.clear();
+    // 不再无条件 clear —— 保留预热阶段已建立的缓存，
+    // 后续 convertServers 会按 key 覆盖写入最新状态。
 
     const config = await readClaudeConfig();
 
