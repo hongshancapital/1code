@@ -570,9 +570,10 @@ async function generateNameWithAI(
       const result = await callSummaryAIWithUsage(
         input.summaryProviderId,
         input.summaryModelId,
-        "Generate a short, descriptive name for a chat conversation based on the user's first message. " +
-        "The name should be concise (max 25 characters), in the same language as the message. " +
-        "Return ONLY the name, nothing else. No quotes, no punctuation at the end.",
+        "Generate a concise title for a chat conversation based on the user's first message. " +
+        "The title should clearly describe what the conversation is about, so someone can tell the topic at a glance. " +
+        "Max 35 characters. Use the same language as the message. " +
+        "Return ONLY the title, nothing else. No quotes, no punctuation at the end.",
         input.userMessage,
       )
       if (result?.text) {

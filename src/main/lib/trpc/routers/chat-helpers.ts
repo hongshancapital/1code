@@ -24,10 +24,10 @@ export interface SubChatPreviewStats {
  */
 export function getFallbackName(userMessage: string): string {
   const trimmed = userMessage.trim()
-  if (trimmed.length <= 25) {
+  if (trimmed.length <= 35) {
     return trimmed || "New Chat"
   }
-  return trimmed.substring(0, 25) + "..."
+  return trimmed.substring(0, 35) + "..."
 }
 
 /**
