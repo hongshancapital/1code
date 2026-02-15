@@ -106,6 +106,27 @@ function formatMemoryGB(bytes: number): string {
 }
 
 /**
+ * Format OS version string to be more readable
+ *
+ * - macOS: Extract "Darwin X.Y.Z" from full kernel string
+ * - Windows: Keep as-is (already readable)
+ * - Linux: Keep as-is
+ */
+function formatOsVersion(platform: string, fullVersion: string): string {
+  if (platform === "darwin") {
+    // Extract version from "Darwin Kernel Version 25.2.0: ..."
+    // Return format: "Darwin 25.2.0"
+    const match = fullVersion.match(/Darwin Kernel Version ([\d.]+)/)
+    if (match) {
+      return `Darwin ${match[1]}`
+    }
+  }
+
+  // For other platforms, return as-is
+  return fullVersion
+}
+
+/**
  * Generate device identifier hash
  *
  * Uses a combination of:
@@ -163,7 +184,7 @@ export function getDeviceInfo(): DeviceInfo {
     // System
     platform,
     platformName: getPlatformName(platform),
-    osVersion: os.version(),
+    osVersion: formatOsVersion(platform, os.version()),
     osRelease: os.release(),
     arch: process.arch,
 
