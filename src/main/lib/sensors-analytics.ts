@@ -7,6 +7,10 @@ import SensorsAnalytics from "sa-sdk-node"
 import { app } from "electron"
 import { getDeviceId } from "./device-id"
 import { getEnv } from "./env"
+import { createLogger } from ".//logger"
+
+const sensorsLog = createLogger("Sensors")
+
 
 interface SensorsConfig {
   serverUrl: string
@@ -76,10 +80,10 @@ export function initSensors(config?: SensorsConfig): void {
     })
     // 监听发送结果
     submitter.catch((err: Error) => {
-      console.error("[Sensors] Submit error:", err.message)
+      sensorsLog.error("Submit error:", err.message)
     })
   } catch (error) {
-    console.error("[Sensors] Failed to initialize SDK:", error)
+    sensorsLog.error("Failed to initialize SDK:", error)
   }
 }
 

@@ -34,6 +34,11 @@ import { buildImagePart, buildFilePart, stripFileAttachmentText } from "../lib/m
 import { utf8ToBase64, waitForStreamingReady } from "../main/chat-utils"
 import { BUILTIN_SLASH_COMMANDS, MENTION_PREFIXES } from "../commands"
 import { trackSendMessage, trackClickRegenerate } from "../../../lib/analytics"
+import { createLogger } from "../../../lib/logger"
+
+const handleSendFromQueueLog = createLogger("handleSendFromQueue")
+const handleForceSendLog = createLogger("handleForceSend")
+
 
 // =============================================================================
 // Types
@@ -240,7 +245,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
           return content.replace(/\$ARGUMENTS/g, args.trim())
         }
       } catch (error) {
-        console.error("Failed to expand custom slash command:", error)
+        handleSendFromQueueLog.error("Failed to expand custom slash command:", error)
       }
 
       return text
@@ -538,7 +543,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
 
         await sendMessageRef.current({ role: "user", parts })
       } catch (error) {
-        console.error("[handleSendFromQueue] Error:", error)
+        handleSendFromQueueLog.error("Error:", error)
         useMessageQueueStore.getState().prependItem(subChatId, item)
       }
     },
@@ -680,7 +685,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
     try {
       await sendMessageRef.current({ role: "user", parts })
     } catch (error) {
-      console.error("[handleForceSend] Error:", error)
+      handleForceSendLog.error("Error:", error)
       editorRef.current?.setValue(finalText)
     }
   }, [

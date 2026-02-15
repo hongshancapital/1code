@@ -11,6 +11,10 @@
  */
 
 import type { AuthProviderType } from "./types"
+import { createLogger } from "../../../../lib/logger"
+
+const log = createLogger("detector")
+
 
 /**
  * Check if Okta configuration is available
@@ -52,22 +56,22 @@ export function isAuthConfigured(): boolean {
 export function detectAuthProvider(): AuthProviderType {
   // Only check domain on Windows
   if (process.platform !== "win32") {
-    console.log("[Auth Detector] Non-Windows platform, preferring Okta")
+    log.info("[Auth Detector] Non-Windows platform, preferring Okta")
     return "okta"
   }
 
   const userDnsDomain = (process.env.USERDNSDOMAIN || "").toLowerCase().trim()
 
-  console.log("[Auth Detector] Windows detected")
-  console.log("[Auth Detector] USERDNSDOMAIN:", userDnsDomain || "(not set)")
+  log.info("[Auth Detector] Windows detected")
+  log.info("[Auth Detector] USERDNSDOMAIN:", userDnsDomain || "(not set)")
 
   // Check if USERDNSDOMAIN ends with hongshancap.cn
   if (userDnsDomain.endsWith("hongshancap.cn")) {
-    console.log("[Auth Detector] USERDNSDOMAIN ends with hongshancap.cn, preferring Azure AD")
+    log.info("[Auth Detector] USERDNSDOMAIN ends with hongshancap.cn, preferring Azure AD")
     return "azure"
   }
 
-  console.log("[Auth Detector] No Azure domain match, preferring Okta")
+  log.info("[Auth Detector] No Azure domain match, preferring Okta")
   return "okta"
 }
 
@@ -87,27 +91,27 @@ export function getEffectiveAuthProvider(): AuthProviderType {
   // Check if detected provider is configured
   if (detected === "azure") {
     if (isAzureConfigured()) {
-      console.log("[Auth Detector] Using Azure AD (configured)")
+      log.info("[Auth Detector] Using Azure AD (configured)")
       return "azure"
     }
     // Fallback to Okta if available
     if (isOktaConfigured()) {
-      console.warn("[Auth Detector] Azure AD detected but not configured, falling back to Okta")
+      log.warn("[Auth Detector] Azure AD detected but not configured, falling back to Okta")
       return "okta"
     }
   } else if (detected === "okta") {
     if (isOktaConfigured()) {
-      console.log("[Auth Detector] Using Okta (configured)")
+      log.info("[Auth Detector] Using Okta (configured)")
       return "okta"
     }
     // Fallback to Azure if available
     if (isAzureConfigured()) {
-      console.warn("[Auth Detector] Okta preferred but not configured, falling back to Azure AD")
+      log.warn("[Auth Detector] Okta preferred but not configured, falling back to Azure AD")
       return "azure"
     }
   }
 
   // No provider configured - run in no-auth mode
-  console.warn("[Auth Detector] No authentication provider configured, running in no-auth mode")
+  log.warn("[Auth Detector] No authentication provider configured, running in no-auth mode")
   return "none"
 }

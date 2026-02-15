@@ -12,6 +12,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const usageWidgetLog = createLogger("UsageWidget")
+
 
 // Types matching Anthropic API response
 interface UsageLimit {
@@ -157,7 +161,7 @@ export function UsageWidget() {
   useEffect(() => {
     if (data?.error) {
       setHasError(true)
-      console.warn("[UsageWidget] API error, stopping auto-refresh:", data.error)
+      usageWidgetLog.warn("API error, stopping auto-refresh:", data.error)
     }
   }, [data?.error])
 

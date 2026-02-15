@@ -12,6 +12,10 @@ import {
   isModelDownloaded,
   type WhisperModelId,
 } from "./env"
+import { createLogger } from "../../../lib/logger"
+
+const whisperLog = createLogger("Whisper")
+
 
 export interface TranscribeOptions {
   /** Model to use for transcription */
@@ -106,7 +110,7 @@ export async function transcribeAudio(
       const processingTime = Date.now() - startTime
 
       if (code !== 0) {
-        console.error("[Whisper] stderr:", stderr)
+        whisperLog.error("stderr:", stderr)
         reject(new Error(`whisper-cli exited with code ${code}`))
         return
       }

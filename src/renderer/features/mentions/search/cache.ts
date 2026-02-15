@@ -206,7 +206,7 @@ export class GitAwareCache extends MentionCache {
       try {
         listener()
       } catch (error) {
-        console.error("[GitAwareCache] Listener error:", error)
+        gitAwareCacheLog.error("Listener error:", error)
       }
     })
   }

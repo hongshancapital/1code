@@ -4,6 +4,10 @@ import { useStreamingStatusStore } from "./streaming-status-store"
 import { chatRegistry } from "./chat-registry"
 import { getWindowId } from "../../../contexts/WindowContext"
 import { clearTaskSnapshotCache } from "../ui/agent-task-tools"
+import { createLogger } from "../../../lib/logger"
+
+const subChatStoreLog = createLogger("SubChatStore")
+
 
 export interface SubChatMeta {
   id: string
@@ -80,7 +84,7 @@ const findNumericWindowIdValue = (legacyKey: string, targetKey: string): string 
     if (match && match[2] === legacyKey) {
       const value = localStorage.getItem(storageKey)
       if (value !== null) {
-        console.log(`[SubChatStore] Migrated from numeric ID: ${storageKey} to ${targetKey}`)
+        subChatStoreLog.info(`Migrated from numeric ID: ${storageKey} to ${targetKey}`)
         return value
       }
     }
@@ -112,7 +116,7 @@ const loadFromLS = <T>(chatId: string, type: "open" | "active" | "pinned", fallb
         // Migrate to window-scoped key
         localStorage.setItem(key, legacyStored)
         stored = legacyStored
-        console.log(`[SubChatStore] Migrated ${legacyKey} to ${key}`)
+        subChatStoreLog.info(`Migrated ${legacyKey} to ${key}`)
       }
     }
 
@@ -132,7 +136,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
 
   setChatId: (chatId) => {
     if (!chatId) {
-      console.log('[sub-chat-store] setChatId(null)', new Error().stack?.split('\n').slice(1, 4).join('\n'))
+      subChatStoreLog.info('setChatId(null)', new Error().stack?.split('\n').slice(1, 4).join('\n'))
       set({
         chatId: null,
         activeSubChatId: null,
@@ -148,7 +152,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     // overwriting activeSubChatId/openSubChatIds that were already
     // initialized by the active-chat init effect.
     if (get().chatId === chatId) {
-      console.log('[sub-chat-store] setChatId SKIP (same)', chatId)
+      subChatStoreLog.info('setChatId SKIP (same)', chatId)
       return
     }
 
@@ -158,7 +162,7 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     const activeSubChatId = loadFromLS<string | null>(chatId, "active", null)
     const pinnedSubChatIds = loadFromLS<string[]>(chatId, "pinned", [])
 
-    console.log('[sub-chat-store] setChatId', { chatId, activeSubChatId, openSubChatIds })
+    subChatStoreLog.info('setChatId', { chatId, activeSubChatId, openSubChatIds })
     set({ chatId, openSubChatIds, activeSubChatId, pinnedSubChatIds, allSubChats: [], isDbSynced: false })
   },
 

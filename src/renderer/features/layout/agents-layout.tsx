@@ -37,6 +37,12 @@ import { FilePreviewDialog } from "../cowork/file-preview"
 import { computeEnabledWidgets, parseFeatureConfig } from "../../../shared/feature-config"
 import { SettingsSidebar } from "../settings/settings-sidebar"
 import { GlobalSearchDialog } from "../../components/dialogs/global-search-dialog"
+import { createLogger } from "../../lib/logger"
+
+const uiLog = createLogger("UI")
+const layoutLog = createLogger("Layout")
+const agentsLayoutLog = createLogger("agents-layout")
+
 
 // ============================================================================
 // Constants
@@ -178,7 +184,7 @@ export function AgentsLayout() {
     async function fetchUser() {
       if (window.desktopApi?.getUser) {
         const user = await window.desktopApi.getUser()
-        console.log("[UI] Got desktop user:", user?.id, "imageUrl:", user?.imageUrl)
+        uiLog.info("Got desktop user:", user?.id, "imageUrl:", user?.imageUrl)
         setDesktopUser(user)
       }
     }
@@ -212,7 +218,7 @@ export function AgentsLayout() {
     if (!window.desktopApi?.onGitCommitSuccess) return
 
     const unsubscribe = window.desktopApi.onGitCommitSuccess((data) => {
-      console.log("[Layout] Git commit success:", data)
+      layoutLog.info("Git commit success:", data)
       markSubChatCommitted(setSubChatStatus, data.subChatId, data.commitHash, data.branchInfo)
     })
 
@@ -274,7 +280,7 @@ export function AgentsLayout() {
   // active-chat.tsx's init effect — we only need cleanup here.
   useEffect(() => {
     if (!selectedChatId) {
-      console.log('[agents-layout] selectedChatId is null, clearing sub-chat store')
+      agentsLayoutLog.info('selectedChatId is null, clearing sub-chat store')
       setChatId(null)
     }
   }, [selectedChatId, setChatId])

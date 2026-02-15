@@ -18,6 +18,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
 import { Switch } from "../../ui/switch"
 import { toast } from "sonner"
 import { useFilePreview } from "../../../features/cowork/file-preview/file-preview-dialog"
+import { createLogger } from "../../../lib/logger"
+
+const skillDetailLog = createLogger("SkillDetail")
+
 
 // Types for skill contents
 interface SkillFile {
@@ -327,7 +331,7 @@ function SkillDetail({
                       <div
                         key={file.path}
                         onClick={() => {
-                          console.log("[SkillDetail] Opening preview:", absolutePath)
+                          skillDetailLog.info("Opening preview:", absolutePath)
                           openPreview(absolutePath) // Use dialog mode (default)
                         }}
                         className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer transition-colors"

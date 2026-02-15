@@ -9,6 +9,10 @@ import * as os from "os"
 import * as path from "path"
 import { getDatabase } from "./db"
 import { chats, projects } from "./db/schema"
+import { createLogger } from ".//logger"
+
+const worktreeUtilsLog = createLogger("worktree-utils")
+
 
 /**
  * Mutex for protecting read-modify-write operations on ~/.claude.json
@@ -308,7 +312,7 @@ export function resolveProjectPathFromWorktree(
 
     return null
   } catch (error) {
-    console.error("[worktree-utils] Failed to resolve project path:", error)
+    worktreeUtilsLog.error("Failed to resolve project path:", error)
     return null
   }
 }

@@ -31,6 +31,11 @@ import {
 } from "../stores/panel-registry"
 import { usePanelContext } from "../ui/panel-system/panel-renderer"
 import { useChatInstanceSafe } from "../context/chat-instance-context"
+import { createLogger } from "../../../lib/logger"
+
+const usePanelGroupLog = createLogger("usePanelGroup")
+const useRightSidebarLog = createLogger("useRightSidebar")
+
 
 // =============================================================================
 // Types
@@ -193,13 +198,13 @@ export const usePanelState = usePanel
 
 /** @deprecated Mutual exclusion is now handled internally by usePanel().open() */
 export function usePanelGroup() {
-  console.warn("[usePanelGroup] Deprecated. Use usePanel() instead.")
+  usePanelGroupLog.warn("Deprecated. Use usePanel() instead.")
   return null
 }
 
 /** @deprecated Use usePanel() instead */
 export function useRightSidebar() {
-  console.warn("[useRightSidebar] Deprecated. Use usePanel() instead.")
+  useRightSidebarLog.warn("Deprecated. Use usePanel() instead.")
   return null
 }
 

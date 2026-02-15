@@ -37,6 +37,10 @@ import {
 } from "../../../lib/atoms/traffic-light"
 import { selectedAgentChatIdAtom } from "../../agents/atoms"
 import { browserPendingNavigationAtomFamily, browserVisibleAtomFamily } from "../../browser-sidebar/atoms"
+import { createLogger } from "../../../lib/logger"
+
+const filePreviewDialogLog = createLogger("FilePreviewDialog")
+
 
 // File types that support editing
 const EDITABLE_EXTENSIONS = new Set([
@@ -236,7 +240,7 @@ export function FilePreviewDialog({ className }: FilePreviewDialogProps) {
   // Callback when file is saved
   const handleFileSaved = useCallback(() => {
     // Optionally show a toast or notification
-    console.log("[FilePreviewDialog] File saved")
+    filePreviewDialogLog.info("File saved")
   }, [])
 
   if (!filePath) return null

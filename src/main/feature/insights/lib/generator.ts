@@ -9,6 +9,10 @@ import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
 import { getDatabase, insights } from "../../../lib/db";
 import { getBundledClaudeBinaryPath, buildClaudeEnv } from "../../../lib/claude";
 import type { InsightStats, ReportType } from "./types";
+import { createLogger } from "../../../lib/logger"
+
+const insightsLog = createLogger("Insights")
+
 
 /**
  * 认证配置类型（与 insights.ts 保持一致）
@@ -333,8 +337,8 @@ export async function generateInsightReport(
       userConfig?.personalPreferences,
     );
 
-    console.log("[Insights] Starting Agent generation in:", report.dataDir);
-    console.log("[Insights] User config:", userConfig);
+    insightsLog.info("Starting Agent generation in:", report.dataDir);
+    insightsLog.info("User config:", userConfig);
 
     // 更新进度：启动会话
     updateProgress(db, reportId, {
@@ -350,7 +354,7 @@ export async function generateInsightReport(
       if (authConfig.token) {
         customEnv.CLAUDE_CODE_OAUTH_TOKEN = authConfig.token;
       }
-      console.log("[Insights] Using OAuth auth");
+      insightsLog.info("Using OAuth auth");
     } else if (authConfig.type === "litellm" || authConfig.type === "custom") {
       // LiteLLM 和 Custom 都使用 ANTHROPIC_AUTH_TOKEN 和 ANTHROPIC_BASE_URL
       if (authConfig.token) {
@@ -359,7 +363,7 @@ export async function generateInsightReport(
       if (authConfig.baseUrl) {
         customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl;
       }
-      console.log(
+      insightsLog.info(
         `[Insights] Using ${authConfig.type} auth, baseUrl:`,
         authConfig.baseUrl,
       );
@@ -371,11 +375,11 @@ export async function generateInsightReport(
       if (authConfig.baseUrl) {
         customEnv.ANTHROPIC_BASE_URL = authConfig.baseUrl;
       }
-      console.log("[Insights] Using API Key auth");
+      insightsLog.info("Using API Key auth");
     }
 
     const claudeEnv = buildClaudeEnv({ customEnv });
-    console.log("[Insights] Claude env built for auth type:", authConfig.type);
+    insightsLog.info("Claude env built for auth type:", authConfig.type);
 
     // 启动 Agent 会话
     const queryOptions = {
@@ -409,7 +413,7 @@ export async function generateInsightReport(
           detail: toolInfo,
           toolCalls: toolCalls.slice(-5), // 只保留最近 5 个
         });
-        console.log("[Insights] Tool call:", toolInfo);
+        insightsLog.info("Tool call:", toolInfo);
       }
 
       // 处理不同类型的消息
@@ -445,7 +449,7 @@ export async function generateInsightReport(
       if (msg.type === "result" && msg.subtype?.startsWith("error")) {
         hasError = true;
         errorMessage = msg.subtype || "Unknown error";
-        console.error("[Insights] Agent error:", errorMessage);
+        insightsLog.error("Agent error:", errorMessage);
       }
     }
 
@@ -464,7 +468,7 @@ export async function generateInsightReport(
       throw new Error("Agent did not generate any content");
     }
 
-    console.log(
+    insightsLog.info(
       "[Insights] Agent generation completed, length:",
       fullOutput.length,
     );
@@ -472,8 +476,8 @@ export async function generateInsightReport(
     // 解析输出，提取 SUMMARY 和 DETAIL
     const { summary, detail } = parseAgentOutput(fullOutput);
 
-    console.log("[Insights] Parsed - Summary:", summary.slice(0, 100), "...");
-    console.log("[Insights] Parsed - Detail length:", detail.length);
+    insightsLog.info("Parsed - Summary:", summary.slice(0, 100), "...");
+    insightsLog.info("Parsed - Detail length:", detail.length);
 
     // 如果没有解析出格式化输出，fallback 到原始输出
     const finalSummary = summary || fullOutput.slice(0, 200);
@@ -499,7 +503,7 @@ export async function generateInsightReport(
       reportMarkdown: fullOutput,
     };
   } catch (error) {
-    console.error("[Insights] Agent generation error:", error);
+    insightsLog.error("Agent generation error:", error);
 
     // 更新为失败状态
     db.update(insights)

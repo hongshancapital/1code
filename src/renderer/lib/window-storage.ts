@@ -1,5 +1,9 @@
 import { atomWithStorage, createJSONStorage } from "jotai/utils"
 import { getWindowId } from "../contexts/WindowContext"
+import { createLogger } from ".//logger"
+
+const windowStorageLog = createLogger("WindowStorage")
+
 
 /**
  * Track which keys have been migrated to avoid repeated migration attempts.
@@ -30,7 +34,7 @@ function migrateFromNumericWindowId(key: string, targetWindowKey: string): strin
     if (match && match[2] === key) {
       const value = localStorage.getItem(storageKey)
       if (value !== null) {
-        console.log(`[WindowStorage] Migrated from numeric ID: ${storageKey} to ${targetWindowKey}`)
+        windowStorageLog.info(`Migrated from numeric ID: ${storageKey} to ${targetWindowKey}`)
         migratedKeys.add(targetWindowKey)
         return value
       }
@@ -65,7 +69,7 @@ function createWindowScopedStorage<T>() {
           try {
             localStorage.setItem(windowKey, migratedValue)
           } catch (e) {
-            console.warn(`[WindowStorage] Failed to save migrated value for ${windowKey}:`, e)
+            windowStorageLog.warn(`Failed to save migrated value for ${windowKey}:`, e)
           }
           value = migratedValue
         }
@@ -76,9 +80,9 @@ function createWindowScopedStorage<T>() {
           if (legacyValue !== null) {
             try {
               localStorage.setItem(windowKey, legacyValue)
-              console.log(`[WindowStorage] Migrated ${key} to ${windowKey}`)
+              windowStorageLog.info(`Migrated ${key} to ${windowKey}`)
             } catch (e) {
-              console.warn(`[WindowStorage] Failed to save migrated value for ${windowKey}:`, e)
+              windowStorageLog.warn(`Failed to save migrated value for ${windowKey}:`, e)
             }
             value = legacyValue
           }
@@ -95,7 +99,7 @@ function createWindowScopedStorage<T>() {
         localStorage.setItem(windowKey, value)
       } catch (e) {
         // Handle QuotaExceededError gracefully
-        console.error(`[WindowStorage] Failed to save ${windowKey}:`, e)
+        windowStorageLog.error(`Failed to save ${windowKey}:`, e)
       }
     },
     removeItem: (key: string) => {

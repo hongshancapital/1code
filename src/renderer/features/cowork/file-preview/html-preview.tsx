@@ -2,6 +2,10 @@ import { useEffect, useState, useRef } from "react"
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { Loader2, Code, Eye } from "lucide-react"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("htmlPreview")
+
 
 interface HtmlPreviewProps {
   content: string
@@ -35,7 +39,7 @@ export function HtmlPreview({ content, fileName, className }: HtmlPreviewProps) 
           setHighlightedHtml(result)
         }
       } catch (err) {
-        console.error("Syntax highlighting error:", err)
+        log.error("Syntax highlighting error:", err)
         if (!cancelled) {
           // Fallback to plain text
           setHighlightedHtml(

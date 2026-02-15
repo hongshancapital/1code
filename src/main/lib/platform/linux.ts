@@ -13,6 +13,10 @@ import type {
   CliConfig,
   EnvironmentConfig,
 } from "./types"
+import { createLogger } from "../logger"
+
+const cliLog = createLogger("CLI")
+
 
 const execAsync = promisify(exec)
 
@@ -172,12 +176,12 @@ export class LinuxPlatformProvider extends BasePlatformProvider {
         await execAsync(`sudo ln -s "${sourcePath}" ${installPath}`)
       }
 
-      console.log("[CLI] Installed hong command to", installPath)
+      cliLog.info("Installed hong command to", installPath)
       return { success: true }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Installation failed"
-      console.error("[CLI] Failed to install:", error)
+      cliLog.error("Failed to install:", error)
       return { success: false, error: errorMessage }
     }
   }
@@ -188,7 +192,7 @@ export class LinuxPlatformProvider extends BasePlatformProvider {
 
     try {
       if (!existsSync(installPath)) {
-        console.log("[CLI] CLI command not installed, nothing to uninstall")
+        cliLog.info("CLI command not installed, nothing to uninstall")
         return { success: true }
       }
 
@@ -199,12 +203,12 @@ export class LinuxPlatformProvider extends BasePlatformProvider {
         await execAsync(`sudo rm -f ${installPath}`)
       }
 
-      console.log("[CLI] Uninstalled hong command")
+      cliLog.info("Uninstalled hong command")
       return { success: true }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Uninstallation failed"
-      console.error("[CLI] Failed to uninstall:", error)
+      cliLog.error("Failed to uninstall:", error)
       return { success: false, error: errorMessage }
     }
   }

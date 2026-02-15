@@ -4,6 +4,11 @@ import path from "node:path"
 import * as pty from "node-pty"
 import { buildTerminalEnv, FALLBACK_SHELL, getDefaultShell } from "./env"
 import type { InternalCreateSessionParams, TerminalSession } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const terminalLog = createLogger("Terminal")
+const terminalSetupLog = createLogger("Terminal:setupInitialCommands")
+
 
 const DEFAULT_COLS = 80
 const DEFAULT_ROWS = 24
@@ -25,7 +30,7 @@ function getShellArgs(shell: string): string[] {
 function validateAndResolveCwd(cwd: string): string {
 	if (!fs.existsSync(cwd)) {
 		const homeDir = os.homedir()
-		console.warn(`[Terminal] CWD does not exist: ${cwd}, using home directory: ${homeDir}`)
+		terminalLog.warn(`CWD does not exist: ${cwd}, using home directory: ${homeDir}`)
 		return homeDir
 	}
 
@@ -33,12 +38,12 @@ function validateAndResolveCwd(cwd: string): string {
 		const stat = fs.statSync(cwd)
 		if (!stat.isDirectory()) {
 			const homeDir = os.homedir()
-			console.warn(`[Terminal] CWD is not a directory: ${cwd}, using home directory: ${homeDir}`)
+			terminalLog.warn(`CWD is not a directory: ${cwd}, using home directory: ${homeDir}`)
 			return homeDir
 		}
 	} catch {
 		const homeDir = os.homedir()
-		console.warn(`[Terminal] Error checking CWD: ${cwd}, using home directory: ${homeDir}`)
+		terminalLog.warn(`Error checking CWD: ${cwd}, using home directory: ${homeDir}`)
 		return homeDir
 	}
 
@@ -46,7 +51,7 @@ function validateAndResolveCwd(cwd: string): string {
 		return path.resolve(cwd)
 	} catch {
 		const homeDir = os.homedir()
-		console.warn(`[Terminal] Error resolving CWD: ${cwd}, using home directory: ${homeDir}`)
+		terminalLog.warn(`Error resolving CWD: ${cwd}, using home directory: ${homeDir}`)
 		return homeDir
 	}
 }
@@ -99,9 +104,9 @@ function spawnPty(params: {
 			env,
 		})
 	} catch (error) {
-		console.error(`[Terminal] Failed to spawn PTY with ${resolvedShell}:`, error)
+		terminalLog.error(`Failed to spawn PTY with ${resolvedShell}:`, error)
 		// Try with fallback shell
-		console.log(`[Terminal] Retrying with fallback shell: ${FALLBACK_SHELL}`)
+		terminalLog.info(`Retrying with fallback shell: ${FALLBACK_SHELL}`)
 		return pty.spawn(FALLBACK_SHELL, [], {
 			name: "xterm-256color",
 			cols,
@@ -182,23 +187,23 @@ export function setupInitialCommands(
 	initialCommands: string[] | undefined,
 ): void {
 	if (!initialCommands || initialCommands.length === 0) {
-		console.log(`[Terminal:setupInitialCommands] No initial commands for ${session.paneId}`)
+		terminalSetupLog.info(`No initial commands for ${session.paneId}`)
 		return
 	}
 
 	const initialCommandString = `${initialCommands.join(" && ")}\n`
-	console.log(`[Terminal:setupInitialCommands] Setting up initial commands for ${session.paneId}:`, initialCommands)
+	terminalSetupLog.info(`Setting up initial commands for ${session.paneId}:`, initialCommands)
 
 	const dataHandler = session.pty.onData(() => {
 		dataHandler.dispose()
-		console.log(`[Terminal:setupInitialCommands] Shell ready, writing command: ${initialCommandString.trim()}`)
+		terminalSetupLog.info(`Shell ready, writing command: ${initialCommandString.trim()}`)
 
 		setTimeout(() => {
 			if (session.isAlive) {
 				session.pty.write(initialCommandString)
-				console.log(`[Terminal:setupInitialCommands] Command written successfully`)
+				terminalSetupLog.info(`Command written successfully`)
 			} else {
-				console.log(`[Terminal:setupInitialCommands] Session not alive, skipping command`)
+				terminalSetupLog.info(`Session not alive, skipping command`)
 			}
 		}, 100)
 	})

@@ -17,7 +17,7 @@ import { bringToFront } from './window';
 // Safe console methods to prevent EPIPE errors when stdout is closed
 function safeLog(...args: unknown[]): void {
   try {
-    console.log(...args);
+    log.info(...args);
   } catch {
     // Ignore EPIPE errors when stdout is closed
   }
@@ -25,7 +25,7 @@ function safeLog(...args: unknown[]): void {
 
 function safeError(...args: unknown[]): void {
   try {
-    console.error(...args);
+    log.error(...args);
   } catch {
     // Ignore EPIPE errors when stderr is closed
   }
@@ -33,7 +33,7 @@ function safeError(...args: unknown[]): void {
 
 function safeWarn(...args: unknown[]): void {
   try {
-    console.warn(...args);
+    log.warn(...args);
   } catch {
     // Ignore EPIPE errors when stderr is closed
   }
@@ -165,6 +165,10 @@ export async function fetchMcpToolsStdio(config: {
 }
 
 import { AUTH_SERVER_PORT, IS_DEV } from '../constants';
+import { createLogger } from ".//logger"
+
+const log = createLogger("mcpAuth")
+
 
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 

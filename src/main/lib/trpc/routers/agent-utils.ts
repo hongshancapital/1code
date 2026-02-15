@@ -4,6 +4,10 @@ import * as os from "os"
 import matter from "gray-matter"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../../../feature/plugin-system/lib"
 import { getEnabledPlugins } from "./claude-settings"
+import { createLogger } from "../../logger"
+
+const agentsLog = createLogger("agents")
+
 
 // Valid model values for agents
 export const VALID_AGENT_MODELS = ["sonnet", "opus", "haiku", "inherit"] as const
@@ -83,7 +87,7 @@ export function parseAgentMd(
       model,
     }
   } catch (err) {
-    console.error("[agents] Failed to parse markdown:", err)
+    agentsLog.error("Failed to parse markdown:", err)
     return {}
   }
 }
@@ -203,7 +207,7 @@ export async function scanAgentsDirectory(
         entry.name.includes("/") ||
         entry.name.includes("\\")
       ) {
-        console.warn(`[agents] Skipping invalid filename: ${entry.name}`)
+        agentsLog.warn(`Skipping invalid filename: ${entry.name}`)
         continue
       }
 
@@ -239,14 +243,14 @@ export async function scanAgentsDirectory(
             })
           }
         } catch (err) {
-          console.error(`[agents] Failed to read agent ${entry.name}:`, err)
+          agentsLog.error(`Failed to read agent ${entry.name}:`, err)
         }
       }
     }
   } catch (err) {
     // Directory doesn't exist or not accessible
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`[agents] Could not scan directory ${dir}:`, err)
+      agentsLog.warn(`Could not scan directory ${dir}:`, err)
     }
   }
 
@@ -261,7 +265,7 @@ const agentCache = new Map<string, ParsedAgent | null>()
  */
 export function clearAgentCache() {
   agentCache.clear()
-  console.log("[agents] Cache cleared")
+  agentsLog.info("Cache cleared")
 }
 
 /**
@@ -293,11 +297,11 @@ export async function buildAgentsOption(
     let agent = agentCache.get(cacheKey)
     if (agent === undefined) {
       // Not in cache, load from disk
-      console.log(`[agents] Cache MISS for ${name} - loading from disk`)
+      agentsLog.info(`Cache MISS for ${name} - loading from disk`)
       agent = await loadAgent(name, cwd)
       agentCache.set(cacheKey, agent)
     } else {
-      console.log(`[agents] Cache HIT for ${name}`)
+      agentsLog.info(`Cache HIT for ${name}`)
     }
 
     if (agent) {

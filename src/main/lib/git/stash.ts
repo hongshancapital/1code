@@ -2,6 +2,11 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import simpleGit from "simple-git"
+import { createLogger } from "../logger"
+
+const checkpointLog = createLogger("checkpoint")
+const claudeLog = createLogger("claude")
+
 
 const APPLY_RETRIES = 3
 const APPLY_RETRY_DELAY_MS = 200
@@ -78,14 +83,14 @@ export async function createRollbackStash(
       commitHash,
     ])
 
-    console.log("[checkpoint] Created rollback checkpoint:", {
+    checkpointLog.info("Created rollback checkpoint:", {
       sdkMessageUuid,
       commitHash,
       indexTree,
       worktreeTree,
     })
   } catch (e) {
-    console.error("[checkpoint] Failed to create rollback checkpoint:", e)
+    checkpointLog.error("Failed to create rollback checkpoint:", e)
   }
 }
 
@@ -121,7 +126,7 @@ export async function applyRollbackStash(
   worktreePath: string,
   sdkMessageUuid: string,
 ): Promise<RollbackResult> {
-  console.log("[checkpoint] Applying rollback checkpoint:", {
+  checkpointLog.info("Applying rollback checkpoint:", {
     worktreePath,
     sdkMessageUuid,
   })
@@ -133,18 +138,18 @@ export async function applyRollbackStash(
     let commitHash = ""
     try {
       commitHash = (await git.raw(["rev-parse", ref])).trim()
-      console.log("[checkpoint] Found checkpoint commit:", commitHash)
+      checkpointLog.info("Found checkpoint commit:", commitHash)
     } catch {
       // Try to list all available checkpoints for debugging
       try {
         const allRefs = await git.raw(["for-each-ref", "--format=%(refname)", "refs/checkpoints/"])
         const checkpointRefs = allRefs.trim().split("\n").filter(Boolean)
-        console.warn(
+        checkpointLog.warn(
           `[checkpoint] Rollback checkpoint not found for sdkMessageUuid=${sdkMessageUuid}. Available checkpoints:`,
           checkpointRefs.length > 0 ? checkpointRefs : "none"
         )
       } catch {
-        console.warn(
+        checkpointLog.warn(
           `[checkpoint] Rollback checkpoint not found for sdkMessageUuid=${sdkMessageUuid}`,
         )
       }
@@ -161,7 +166,7 @@ export async function applyRollbackStash(
     ])
     const { indexTree, worktreeTree } = parseCheckpointTrees(commitMessage)
     if (!indexTree || !worktreeTree) {
-      console.error(
+      checkpointLog.error(
         `[claude] Rollback checkpoint missing tree metadata for sdkMessageUuid=${sdkMessageUuid}`,
       )
       return { success: false, error: "Checkpoint missing tree metadata" }
@@ -174,7 +179,7 @@ export async function applyRollbackStash(
         await git.raw(["checkout-index", "-a", "-f"])
         await git.raw(["clean", "-fd"])
         await git.raw(["read-tree", indexTree])
-        console.log("[checkpoint] Successfully applied rollback checkpoint")
+        checkpointLog.info("Successfully applied rollback checkpoint")
         return { success: true, checkpointFound: true }
       } catch (error) {
         lastError = error
@@ -185,7 +190,7 @@ export async function applyRollbackStash(
     }
     throw lastError
   } catch (e) {
-    console.error("[claude] Failed to apply rollback checkpoint:", e)
+    claudeLog.error("Failed to apply rollback checkpoint:", e)
     const errorMessage = e instanceof Error ? e.message : "Unknown error"
     return { success: false, error: errorMessage }
   }

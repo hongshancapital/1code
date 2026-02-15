@@ -22,6 +22,10 @@ import {
   terminalSidebarOpenAtomFamily,
 } from "@/lib/atoms"
 import type { TerminalInstance } from "@/features/terminal/types"
+import { createLogger } from "../../../lib/logger"
+
+const backgroundTaskLog = createLogger("BackgroundTask")
+
 
 interface BackgroundTasksWidgetProps {
   /** Active sub-chat ID to get tasks from */
@@ -92,7 +96,7 @@ const TaskListItem = memo(function TaskListItem({
       setOutput(content || "(empty)")
       setIsExpanded(true)
     } catch (err: any) {
-      console.error("[BackgroundTask] Failed to read output:", err)
+      backgroundTaskLog.error("Failed to read output:", err)
       // SDK cleans up output files after session ends
       // Show appropriate message based on task status
       let errorMsg: string
@@ -122,7 +126,7 @@ const TaskListItem = memo(function TaskListItem({
       })
       setOutput(content || "(empty)")
     } catch (err: any) {
-      console.error("[BackgroundTask] Failed to refresh output:", err)
+      backgroundTaskLog.error("Failed to refresh output:", err)
       let errorMsg: string
       if (err?.message?.includes("ENOENT")) {
         if (task.status === "running") {
@@ -423,7 +427,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
 
             // If file size unchanged for 3 consecutive checks (6 seconds), mark as completed
             if (count >= 3) {
-              console.log(`[BackgroundTask] Task ${task.taskId} appears completed (file size stable)`)
+              backgroundTaskLog.info(`Task ${task.taskId} appears completed (file size stable)`)
               setTasks((prev) =>
                 prev.map((t) =>
                   t.taskId === task.taskId
@@ -441,7 +445,7 @@ export const BackgroundTasksWidget = memo(function BackgroundTasksWidget({
             unchangedCounts.current.set(task.taskId, 0)
           }
         } catch (err) {
-          console.error(`[BackgroundTask] Error checking task ${task.taskId}:`, err)
+          backgroundTaskLog.error(`Error checking task ${task.taskId}:`, err)
         }
       }
     }, 2000) // Check every 2 seconds

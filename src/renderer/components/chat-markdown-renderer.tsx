@@ -14,6 +14,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "./ui/context-menu"
+import { createLogger } from "../lib/logger"
+
+const markdownImageLog = createLogger("MarkdownImage")
+
 
 // Function to strip emojis from text (only common emojis, preserving markdown symbols)
 export function stripEmojis(text: string): string {
@@ -78,7 +82,7 @@ function CodeBlock({
           setHighlightedHtml(html)
         }
       } catch (error) {
-        console.error("Failed to highlight code:", error)
+        markdownImageLog.error("Failed to highlight code:", error)
       }
     }
 
@@ -191,7 +195,7 @@ function ImageFullscreenViewer({ src, alt, onClose }: { src: string; alt: string
       })
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
     } catch (err) {
-      console.error("[MarkdownImage] Copy failed:", err)
+      markdownImageLog.error("Copy failed:", err)
     }
   }, [src])
 
@@ -218,7 +222,7 @@ function ImageFullscreenViewer({ src, alt, onClose }: { src: string; alt: string
         ],
       })
     } catch (err) {
-      console.error("[MarkdownImage] Save failed:", err)
+      markdownImageLog.error("Save failed:", err)
     }
   }, [src, alt])
 

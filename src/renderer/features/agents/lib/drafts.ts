@@ -5,6 +5,10 @@ import type {
 } from "../hooks/use-agents-file-upload"
 import type { SelectedTextContext, DiffTextContext } from "./queue-utils"
 import { trpcClient } from "../../../lib/trpc"
+import { createLogger } from "../../../lib/logger"
+
+const draftsLog = createLogger("drafts")
+
 
 // Constants
 export const DRAFTS_STORAGE_KEY = "agent-drafts-global"
@@ -47,7 +51,7 @@ function flushToStorage(): void {
     _cachedSize = serialized.length * 2
     localStorage.setItem(DRAFTS_STORAGE_KEY, serialized)
   } catch (e) {
-    console.warn("[drafts] Failed to flush to localStorage:", e)
+    draftsLog.warn("Failed to flush to localStorage:", e)
   }
 }
 
@@ -303,7 +307,7 @@ export function clearSubChatDraft(chatId: string, subChatId: string): void {
   // Async cleanup of disk files (fire-and-forget)
   trpcClient.files.cleanupDraftAttachments
     .mutate({ draftKey: key })
-    .catch((err) => console.warn("[drafts] Failed to cleanup disk files:", err))
+    .catch((err) => draftsLog.warn("Failed to cleanup disk files:", err))
 }
 
 // Build drafts cache from localStorage (for sidebar display)
@@ -602,7 +606,7 @@ export async function fromDraftImage(draft: DraftImage): Promise<UploadedImage |
       isLoading: false,
     }
   } catch (err) {
-    console.error("[drafts] Failed to restore image:", err)
+    draftsLog.error("Failed to restore image:", err)
     return null
   }
 }
@@ -656,7 +660,7 @@ export async function fromDraftFile(draft: DraftFile): Promise<UploadedFile | nu
       isLoading: false,
     }
   } catch (err) {
-    console.error("[drafts] Failed to restore file:", err)
+    draftsLog.error("Failed to restore file:", err)
     return null
   }
 }
@@ -794,7 +798,7 @@ export function saveSubChatDraftWithAttachments(
 
   // Storage limit check — only relevant when using inline base64 fallback
   if (wouldExceedStorageLimit(draft)) {
-    console.warn(
+    draftsLog.warn(
       "[drafts] Storage limit would be exceeded, skipping attachment persistence"
     )
     // Save without attachments as fallback
@@ -813,7 +817,7 @@ export function saveSubChatDraftWithAttachments(
     saveGlobalDrafts(globalDrafts)
     return { success: true }
   } catch (err) {
-    console.error("[drafts] Failed to save draft:", err)
+    draftsLog.error("Failed to save draft:", err)
     return { success: false, error: "save_failed" }
   }
 }

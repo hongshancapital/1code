@@ -5,6 +5,10 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createLogger } from "../logger"
+
+const shellEnvLog = createLogger("shell-env")
+
 
 const execFileAsync = promisify(execFile);
 
@@ -82,7 +86,7 @@ export async function getShellEnvironment(): Promise<Record<string, string>> {
 	// Windows: derive PATH without shell invocation
 	// Git Bash PATH doesn't include Windows user paths, so we build it manually
 	if (process.platform === "win32") {
-		console.log(
+		shellEnvLog.info(
 			"[shell-env] Windows detected, deriving PATH without shell invocation",
 		);
 		const env: Record<string, string> = {
@@ -104,7 +108,7 @@ export async function getShellEnvironment(): Promise<Record<string, string>> {
 		cachedEnv = stringEnv;
 		cacheTime = now;
 		isFallbackCache = false;
-		console.log(
+		shellEnvLog.info(
 			`[shell-env] Built Windows environment with ${Object.keys(stringEnv).length} vars`,
 		);
 		return { ...stringEnv };
@@ -143,7 +147,7 @@ export async function getShellEnvironment(): Promise<Record<string, string>> {
 		isFallbackCache = false;
 		return { ...env };
 	} catch (error) {
-		console.warn(
+		shellEnvLog.warn(
 			`[shell-env] Failed to get shell environment: ${error}. Falling back to process.env`,
 		);
 		// Fall back to process.env if shell spawn fails
@@ -216,7 +220,7 @@ export async function execWithShellEnv(
 		}
 
 		pathFixAttempted = true;
-		console.log("[shell-env] Command not found, deriving shell environment");
+		shellEnvLog.info("Command not found, deriving shell environment");
 
 		try {
 			const shellEnv = await getShellEnvironment();
@@ -225,7 +229,7 @@ export async function execWithShellEnv(
 			if (shellEnv.PATH) {
 				process.env.PATH = shellEnv.PATH;
 				pathFixSucceeded = true;
-				console.log("[shell-env] Fixed process.env.PATH for GUI app");
+				shellEnvLog.info("Fixed process.env.PATH for GUI app");
 			}
 
 			// Retry with fixed env (respect caller's other env vars, force PATH if present)
@@ -241,7 +245,7 @@ export async function execWithShellEnv(
 		} catch (retryError) {
 			// Shell env derivation or retry failed - allow future retries
 			pathFixAttempted = false;
-			console.error("[shell-env] Retry failed:", retryError);
+			shellEnvLog.error("Retry failed:", retryError);
 			throw retryError;
 		}
 	}

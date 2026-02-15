@@ -14,6 +14,11 @@ import { INBOX_PROJECT_ID } from "../../../feature/automation/lib/inbox-project"
 import { getLaunchDirectory } from "../../cli"
 import { PLAYGROUND_RELATIVE_PATH, PLAYGROUND_PROJECT_NAME } from "../../../../shared/feature-config"
 import { createId } from "../../db/utils"
+import { createLogger } from "../../logger"
+
+const projectsLog = createLogger("Projects")
+const migratePlaygroundLog = createLogger("migratePlayground")
+
 
 const execAsync = promisify(exec)
 
@@ -132,13 +137,13 @@ export const projectsRouter = router({
     const window = ctx.getWindow?.() ?? BrowserWindow.getFocusedWindow()
 
     if (!window) {
-      console.error("[Projects] No window available for folder dialog")
+      projectsLog.error("No window available for folder dialog")
       return null
     }
 
     // Ensure window is focused before showing dialog (fixes first-launch timing issue on macOS)
     if (!window.isFocused()) {
-      console.log("[Projects] Window not focused, focusing before dialog...")
+      projectsLog.info("Window not focused, focusing before dialog...")
       window.focus()
       // Small delay to ensure focus is applied by the OS
       await new Promise((resolve) => setTimeout(resolve, 100))
@@ -868,10 +873,10 @@ export const projectsRouter = router({
               if (existsSync(oldDir) && !existsSync(newDir)) {
                 await mkdir(dirname(newDir), { recursive: true })
                 await rename(oldDir, newDir)
-                console.log(`[migratePlayground] Session dir moved: ${oldSanitized} → ${newSanitized}`)
+                migratePlaygroundLog.info(`Session dir moved: ${oldSanitized} → ${newSanitized}`)
               }
             } catch (err) {
-              console.warn(`[migratePlayground] Failed to move session dir for ${sc.id}:`, err)
+              migratePlaygroundLog.warn(`Failed to move session dir for ${sc.id}:`, err)
               // Non-fatal: conversation will start fresh if session file is missing
             }
           }
@@ -1033,9 +1038,9 @@ export const projectsRouter = router({
           try {
             await rm(dirPath, { recursive: true, force: true })
             cleaned++
-            console.log(`[Projects] Cleaned orphan playground: ${dirPath}`)
+            projectsLog.info(`Cleaned orphan playground: ${dirPath}`)
           } catch (err) {
-            console.error(`[Projects] Failed to clean orphan playground: ${dirPath}`, err)
+            projectsLog.error(`Failed to clean orphan playground: ${dirPath}`, err)
           }
         }
       }

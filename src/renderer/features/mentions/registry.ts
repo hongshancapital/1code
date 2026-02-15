@@ -14,6 +14,10 @@
 import { atom, useAtomValue } from "jotai"
 import { useEffect, useState, useMemo } from "react"
 import type { MentionProvider, MentionProviderId } from "./types"
+import { createLogger } from "../../lib/logger"
+
+const mentionRegistryLog = createLogger("MentionRegistry")
+
 
 /**
  * Listener type for registry changes
@@ -42,7 +46,7 @@ class MentionProviderRegistry {
    */
   register(provider: MentionProvider): () => void {
     if (this.providers.has(provider.id)) {
-      console.warn(
+      mentionRegistryLog.warn(
         `[MentionRegistry] Provider "${provider.id}" already registered, replacing`
       )
       // Deactivate existing provider
@@ -55,7 +59,7 @@ class MentionProviderRegistry {
     // Activate provider asynchronously
     if (provider.activate) {
       const activationPromise = provider.activate().catch((error) => {
-        console.error(
+        mentionRegistryLog.error(
           `[MentionRegistry] Failed to activate provider "${provider.id}":`,
           error
         )
@@ -232,7 +236,7 @@ class MentionProviderRegistry {
       try {
         listener()
       } catch (error) {
-        console.error("[MentionRegistry] Listener error:", error)
+        mentionRegistryLog.error("Listener error:", error)
       }
     })
   }

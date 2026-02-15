@@ -18,6 +18,10 @@ import {
   createBufferChannel,
 } from "../../../lib/claude"
 import type { AuthManager } from "../../../auth-manager"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("engine")
+
 
 /**
  * 自动化执行引擎（单例）
@@ -76,7 +80,7 @@ export class AutomationEngine {
     // 检查错过的任务
     await this.scheduler.checkMissedTasks()
 
-    console.log(
+    log.info(
       `[AutomationEngine] Initialized with ${allAutomations.length} automations (using Claude Agent SDK)`,
     )
   }

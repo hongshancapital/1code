@@ -336,7 +336,7 @@ export class ClaudeConfigLoader {
 
     const skipped = Object.keys(servers).length - Object.keys(filtered).length
     if (skipped > 0) {
-      log.info(
+      claudeConfigLoaderLog.info(
         `[ClaudeConfigLoader] Disabled ${skipped} MCP server(s) by user preference: ${disabledServers.join(", ")}`
       )
     }
@@ -393,7 +393,7 @@ export class ClaudeConfigLoader {
               configLoaderLog.info(`✓ MCP warmup completed in extended wait (<2.5s), cache size: ${workingMcpServers.size}`)
             } catch {
               // 策略 3: 放弃等待,继续流程 (MCP 后台继续预热)
-              log.warn(
+              claudeConfigLoaderLog.warn(
                 `[ConfigLoader] ⚠ MCP warmup still pending after 2.5s — proceeding without waiting. ` +
                 `Cache size: ${workingMcpServers.size}. Warmup will continue in background.`
               )

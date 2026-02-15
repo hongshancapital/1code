@@ -11,6 +11,11 @@ import { shell } from "electron"
 import type { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
 import { getEnv } from "../../../../lib/env"
 import { OKTA_CALLBACK_PORT } from "../../../../constants"
+import { createLogger } from "../../../../lib/logger"
+
+const azureLog = createLogger("Azure")
+const msalLog = createLogger("MSAL")
+
 
 // Scopes required for authentication
 const SCOPES = ["openid", "profile", "email", "offline_access"]
@@ -55,7 +60,7 @@ function parseIdToken(idToken: string): AuthUser {
       username: payload.preferred_username?.split("@")[0] || null,
     }
   } catch (error) {
-    console.error("[Azure] Failed to parse id_token:", error)
+    azureLog.error("Failed to parse id_token:", error)
     throw new Error("Failed to parse user information from token", { cause: error })
   }
 }
@@ -82,11 +87,11 @@ function getMsalInstance(): PublicClientApplication {
         loggerOptions: {
           loggerCallback: (level, message) => {
             if (level === LogLevel.Error) {
-              console.error("[MSAL]", message)
+              msalLog.error("[MSAL]", message)
             } else if (level === LogLevel.Warning) {
-              console.warn("[MSAL]", message)
+              msalLog.warn("[MSAL]", message)
             } else {
-              console.log("[MSAL]", message)
+              msalLog.info("[MSAL]", message)
             }
           },
           piiLoggingEnabled: false,
@@ -148,8 +153,8 @@ export class AzureProvider implements AuthProvider {
     authorizeUrl.searchParams.set("code_challenge_method", "S256")
     authorizeUrl.searchParams.set("response_mode", "query")
 
-    console.log("[Azure] Starting MSAL PKCE flow...")
-    console.log("[Azure] Redirect URI:", this.getRedirectUri())
+    azureLog.info("Starting MSAL PKCE flow...")
+    azureLog.info("Redirect URI:", this.getRedirectUri())
 
     shell.openExternal(authorizeUrl.toString())
 
@@ -164,7 +169,7 @@ export class AzureProvider implements AuthProvider {
     tokenData: TokenResponse
     user: AuthUser
   }> {
-    console.log("[Azure] Exchanging authorization code using MSAL...")
+    azureLog.info("Exchanging authorization code using MSAL...")
 
     const msal = getMsalInstance()
     const codeVerifier = pkceState.codeVerifier || pendingPkceVerifier
@@ -181,7 +186,7 @@ export class AzureProvider implements AuthProvider {
         codeVerifier,
       })
 
-      console.log("[Azure] Token exchange successful")
+      azureLog.info("Token exchange successful")
 
       // Clear pending verifier
       pendingPkceVerifier = null
@@ -207,13 +212,13 @@ export class AzureProvider implements AuthProvider {
 
       return { tokenData, user }
     } catch (error) {
-      console.error("[Azure] MSAL token exchange failed:", error)
+      azureLog.error("MSAL token exchange failed:", error)
       throw error
     }
   }
 
   async refresh(_refreshToken: string): Promise<TokenResponse | null> {
-    console.log("[Azure] Refreshing token using MSAL...")
+    azureLog.info("Refreshing token using MSAL...")
 
     const msal = getMsalInstance()
 
@@ -223,7 +228,7 @@ export class AzureProvider implements AuthProvider {
       const account = accounts[0]
 
       if (!account) {
-        console.warn("[Azure] No cached account found for silent refresh")
+        azureLog.warn("No cached account found for silent refresh")
         return null
       }
 
@@ -233,7 +238,7 @@ export class AzureProvider implements AuthProvider {
         forceRefresh: true,
       })
 
-      console.log("[Azure] Token refreshed successfully")
+      azureLog.info("Token refreshed successfully")
 
       return {
         access_token: result.accessToken,
@@ -242,7 +247,7 @@ export class AzureProvider implements AuthProvider {
         token_type: "Bearer",
       }
     } catch (error) {
-      console.error("[Azure] MSAL refresh failed:", error)
+      azureLog.error("MSAL refresh failed:", error)
       return null
     }
   }

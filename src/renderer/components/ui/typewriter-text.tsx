@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, memo } from "react"
 import { cn } from "../../lib/utils"
+import { createLogger } from "../../lib/logger"
+
+const typewriterTextLog = createLogger("TypewriterText")
+
 
 interface TypewriterTextProps {
   text: string
@@ -47,7 +51,7 @@ export const TypewriterText = memo(function TypewriterText({
     if (isTyping || text === lastAnimatedTextRef.current) return
 
     // Text changed to something new - trigger typewriter
-    console.log("[TypewriterText] Text changed, triggering typewriter:", { id, text, lastAnimated: lastAnimatedTextRef.current })
+    typewriterTextLog.info("Text changed, triggering typewriter:", { id, text, lastAnimated: lastAnimatedTextRef.current })
     setIsTyping(true)
     setTypedLength(1)
     lastAnimatedTextRef.current = text

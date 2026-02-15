@@ -8,6 +8,10 @@ import RotatingText from './ui/rotating-text'
 import { userPersonalizationAtom } from '../lib/atoms'
 import { cn } from '../lib/utils'
 import { trpc } from '../lib/trpc'
+import { createLogger } from "../lib/logger"
+
+const loadingSceneLog = createLogger("LoadingScene")
+
 
 type LoadingStatus = 'initializing' | 'detecting' | 'configuring' | 'ready'
 
@@ -321,7 +325,7 @@ export function LoadingScene({
         setEnvPhase('install_failed')
       }
     } catch (error) {
-      console.error('[LoadingScene] Env check error:', error)
+      loadingSceneLog.error('Env check error:', error)
       // On any error, just mark as done and let user proceed
       setEnvPhase('done')
       onEnvCheckComplete?.()

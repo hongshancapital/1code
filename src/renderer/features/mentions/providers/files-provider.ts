@@ -13,6 +13,10 @@ import {
   type MentionSearchResult,
   MENTION_PREFIXES,
 } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const filesProviderLog = createLogger("FilesProvider")
+
 
 /**
  * Data payload for file/folder mentions
@@ -139,7 +143,7 @@ export const filesProvider = createMentionProvider<FileData>({
         timing,
       }
     } catch (error) {
-      console.error("[FilesProvider] Search error:", error)
+      filesProviderLog.error("Search error:", error)
       return {
         items: [],
         hasMore: false,
@@ -205,7 +209,7 @@ export const filesProvider = createMentionProvider<FileData>({
         },
       }
     } catch (error) {
-      console.warn(`[FilesProvider] Failed to deserialize token: ${token}`, error)
+      filesProviderLog.warn(`Failed to deserialize token: ${token}`, error)
       return null
     }
   },

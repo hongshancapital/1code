@@ -6,6 +6,10 @@ import type {
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { getWindowId } from "../../contexts/WindowContext";
+import { createLogger } from "../logger"
+
+const changesStoreLog = createLogger("ChangesStore")
+
 
 type FileListViewMode = "grouped" | "tree";
 
@@ -168,7 +172,7 @@ export const useChangesStore = create<ChangesState>()(
 								const numericData = localStorage.getItem(storageKey)
 								if (numericData) {
 									localStorage.setItem(windowKey, numericData)
-									console.log(`[ChangesStore] Migrated from numeric ID: ${storageKey} to ${windowKey}`)
+									changesStoreLog.info(`Migrated from numeric ID: ${storageKey} to ${windowKey}`)
 									return undefined
 								}
 							}
@@ -180,7 +184,7 @@ export const useChangesStore = create<ChangesState>()(
 						const legacyData = localStorage.getItem(legacyKey)
 						if (legacyData) {
 							localStorage.setItem(windowKey, legacyData)
-							console.log(`[ChangesStore] Migrated ${legacyKey} to ${windowKey}`)
+							changesStoreLog.info(`Migrated ${legacyKey} to ${windowKey}`)
 						}
 					}
 

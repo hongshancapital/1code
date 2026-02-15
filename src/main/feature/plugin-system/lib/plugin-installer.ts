@@ -14,6 +14,10 @@ import {
 } from "./marketplace-config"
 import type { InstallPluginResult, UninstallPluginResult } from "./marketplace-types"
 import { clearPluginCache } from "./index"
+import { createLogger } from "../../../lib/logger"
+
+const pluginInstallerLog = createLogger("PluginInstaller")
+
 
 /**
  * CLI installed_plugins.json format (version 2)
@@ -42,7 +46,7 @@ async function readInstalledPluginsJson(): Promise<InstalledPluginsJson> {
     const data = JSON.parse(content) as InstalledPluginsJson
 
     if (data.version !== 2) {
-      console.warn("[PluginInstaller] Unsupported version, creating new")
+      pluginInstallerLog.warn("Unsupported version, creating new")
       return { version: 2, plugins: {} }
     }
 
@@ -51,7 +55,7 @@ async function readInstalledPluginsJson(): Promise<InstalledPluginsJson> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return { version: 2, plugins: {} }
     }
-    console.error("[PluginInstaller] Error reading installed_plugins.json:", error)
+    pluginInstallerLog.error("Error reading installed_plugins.json:", error)
     return { version: 2, plugins: {} }
   }
 }
@@ -142,7 +146,7 @@ export async function installPlugin(
     }
 
     // Copy plugin directory
-    console.log(
+    pluginInstallerLog.info(
       `[PluginInstaller] Installing ${pluginSource} from ${pluginSourcePath} to ${installPath}`
     )
     await fs.cp(pluginSourcePath, installPath, { recursive: true })
@@ -182,7 +186,7 @@ export async function installPlugin(
     // Clear plugin cache
     clearPluginCache()
 
-    console.log(`[PluginInstaller] Successfully installed ${pluginSource}`)
+    pluginInstallerLog.info(`Successfully installed ${pluginSource}`)
     return {
       success: true,
       pluginSource,
@@ -227,7 +231,7 @@ export async function uninstallPlugin(
     // Delete all installation directories
     for (const install of installations) {
       if (install.installPath) {
-        console.log(
+        pluginInstallerLog.info(
           `[PluginInstaller] Removing ${pluginSource} from ${install.installPath}`
         )
         await fs.rm(install.installPath, { recursive: true, force: true })
@@ -244,7 +248,7 @@ export async function uninstallPlugin(
     // Clear plugin cache
     clearPluginCache()
 
-    console.log(`[PluginInstaller] Successfully uninstalled ${pluginSource}`)
+    pluginInstallerLog.info(`Successfully uninstalled ${pluginSource}`)
     return { success: true }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -291,7 +295,7 @@ async function removeFromEnabledPlugins(pluginSource: string): Promise<void> {
     }
   } catch (error) {
     // Ignore if settings.json doesn't exist or has issues
-    console.log(
+    pluginInstallerLog.info(
       "[PluginInstaller] Could not update settings.json:",
       error instanceof Error ? error.message : error
     )

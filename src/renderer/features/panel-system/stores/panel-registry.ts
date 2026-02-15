@@ -223,7 +223,7 @@ class PanelRegistryClass {
    */
   register(config: PanelConfig): void {
     if (this.panels.has(config.id)) {
-      console.warn(`[PanelRegistry] Panel "${config.id}" already registered, updating`)
+      panelRegistryLog.warn(`Panel "${config.id}" already registered, updating`)
     }
     this.panels.set(config.id, config)
     this.notifyListeners()
@@ -514,6 +514,10 @@ export const panelStateAtomFamily = (key: string) =>
 
 import { useAtomValue, useSetAtom } from "jotai"
 import { useEffect, useState, useMemo, useCallback } from "react"
+import { createLogger } from "../../../lib/logger"
+
+const panelRegistryLog = createLogger("PanelRegistry")
+
 
 /**
  * Hook to get all panels (subscribes to registry changes)

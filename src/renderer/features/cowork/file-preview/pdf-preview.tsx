@@ -1,6 +1,10 @@
 import { useState } from "react"
 import { FileWarning, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const pdfPreviewLog = createLogger("PdfPreview")
+
 
 interface PdfPreviewProps {
   filePath: string
@@ -23,7 +27,7 @@ export function PdfPreview({ filePath, className }: PdfPreviewProps) {
   }
 
   const handleError = () => {
-    console.error("[PdfPreview] Failed to load:", fileUrl)
+    pdfPreviewLog.error("Failed to load:", fileUrl)
     setIsLoading(false)
     setHasError(true)
   }

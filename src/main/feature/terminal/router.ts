@@ -6,6 +6,10 @@ import { observable } from "@trpc/server/observable"
 import { terminalManager } from "./lib/manager"
 import type { TerminalEvent } from "./lib/types"
 import { TRPCError } from "@trpc/server"
+import { createLogger } from "../../lib/logger"
+
+const terminalRouterLog = createLogger("TerminalRouter")
+
 
 export const terminalRouter = router({
 	/**
@@ -33,7 +37,7 @@ export const terminalRouter = router({
 					serializedState: result.serializedState,
 				}
 			} catch (err) {
-				console.error("[TerminalRouter] createOrAttach error:", err)
+				terminalRouterLog.error("createOrAttach error:", err)
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message:

@@ -8,6 +8,10 @@ import { app } from "electron"
 import path from "path"
 import fs from "fs"
 import { generateEmbedding, EMBEDDING_DIMENSION, EMBEDDING_MODEL } from "./embeddings"
+import { createLogger } from "../../../lib/logger"
+
+const vectorStoreLog = createLogger("VectorStore")
+
 
 // LanceDB connection and table
 let db: lancedb.Connection | null = null
@@ -69,7 +73,7 @@ export async function initVectorStore(): Promise<void> {
     if (db) return // 双重检查，防止 Promise 等待期间另一个调用已完成
 
     const dbPath = getDbPath()
-    console.log(`[VectorStore] Initializing at: ${dbPath}`)
+    vectorStoreLog.info(`Initializing at: ${dbPath}`)
 
     const modelChanged = checkModelMigration(dbPath)
 
@@ -81,16 +85,16 @@ export async function initVectorStore(): Promise<void> {
 
       if (modelChanged && tableNames.includes("observations")) {
         // Embedding model changed — old vectors are incompatible, drop table
-        console.log(`[VectorStore] Embedding model changed to ${EMBEDDING_MODEL}, dropping old vectors`)
+        vectorStoreLog.info(`Embedding model changed to ${EMBEDDING_MODEL}, dropping old vectors`)
         await db.dropTable("observations")
       }
 
       if (!modelChanged && tableNames.includes("observations")) {
         observationsTable = await db.openTable("observations")
-        console.log("[VectorStore] Opened existing observations table")
+        vectorStoreLog.info("Opened existing observations table")
       } else {
         // Create table with initial empty data (LanceDB requires data to create table)
-        console.log("[VectorStore] Creating new observations table")
+        vectorStoreLog.info("Creating new observations table")
         observationsTable = await db.createTable("observations", [
           {
             id: "__placeholder__",
@@ -104,13 +108,13 @@ export async function initVectorStore(): Promise<void> {
         await observationsTable.delete('id = "__placeholder__"')
       }
 
-      console.log("[VectorStore] Initialized successfully")
+      vectorStoreLog.info("Initialized successfully")
     } catch (error) {
       // 初始化失败时重置状态，允许下次重试
       db = null
       observationsTable = null
       initPromise = null
-      console.error("[VectorStore] Initialization failed:", error)
+      vectorStoreLog.error("Initialization failed:", error)
       throw error
     }
   })()
@@ -145,9 +149,9 @@ export async function addObservation(
       },
     ])
 
-    console.log(`[VectorStore] Added observation: ${id}`)
+    vectorStoreLog.info(`Added observation: ${id}`)
   } catch (error) {
-    console.error(`[VectorStore] Failed to add observation ${id}:`, error)
+    vectorStoreLog.error(`Failed to add observation ${id}:`, error)
     throw error
   }
 }
@@ -165,7 +169,7 @@ export function queueForEmbedding(
 ): void {
   embeddingQueue.push({ id, text, projectId, type, createdAtEpoch })
   processQueue().catch((err) =>
-    console.error("[VectorStore] Queue processing error:", err),
+    vectorStoreLog.error("Queue processing error:", err),
   )
 }
 
@@ -195,13 +199,13 @@ async function processQueue(): Promise<void> {
       } catch (error) {
         const retries = item.retryCount ?? 0
         if (retries < MAX_RETRY_COUNT) {
-          console.warn(
+          vectorStoreLog.warn(
             `[VectorStore] Failed to process item ${item.id} (retry ${retries + 1}/${MAX_RETRY_COUNT}):`,
             error,
           )
           embeddingQueue.push({ ...item, retryCount: retries + 1 })
         } else {
-          console.error(
+          vectorStoreLog.error(
             `[VectorStore] Permanently failed to process item ${item.id} after ${MAX_RETRY_COUNT} retries:`,
             error,
           )
@@ -269,7 +273,7 @@ export async function searchSimilar(
 
     return filtered
   } catch (error) {
-    console.error("[VectorStore] Search failed:", error)
+    vectorStoreLog.error("Search failed:", error)
     return []
   }
 }
@@ -283,9 +287,9 @@ export async function deleteObservation(id: string): Promise<void> {
 
   try {
     await observationsTable.delete(`id = "${id}"`)
-    console.log(`[VectorStore] Deleted observation: ${id}`)
+    vectorStoreLog.info(`Deleted observation: ${id}`)
   } catch (error) {
-    console.error(`[VectorStore] Failed to delete observation ${id}:`, error)
+    vectorStoreLog.error(`Failed to delete observation ${id}:`, error)
   }
 }
 
@@ -300,9 +304,9 @@ export async function deleteProjectObservations(
 
   try {
     await observationsTable.delete(`projectId = "${projectId}"`)
-    console.log(`[VectorStore] Deleted all observations for project: ${projectId}`)
+    vectorStoreLog.info(`Deleted all observations for project: ${projectId}`)
   } catch (error) {
-    console.error(
+    vectorStoreLog.error(
       `[VectorStore] Failed to delete project observations:`,
       error,
     )
@@ -325,7 +329,7 @@ export async function getStats(): Promise<{
     const count = await observationsTable.countRows()
     return { totalVectors: count, isReady: true }
   } catch (error) {
-    console.error("[VectorStore] getStats error:", error)
+    vectorStoreLog.error("getStats error:", error)
     return { totalVectors: 0, isReady: false }
   }
 }
@@ -337,7 +341,7 @@ export async function getStats(): Promise<{
 export async function rebuildIndex(projectId: string): Promise<void> {
   // This would require re-reading from SQLite and re-embedding
   // For now, just log - full implementation in Phase 3
-  console.log(`[VectorStore] Rebuild index requested for project: ${projectId}`)
+  vectorStoreLog.info(`Rebuild index requested for project: ${projectId}`)
 }
 
 /**
@@ -350,8 +354,8 @@ export async function clearAll(): Promise<void> {
   try {
     // Delete all rows
     await observationsTable.delete("id IS NOT NULL")
-    console.log("[VectorStore] Cleared all observations")
+    vectorStoreLog.info("Cleared all observations")
   } catch (error) {
-    console.error("[VectorStore] Failed to clear all:", error)
+    vectorStoreLog.error("Failed to clear all:", error)
   }
 }

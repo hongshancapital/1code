@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react"
 import { FileText, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
+import { createLogger } from "../../../lib/logger"
+
+const wordPreviewLog = createLogger("WordPreview")
+
 
 interface WordPreviewProps {
   filePath: string
@@ -59,7 +63,7 @@ export function WordPreview({ filePath, className }: WordPreviewProps) {
         setIsLoading(false)
         setHasError(false)
       } catch (err) {
-        console.error("[WordPreview] Failed to render:", err)
+        wordPreviewLog.error("Failed to render:", err)
         setHasError(true)
         setErrorMessage(err instanceof Error ? err.message : "Render failed")
         setIsLoading(false)

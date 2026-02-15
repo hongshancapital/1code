@@ -1,4 +1,7 @@
 import { useRef, useEffect, useCallback } from "react"
+import { createLogger } from "../logger"
+
+const log = createLogger("StableCallback")
 
 /**
  * useLatest - Always returns the latest value without causing re-renders
@@ -14,7 +17,7 @@ import { useRef, useEffect, useCallback } from "react"
  * useEffect(() => {
  *   const timer = setInterval(() => {
  *     // Always logs the latest count
- *     console.log(countRef.current)
+ *     log.info(countRef.current)
  *   }, 1000)
  *   return () => clearInterval(timer)
  * }, []) // Empty deps - no re-subscription
@@ -45,17 +48,17 @@ export function useLatest<T>(value: T): React.MutableRefObject<T> {
  *
  * // ❌ Bad: Creates new function on every render
  * const handleClick = () => {
- *   console.log(count)
+ *   log.info(count)
  * }
  *
  * // ❌ Better but still recreates when count changes
  * const handleClick = useCallback(() => {
- *   console.log(count)
+ *   log.info(count)
  * }, [count])
  *
  * // ✅ Best: Stable reference, always logs latest count
  * const handleClick = useMemoizedFn(() => {
- *   console.log(count)
+ *   log.info(count)
  * })
  *
  * return <Dialog onOpenChange={handleClick} />

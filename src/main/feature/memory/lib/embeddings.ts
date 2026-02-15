@@ -12,6 +12,10 @@
 import { pipeline, env, type FeatureExtractionPipeline } from "@xenova/transformers"
 import { app } from "electron"
 import path from "path"
+import { createLogger } from "../../../lib/logger"
+
+const embeddingsLog = createLogger("Embeddings")
+
 
 // Configure transformers.js to use local cache
 env.cacheDir = path.join(app.getPath("userData"), "models")
@@ -43,7 +47,7 @@ export async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline>
   }
 
   initPromise = (async () => {
-    console.log(`[Embeddings] Initializing pipeline with model: ${EMBEDDING_MODEL}`)
+    embeddingsLog.info(`Initializing pipeline with model: ${EMBEDDING_MODEL}`)
     const startTime = Date.now()
 
     try {
@@ -63,11 +67,11 @@ export async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline>
       embeddingPipeline = pipe as FeatureExtractionPipeline
 
       const duration = Date.now() - startTime
-      console.log(`[Embeddings] Pipeline initialized in ${duration}ms`)
+      embeddingsLog.info(`Pipeline initialized in ${duration}ms`)
 
       return embeddingPipeline
     } catch (error) {
-      console.error("[Embeddings] Failed to initialize pipeline:", error)
+      embeddingsLog.error("Failed to initialize pipeline:", error)
       initPromise = null
       throw error
     }
@@ -171,8 +175,8 @@ export function isEmbeddingReady(): boolean {
 export async function preloadEmbeddingModel(): Promise<void> {
   try {
     await getEmbeddingPipeline()
-    console.log("[Embeddings] Model preloaded successfully")
+    embeddingsLog.info("Model preloaded successfully")
   } catch (error) {
-    console.error("[Embeddings] Failed to preload model:", error)
+    embeddingsLog.error("Failed to preload model:", error)
   }
 }

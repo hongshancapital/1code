@@ -184,6 +184,13 @@ import { TagSelectorSubmenu, PresetTagIcon, getPresetTag, CustomTagIcon } from "
 import { ManageTagsDialog } from "../../components/dialogs/manage-tags-dialog"
 import { MoveToWorkspaceDialog } from "../../components/dialogs/move-to-workspace-dialog"
 import { useNavigate, navigatedProjectIdAtom } from "../../lib/router"
+import { createLogger } from "../../lib/logger"
+
+const handleUndoLog = createLogger("handleUndo")
+const sidebarLog = createLogger("sidebar")
+const handleRenameSaveLog = createLogger("handleRenameSave")
+const handleArchiveSingleLog = createLogger("handleArchiveSingle")
+
 
 // Feedback mailto link
 const FEEDBACK_URL = "mailto:lite@hongshan.com"
@@ -2339,7 +2346,7 @@ export function AgentsSidebar({
                 setChatSourceMode("sandbox")
               },
               onError: (error) => {
-                console.error('[handleUndo] Failed to restore remote workspace:', error)
+                handleUndoLog.error('Failed to restore remote workspace:', error)
                 toast.error("Failed to restore workspace")
               },
             })
@@ -2403,7 +2410,7 @@ export function AgentsSidebar({
     // chat's project — we check if the current project ID matches the one
     // set during navigation. This works even with startTransition delays.
     if (selectedProject?.id && selectedProject.id === navigatedProjectId) {
-      console.log('[sidebar] project-change effect: SKIP (navigating match)', {
+      sidebarLog.info('project-change effect: SKIP (navigating match)', {
         prev: prevProjectIdRef.current,
         next: selectedProject.id,
         target: navigatedProjectId
@@ -2417,7 +2424,7 @@ export function AgentsSidebar({
       prevProjectIdRef.current !== selectedProject?.id &&
       selectedChatId
     ) {
-      console.log('[sidebar] project-change effect: RESETTING chatId to null', { prev: prevProjectIdRef.current, next: selectedProject?.id, selectedChatId })
+      sidebarLog.info('project-change effect: RESETTING chatId to null', { prev: prevProjectIdRef.current, next: selectedProject?.id, selectedChatId })
       setSelectedChatId(null)
     }
     prevProjectIdRef.current = selectedProject?.id ?? null
@@ -2533,7 +2540,7 @@ export function AgentsSidebar({
       }
       setRenameDialogOpen(false)
     } catch (error) {
-      console.error('[handleRenameSave] Rename failed:', error)
+      handleRenameSaveLog.error('Rename failed:', error)
       toast.error(isRemote ? "Failed to rename remote workspace" : "Failed to rename workspace")
     } finally {
       setRenameLoading(false)
@@ -3003,7 +3010,7 @@ export function AgentsSidebar({
           }])
         },
         onError: (error) => {
-          console.error('[handleArchiveSingle] Failed to archive remote workspace:', error)
+          handleArchiveSingleLog.error('Failed to archive remote workspace:', error)
           toast.error("Failed to archive workspace")
         },
       })

@@ -1,6 +1,10 @@
 // File upload hook for desktop app with base64 conversion for Claude API
 import { useState, useCallback, useRef, useEffect } from "react"
 import { trpcClient } from "../../../lib/trpc"
+import { createLogger } from "../../../lib/logger"
+
+const useAgentsFileUploadLog = createLogger("useAgentsFileUpload")
+
 
 export interface UploadedImage {
   id: string
@@ -62,7 +66,7 @@ async function saveToDisk(
     })
     return result.tempPath
   } catch (err) {
-    console.warn("[useAgentsFileUpload] Failed to save attachment to disk:", err)
+    useAgentsFileUploadLog.warn("Failed to save attachment to disk:", err)
     return undefined
   }
 }
@@ -98,7 +102,7 @@ export function useAgentsFileUpload(draftKey?: string) {
         try {
           base64Data = await fileToBase64(file)
         } catch (err) {
-          console.error("[useAgentsFileUpload] Failed to convert image to base64:", err)
+          useAgentsFileUploadLog.error("Failed to convert image to base64:", err)
         }
 
         return {

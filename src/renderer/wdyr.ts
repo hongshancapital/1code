@@ -1,6 +1,10 @@
 import type {} from "@welldone-software/why-did-you-render"
 import React from "react"
 import whyDidYouRender from "@welldone-software/why-did-you-render"
+import { createLogger } from "./lib/logger"
+
+const wdyrLog = createLogger("WDYR")
+
 
 // ============================================================================
 // WDYR (Why Did You Render) - React Re-render Debugging
@@ -45,7 +49,7 @@ if (import.meta.env.DEV && WDYR_ENABLED) {
       const propNames = getDiffNames(info.reason?.propsDifferences)
       const stateNames = getDiffNames(info.reason?.stateDifferences)
       const hookNames = getDiffNames(info.reason?.hookDifferences)
-      console.log(`[WDYR] ${name} render #${renderCounts[name].count}`, {
+      wdyrLog.info(`${name} render #${renderCounts[name].count}`, {
         props: propNames.length > 0 ? propNames : false,
         state: stateNames.length > 0 ? stateNames : false,
         hooks: hookNames.length > 0 ? hookNames : false,
@@ -53,20 +57,20 @@ if (import.meta.env.DEV && WDYR_ENABLED) {
 
       // Trigger debugger before crash if threshold exceeded
       if (renderCounts[name].count >= THRESHOLD) {
-        console.error(
+        wdyrLog.error(
           `🔴 INFINITE LOOP DETECTED: ${name} rendered ${THRESHOLD}+ times in ${TIME_WINDOW}ms`
         )
-        console.error("Full info:", info)
-        console.error("Props diff:", info.reason?.propsDifferences)
-        console.error("State diff:", info.reason?.stateDifferences)
-        console.error("Hook diff:", info.reason?.hookDifferences)
+        wdyrLog.error("Full info:", info)
+        wdyrLog.error("Props diff:", info.reason?.propsDifferences)
+        wdyrLog.error("State diff:", info.reason?.stateDifferences)
+        wdyrLog.error("Hook diff:", info.reason?.hookDifferences)
         // eslint-disable-next-line no-debugger -- Intentional debugger for infinite loop detection
         debugger // Pause here - inspect call stack!
       }
     },
   })
 
-  console.log("[WDYR] Why Did You Render initialized with loop detection")
+  wdyrLog.info("Why Did You Render initialized with loop detection")
 }
 
 export {}

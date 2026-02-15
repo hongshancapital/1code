@@ -8,6 +8,10 @@ import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../../lib/atoms
 import { cn } from "../../../../lib/utils";
 import { IconSpinner } from "../../../../components/ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
+import { createLogger } from "../../../../lib/logger"
+
+const commitInputLog = createLogger("CommitInput")
+
 
 interface CommitInputProps {
 	worktreePath: string;
@@ -87,10 +91,10 @@ export function CommitInput({
 		try {
 			// Get commit message - generate if empty
 			let commitMessage = getCommitMessage();
-			console.log("[CommitInput] handleCommit called, commitMessage:", commitMessage, "chatId:", chatId);
+			commitInputLog.info("handleCommit called, commitMessage:", commitMessage, "chatId:", chatId);
 
 			if (!commitMessage && chatId) {
-				console.log("[CommitInput] No message, generating with AI for files:", selectedFilePaths);
+				commitInputLog.info("No message, generating with AI for files:", selectedFilePaths);
 				setIsGenerating(true);
 				try {
 					// Pass selected file paths to generate message only for those files
@@ -101,12 +105,12 @@ export function CommitInput({
 						filePaths: selectedFilePaths,
 						...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
 					});
-					console.log("[CommitInput] AI generated message:", result.message);
+					commitInputLog.info("AI generated message:", result.message);
 					commitMessage = result.message;
 					// Also update the input field so user can see what was generated
 					setSummary(result.message);
 				} catch (error) {
-					console.error("[CommitInput] Failed to generate message:", error);
+					commitInputLog.error("Failed to generate message:", error);
 					toast.error("Failed to generate commit message");
 					setIsGenerating(false);
 					return;

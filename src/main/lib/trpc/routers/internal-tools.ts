@@ -1,6 +1,10 @@
 import { publicProcedure, router } from "../index"
 import { getArtifactToolDefinitions } from "../../mcp/artifact-server"
 import { getExtensionManager } from "../../extension"
+import { createLogger } from "../../logger"
+
+const internalToolsLog = createLogger("InternalTools")
+
 
 // Helper to wrap promise with timeout
 const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
@@ -25,7 +29,7 @@ export const internalToolsRouter = router({
       )
       Object.assign(results, extensionTools)
     } catch (e) {
-      console.error("[InternalTools] Failed to list extension tools:", e)
+      internalToolsLog.error("Failed to list extension tools:", e)
     }
 
     // Artifact MCP（尚未 Extension 化，保留直接导入）
@@ -43,7 +47,7 @@ export const internalToolsRouter = router({
         inputSchema: t.inputSchema || t.input_schema || {},
       }))
     } catch (e) {
-      console.error("[InternalTools] Failed to load artifact tools:", e)
+      internalToolsLog.error("Failed to load artifact tools:", e)
     }
 
     return results

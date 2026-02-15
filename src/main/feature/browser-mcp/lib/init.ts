@@ -7,6 +7,10 @@
  */
 import { session, app, shell, BrowserWindow } from "electron"
 import { BROWSER_USER_AGENT } from "../../../lib/constants"
+import { createLogger } from "../../../lib/logger"
+
+const webviewLog = createLogger("Webview")
+
 
 /**
  * Configure the "persist:browser" session with a proper User-Agent.
@@ -125,14 +129,14 @@ export function registerWebviewHandlers(): void {
       contents.setWindowOpenHandler(({ url }) => {
         // Check for redirect loop
         if (detectRedirectLoop(url)) {
-          console.warn("[Webview] Redirect loop detected, opening in external browser:", url)
+          webviewLog.warn("Redirect loop detected, opening in external browser:", url)
           shell.openExternal(url)
           return { action: "deny" }
         }
 
         // For OAuth/SSO URLs, open in external browser to avoid breaking auth flow
         if (isOAuthUrl(url)) {
-          console.log("[Webview] OAuth URL detected, opening in external browser:", url)
+          webviewLog.info("OAuth URL detected, opening in external browser:", url)
           shell.openExternal(url)
           return { action: "deny" }
         }
@@ -149,7 +153,7 @@ export function registerWebviewHandlers(): void {
       contents.on("will-navigate", (event, url) => {
         // Check for redirect loop on regular navigation too
         if (detectRedirectLoop(url)) {
-          console.warn("[Webview] Redirect loop detected during navigation:", url)
+          webviewLog.warn("Redirect loop detected during navigation:", url)
           event.preventDefault()
           // Notify user or take action
           const mainWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]

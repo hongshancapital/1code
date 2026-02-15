@@ -1,6 +1,10 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { app } from "electron"
+import { createLogger } from "../../../../lib/logger"
+
+const historyWriterLog = createLogger("HistoryWriter")
+
 
 const MAX_SCROLLBACK_CHARS = 500_000
 
@@ -69,7 +73,7 @@ export class HistoryWriter {
 
       this.isInitialized = true
     } catch (err) {
-      console.error("[HistoryWriter] Failed to init:", err)
+      historyWriterLog.error("Failed to init:", err)
     }
   }
 
@@ -104,7 +108,7 @@ export class HistoryWriter {
     try {
       await fs.appendFile(this.filePath, dataToWrite, "utf-8")
     } catch (err) {
-      console.error("[HistoryWriter] Failed to flush:", err)
+      historyWriterLog.error("Failed to flush:", err)
     }
   }
 

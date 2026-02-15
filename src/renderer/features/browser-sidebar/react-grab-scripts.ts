@@ -7,6 +7,10 @@
 // Import react-grab library source code as raw string
 // This will be bundled at build time
 import reactGrabSource from "react-grab/dist/index.global.js?raw"
+import { createLogger } from "../../lib/logger"
+
+const reactGrabLog = createLogger("ReactGrab")
+
 
 /**
  * React Grab initialization script (after library is loaded)
@@ -20,8 +24,8 @@ const REACT_GRAB_INIT_SCRIPT = `
       // react-grab exports to globalThis.__REACT_GRAB_MODULE__ with init directly on it
       const reactGrab = window.__REACT_GRAB_MODULE__ || window.ReactGrab;
       if (!reactGrab || !reactGrab.init) {
-        console.error('[ReactGrab] Library not found, available:', Object.keys(window.__REACT_GRAB_MODULE__ || {}));
-        console.log('__REACT_GRAB_UNAVAILABLE__');
+        reactGrabLog.error('Library not found, available:', Object.keys(window.__REACT_GRAB_MODULE__ || {}));
+        reactGrabLog.info('__REACT_GRAB_UNAVAILABLE__');
         return;
       }
 
@@ -43,7 +47,7 @@ const REACT_GRAB_INIT_SCRIPT = `
         },
         // Called when element is selected (clicked)
         onElementSelect: function(element) {
-          console.log('[ReactGrab] Element selected:', element?.tagName);
+          reactGrabLog.info('Element selected:', element?.tagName);
         },
         // Called when copy is successful (Cmd+C)
         onCopySuccess: function(elements, content) {
@@ -80,11 +84,11 @@ const REACT_GRAB_INIT_SCRIPT = `
             // Ignore errors when trying to get component info
           }
 
-          console.log('__ELEMENT_SELECTED__:' + JSON.stringify(data));
+          reactGrabLog.info('__ELEMENT_SELECTED__:' + JSON.stringify(data));
         },
         // Called when state changes
         onStateChange: function(state) {
-          console.log('[ReactGrab] State change - active:', state.isActive);
+          reactGrabLog.info('State change - active:', state.isActive);
         },
       });
 
@@ -93,10 +97,10 @@ const REACT_GRAB_INIT_SCRIPT = `
 
       // Activate element selection
       api.activate();
-      console.log('__REACT_GRAB_READY__');
+      reactGrabLog.info('__REACT_GRAB_READY__');
     } catch (err) {
-      console.error('[ReactGrab] Init failed:', err);
-      console.log('__REACT_GRAB_UNAVAILABLE__');
+      reactGrabLog.error('Init failed:', err);
+      reactGrabLog.info('__REACT_GRAB_UNAVAILABLE__');
     }
   }
 
@@ -113,7 +117,7 @@ export const REACT_GRAB_INJECT_SCRIPT = `
   // If already initialized, just activate
   if (window.__COWORK_REACT_GRAB_API__) {
     window.__COWORK_REACT_GRAB_API__.activate();
-    console.log('__REACT_GRAB_READY__');
+    reactGrabLog.info('__REACT_GRAB_READY__');
     return;
   }
 
@@ -132,8 +136,8 @@ export const REACT_GRAB_INJECT_SCRIPT = `
       ${REACT_GRAB_INIT_SCRIPT}
     }, 50);
   } catch (err) {
-    console.error('[ReactGrab] Failed to load library:', err);
-    console.log('__REACT_GRAB_UNAVAILABLE__');
+    reactGrabLog.error('Failed to load library:', err);
+    reactGrabLog.info('__REACT_GRAB_UNAVAILABLE__');
   }
 })();
 `
@@ -149,21 +153,21 @@ export const REACT_GRAB_DEACTIVATE_SCRIPT = `
       // Try deactivate first
       if (typeof api.deactivate === 'function') {
         api.deactivate();
-        console.log('[ReactGrab] Deactivated');
+        reactGrabLog.info('Deactivated');
       }
       // Then dispose to fully clean up
       if (typeof api.dispose === 'function') {
         api.dispose();
-        console.log('[ReactGrab] Disposed');
+        reactGrabLog.info('Disposed');
       }
       // Clear the reference
       delete window.__COWORK_REACT_GRAB_API__;
-      console.log('__REACT_GRAB_DEACTIVATED__');
+      reactGrabLog.info('__REACT_GRAB_DEACTIVATED__');
     } else {
-      console.log('[ReactGrab] No API found to deactivate');
+      reactGrabLog.info('No API found to deactivate');
     }
   } catch (err) {
-    console.error('[ReactGrab] Deactivation error:', err);
+    reactGrabLog.error('Deactivation error:', err);
   }
 })();
 `

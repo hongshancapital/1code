@@ -18,6 +18,10 @@ import {
   filterBuiltinCommands,
 } from "./builtin-commands"
 import type { AgentMode } from "../atoms"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("agentsSlashCommand")
+
 
 interface AgentsSlashCommandProps {
   isOpen: boolean
@@ -104,7 +108,7 @@ export const AgentsSlashCommand = memo(function AgentsSlashCommand({
             prompt: result.content,
           })
         } catch (error) {
-          console.error("Failed to fetch slash command content:", error)
+          log.error("Failed to fetch slash command content:", error)
           // Still close the dropdown even on error
           onClose()
         } finally {

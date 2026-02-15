@@ -35,7 +35,7 @@ export function validateEnv(): Env {
     VITE_FEEDBACK_URL: import.meta.env.VITE_FEEDBACK_URL,
   }
 
-  console.log("[Env] Renderer environment loaded")
+  envLog.info("Renderer environment loaded")
   return validatedEnv
 }
 

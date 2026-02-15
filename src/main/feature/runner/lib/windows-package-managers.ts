@@ -11,6 +11,10 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { promisify } from "node:util"
 import type { ExecResult } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("windowsPackageManagers")
+
 
 const execAsync = promisify(exec)
 
@@ -102,7 +106,7 @@ function addLog(log: Omit<InstallLog, "timestamp">) {
   }
 
   // 同时输出到 console 方便 debug
-  console.log(`[Windows PM] ${entry.step}`, {
+  log.info(`[Windows PM] ${entry.step}`, {
     command: entry.command,
     success: entry.success,
     error: entry.error,

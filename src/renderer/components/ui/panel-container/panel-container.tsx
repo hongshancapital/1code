@@ -5,6 +5,10 @@ import { ResizableSidebar } from "../resizable-sidebar"
 import { CenterPeekDialog } from "./center-peek-dialog"
 import { FullPageView } from "./full-page-view"
 import type { PanelDisplayMode } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("panelContainer")
+
 
 interface PanelContainerProps {
   /** Whether the panel is open */
@@ -43,7 +47,7 @@ export function PanelContainer({
 }: PanelContainerProps) {
   if (displayMode === "side-peek") {
     if (!widthAtom) {
-      console.warn("PanelContainer: widthAtom is required for side-peek mode")
+      log.warn("PanelContainer: widthAtom is required for side-peek mode")
       return null
     }
     return (

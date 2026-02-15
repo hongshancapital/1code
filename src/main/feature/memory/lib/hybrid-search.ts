@@ -7,6 +7,10 @@
 import { getDatabase, observations } from "../../../lib/db"
 import { eq, sql } from "drizzle-orm"
 import { searchSimilar } from "./vector-store"
+import { createLogger } from "../../../lib/logger"
+
+const hybridSearchLog = createLogger("HybridSearch")
+
 
 // ============ Types ============
 
@@ -153,7 +157,7 @@ async function searchObservationsFts(
 
     return results
   } catch (error) {
-    console.error("[HybridSearch] FTS search error:", error)
+    hybridSearchLog.error("FTS search error:", error)
     return []
   }
 }
@@ -224,7 +228,7 @@ async function searchPromptsFts(
       LIMIT ${limit}
     `)
   } catch (error) {
-    console.error("[HybridSearch] Prompts FTS error:", error)
+    hybridSearchLog.error("Prompts FTS error:", error)
     return []
   }
 }
@@ -313,7 +317,7 @@ async function searchObservationsHybrid(
       limit: limit * 2,
     })
   } catch (error) {
-    console.error("[HybridSearch] Vector search failed, using FTS only:", error)
+    hybridSearchLog.error("Vector search failed, using FTS only:", error)
   }
 
   // Step 3: Build rank maps

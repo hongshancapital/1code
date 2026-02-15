@@ -22,6 +22,10 @@ import { getFileIconByExtension } from "../mentions/agents-file-mention"
 import { useFileOpen } from "../mentions"
 import { selectedProjectAtom } from "../atoms"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("agentEditTool")
+
 
 interface AgentEditToolProps {
   part: any
@@ -146,7 +150,7 @@ function useBatchHighlight(
           setHighlightedMap(results)
         }
       } catch (error) {
-        console.error("Failed to highlight code:", error)
+        log.error("Failed to highlight code:", error)
         // On error, leave map empty (fallback to plain text)
         if (!cancelled) {
           setHighlightedMap(new Map())

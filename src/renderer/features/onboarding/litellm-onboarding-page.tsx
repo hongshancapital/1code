@@ -15,6 +15,10 @@ import {
   customClaudeConfigAtom,
 } from "../../lib/atoms"
 import { cn } from "../../lib/utils"
+import { createLogger } from "../../lib/logger"
+
+const liteLLMLog = createLogger("LiteLLM")
+
 
 type LiteLLMModel = {
   id: string
@@ -82,7 +86,7 @@ export function LiteLLMOnboardingPage() {
         setSelectedModel(modelList[0].id)
       }
     } catch (error) {
-      console.error("[LiteLLM] Failed to fetch models:", error)
+      liteLLMLog.error("Failed to fetch models:", error)
       setModelsError(error instanceof Error ? error.message : t('litellm.connectionFailed'))
       setModels([])
     } finally {

@@ -20,6 +20,10 @@ import type {
   PendingOperation,
   RecentAction,
 } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const browserManagerLog = createLogger("BrowserManager")
+
 
 export interface CertificateInfo {
   subject: {
@@ -82,7 +86,7 @@ export class BrowserManager extends EventEmitter {
   private setupIpcHandlers(): void {
     // Renderer reports browser ready state
     ipcMain.on("browser:ready", (_, ready: boolean) => {
-      console.log("[BrowserManager] IPC browser:ready received from renderer:", ready)
+      browserManagerLog.info("IPC browser:ready received from renderer:", ready)
       this.state.isReady = ready
       this.emit("ready", ready)
     })
@@ -154,7 +158,7 @@ export class BrowserManager extends EventEmitter {
     })
 
     if (!browserWebview) {
-      console.warn("[BrowserManager] No browser webview found for device emulation")
+      browserManagerLog.warn("No browser webview found for device emulation")
       return
     }
 
@@ -198,7 +202,7 @@ export class BrowserManager extends EventEmitter {
       await browserSession.clearStorageData()
       return true
     } catch (error) {
-      console.error("[BrowserManager] Failed to clear cache:", error)
+      browserManagerLog.error("Failed to clear cache:", error)
       return false
     }
   }
@@ -658,12 +662,12 @@ export class BrowserManager extends EventEmitter {
    */
   showPanel(): void {
     const win = this.getWindow()
-    console.log("[BrowserManager] showPanel called, window exists:", !!win, "allWindows:", BrowserWindow.getAllWindows().length)
+    browserManagerLog.info("showPanel called, window exists:", !!win, "allWindows:", BrowserWindow.getAllWindows().length)
     if (win) {
       win.webContents.send("browser:show-panel")
-      console.log("[BrowserManager] browser:show-panel IPC sent")
+      browserManagerLog.info("browser:show-panel IPC sent")
     } else {
-      console.error("[BrowserManager] No window available to send browser:show-panel")
+      browserManagerLog.error("No window available to send browser:show-panel")
     }
   }
 
@@ -672,9 +676,9 @@ export class BrowserManager extends EventEmitter {
    * Returns true if ready, false if timed out.
    */
   async ensureReady(timeoutMs = 15_000): Promise<boolean> {
-    console.log("[BrowserManager] ensureReady called, current isReady:", this.state.isReady)
+    browserManagerLog.info("ensureReady called, current isReady:", this.state.isReady)
     if (this.state.isReady) {
-      console.log("[BrowserManager] Already ready, returning true immediately")
+      browserManagerLog.info("Already ready, returning true immediately")
       return true
     }
 
@@ -683,19 +687,19 @@ export class BrowserManager extends EventEmitter {
 
     // Wait for ready event
     return new Promise<boolean>((resolve) => {
-      console.log("[BrowserManager] Waiting for ready event (timeout:", timeoutMs, "ms)")
+      browserManagerLog.info("Waiting for ready event (timeout:", timeoutMs, "ms)")
       const timer = setTimeout(() => {
-        console.error("[BrowserManager] TIMEOUT! No ready event received after", timeoutMs, "ms")
+        browserManagerLog.error("TIMEOUT! No ready event received after", timeoutMs, "ms")
         this.removeListener("ready", onReady)
         resolve(false)
       }, timeoutMs)
 
       const onReady = (ready: boolean) => {
-        console.log("[BrowserManager] Received ready event:", ready)
+        browserManagerLog.info("Received ready event:", ready)
         if (ready) {
           clearTimeout(timer)
           this.removeListener("ready", onReady)
-          console.log("[BrowserManager] Browser is now ready, resolving true")
+          browserManagerLog.info("Browser is now ready, resolving true")
           resolve(true)
         }
       }
@@ -707,7 +711,7 @@ export class BrowserManager extends EventEmitter {
   private resetLockTimeout(): void {
     this.clearLockTimeout()
     this.lockTimeout = setTimeout(() => {
-      console.warn("[BrowserManager] Lock auto-released after 5 minutes timeout")
+      browserManagerLog.warn("Lock auto-released after 5 minutes timeout")
       this.unlock()
     }, LOCK_AUTO_RELEASE_MS)
   }

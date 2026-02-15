@@ -12,6 +12,10 @@ import {
   WHISPER_MODELS,
   type WhisperModelId,
 } from "./env"
+import { createLogger } from "../../../lib/logger"
+
+const whisperLog = createLogger("Whisper")
+
 
 export interface ModelStatus {
   id: WhisperModelId
@@ -95,7 +99,7 @@ export async function downloadModel(
 
   // Check if already downloaded
   if (isModelDownloaded(modelId)) {
-    console.log(`[Whisper] Model ${modelId} already downloaded`)
+    whisperLog.info(`Model ${modelId} already downloaded`)
     return
   }
 
@@ -108,7 +112,7 @@ export async function downloadModel(
   activeDownloads.set(modelId, { controller, progress: 0 })
 
   try {
-    console.log(`[Whisper] Downloading model ${modelId} from ${model.url}`)
+    whisperLog.info(`Downloading model ${modelId} from ${model.url}`)
 
     await downloadFile(model.url, tempPath, model.size, (progress) => {
       const download = activeDownloads.get(modelId)
@@ -125,7 +129,7 @@ export async function downloadModel(
     // Move to final location
     fs.renameSync(tempPath, modelPath)
 
-    console.log(`[Whisper] Model ${modelId} downloaded successfully`)
+    whisperLog.info(`Model ${modelId} downloaded successfully`)
   } finally {
     activeDownloads.delete(modelId)
 
@@ -167,7 +171,7 @@ export function deleteModel(modelId: WhisperModelId): boolean {
     }
     return false
   } catch (err) {
-    console.error(`[Whisper] Failed to delete model ${modelId}:`, err)
+    whisperLog.error(`Failed to delete model ${modelId}:`, err)
     return false
   }
 }

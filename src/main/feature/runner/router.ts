@@ -27,6 +27,10 @@ import {
 
 // Import tool definitions to get Windows package IDs
 import { TOOL_DEFINITIONS } from "./lib/tool-definitions"
+import { createLogger } from "../../lib/logger"
+
+const runnerLog = createLogger("runner")
+
 
 const execAsync = promisify(exec)
 
@@ -112,7 +116,7 @@ export const runnerRouter = router({
           version: packageJson.version as string | null,
         }
       } catch (error) {
-        console.error("[runner] Failed to parse package.json:", error)
+        runnerLog.error("Failed to parse package.json:", error)
         return {
           scripts: {} as Record<string, string>,
           hasPackageJson: true,

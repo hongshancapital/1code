@@ -9,6 +9,10 @@ import {
 	secureFs,
 } from "./security";
 import { gitCache } from "./cache";
+import { createLogger } from "../logger"
+
+const getFileContentsLog = createLogger("getFileContents")
+
 
 /** Maximum file size for reading (2 MiB) */
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -68,14 +72,14 @@ export const createFileContentsRouter = () => {
 				if (cached) {
 					try {
 						const parsed = JSON.parse(cached) as FileContents;
-						console.log("[getFileContents] Cache hit for:", input.filePath);
+						getFileContentsLog.info("Cache hit for:", input.filePath);
 						return parsed;
 					} catch {
 						// Invalid cache entry, continue to fetch
 					}
 				}
 
-				console.log("[getFileContents] Cache miss, fetching:", input.filePath);
+				getFileContentsLog.info("Cache miss, fetching:", input.filePath);
 				const git = simpleGit(input.worktreePath);
 				const defaultBranch = input.defaultBranch || "main";
 				const originalPath = input.oldPath || input.filePath;

@@ -21,6 +21,11 @@ const remoteApi: DisabledRemoteApi = {
   getAgentChat: async () => { throw new Error("Cloud features disabled") },
 }
 import { toast } from "sonner"
+import { createLogger } from "../../../lib/logger"
+
+const exportChatLog = createLogger("exportChat")
+const copyChatLog = createLogger("copyChat")
+
 
 export type ExportFormat = "markdown" | "json" | "text"
 
@@ -124,7 +129,7 @@ export async function exportChat({ chatId, subChatId, format, isRemote = false }
       description: `Saved as ${exportData.filename}`,
     })
   } catch (error) {
-    console.error("[exportChat] Error:", error)
+    exportChatLog.error("Error:", error)
     toast.error("Export failed", {
       description: error instanceof Error ? error.message : "Unable to export chat",
     })
@@ -174,7 +179,7 @@ export async function copyChat({ chatId, subChatId, format, isRemote = false }: 
 
     toast.success("Copied to clipboard")
   } catch (error) {
-    console.error("[copyChat] Error:", error)
+    copyChatLog.error("Error:", error)
     toast.error("Copy failed", {
       description: error instanceof Error ? error.message : "Unable to copy chat",
     })

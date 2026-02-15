@@ -3,6 +3,10 @@ import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
 import { useNavigate } from "../../../lib/router"
 import type { RemoteChat } from "../../../lib/remote-api"
+import { createLogger } from "../../../lib/logger"
+
+const openLocallyMatchLog = createLogger("OPEN-LOCALLY-MATCH")
+
 
 interface Project {
   id: string
@@ -29,31 +33,31 @@ export function useAutoImport() {
 
   const getMatchingProjects = useCallback(
     (projects: Project[], remoteChat: RemoteChat): Project[] => {
-      console.log(`[OPEN-LOCALLY-MATCH] ========== MATCHING DEBUG ==========`)
-      console.log(`[OPEN-LOCALLY-MATCH] Remote chat:`, {
+      openLocallyMatchLog.info(`========== MATCHING DEBUG ==========`)
+      openLocallyMatchLog.info(`Remote chat:`, {
         id: remoteChat.id,
         name: remoteChat.name,
         meta: remoteChat.meta,
       })
 
       if (!remoteChat.meta?.repository) {
-        console.log(`[OPEN-LOCALLY-MATCH] No repository in meta, returning []`)
+        openLocallyMatchLog.info(`No repository in meta, returning []`)
         return []
       }
 
       const [owner, repo] = remoteChat.meta.repository.split("/")
-      console.log(`[OPEN-LOCALLY-MATCH] Looking for: owner="${owner}", repo="${repo}"`)
+      openLocallyMatchLog.info(`Looking for: owner="${owner}", repo="${repo}"`)
 
-      console.log(`[OPEN-LOCALLY-MATCH] All projects (${projects.length}):`)
+      openLocallyMatchLog.info(`All projects (${projects.length}):`)
       projects.forEach((p, i) => {
-        console.log(`[OPEN-LOCALLY-MATCH]   ${i + 1}. "${p.name}" at ${p.path}`)
-        console.log(`[OPEN-LOCALLY-MATCH]      gitOwner="${p.gitOwner}", gitRepo="${p.gitRepo}"`)
-        console.log(`[OPEN-LOCALLY-MATCH]      matches: ${p.gitOwner === owner && p.gitRepo === repo}`)
+        openLocallyMatchLog.info(`  ${i + 1}. "${p.name}" at ${p.path}`)
+        openLocallyMatchLog.info(`     gitOwner="${p.gitOwner}", gitRepo="${p.gitRepo}"`)
+        openLocallyMatchLog.info(`     matches: ${p.gitOwner === owner && p.gitRepo === repo}`)
       })
 
       const matches = projects.filter((p) => p.gitOwner === owner && p.gitRepo === repo)
-      console.log(`[OPEN-LOCALLY-MATCH] Found ${matches.length} matching project(s)`)
-      console.log(`[OPEN-LOCALLY-MATCH] ========== END MATCHING DEBUG ==========`)
+      openLocallyMatchLog.info(`Found ${matches.length} matching project(s)`)
+      openLocallyMatchLog.info(`========== END MATCHING DEBUG ==========`)
 
       return matches
     },

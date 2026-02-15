@@ -7,6 +7,10 @@
 import { getEnv, getApiOrigin } from "../../../lib/env"
 import { BROWSER_USER_AGENT } from "../../../lib/constants"
 import { getAuthManager } from "../auth/manager"
+import { createLogger } from "../../../lib/logger"
+
+const liteHttpLog = createLogger("LiteHttp")
+
 
 export interface LiteHttpResponse<T = unknown> {
   ok: boolean
@@ -31,7 +35,7 @@ export class LiteHttpClient {
   initialize(): void {
     this.baseUrl = getEnv().MAIN_VITE_API_URL ?? null
     if (!this.baseUrl) {
-      console.warn("[LiteHttp] API URL 未配置，HTTP 功能不可用")
+      liteHttpLog.warn("API URL 未配置，HTTP 功能不可用")
     }
   }
 
@@ -156,7 +160,7 @@ export class LiteHttpClient {
       const data = await response.json().catch(() => null)
       return { ok: true, status: response.status, data: data as T }
     } catch (error) {
-      console.error(`[LiteHttp] ${method} ${path} 错误:`, error)
+      liteHttpLog.error(`${method} ${path} 错误:`, error)
       return { ok: false, status: 0, error: String(error) }
     }
   }

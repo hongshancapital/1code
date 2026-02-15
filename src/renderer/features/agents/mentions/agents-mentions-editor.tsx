@@ -11,6 +11,10 @@ import {
   memo,
 } from "react"
 import { createFileIconElement } from "./agents-file-mention"
+import { createLogger } from "../../../lib/logger"
+
+const insertMentionLog = createLogger("insertMention")
+
 
 // Threshold for skipping expensive trigger detection (characters)
 // Should be >= MAX_PASTE_LENGTH from paste-text.ts to avoid processing large pasted content
@@ -1467,7 +1471,7 @@ export const AgentsMentionsEditor = memo(
 
               // Validate localAtPosition - must be non-negative and within node length
               if (!foundNode || localAtPosition < 0 || localAtPosition > text.length) {
-                console.error("[insertMention] Invalid localAtPosition:", {
+                insertMentionLog.error("Invalid localAtPosition:", {
                   foundNode,
                   localAtPosition,
                   textLength: text.length,

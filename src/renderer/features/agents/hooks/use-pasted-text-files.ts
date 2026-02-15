@@ -1,5 +1,9 @@
 import { useState, useCallback, useRef } from "react"
 import { trpc } from "../../../lib/trpc"
+import { createLogger } from "../../../lib/logger"
+
+const usePastedTextFilesLog = createLogger("usePastedTextFiles")
+
 
 export interface PastedTextFile {
   id: string
@@ -48,7 +52,7 @@ export function usePastedTextFiles(subChatId: string): UsePastedTextFilesReturn 
 
         setPastedTexts((prev) => [...prev, newPasted])
       } catch (error) {
-        console.error("[usePastedTextFiles] Failed to write:", error)
+        usePastedTextFilesLog.error("Failed to write:", error)
       }
     },
     [subChatId, writePastedTextMutation]

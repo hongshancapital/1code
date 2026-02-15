@@ -2,6 +2,10 @@ import { app } from "electron"
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs"
 import { join, dirname } from "path"
 import { randomUUID } from "crypto"
+import { createLogger } from ".//logger"
+
+const deviceIdLog = createLogger("DeviceId")
+
 
 /**
  * Device ID module - generates and persists a unique device identifier
@@ -51,7 +55,7 @@ export function getDeviceId(): string {
         return storedId
       }
     } catch (error) {
-      console.warn("[DeviceId] Failed to read device ID file:", error)
+      deviceIdLog.warn("Failed to read device ID file:", error)
     }
   }
 
@@ -65,9 +69,9 @@ export function getDeviceId(): string {
       mkdirSync(dir, { recursive: true })
     }
     writeFileSync(deviceIdPath, newDeviceId, "utf-8")
-    console.log("[DeviceId] Generated new device ID")
+    deviceIdLog.info("Generated new device ID")
   } catch (error) {
-    console.error("[DeviceId] Failed to persist device ID:", error)
+    deviceIdLog.error("Failed to persist device ID:", error)
   }
 
   cachedDeviceId = newDeviceId

@@ -1,6 +1,10 @@
 import { useState } from "react"
 import { VideoOff, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const videoPreviewLog = createLogger("VideoPreview")
+
 
 interface VideoPreviewProps {
   filePath: string
@@ -23,7 +27,7 @@ export function VideoPreview({ filePath, className }: VideoPreviewProps) {
   }
 
   const handleError = () => {
-    console.error("[VideoPreview] Failed to load:", fileUrl)
+    videoPreviewLog.error("Failed to load:", fileUrl)
     setIsLoading(false)
     setHasError(true)
   }

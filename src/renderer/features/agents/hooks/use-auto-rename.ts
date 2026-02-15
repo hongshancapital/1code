@@ -23,6 +23,10 @@ import {
 import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../lib/atoms/model-config"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { getFirstSubChatId } from "../main/chat-utils"
+import { createLogger } from "../../../lib/logger"
+
+const autoRenameLog = createLogger("auto-rename")
+
 
 interface SubChat {
   id: string
@@ -83,7 +87,7 @@ export function useAutoRename({
       // Get the sub-chat to check manuallyRenamed flag
       const subChat = stableSubChats.find((sc) => sc.id === subChatId)
       if (subChat?.manually_renamed) {
-        console.log("[auto-rename] Skipping - user has manually renamed this sub-chat")
+        autoRenameLog.info("Skipping - user has manually renamed this sub-chat")
         return
       }
 
@@ -103,7 +107,7 @@ export function useAutoRename({
             isFirstSubChat: isFirst,
             ...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
           }
-          console.log("[auto-rename] summaryProvider:", sp || "(not set)", "summaryModel:", sm || "(not set)")
+          autoRenameLog.info("summaryProvider:", sp || "(not set)", "summaryModel:", sm || "(not set)")
           return generateSubChatNameMutation.mutateAsync(payload)
         },
         renameSubChat: async (input) => {
@@ -171,12 +175,12 @@ export function useAutoRename({
         },
         // Name confirmation callbacks
         onNameUnconfirmed: () => {
-          console.log("[auto-rename] Marking name as unconfirmed (shimmer) for subChatId:", subChatId)
+          autoRenameLog.info("Marking name as unconfirmed (shimmer) for subChatId:", subChatId)
           markNameUnconfirmed(setUnconfirmedNameSubChats, subChatId)
         },
         onNameConfirmed: () => {
           // Fallback: called by timeout if IPC never arrives
-          console.log("[auto-rename] Fallback: confirming name for subChatId:", subChatId)
+          autoRenameLog.info("Fallback: confirming name for subChatId:", subChatId)
           confirmName(setUnconfirmedNameSubChats, subChatId)
         },
       })

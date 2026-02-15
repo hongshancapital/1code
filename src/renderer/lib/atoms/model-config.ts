@@ -16,6 +16,10 @@
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { atomFamily } from "jotai/utils"
+import { createLogger } from "../logger"
+
+const modelConfigLog = createLogger("model-config")
+
 
 // ============ Types ============
 
@@ -543,16 +547,16 @@ export function migrateOldModelConfig(): void {
         }
       }
 
-      console.log("[model-config] Migrated from litellm mode")
+      modelConfigLog.info("Migrated from litellm mode")
     } else if (oldMode === "custom" && oldCustomConfig) {
       localStorage.setItem("models:pending-custom-migration", oldCustomConfig)
-      console.log("[model-config] Pending custom provider migration")
+      modelConfigLog.info("Pending custom provider migration")
     }
 
     markMigrationDone()
-    console.log("[model-config] Migration completed")
+    modelConfigLog.info("Migration completed")
   } catch (error) {
-    console.error("[model-config] Migration failed:", error)
+    modelConfigLog.error("Migration failed:", error)
     markMigrationDone()
   }
 }

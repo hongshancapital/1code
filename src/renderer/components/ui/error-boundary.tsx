@@ -1,6 +1,10 @@
 import { Component, type ReactNode } from "react"
 import { AlertCircle } from "lucide-react"
 import { Button } from "./button"
+import { createLogger } from "../../lib/logger"
+
+const log = createLogger("errorBoundary")
+
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -27,7 +31,7 @@ export class ViewerErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error(
+    log.error(
       `[ViewerErrorBoundary] ${this.props.viewerType || "viewer"} crashed:`,
       error,
       errorInfo,

@@ -3,6 +3,10 @@
  */
 
 import { checkInternetConnection, checkOllamaStatus, getOllamaConfig } from '../../feature/ollama/lib'
+import { createLogger } from "../logger"
+
+const offlineLog = createLogger("Offline")
+
 
 export type CustomClaudeConfig = {
   model: string
@@ -53,13 +57,13 @@ export async function checkOfflineFallback(
   }
 
   // Check internet FIRST - if offline, use Ollama regardless of auth
-  console.log('[Offline] Checking internet connectivity...')
+  offlineLog.info('Checking internet connectivity...')
   const hasInternet = await checkInternetConnection()
-  console.log(`[Offline] Internet check result: ${hasInternet ? 'ONLINE' : 'OFFLINE'}`)
+  offlineLog.info(`Internet check result: ${hasInternet ? 'ONLINE' : 'OFFLINE'}`)
 
   if (!hasInternet) {
     // No internet - try Ollama
-    console.log('[Offline] No internet connection, checking Ollama...')
+    offlineLog.info('No internet connection, checking Ollama...')
 
     const ollamaStatus = await checkOllamaStatus()
 
@@ -80,11 +84,11 @@ export async function checkOfflineFallback(
     }
 
     // Use Ollama with selected model or recommended model
-    console.log(`[Offline] selectedOllamaModel param: ${selectedOllamaModel || "(null/undefined)"}, recommendedModel: ${ollamaStatus.recommendedModel}`)
+    offlineLog.info(`selectedOllamaModel param: ${selectedOllamaModel || "(null/undefined)"}, recommendedModel: ${ollamaStatus.recommendedModel}`)
     const modelToUse = selectedOllamaModel || ollamaStatus.recommendedModel
     const config = getOllamaConfig(modelToUse)
 
-    console.log(`[Offline] Switching to Ollama (model: ${modelToUse})`)
+    offlineLog.info(`Switching to Ollama (model: ${modelToUse})`)
 
     return {
       config,
@@ -94,7 +98,7 @@ export async function checkOfflineFallback(
 
   // Internet is available - use Claude API with auth
   if (claudeCodeToken) {
-    console.log('[Offline] Online with Claude auth - using Claude API')
+    offlineLog.info('Online with Claude auth - using Claude API')
     return {
       config: undefined,
       isUsingOllama: false,
@@ -102,7 +106,7 @@ export async function checkOfflineFallback(
   }
 
   // Internet available but no auth - let it fail with auth error
-  console.log('[Offline] Online but no Claude auth found')
+  offlineLog.info('Online but no Claude auth found')
   return {
     config: undefined,
     isUsingOllama: false,

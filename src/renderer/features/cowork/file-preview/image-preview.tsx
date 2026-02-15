@@ -2,6 +2,10 @@ import { useState } from "react"
 import { ZoomIn, ZoomOut, RotateCw, ImageOff, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { Button } from "../../../components/ui/button"
+import { createLogger } from "../../../lib/logger"
+
+const imagePreviewLog = createLogger("ImagePreview")
+
 
 interface ImagePreviewProps {
   filePath: string
@@ -31,7 +35,7 @@ export function ImagePreview({ filePath, className }: ImagePreviewProps) {
   }
 
   const handleError = () => {
-    console.error("[ImagePreview] Failed to load:", fileUrl)
+    imagePreviewLog.error("Failed to load:", fileUrl)
     setIsLoading(false)
     setHasError(true)
   }

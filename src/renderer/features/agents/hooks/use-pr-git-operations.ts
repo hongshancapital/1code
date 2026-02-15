@@ -29,6 +29,10 @@ import { generateCommitToPrMessage, generatePrMessage, generateReviewMessage } f
 import { useDocumentComments } from "./use-document-comments"
 import type { AgentDiffViewRef } from "../ui/agent-diff-view"
 import type { CachedParsedDiffFile } from "../atoms"
+import { createLogger } from "../../../lib/logger"
+
+const activeChatLog = createLogger("active-chat")
+
 
 export interface UsePrGitOperationsOptions {
   chatId: string
@@ -341,7 +345,7 @@ Make sure to preserve all functionality from both branches when resolving confli
       (gitStatus.unstaged?.length ?? 0) > 0 ||
       (gitStatus.untracked?.length ?? 0) > 0
     if (!hasUncommittedChanges && parsedFileDiffs && parsedFileDiffs.length > 0) {
-      console.log('[active-chat] Git status empty but parsedFileDiffs has files, refreshing diff data')
+      activeChatLog.info('Git status empty but parsedFileDiffs has files, refreshing diff data')
       setParsedFileDiffs([])
       setPrefetchedFileContents({})
       setDiffContent(null)

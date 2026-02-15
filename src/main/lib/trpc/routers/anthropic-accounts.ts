@@ -4,6 +4,10 @@ import { anthropicAccounts, anthropicSettings, claudeCodeCredentials, getDatabas
 import { createId } from "../../db/utils"
 import { encryptToken, decryptToken } from "../../crypto"
 import { publicProcedure, router } from "../index"
+import { createLogger } from "../../logger"
+
+const anthropicAccountsLog = createLogger("AnthropicAccounts")
+
 
 /**
  * Multi-account Anthropic management router
@@ -148,7 +152,7 @@ export const anthropicAccountsRouter = router({
       const token = decryptToken(account.oauthToken)
       return { token, error: null }
     } catch (error) {
-      console.error("[AnthropicAccounts] Decrypt error:", error)
+      anthropicAccountsLog.error("Decrypt error:", error)
       return { token: null, error: "Failed to decrypt token" }
     }
   }),
@@ -194,7 +198,7 @@ export const anthropicAccountsRouter = router({
         .where(eq(anthropicAccounts.id, input.accountId))
         .run()
 
-      console.log(`[AnthropicAccounts] Switched to account: ${input.accountId}`)
+      anthropicAccountsLog.info(`Switched to account: ${input.accountId}`)
       return { success: true }
     }),
 
@@ -250,7 +254,7 @@ export const anthropicAccountsRouter = router({
           .run()
       }
 
-      console.log(`[AnthropicAccounts] Added new account: ${newId}`)
+      anthropicAccountsLog.info(`Added new account: ${newId}`)
       return { id: newId, success: true }
     }),
 
@@ -277,7 +281,7 @@ export const anthropicAccountsRouter = router({
         throw new Error("Account not found")
       }
 
-      console.log(`[AnthropicAccounts] Renamed account ${input.accountId} to "${input.displayName}"`)
+      anthropicAccountsLog.info(`Renamed account ${input.accountId} to "${input.displayName}"`)
       return { success: true }
     }),
 
@@ -328,7 +332,7 @@ export const anthropicAccountsRouter = router({
         }
       }
 
-      console.log(`[AnthropicAccounts] Removed account: ${input.accountId}`)
+      anthropicAccountsLog.info(`Removed account: ${input.accountId}`)
       return { success: true }
     }),
 

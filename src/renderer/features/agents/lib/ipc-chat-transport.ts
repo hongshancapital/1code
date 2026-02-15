@@ -135,6 +135,12 @@ import i18n from "../../../lib/i18n"
 import type { MCPServer, SessionInfo } from "../../../lib/atoms"
 import type { PendingUserQuestion } from "../atoms"
 import type { BackgroundTaskStatus } from "../types/background-task"
+import { createLogger } from "../../../lib/logger"
+
+const sdLog = createLogger("SD")
+const mcpLog = createLogger("MCP")
+const backgroundTaskLog = createLogger("BackgroundTask")
+
 
 /**
  * Extended stream chunk type for our Claude transport.
@@ -278,10 +284,10 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
           })
           if (modelsResult.defaultModelId) {
             validatedModelId = modelsResult.defaultModelId
-            console.log(`[SD] Using default model for ${effectiveSelection.providerId}:`, validatedModelId)
+            sdLog.info(`Using default model for ${effectiveSelection.providerId}:`, validatedModelId)
           }
         } catch (err) {
-          console.error("[SD] Failed to get default model:", err)
+          sdLog.error("Failed to get default model:", err)
         }
       }
 
@@ -299,7 +305,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
             }
           }
         } catch (err) {
-          console.error("[SD] Failed to get provider config:", err)
+          sdLog.error("Failed to get provider config:", err)
         }
       }
     } else {
@@ -337,7 +343,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
     let imageConfig: { baseUrl: string; apiKey: string; model: string } | undefined
     const imageProviderId = appStore.get(imageProviderIdAtom)
     const imageModelId = appStore.get(imageModelIdAtom)
-    console.log(`[SD] Image atoms: providerId=${JSON.stringify(imageProviderId)} modelId=${JSON.stringify(imageModelId)}`)
+    sdLog.info(`Image atoms: providerId=${JSON.stringify(imageProviderId)} modelId=${JSON.stringify(imageModelId)}`)
     if (imageProviderId && imageModelId) {
       try {
         // getImageConfig returns credentials for any provider type (including anthropic)
@@ -345,7 +351,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
           providerId: imageProviderId,
           modelId: imageModelId,
         })
-        console.log(`[SD] Image getImageConfig result:`, imgProviderConfig ? `baseUrl=${imgProviderConfig.baseUrl} model=${imgProviderConfig.model} hasToken=${!!imgProviderConfig.token}` : "null")
+        sdLog.info(`Image getImageConfig result:`, imgProviderConfig ? `baseUrl=${imgProviderConfig.baseUrl} model=${imgProviderConfig.model} hasToken=${!!imgProviderConfig.token}` : "null")
         if (imgProviderConfig) {
           imageConfig = {
             baseUrl: imgProviderConfig.baseUrl,
@@ -354,10 +360,10 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
           }
         }
       } catch (err) {
-        console.error("[SD] *** Failed to get image provider config ***:", err)
+        sdLog.error("*** Failed to get image provider config ***:", err)
       }
     } else {
-      console.log("[SD] Image config skipped: imageProviderId or imageModelId is null")
+      sdLog.info("Image config skipped: imageProviderId or imageModelId is null")
     }
 
     // Get user personalization for AI recognition
@@ -370,7 +376,7 @@ export class IPCChatTransport implements ChatTransport<UIMessage> {
           }
         : undefined
 
-    console.log(`[SD] R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"} disabledMcp=${disabledMcpServers.join(",") || "none"} userProfile=${JSON.stringify(userProfile)}`)
+    sdLog.info(`R:START sub=${subId} cwd=${this.config.cwd} projectPath=${this.config.projectPath || "(not set)"} customConfig=${customConfig ? "set" : "not set"} disabledMcp=${disabledMcpServers.join(",") || "none"} userProfile=${JSON.stringify(userProfile)}`)
 
     return new ReadableStream({
       start: (controller) => {
@@ -480,7 +486,7 @@ askUserQuestionTimeout,
 
               // Handle session init - store MCP servers, plugins, tools info
               if (chunk.type === "session-init" && chunk.tools && chunk.mcpServers && chunk.plugins && chunk.skills) {
-                console.log("[MCP] Received session-init:", {
+                mcpLog.info("Received session-init:", {
                   tools: chunk.tools.length,
                   mcpServers: chunk.mcpServers,
                   plugins: chunk.plugins,
@@ -505,7 +511,7 @@ askUserQuestionTimeout,
                 const taskId = chunk.taskId
                 const taskStatus = chunk.status
 
-                console.log("[BackgroundTask] Received task-notification:", {
+                backgroundTaskLog.info("Received task-notification:", {
                   taskId,
                   status: taskStatus,
                   subChatId,
@@ -522,12 +528,12 @@ askUserQuestionTimeout,
                     chunk.command,
                     chunk.outputFile
                   )
-                  console.log("[BackgroundTask] Adding new task:", newTask)
+                  backgroundTaskLog.info("Adding new task:", newTask)
                   appStore.set(tasksAtom, [...currentTasks, newTask])
                 } else {
                   // Task completed/failed/stopped - update status
                   const taskExists = currentTasks.some(t => t.taskId === taskId)
-                  console.log("[BackgroundTask] Updating task status:", {
+                  backgroundTaskLog.info("Updating task status:", {
                     taskId,
                     newStatus: taskStatus,
                     taskExists,
@@ -583,7 +589,7 @@ askUserQuestionTimeout,
                 // Use controller.error() instead of controller.close() so that
                 // the SDK Chat properly resets status from "streaming" to "ready"
                 // This allows user to retry sending messages after failed auth
-                console.log(`[SD] R:AUTH_ERR sub=${subId}`)
+                sdLog.info(`R:AUTH_ERR sub=${subId}`)
                 controller.error(new Error("Authentication required"))
                 return
               }
@@ -594,19 +600,19 @@ askUserQuestionTimeout,
                 const providerType = chunk.debugInfo?.providerType
 
                 // Detailed SDK error logging for debugging
-                console.error(`[SDK ERROR] ========================================`)
-                console.error(`[SDK ERROR] Category: ${category}`)
-                console.error(`[SDK ERROR] Provider: ${providerType}`)
-                console.error(`[SDK ERROR] Error text: ${chunk.errorText}`)
-                console.error(`[SDK ERROR] Chat ID: ${this.config.chatId}`)
-                console.error(`[SDK ERROR] SubChat ID: ${this.config.subChatId}`)
-                console.error(`[SDK ERROR] CWD: ${this.config.cwd}`)
-                console.error(`[SDK ERROR] Mode: ${currentMode}`)
+                sdLog.error(`[SDK ERROR] ========================================`)
+                sdLog.error(`[SDK ERROR] Category: ${category}`)
+                sdLog.error(`[SDK ERROR] Provider: ${providerType}`)
+                sdLog.error(`[SDK ERROR] Error text: ${chunk.errorText}`)
+                sdLog.error(`[SDK ERROR] Chat ID: ${this.config.chatId}`)
+                sdLog.error(`[SDK ERROR] SubChat ID: ${this.config.subChatId}`)
+                sdLog.error(`[SDK ERROR] CWD: ${this.config.cwd}`)
+                sdLog.error(`[SDK ERROR] Mode: ${currentMode}`)
                 if (chunk.debugInfo) {
-                  console.error(`[SDK ERROR] Debug info:`, JSON.stringify(chunk.debugInfo, null, 2))
+                  sdLog.error(`[SDK ERROR] Debug info:`, JSON.stringify(chunk.debugInfo, null, 2))
                 }
-                console.error(`[SDK ERROR] Full chunk:`, JSON.stringify(chunk, null, 2))
-                console.error(`[SDK ERROR] ========================================`)
+                sdLog.error(`[SDK ERROR] Full chunk:`, JSON.stringify(chunk, null, 2))
+                sdLog.error(`[SDK ERROR] ========================================`)
 
                 // Track error in Sentry
                 Sentry.captureException(
@@ -655,7 +661,7 @@ askUserQuestionTimeout,
                     readyToRetry: false,
                   })
                   appStore.set(agentsLoginModalOpenAtom, true)
-                  console.log(`[SD] R:AUTH_ERR sub=${subId} cat=${category}`)
+                  sdLog.info(`R:AUTH_ERR sub=${subId} cat=${category}`)
                   controller.error(new Error("Authentication required"))
                   return
                 }
@@ -703,11 +709,11 @@ askUserQuestionTimeout,
                 controller.enqueue(rawChunk as UIMessageChunk)
               } catch (e) {
                 // CRITICAL: Log when enqueue fails - this could explain missing chunks!
-                console.log(`[SD] R:ENQUEUE_ERR sub=${subId} type=${chunk.type} n=${chunkCount} err=${e}`)
+                sdLog.info(`R:ENQUEUE_ERR sub=${subId} type=${chunk.type} n=${chunkCount} err=${e}`)
               }
 
               if (chunk.type === "finish") {
-                console.log(`[SD] R:FINISH sub=${subId} n=${chunkCount}`)
+                sdLog.info(`R:FINISH sub=${subId} n=${chunkCount}`)
                 try {
                   controller.close()
                 } catch {
@@ -716,7 +722,7 @@ askUserQuestionTimeout,
               }
             },
             onError: (err: Error) => {
-              console.log(`[SD] R:ERROR sub=${subId} n=${chunkCount} last=${lastChunkType} err=${err.message}`)
+              sdLog.info(`R:ERROR sub=${subId} n=${chunkCount} last=${lastChunkType} err=${err.message}`)
 
               // Clear compacting state on error (prevent UI from being stuck)
               const compacting = appStore.get(compactingSubChatsAtom)
@@ -742,7 +748,7 @@ askUserQuestionTimeout,
               controller.error(err)
             },
             onComplete: () => {
-              console.log(`[SD] R:COMPLETE sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+              sdLog.info(`R:COMPLETE sub=${subId} n=${chunkCount} last=${lastChunkType}`)
 
               // Clear compacting state on complete (in case compact_boundary wasn't received)
               const compacting = appStore.get(compactingSubChatsAtom)
@@ -766,7 +772,7 @@ askUserQuestionTimeout,
 
         // Handle abort
         options.abortSignal?.addEventListener("abort", () => {
-          console.log(`[SD] R:ABORT sub=${subId} n=${chunkCount} last=${lastChunkType}`)
+          sdLog.info(`R:ABORT sub=${subId} n=${chunkCount} last=${lastChunkType}`)
 
           // Clear compacting state on abort
           const compacting = appStore.get(compactingSubChatsAtom)

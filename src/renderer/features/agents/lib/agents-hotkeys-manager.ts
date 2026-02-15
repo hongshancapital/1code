@@ -13,6 +13,10 @@ import {
 } from "./agents-actions"
 import type { SettingsTab, CustomHotkeysConfig } from "../../../lib/atoms"
 import { getResolvedHotkey, type ShortcutActionId } from "../../../lib/hotkeys"
+import { createLogger } from "../../../lib/logger"
+
+const hotkeyLog = createLogger("Hotkey")
+
 
 // ============================================================================
 // ACTION ID MAPPING
@@ -138,7 +142,7 @@ export function useAgentsHotkeys(
     if (!window.desktopApi?.onShortcutNewAgent) return
 
     const cleanup = window.desktopApi.onShortcutNewAgent(() => {
-      console.log("[Hotkey] Cmd+N received via IPC, executing create-new-agent")
+      hotkeyLog.info("Cmd+N received via IPC, executing create-new-agent")
       handleHotkeyAction("create-new-agent")
     })
 

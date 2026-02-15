@@ -3,6 +3,10 @@ import { join, dirname } from "path"
 import { safeStorage } from "electron"
 
 import type { PkceState } from "./providers/types"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("store")
+
 
 export interface AuthUser {
   id: string
@@ -58,7 +62,7 @@ export class AuthStore {
       }
       writeFileSync(this.pkceFilePath, JSON.stringify(state), "utf-8")
     } catch (error) {
-      console.error("Failed to save PKCE state:", error)
+      log.error("Failed to save PKCE state:", error)
     }
   }
 
@@ -73,7 +77,7 @@ export class AuthStore {
       }
       return null
     } catch (error) {
-      console.error("Failed to load PKCE state:", error)
+      log.error("Failed to load PKCE state:", error)
       return null
     }
   }
@@ -87,7 +91,7 @@ export class AuthStore {
         unlinkSync(this.pkceFilePath)
       }
     } catch (error) {
-      console.error("Failed to clear PKCE state:", error)
+      log.error("Failed to clear PKCE state:", error)
     }
   }
 
@@ -116,11 +120,11 @@ export class AuthStore {
         writeFileSync(this.filePath, encrypted)
       } else {
         // Fallback: store with warning (should rarely happen)
-        console.warn("safeStorage not available - storing auth data without encryption")
+        log.warn("safeStorage not available - storing auth data without encryption")
         writeFileSync(this.filePath + ".json", jsonData, "utf-8")
       }
     } catch (error) {
-      console.error("Failed to save auth data:", error)
+      log.error("Failed to save auth data:", error)
       throw error
     }
   }
@@ -161,14 +165,14 @@ export class AuthStore {
         // Migrate to encrypted storage
         this.save(data)
         unlinkSync(legacyPath) // Remove legacy unencrypted file
-        console.log("Migrated auth data from plaintext to encrypted storage")
+        log.info("Migrated auth data from plaintext to encrypted storage")
         
         return data
       }
 
       return null
     } catch {
-      console.error("Failed to load auth data")
+      log.error("Failed to load auth data")
       return null
     }
   }
@@ -193,7 +197,7 @@ export class AuthStore {
         unlinkSync(legacyPath)
       }
     } catch (error) {
-      console.error("Failed to clear auth data:", error)
+      log.error("Failed to clear auth data:", error)
     }
   }
 
@@ -281,7 +285,7 @@ export class AuthStore {
       }
       writeFileSync(this.skipFilePath, JSON.stringify({ skipped }), "utf-8")
     } catch (error) {
-      console.error("Failed to save auth skipped state:", error)
+      log.error("Failed to save auth skipped state:", error)
     }
   }
 
@@ -310,7 +314,7 @@ export class AuthStore {
         unlinkSync(this.skipFilePath)
       }
     } catch (error) {
-      console.error("Failed to clear auth skipped state:", error)
+      log.error("Failed to clear auth skipped state:", error)
     }
   }
 

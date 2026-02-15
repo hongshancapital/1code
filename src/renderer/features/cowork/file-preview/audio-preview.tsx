@@ -1,6 +1,10 @@
 import { useState } from "react"
 import { Music, VolumeX, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const audioPreviewLog = createLogger("AudioPreview")
+
 
 interface AudioPreviewProps {
   filePath: string
@@ -25,7 +29,7 @@ export function AudioPreview({ filePath, className }: AudioPreviewProps) {
   }
 
   const handleError = () => {
-    console.error("[AudioPreview] Failed to load:", fileUrl)
+    audioPreviewLog.error("Failed to load:", fileUrl)
     setIsLoading(false)
     setHasError(true)
   }

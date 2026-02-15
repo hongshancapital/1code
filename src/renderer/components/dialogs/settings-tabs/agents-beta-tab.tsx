@@ -7,6 +7,7 @@ import {
   betaAutomationsEnabledAtom,
   betaBrowserEnabledAtom,
   betaMemoryEnabledAtom,
+  betaRenameFolderEnabledAtom,
   betaVoiceInputEnabledAtom,
   enableTasksAtom,
   historyEnabledAtom,
@@ -60,6 +61,7 @@ export function AgentsBetaTab() {
   const [betaMemoryEnabled, setBetaMemoryEnabled] = useAtom(betaMemoryEnabledAtom)
   const [betaBrowserEnabled, setBetaBrowserEnabled] = useAtom(betaBrowserEnabledAtom)
   const [betaVoiceInputEnabled, setBetaVoiceInputEnabled] = useAtom(betaVoiceInputEnabledAtom)
+  const [betaRenameFolderEnabled, setBetaRenameFolderEnabled] = useAtom(betaRenameFolderEnabledAtom)
 
   // dev-only features
   const canEnableAutomations = isFeatureAvailable("automations")
@@ -231,6 +233,22 @@ export function AgentsBetaTab() {
               }
             }}
             disabled={!canEnableVoiceInput}
+          />
+        </div>
+
+        {/* Rename Folder Toggle */}
+        <div className="flex items-center justify-between p-4 border-t border-border">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground">
+              {t('beta.renameFolder.title')}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t('beta.renameFolder.description')}
+            </span>
+          </div>
+          <Switch
+            checked={betaRenameFolderEnabled}
+            onCheckedChange={setBetaRenameFolderEnabled}
           />
         </div>
       </div>

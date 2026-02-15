@@ -123,7 +123,7 @@ export function useVoiceRecording(
   const startRecording = useCallback(async () => {
     // Prevent multiple simultaneous starts
     if (isStartingRef.current || mediaRecorderRef.current) {
-      console.warn("[VoiceRecording] Already recording or starting")
+      voiceRecordingLog.warn("Already recording or starting")
       return
     }
 
@@ -181,7 +181,7 @@ export function useVoiceRecording(
         }
         updateLevel()
       } catch (err) {
-        console.warn("[VoiceRecording] Failed to set up audio analysis:", err)
+        voiceRecordingLog.warn("Failed to set up audio analysis:", err)
         // Continue without audio level - recording still works
       }
 
@@ -246,7 +246,7 @@ export function useVoiceRecording(
       }
 
       setError(error)
-      console.error("[VoiceRecording] Start error:", error)
+      voiceRecordingLog.error("Start error:", error)
       throw error
     }
   }, [cleanup, onInterimAudio, interimIntervalMs])
@@ -260,7 +260,7 @@ export function useVoiceRecording(
       const state = mediaRecorder?.state
       if (!mediaRecorder || state === "inactive" || state === undefined) {
         // Already stopped or never started - resolve with empty blob to avoid breaking the flow
-        console.warn("[VoiceRecording] No active recording to stop, resolving with empty blob")
+        voiceRecordingLog.warn("No active recording to stop, resolving with empty blob")
         resolve(new Blob([], { type: "audio/webm" }))
         return
       }

@@ -17,6 +17,10 @@ import type {
 } from "../../lib/extension/hooks/chat-lifecycle"
 import { getDatabase, modelUsage } from "../../lib/db"
 import { eq, like } from "drizzle-orm"
+import { createLogger } from "../../lib/logger"
+
+const usageLog = createLogger("Usage")
+
 
 /**
  * Unified usage recording function.
@@ -29,7 +33,7 @@ function recordUsage(
   const { metadata, subChatId, chatId, projectId, mode, finalModel } = payload
 
   if (!projectId) {
-    console.warn(
+    usageLog.warn(
       `[Usage] Skipping usage recording - projectId not found for chat ${chatId}`,
     )
     return
@@ -86,17 +90,17 @@ function recordUsage(
               durationMs: payload.durationMs ?? metadata.durationMs,
             })
             .run()
-          console.log(
+          usageLog.info(
             `[Usage] Recorded ${model}: ${usage.inputTokens} in, ${usage.outputTokens} out, cost: ${usage.costUSD?.toFixed(4) || "?"}`,
           )
         }
       } else {
-        console.log(
+        usageLog.info(
           `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
         )
       }
     } catch (usageErr) {
-      console.error(`[Usage] Failed to record per-model usage:`, usageErr)
+      usageLog.error(`Failed to record per-model usage:`, usageErr)
     }
   } else if (metadata.inputTokens || metadata.outputTokens) {
     // Fallback: aggregate data (no per-model breakdown)
@@ -126,16 +130,16 @@ function recordUsage(
             durationMs: payload.durationMs ?? metadata.durationMs,
           })
           .run()
-        console.log(
+        usageLog.info(
           `[Usage] Recorded (fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || "?"}`,
         )
       } else {
-        console.log(
+        usageLog.info(
           `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
         )
       }
     } catch (usageErr) {
-      console.error(`[Usage] Failed to record usage:`, usageErr)
+      usageLog.error(`Failed to record usage:`, usageErr)
     }
   }
 }

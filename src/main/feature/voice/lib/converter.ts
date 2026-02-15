@@ -8,6 +8,10 @@ import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { getFfmpegBinaryPath, isFfmpegBinaryAvailable } from "./env"
+import { createLogger } from "../../../lib/logger"
+
+const whisperLog = createLogger("Whisper")
+
 
 export interface ConversionResult {
   wavPath: string
@@ -53,7 +57,7 @@ export async function convertToWav(
           if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath)
           if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath)
         } catch (err) {
-          console.warn("[Whisper] Failed to cleanup temp files:", err)
+          whisperLog.warn("Failed to cleanup temp files:", err)
         }
       },
     }

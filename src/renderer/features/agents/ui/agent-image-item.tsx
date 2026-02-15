@@ -15,6 +15,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "../../../components/ui/context-menu"
+import { createLogger } from "../../../lib/logger"
+
+const agentImageItemLog = createLogger("AgentImageItem")
+
 
 interface ImageData {
   id: string
@@ -71,7 +75,7 @@ export function AgentImageItem({
       })
       .catch((err) => {
         if (cancelled) return
-        console.warn("[AgentImageItem] fetch local-file failed, falling back:", err)
+        agentImageItemLog.warn("fetch local-file failed, falling back:", err)
         setResolvedUrl(url) // fallback to direct URL
       })
     return () => {
@@ -117,7 +121,7 @@ export function AgentImageItem({
   }, [currentImage?.url])
 
   const handleImageError = () => {
-    console.warn("[AgentImageItem] Failed to load image:", filename, url)
+    agentImageItemLog.warn("Failed to load image:", filename, url)
     setHasError(true)
   }
 
@@ -169,7 +173,7 @@ export function AgentImageItem({
         new ClipboardItem({ "image/png": blob }),
       ])
     } catch (err) {
-      console.error("[AgentImageItem] Failed to copy image:", err)
+      agentImageItemLog.error("Failed to copy image:", err)
     }
   }, [images, currentIndex])
 
@@ -205,7 +209,7 @@ export function AgentImageItem({
         ],
       })
     } catch (err) {
-      console.error("[AgentImageItem] Failed to save image:", err)
+      agentImageItemLog.error("Failed to save image:", err)
     }
   }, [images, currentIndex])
 

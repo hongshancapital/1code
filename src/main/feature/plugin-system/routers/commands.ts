@@ -6,6 +6,10 @@ import * as os from "os"
 import matter from "gray-matter"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../lib"
 import { getEnabledPlugins } from "../../../lib/trpc/routers/claude-settings"
+import { createLogger } from "../../../lib/logger"
+
+const commandsLog = createLogger("commands")
+
 
 /** Format plugin name: "review_by_blair" → "Review By Blair" */
 function formatPluginName(name: string): string {
@@ -45,7 +49,7 @@ function parseCommandMd(content: string): {
       name: typeof data.name === "string" ? data.name : undefined,
     }
   } catch (err) {
-    console.error("[commands] Failed to parse frontmatter:", err)
+    commandsLog.error("Failed to parse frontmatter:", err)
     return {}
   }
 }
@@ -72,9 +76,9 @@ async function scanCommandsDirectory(
     // Check if directory exists
     try {
       await fs.access(dir)
-      console.log("[commands] Directory exists:", dir)
+      commandsLog.info("Directory exists:", dir)
     } catch {
-      console.log("[commands] Directory does not exist:", dir)
+      commandsLog.info("Directory does not exist:", dir)
       return commands
     }
 
@@ -82,7 +86,7 @@ async function scanCommandsDirectory(
 
     for (const entry of entries) {
       if (!isValidEntryName(entry.name)) {
-        console.warn(`[commands] Skipping invalid entry name: ${entry.name}`)
+        commandsLog.warn(`Skipping invalid entry name: ${entry.name}`)
         continue
       }
 
@@ -105,7 +109,7 @@ async function scanCommandsDirectory(
           const parsed = parseCommandMd(content)
           const commandName = parsed.name || fallbackName
 
-          console.log("[commands] Found command:", commandName, "at", fullPath)
+          commandsLog.info("Found command:", commandName, "at", fullPath)
           commands.push({
             name: commandName,
             displayName: commandName, // Will be overridden for plugin commands
@@ -115,12 +119,12 @@ async function scanCommandsDirectory(
             path: fullPath,
           })
         } catch (err) {
-          console.warn(`[commands] Failed to read ${fullPath}:`, err)
+          commandsLog.warn(`Failed to read ${fullPath}:`, err)
         }
       }
     }
   } catch (err) {
-    console.error(`[commands] Failed to scan directory ${dir}:`, err)
+    commandsLog.error(`Failed to scan directory ${dir}:`, err)
   }
 
   return commands
@@ -142,7 +146,7 @@ export const commandsRouter = router({
     )
     .query(async ({ input }) => {
       const userCommandsDir = path.join(os.homedir(), ".claude", "commands")
-      console.log("[commands.list] Scanning user commands dir:", userCommandsDir)
+      commandsLog.info("[commands.list] Scanning user commands dir:", userCommandsDir)
       const userCommandsPromise = scanCommandsDirectory(userCommandsDir, "user")
 
       let projectCommandsPromise = Promise.resolve<FileCommand[]>([])
@@ -189,7 +193,7 @@ export const commandsRouter = router({
 
       // Project commands first (more specific), then user commands, then plugin commands
       const result = [...projectCommands, ...userCommands, ...pluginCommands]
-      console.log("[commands.list] Found commands:", result.length, result.map(c => c.name))
+      commandsLog.info("[commands.list] Found commands:", result.length, result.map(c => c.name))
       return result
     }),
 
@@ -209,7 +213,7 @@ export const commandsRouter = router({
         const { content: body } = matter(content)
         return { content: body.trim() }
       } catch (err) {
-        console.error(`[commands] Failed to read command content:`, err)
+        commandsLog.error(`Failed to read command content:`, err)
         return { content: "" }
       }
     }),

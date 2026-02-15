@@ -14,7 +14,7 @@ import { useAtomValue } from "jotai"
 import { IconSpinner } from "../../../components/ui/icons"
 import { getFirstSubChatId } from "../main/chat-utils"
 import { useChatInstance } from "../context/chat-instance-context"
-import { isFullscreenAtom, chatSourceModeAtom } from "../../../lib/atoms"
+import { isFullscreenAtom } from "../../../lib/atoms"
 import { agentsSubChatsSidebarModeAtom } from "../atoms"
 
 /**
@@ -68,10 +68,6 @@ export interface SubChatTabsRendererProps {
   allSubChats: Array<{ id: string }>
   /** Whether local chat data is loading */
   isLocalChatLoading: boolean
-  /** Whether messages are loading */
-  isLoadingMessages: boolean
-  /** SubChat messages data (undefined when not yet loaded) */
-  subChatMessagesData: unknown
   /** Function to get or create Chat instance for a subChatId */
   getOrCreateChat: (subChatId: string) => Chat<any> | null
   /** Handler for auto-rename */
@@ -153,8 +149,6 @@ export const SubChatTabsRenderer = memo(function SubChatTabsRenderer({
   agentSubChats,
   allSubChats,
   isLocalChatLoading,
-  isLoadingMessages,
-  subChatMessagesData,
   getOrCreateChat,
   handleAutoRename,
   handleCreateNewSubChat,
@@ -166,20 +160,13 @@ export const SubChatTabsRenderer = memo(function SubChatTabsRenderer({
 }: SubChatTabsRendererProps) {
   // Self-sourced state from context/atoms
   const { chatId, worktreePath, sandboxId, isArchived } = useChatInstance()
-  const chatSourceMode = useAtomValue(chatSourceModeAtom)
   const isMobileFullscreen = useAtomValue(isFullscreenAtom) ?? false
   const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom)
 
-  // Show loading gate to prevent getOrCreateChat() from caching empty messages before data is ready
-  // Distinguish between "loading" and "loaded but no data"
-  // - isLoadingMessages: query is executing
-  // - subChatMessagesData: query result (may be null if subchat doesn't exist)
-  // After query completes (regardless of result), allow rendering, don't block on loading
-  const isLoading =
-    isLocalChatLoading ||
-    (chatSourceMode === "local" && isLoadingMessages && subChatMessagesData === undefined)
-
-  if (isLoading) {
+  // Loading gate: 仅在 workspace 首次加载时显示 spinner
+  // 切换 subchat tab 时不阻塞——keep-alive tabs 的 Chat 已在 chatRegistry 中
+  // placeholderData: keepPreviousData 保证消息数据切 tab 时不变 undefined
+  if (isLocalChatLoading) {
     return <LoadingSpinner />
   }
 

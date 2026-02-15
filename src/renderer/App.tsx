@@ -44,6 +44,12 @@ import { VSCodeThemeProvider } from "./lib/themes/theme-provider"
 import { trpc } from "./lib/trpc"
 import { LoadingScene } from "./components/loading-scene"
 import { GlobalErrorBoundary } from "./components/ui/global-error-boundary"
+import { createLogger } from "./lib/logger"
+
+const appLog = createLogger("App")
+const loadingSceneLog = createLogger("LoadingScene")
+const sensorsLog = createLogger("Sensors")
+
 
 /**
  * Custom Toaster that adapts to theme
@@ -125,13 +131,13 @@ function AppContent() {
         setAuthSkipped(isSkipped ?? false)
 
         if (!isAuthenticated && !isSkipped) {
-          console.log("[App] Not authenticated and not skipped, triggering logout to show login page")
+          appLog.info("Not authenticated and not skipped, triggering logout to show login page")
           // Trigger logout to show login page
           window.desktopApi?.logout()
           return // Don't set authCheckCompleted, page will reload
         }
       } catch (error) {
-        console.warn("[App] Failed to check auth status:", error)
+        appLog.warn("Failed to check auth status:", error)
       }
       setAuthCheckCompleted(true)
     }
@@ -142,7 +148,7 @@ function AppContent() {
   useEffect(() => {
     const params = getInitialWindowParams()
     if (params.chatId) {
-      console.log("[App] Opening chat from window params:", params.chatId, params.subChatId)
+      appLog.info("Opening chat from window params:", params.chatId, params.subChatId)
       navigateTo({
         chatId: params.chatId,
         subChatId: params.subChatId,
@@ -176,7 +182,7 @@ function AppContent() {
   // This allows users with ANTHROPIC_API_KEY to use the app without OAuth
   useEffect(() => {
     if (cliConfig?.hasConfig && !billingMethod) {
-      console.log("[App] Detected existing CLI config, auto-completing onboarding")
+      appLog.info("Detected existing CLI config, auto-completing onboarding")
       setBillingMethod("api-key")
       setApiKeyOnboardingCompleted(true)
     }
@@ -199,7 +205,7 @@ function AppContent() {
     // Check if LiteLLM is available and has any models
     if (litellmModels?.models && litellmModels.models.length > 0 && litellmModels.defaultModel) {
       // LiteLLM is connected - auto-configure regardless of model type
-      console.log("[App] Auto-detected LiteLLM with model:", litellmModels.defaultModel, `(${litellmModels.models.length} models available)`)
+      appLog.info("Auto-detected LiteLLM with model:", litellmModels.defaultModel, `(${litellmModels.models.length} models available)`)
       setLoadingStatus('configuring')
       setLitellmAutoDetected(true)
       setBillingMethod("litellm")
@@ -208,7 +214,7 @@ function AppContent() {
       setLitellmSelectedModel(litellmModels.defaultModel)
     } else if (litellmModelsError || litellmModels?.error || (litellmModels && litellmModels.models?.length === 0)) {
       // LiteLLM not available or no models - proceed to billing page
-      console.log("[App] LiteLLM not available or no models:", litellmModels?.error || litellmModelsError)
+      appLog.info("LiteLLM not available or no models:", litellmModels?.error || litellmModelsError)
       setLoadingStatus('ready')
     }
   }, [
@@ -230,7 +236,7 @@ function AppContent() {
 
   // Track when all initial data queries are completed
   useEffect(() => {
-    console.log("[LoadingScene] Status:", {
+    loadingSceneLog.info("Status:", {
       authCheckCompleted,
       isLoadingCliConfig,
       isLoadingLitellmModels,
@@ -248,10 +254,10 @@ function AppContent() {
       (billingMethod || litellmAutoDetected || loadingStatus === 'ready' || loadingStatus === 'configuring')
 
     if (allQueriesComplete && !initialDataLoaded) {
-      console.log("[LoadingScene] All queries complete, starting exit timer")
+      loadingSceneLog.info("All queries complete, starting exit timer")
       // Add a minimum display time for the loading scene (1.5s for welcome animation)
       const timer = setTimeout(() => {
-        console.log("[LoadingScene] Setting initialDataLoaded to true")
+        loadingSceneLog.info("Setting initialDataLoaded to true")
         setInitialDataLoaded(true)
       }, 1500)
       return () => clearTimeout(timer)
@@ -289,7 +295,7 @@ function AppContent() {
       onLoadingComplete={() => setLoadingSceneComplete(true)}
       onEnvCheckComplete={() => {
         // Environment check complete - could be used for analytics or logging
-        console.log('[App] Environment check complete')
+        appLog.info('Environment check complete')
       }}
     />
   ) : null
@@ -354,7 +360,7 @@ export function App() {
           sensorsLogin(user.email)
         }
       } catch (error) {
-        console.warn("[Sensors] Failed to login user:", error)
+        sensorsLog.warn("Failed to login user:", error)
       }
     }
     loginUser()

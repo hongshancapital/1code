@@ -24,6 +24,10 @@ import type {
   DefinitionInfo,
   ReferenceEntry,
 } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const lspLog = createLogger("LSP")
+
 
 interface StartServerParams {
   sessionId: string
@@ -44,7 +48,7 @@ export class LSPManager extends EventEmitter {
     // Check for existing session
     const existing = this.sessions.get(sessionId)
     if (existing?.isAlive) {
-      console.log(`[LSP] Session ${sessionId} already exists`)
+      lspLog.info(`Session ${sessionId} already exists`)
       return
     }
 
@@ -53,7 +57,7 @@ export class LSPManager extends EventEmitter {
       this.sessions.delete(sessionId)
     }
 
-    console.log(`[LSP] Starting server for session ${sessionId}, backend: ${config.backend}`)
+    lspLog.info(`Starting server for session ${sessionId}, backend: ${config.backend}`)
 
     // Start the appropriate server
     if (config.backend === "tsgo") {
@@ -72,7 +76,7 @@ export class LSPManager extends EventEmitter {
     config: LSPConfig
   ): Promise<void> {
     const tsserverPath = await this.findTsserver(projectPath)
-    console.log(`[LSP] Using tsserver at: ${tsserverPath}`)
+    lspLog.info(`Using tsserver at: ${tsserverPath}`)
 
     const childProcess = spawn(
       "node",
@@ -128,7 +132,7 @@ export class LSPManager extends EventEmitter {
     config: LSPConfig
   ): Promise<void> {
     const tsgoPath = config.customPath || (await this.findTsgo())
-    console.log(`[LSP] Using tsgo at: ${tsgoPath}`)
+    lspLog.info(`Using tsgo at: ${tsgoPath}`)
 
     const childProcess = spawn(tsgoPath, ["--stdio"], {
       cwd: projectPath,
@@ -140,7 +144,7 @@ export class LSPManager extends EventEmitter {
     // tsgo uses standard LSP protocol - send initialize request
     // Note: Implementation depends on tsgo's actual LSP implementation
     // This is a placeholder for when tsgo is available
-    console.log(`[LSP] tsgo session started (LSP protocol)`)
+    lspLog.info(`tsgo session started (LSP protocol)`)
   }
 
   /**
@@ -172,12 +176,12 @@ export class LSPManager extends EventEmitter {
 
     // Handle stderr
     process.stderr?.on("data", (data: Buffer) => {
-      console.log(`[LSP:${sessionId}] stderr:`, data.toString())
+      lspLog.info(`[LSP:${sessionId}] stderr:`, data.toString())
     })
 
     // Handle process exit
     process.on("exit", (code) => {
-      console.log(`[LSP:${sessionId}] Process exited with code ${code}`)
+      lspLog.info(`[LSP:${sessionId}] Process exited with code ${code}`)
       session.isAlive = false
       this.emit(`exit:${sessionId}`, code)
 
@@ -189,7 +193,7 @@ export class LSPManager extends EventEmitter {
     })
 
     process.on("error", (error) => {
-      console.error(`[LSP:${sessionId}] Process error:`, error)
+      lspLog.error(`[LSP:${sessionId}] Process error:`, error)
       session.isAlive = false
       this.emit(`error:${sessionId}`, error)
     })
@@ -248,7 +252,7 @@ export class LSPManager extends EventEmitter {
         const message = JSON.parse(content) as TsServerResponse | TsServerEvent
         this.handleMessage(sessionId, message)
       } catch (error) {
-        console.error(`[LSP:${sessionId}] Failed to parse message:`, error)
+        lspLog.error(`[LSP:${sessionId}] Failed to parse message:`, error)
       }
     }
   }
@@ -450,7 +454,7 @@ export class LSPManager extends EventEmitter {
       // Combine syntax and semantic diagnostics
       return [...(syntaxDiags || []), ...(semanticDiags || [])]
     } catch (error) {
-      console.error(`[LSP:${sessionId}] getDiagnostics error:`, error)
+      lspLog.error(`[LSP:${sessionId}] getDiagnostics error:`, error)
       return []
     }
   }

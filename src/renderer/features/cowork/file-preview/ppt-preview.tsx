@@ -3,6 +3,10 @@ import { Presentation, Loader2, ExternalLink, ChevronLeft, ChevronRight } from "
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
 import { Button } from "../../../components/ui/button"
+import { createLogger } from "../../../lib/logger"
+
+const pptPreviewLog = createLogger("PptPreview")
+
 
 interface PptPreviewProps {
   filePath: string
@@ -204,7 +208,7 @@ export function PptPreview({ filePath, className }: PptPreviewProps) {
         setCurrentSlide(0)
         setIsLoading(false)
       } catch (err) {
-        console.error("[PptPreview] Failed to preview PPTX:", err)
+        pptPreviewLog.error("Failed to preview PPTX:", err)
         setHasError(true)
         setErrorMessage(err instanceof Error ? err.message : "Preview failed")
         setIsLoading(false)

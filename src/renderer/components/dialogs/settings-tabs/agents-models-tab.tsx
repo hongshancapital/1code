@@ -72,6 +72,10 @@ import {
   SelectItem,
   SelectTrigger,
 } from "../../ui/select"
+import { createLogger } from "../../../lib/logger"
+
+const addProviderDialogLog = createLogger("AddProviderDialog")
+
 
 // ============ Provider Icon ============
 
@@ -184,7 +188,7 @@ function AddProviderDialog({
   // Log for debugging
   useEffect(() => {
     if (open && editProvider) {
-      console.log("[AddProviderDialog] editProvider:", editProvider)
+      addProviderDialogLog.info("editProvider:", editProvider)
     }
   }, [open, editProvider])
 
@@ -1296,7 +1300,7 @@ function ModelSourcesPanel() {
             onEdit={provider.type === "custom" ? async () => {
               try {
                 const detail = await trpcUtils.providers.get.fetch({ id: provider.id })
-                console.log("[ModelSourcesPanel.onEdit] Provider detail:", detail)
+                addProviderDialogLog.info("[ModelSourcesPanel.onEdit] Provider detail:", detail)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,
@@ -1304,7 +1308,7 @@ function ModelSourcesPanel() {
                   manualModels: detail?.manualModels,
                 })
               } catch (e) {
-                console.error("[ModelSourcesPanel.onEdit] Failed to fetch provider:", e)
+                addProviderDialogLog.error("[ModelSourcesPanel.onEdit] Failed to fetch provider:", e)
                 setEditProvider({
                   id: provider.id,
                   name: provider.name,

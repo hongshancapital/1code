@@ -3,6 +3,10 @@ import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { ChatMarkdownRenderer } from "../../../components/chat-markdown-renderer"
 import { Loader2, Code, Eye } from "lucide-react"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("markdownPreview")
+
 
 interface MarkdownPreviewProps {
   content: string
@@ -69,7 +73,7 @@ export function MarkdownPreview({ content, className, scrollToLine, highlightTex
           }
         }
       } catch (err) {
-        console.error("Syntax highlighting error:", err)
+        log.error("Syntax highlighting error:", err)
         if (!cancelled) {
           // Fallback to plain text
           setHighlightedLines(

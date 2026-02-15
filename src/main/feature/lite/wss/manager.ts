@@ -9,6 +9,10 @@
 
 import { EventEmitter } from "events"
 import WebSocket from "ws"
+import { createLogger } from "../../../lib/logger"
+
+const wssLog = createLogger("WSS")
+
 
 // 常量
 const HEARTBEAT_INTERVAL = 8000
@@ -51,13 +55,13 @@ export class WssManager extends EventEmitter {
 
     const url = this.options.getUrl()
     if (!url) {
-      console.warn("[WSS] URL 未配置，跳过连接")
+      wssLog.warn("URL 未配置，跳过连接")
       return
     }
 
     const token = await this.options.getToken()
     if (!token) {
-      console.warn("[WSS] 无 auth token，跳过连接")
+      wssLog.warn("无 auth token，跳过连接")
       return
     }
 
@@ -72,7 +76,7 @@ export class WssManager extends EventEmitter {
       })
 
       this.ws.on("open", () => {
-        console.log("[WSS] 连接成功")
+        wssLog.info("连接成功")
         this.retryCount = 0
         this._setState("connected")
         this._startHeartbeat()
@@ -88,7 +92,7 @@ export class WssManager extends EventEmitter {
       })
 
       this.ws.on("close", (code: number, reason: Buffer) => {
-        console.log(`[WSS] 连接关闭: ${code} ${reason.toString()}`)
+        wssLog.info(`连接关闭: ${code} ${reason.toString()}`)
         this._cleanup()
 
         if (!this.explicitClose) {
@@ -99,11 +103,11 @@ export class WssManager extends EventEmitter {
       })
 
       this.ws.on("error", (err: Error) => {
-        console.error("[WSS] 连接错误:", err.message)
+        wssLog.error("连接错误:", err.message)
         this.emit("error", err)
       })
     } catch (err) {
-      console.error("[WSS] 创建连接失败:", err)
+      wssLog.error("创建连接失败:", err)
       this._setState("disconnected")
       this._scheduleReconnect()
     }
@@ -112,7 +116,7 @@ export class WssManager extends EventEmitter {
   /** 发送消息 */
   send(channel: string, data: unknown): boolean {
     if (!this.ws || this.state !== "connected") {
-      console.warn("[WSS] 未连接，无法发送消息")
+      wssLog.warn("未连接，无法发送消息")
       return false
     }
 
@@ -121,7 +125,7 @@ export class WssManager extends EventEmitter {
       this.ws.send(message)
       return true
     } catch (err) {
-      console.error("[WSS] 发送消息失败:", err)
+      wssLog.error("发送消息失败:", err)
       return false
     }
   }
@@ -161,7 +165,7 @@ export class WssManager extends EventEmitter {
 
       this.emit("message", { channel, data, raw: parsed })
     } catch {
-      console.warn("[WSS] 无法解析消息:", String(raw).substring(0, 100))
+      wssLog.warn("无法解析消息:", String(raw).substring(0, 100))
     }
   }
 
@@ -173,7 +177,7 @@ export class WssManager extends EventEmitter {
           this.ws.ping()
           this._startPongTimer()
         } catch {
-          console.warn("[WSS] 心跳发送失败")
+          wssLog.warn("心跳发送失败")
         }
       }
     }, HEARTBEAT_INTERVAL)
@@ -190,7 +194,7 @@ export class WssManager extends EventEmitter {
   private _startPongTimer(): void {
     this._clearPongTimer()
     this.pongTimer = setTimeout(() => {
-      console.warn("[WSS] Pong 超时，断开重连")
+      wssLog.warn("Pong 超时，断开重连")
       this.ws?.terminate()
     }, PONG_TIMEOUT)
   }
@@ -205,7 +209,7 @@ export class WssManager extends EventEmitter {
   private _scheduleReconnect(): void {
     if (this.explicitClose || this.retryCount >= MAX_RETRIES) {
       if (this.retryCount >= MAX_RETRIES) {
-        console.warn(`[WSS] 已达最大重连次数 (${MAX_RETRIES})，停止重连`)
+        wssLog.warn(`已达最大重连次数 (${MAX_RETRIES})，停止重连`)
         this.emit("maxRetriesReached")
       }
       this._setState("disconnected")
@@ -215,7 +219,7 @@ export class WssManager extends EventEmitter {
     const delay = this.retryCount === 0 ? FIRST_RETRY_DELAY : RETRY_INTERVAL
     this.retryCount++
 
-    console.log(`[WSS] ${delay}ms 后重连（第 ${this.retryCount} 次）`)
+    wssLog.info(`${delay}ms 后重连（第 ${this.retryCount} 次）`)
     this._setState("reconnecting")
 
     this.reconnectTimer = setTimeout(async () => {

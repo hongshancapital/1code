@@ -13,6 +13,10 @@ import type {
   MarketplaceManifest,
 } from "./marketplace-types"
 import { OFFICIAL_MARKETPLACE, KNOWLEDGE_WORK_MARKETPLACE } from "./marketplace-types"
+import { createLogger } from "../../../lib/logger"
+
+const marketplaceLog = createLogger("Marketplace")
+
 
 const CONFIG_PATH = PATHS.HONG_MARKETPLACES_CONFIG
 
@@ -33,7 +37,7 @@ export async function readMarketplacesConfig(): Promise<PluginMarketplacesConfig
     const config = JSON.parse(content) as PluginMarketplacesConfig
 
     if (config.version !== 1) {
-      console.warn("[Marketplace] Unsupported config version, using defaults")
+      marketplaceLog.warn("Unsupported config version, using defaults")
       return getDefaultConfig()
     }
 
@@ -43,7 +47,7 @@ export async function readMarketplacesConfig(): Promise<PluginMarketplacesConfig
       // File doesn't exist, return default config
       return getDefaultConfig()
     }
-    console.error("[Marketplace] Error reading config:", error)
+    marketplaceLog.error("Error reading config:", error)
     return getDefaultConfig()
   }
 }
@@ -156,7 +160,7 @@ export async function readMarketplaceManifest(
     const content = await fs.readFile(manifestPath, "utf-8")
     return JSON.parse(content) as MarketplaceManifest
   } catch (error) {
-    console.error(
+    marketplaceLog.error(
       `[Marketplace] Error reading manifest from ${marketplacePath}:`,
       error
     )

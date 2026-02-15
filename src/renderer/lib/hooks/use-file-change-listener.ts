@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react"
 import { useQueryClient } from "@tanstack/react-query"
+import { createLogger } from "../logger"
+
+const useGitWatcherLog = createLogger("useGitWatcher")
+
 
 /**
  * Hook that listens for file changes from Claude Write/Edit tools
@@ -67,7 +71,7 @@ export function useGitWatcher(
         await window.desktopApi?.subscribeToGitWatcher(worktreePath)
         isSubscribedRef.current = true
       } catch (error) {
-        console.error("[useGitWatcher] Failed to subscribe:", error)
+        useGitWatcherLog.error("Failed to subscribe:", error)
       }
     }
 
@@ -112,7 +116,7 @@ export function useGitWatcher(
       // Unsubscribe from git watcher
       if (isSubscribedRef.current) {
         window.desktopApi?.unsubscribeFromGitWatcher(worktreePath).catch((error) => {
-          console.error("[useGitWatcher] Failed to unsubscribe:", error)
+          useGitWatcherLog.error("Failed to unsubscribe:", error)
         })
         isSubscribedRef.current = false
       }

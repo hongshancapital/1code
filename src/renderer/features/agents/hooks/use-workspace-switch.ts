@@ -4,6 +4,10 @@ import { useAgentSubChatStore, type SubChatMeta } from "../stores/sub-chat-store
 import { appStore } from "../../../lib/jotai-store"
 import { currentSubChatIdAtom, messageIdsAtom, isMessagesSyncedAtom } from "../stores/message-store"
 import { subChatModeAtomFamily } from "../atoms"
+import { createLogger } from "../../../lib/logger"
+
+const useWorkspaceSwitchLog = createLogger("useWorkspaceSwitch")
+
 
 /**
  * useWorkspaceTransition — workspace 切换协调
@@ -25,7 +29,7 @@ export function useWorkspaceSwitch(chatId: string) {
 
     const isFirstMount = prevChatIdRef.current === null
 
-    console.log("[useWorkspaceSwitch] Switching workspace", {
+    useWorkspaceSwitchLog.info("Switching workspace", {
       from: prevChatIdRef.current?.slice(-8),
       to: chatId.slice(-8),
       isFirstMount,

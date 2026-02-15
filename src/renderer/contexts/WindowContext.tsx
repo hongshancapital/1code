@@ -60,7 +60,7 @@ export function getWindowId(): string {
   }
 
   globalWindowId = id
-  console.log("[WindowContext] Window ID:", id)
+  windowContextLog.info("Window ID:", id)
   return id
 }
 

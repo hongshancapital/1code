@@ -45,6 +45,10 @@ import { BrowserToolbar, useAddToProjectHistory } from "./browser-toolbar"
 import { BrowserOverlay } from "./browser-overlay"
 import { BrowserTerminalPanel } from "./browser-terminal-panel"
 import { DotGrid } from "./dot-grid"
+import { createLogger } from "../../lib/logger"
+
+const browserSidebarLog = createLogger("BrowserSidebar")
+
 
 interface BrowserSidebarProps {
   chatId: string
@@ -59,9 +63,9 @@ interface BrowserSidebarProps {
 export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onElementSelect }: BrowserSidebarProps) {
   // Debug: log mount/unmount
   useEffect(() => {
-    console.log("[BrowserSidebar] Component MOUNTED, chatId:", chatId)
+    browserSidebarLog.info("Component MOUNTED, chatId:", chatId)
     return () => {
-      console.log("[BrowserSidebar] Component UNMOUNTED, chatId:", chatId)
+      browserSidebarLog.info("Component UNMOUNTED, chatId:", chatId)
     }
   }, [chatId])
 
@@ -1120,7 +1124,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
   useEffect(() => {
     if (!window.desktopApi.onBrowserAuthLoopDetected) return
     const cleanup = window.desktopApi.onBrowserAuthLoopDetected((loopUrl: string) => {
-      console.warn("[BrowserSidebar] Auth loop detected:", loopUrl)
+      browserSidebarLog.warn("Auth loop detected:", loopUrl)
       // Import toast dynamically to avoid adding to component imports
       import("sonner").then(({ toast }) => {
         toast.error("检测到认证循环，请在外部浏览器中完成登录", {
@@ -1199,12 +1203,12 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     if (!webview) return
 
     const handleDomReady = () => {
-      console.log("[BrowserSidebar] dom-ready event fired")
+      browserSidebarLog.info("dom-ready event fired")
       // Inject our scripts
       webview.executeJavaScript(getWebviewScript())
       setWebviewReady(true)
       setReady(true)
-      console.log("[BrowserSidebar] Sending browserReady(true) to main process")
+      browserSidebarLog.info("Sending browserReady(true) to main process")
       window.desktopApi.browserReady(true)
     }
 
@@ -1237,7 +1241,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             }
           }
         } catch (error) {
-          console.error("[BrowserSidebar] Failed to re-apply fit width:", error)
+          browserSidebarLog.error("Failed to re-apply fit width:", error)
         }
       }
 
@@ -1319,13 +1323,13 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       // ERR_ABORTED (-3) is common during rapid redirects (OAuth flows)
       // Don't show error for these as they're usually not user-visible issues
       if (errorCode === -3) {
-        console.log("[BrowserSidebar] Navigation aborted (likely redirect):", validatedURL)
+        browserSidebarLog.info("Navigation aborted (likely redirect):", validatedURL)
         // Still stop loading indicator
         setIsLoading(false)
         setLoadingAtom(false)
         return
       }
-      console.error("[BrowserSidebar] Page load failed:", errorCode, errorDescription, validatedURL)
+      browserSidebarLog.error("Page load failed:", errorCode, errorDescription, validatedURL)
       setIsLoading(false)
       setLoadingAtom(false)
     }
@@ -1351,14 +1355,14 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
       // React Grab ready signal
       if (message === REACT_GRAB_MARKERS.READY) {
-        console.log("[BrowserSidebar] React Grab is ready")
+        browserSidebarLog.info("React Grab is ready")
         setReactGrabAvailableRef.current?.(true)
         return
       }
 
       // React Grab unavailable signal
       if (message === REACT_GRAB_MARKERS.UNAVAILABLE) {
-        console.log("[BrowserSidebar] React Grab is unavailable")
+        browserSidebarLog.info("React Grab is unavailable")
         setReactGrabAvailableRef.current?.(false)
         // Deactivate selector if it was active
         setSelectorActiveRef.current?.(false)
@@ -1367,11 +1371,11 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
 
       // Element selection
       if (message.startsWith(REACT_GRAB_MARKERS.ELEMENT_SELECTED)) {
-        console.log("[BrowserSidebar] Element selected, parsing...")
+        browserSidebarLog.info("Element selected, parsing...")
         try {
           const jsonStr = message.slice(REACT_GRAB_MARKERS.ELEMENT_SELECTED.length)
           const data = JSON.parse(jsonStr) as ElementSelectionData
-          console.log("[BrowserSidebar] Parsed element:", {
+          browserSidebarLog.info("Parsed element:", {
             componentName: data.componentName,
             filePath: data.filePath,
             htmlLength: data.html?.length,
@@ -1381,7 +1385,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           // Call the element select callback
           const callback = onElementSelectRef.current
           if (callback) {
-            console.log("[BrowserSidebar] Calling onElementSelect callback")
+            browserSidebarLog.info("Calling onElementSelect callback")
             callback(data.html, data.componentName, data.filePath)
           }
 
@@ -1391,7 +1395,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             // Ignore errors
           })
         } catch (err) {
-          console.error("[BrowserSidebar] Failed to parse element selection:", err)
+          browserSidebarLog.error("Failed to parse element selection:", err)
         }
       }
     }
@@ -1486,7 +1490,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             }
           })
           .catch((err) => {
-            console.error("[BrowserSidebar] Failed to disable device emulation:", err)
+            browserSidebarLog.error("Failed to disable device emulation:", err)
           })
       }
     } else {
@@ -1509,7 +1513,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
           }
         })
         .catch((err) => {
-          console.error("[BrowserSidebar] Failed to enable device emulation:", err)
+          browserSidebarLog.error("Failed to enable device emulation:", err)
         })
     }
   }, [webviewReady, devicePresetId, currentDevice])
@@ -1578,7 +1582,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
       const dataUrl = image.toDataURL()
       onScreenshot?.(dataUrl)
     } catch (error) {
-      console.error("Failed to take screenshot:", error)
+      browserSidebarLog.error("Failed to take screenshot:", error)
     }
   }, [webviewReady, onScreenshot])
 
@@ -1587,7 +1591,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     try {
       const success = await window.desktopApi.browserClearCache()
       if (!success) {
-        console.error("Failed to clear cache: main process returned false")
+        browserSidebarLog.error("Failed to clear cache: main process returned false")
         return
       }
 
@@ -1597,7 +1601,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         webview.reload()
       }
     } catch (error) {
-      console.error("Failed to clear cache:", error)
+      browserSidebarLog.error("Failed to clear cache:", error)
     }
   }, [webviewReady])
 
@@ -1614,7 +1618,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         setDevToolsOpen(true)
       }
     } catch (error) {
-      console.error("Failed to toggle DevTools:", error)
+      browserSidebarLog.error("Failed to toggle DevTools:", error)
     }
   }, [webviewReady, devToolsOpen, setDevToolsOpen])
 
@@ -1631,7 +1635,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
     } else {
       setSelectorActive(true)
       webview.executeJavaScript(REACT_GRAB_INJECT_SCRIPT).catch((err) => {
-        console.error("[BrowserSidebar] Failed to inject selector script:", err)
+        browserSidebarLog.error("Failed to inject selector script:", err)
         setSelectorActive(false)
       })
     }
@@ -1683,7 +1687,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         setZoomLevel(clamped)
       }
     } catch (error) {
-      console.error("[BrowserSidebar] Failed to fit width:", error)
+      browserSidebarLog.error("Failed to fit width:", error)
     }
   }, [webviewReady, setFitMode, setZoomLevel])
 
@@ -1715,7 +1719,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
             setZoomLevel(clamped)
           }
         } catch (error) {
-          console.error("[BrowserSidebar] Failed to recalculate fit width on resize:", error)
+          browserSidebarLog.error("Failed to recalculate fit width on resize:", error)
         }
       }, 150) // 150ms debounce
     }
@@ -1743,7 +1747,7 @@ export function BrowserSidebar({ chatId, projectId, className, onScreenshot, onE
         document.body.style.width = (100 / zoom) + '%';
       })()
     `).catch((err) => {
-      console.error("[BrowserSidebar] Failed to apply zoom:", err)
+      browserSidebarLog.error("Failed to apply zoom:", err)
     })
   }, [zoomLevel, webviewReady])
 

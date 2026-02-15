@@ -9,6 +9,10 @@ import { LiteUserApi } from "./user/api"
 import { WssManager } from "./wss/manager"
 import { getAuthManager } from "./auth/manager"
 import { getEnv } from "../../lib/env"
+import { createLogger } from "../../lib/logger"
+
+const liteServiceLog = createLogger("LiteService")
+
 
 export class LiteService {
   readonly http = new LiteHttpClient()
@@ -47,10 +51,10 @@ export class LiteService {
     const wssUrl = getEnv().MAIN_VITE_LITE_WSS_URL
     if (wssUrl) {
       await this.wss.connect().catch((err) => {
-        console.error("[LiteService] WSS 连接失败:", err)
+        liteServiceLog.error("WSS 连接失败:", err)
       })
     } else {
-      console.log("[LiteService] WSS URL 未配置，跳过 WSS 连接")
+      liteServiceLog.info("WSS URL 未配置，跳过 WSS 连接")
     }
   }
 

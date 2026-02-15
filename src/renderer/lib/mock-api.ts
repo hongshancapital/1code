@@ -5,6 +5,10 @@
 
 import { useMemo } from "react"
 import { trpc } from "./trpc"
+import { createLogger } from ".//logger"
+
+const log = createLogger("mockApi")
+
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFn = (...args: any[]) => any
@@ -82,7 +86,7 @@ export const api = {
                   }
                 })
               } catch {
-                console.warn(
+                log.warn(
                   "[mock-api] Failed to parse messages for subChat:",
                   sc.id,
                 )

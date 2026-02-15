@@ -2,6 +2,10 @@ import { useEffect, useState, useRef, memo, lazy, Suspense, useCallback } from "
 import { codeToHtml } from "shiki"
 import { cn } from "../../../lib/utils"
 import { Loader2 } from "lucide-react"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("textPreview")
+
 
 // Lazy load Monaco Editor to reduce initial bundle size
 const CodeEditor = lazy(() =>
@@ -300,7 +304,7 @@ const BasicTextPreview = memo(function BasicTextPreview({
           }
         }
       } catch (err) {
-        console.error("Syntax highlighting error:", err)
+        log.error("Syntax highlighting error:", err)
         if (!cancelled) {
           // Fallback to plain text
           setHighlightedLines(

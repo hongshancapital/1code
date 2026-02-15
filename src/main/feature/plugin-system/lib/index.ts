@@ -3,6 +3,10 @@ import type { Dirent } from "fs"
 import * as path from "path"
 import * as os from "os"
 import type { McpServerConfig } from "../../../lib/claude-config"
+import { createLogger } from "../../../lib/logger"
+
+const pluginsLog = createLogger("Plugins")
+
 
 export interface PluginInfo {
   name: string
@@ -156,7 +160,7 @@ async function discoverCliInstalledPlugins(): Promise<PluginInfo[]> {
     const data: InstalledPluginsJson = JSON.parse(content)
 
     if (data.version !== 2 || !data.plugins) {
-      console.log("[Plugins] installed_plugins.json: unsupported version or missing plugins")
+      pluginsLog.info("installed_plugins.json: unsupported version or missing plugins")
       return []
     }
 
@@ -166,7 +170,7 @@ async function discoverCliInstalledPlugins(): Promise<PluginInfo[]> {
       // pluginId format: "figma@claude-plugins-official"
       const atIndex = pluginId.lastIndexOf("@")
       if (atIndex === -1) {
-        console.log(`[Plugins] Skipping invalid plugin ID (no @): ${pluginId}`)
+        pluginsLog.info(`Skipping invalid plugin ID (no @): ${pluginId}`)
         continue
       }
 
@@ -205,7 +209,7 @@ async function discoverCliInstalledPlugins(): Promise<PluginInfo[]> {
             installSource: "cli",
           })
 
-          console.log(`[Plugins] Found CLI plugin: ${pluginId} at ${install.installPath}`)
+          pluginsLog.info(`Found CLI plugin: ${pluginId} at ${install.installPath}`)
           break // Only take the most recent installation
         } catch {
           // Directory doesn't exist, try next installation
@@ -217,7 +221,7 @@ async function discoverCliInstalledPlugins(): Promise<PluginInfo[]> {
   } catch (error) {
     // File doesn't exist or parse error - normal case
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.log("[Plugins] Error reading installed_plugins.json:", error)
+      pluginsLog.info("Error reading installed_plugins.json:", error)
     }
     return []
   }
@@ -243,7 +247,7 @@ export async function discoverInstalledPlugins(): Promise<PluginInfo[]> {
     discoverCliInstalledPlugins(),
   ])
 
-  console.log(
+  pluginsLog.info(
     `[Plugins] Found ${marketplacePlugins.length} marketplace plugins, ${cliPlugins.length} CLI plugins`
   )
 

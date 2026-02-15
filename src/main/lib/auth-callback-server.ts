@@ -8,6 +8,10 @@ import { handleMcpOAuthCallback } from "./mcp-auth"
 import { login as sensorsLogin } from "./sensors-analytics"
 import { AUTH_SERVER_PORT, OKTA_CALLBACK_PORT } from "../constants"
 import { getEnv } from "./env"
+import { createLogger } from ".//logger"
+
+const authLog = createLogger("Auth")
+
 
 // 嵌入 Tinker 时跳过 Hong 的 analytics（Tinker 有自己的 analytics）
 const isEmbeddedInTinker = process.env.HONG_EMBEDDED_IN_TINKER === "true"
@@ -66,13 +70,13 @@ export async function handleAuthCode(
 ): Promise<void> {
   const authManager = getAuthManager()
 
-  console.log("[Auth] Handling auth code:", code.slice(0, 8) + "...")
+  authLog.info("Handling auth code:", code.slice(0, 8) + "...")
   logAuthDebug(`Handling auth code: ${code.slice(0, 8)}...`)
   logAuthDebug(`PKCE state provider: ${authManager?.getPkceState()?.provider || "none"}`)
 
   try {
     const authData = await authManager!.exchangeCode(code)
-    console.log("[Auth] Success for user:", authData.user.email)
+    authLog.info("Success for user:", authData.user.email)
     logAuthDebug(`Success for user: ${authData.user.email}`)
 
     // Track successful authentication with Sensors (skip when embedded in Tinker)
@@ -99,17 +103,17 @@ export async function handleAuthCode(
           secure: baseUrl.startsWith("https"),
           sameSite: "lax" as const,
         })
-        console.log("[Auth] Desktop token cookie set")
+        authLog.info("Desktop token cookie set")
       } catch (cookieError) {
         // Cookie setting is optional - auth data is already saved to disk
-        console.warn("[Auth] Cookie set failed (non-critical):", cookieError)
+        authLog.warn("Cookie set failed (non-critical):", cookieError)
       }
     }
 
     // Notify caller to handle window updates
     handlers.onAuthSuccess(authData)
   } catch (error) {
-    console.error("[Auth] Exchange failed:", error)
+    authLog.error("Exchange failed:", error)
     logAuthDebug(`Exchange failed: ${(error as Error).message}`)
     logAuthDebug(`Error stack: ${(error as Error).stack}`)
 
@@ -124,7 +128,7 @@ let oktaServerListening = false
 // Start Okta callback server on-demand (before auth flow)
 export function startOktaServer(handlers: AuthCallbackHandlers): void {
   if (oktaServer && oktaServerListening) {
-    console.log("[Okta Callback] Server already running")
+    authLog.info("[Okta Callback] Server already running")
     return
   }
 
@@ -143,7 +147,7 @@ export function startOktaServer(handlers: AuthCallbackHandlers): void {
     if (url.pathname === "/implicit/callback") {
       const code = url.searchParams.get("code")
       const state = url.searchParams.get("state")
-      console.log(
+      authLog.info(
         "[Okta Callback] Received callback with code:",
         code?.slice(0, 8) + "...",
         "state:",
@@ -154,7 +158,7 @@ export function startOktaServer(handlers: AuthCallbackHandlers): void {
       const currentAuthManager = getAuthManager()
       const pkceState = currentAuthManager?.getPkceState()
       if (!pkceState) {
-        console.error("[Okta Callback] No PKCE state found - auth flow not started")
+        authLog.error("[Okta Callback] No PKCE state found - auth flow not started")
         res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
         res.end(`<!DOCTYPE html>
 <html>
@@ -179,7 +183,7 @@ export function startOktaServer(handlers: AuthCallbackHandlers): void {
       }
 
       if (state !== pkceState.state) {
-        console.error("[Okta Callback] State mismatch - possible CSRF attack")
+        authLog.error("[Okta Callback] State mismatch - possible CSRF attack")
         res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" })
         res.end(`<!DOCTYPE html>
 <html>
@@ -290,17 +294,17 @@ export function startOktaServer(handlers: AuthCallbackHandlers): void {
 
   oktaServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
-      console.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
-      console.warn(`[Okta Callback] Okta login may not work until port ${OKTA_CALLBACK_PORT} is available`)
+      authLog.warn(`[Okta Callback] Port ${OKTA_CALLBACK_PORT} is in use - another app may be using it`)
+      authLog.warn(`[Okta Callback] Okta login may not work until port ${OKTA_CALLBACK_PORT} is available`)
       oktaServerListening = false
     } else {
-      console.error("[Okta Callback] Server error:", err)
+      authLog.error("[Okta Callback] Server error:", err)
     }
   })
 
   oktaServer.listen(OKTA_CALLBACK_PORT, () => {
     oktaServerListening = true
-    console.log(`[Okta Callback] Server started on http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`)
+    authLog.info(`[Okta Callback] Server started on http://localhost:${OKTA_CALLBACK_PORT}/implicit/callback`)
   })
 }
 
@@ -308,7 +312,7 @@ export function startOktaServer(handlers: AuthCallbackHandlers): void {
 export function stopOktaServer(): void {
   if (oktaServer && oktaServerListening) {
     oktaServer.close(() => {
-      console.log("[Okta Callback] Server stopped")
+      authLog.info("[Okta Callback] Server stopped")
       oktaServerListening = false
       oktaServer = null
     })
@@ -333,7 +337,7 @@ export function startAuthCallbackServers(): { authServer: Server } {
       // Handle MCP OAuth callback
       const code = url.searchParams.get("code")
       const state = url.searchParams.get("state")
-      console.log(
+      authLog.info(
         "[Auth Server] Received MCP OAuth callback with code:",
         code?.slice(0, 8) + "...",
         "state:",
@@ -344,10 +348,10 @@ export function startAuthCallbackServers(): { authServer: Server } {
         // Handle the MCP OAuth callback and wait for completion
         handleMcpOAuthCallback(code, state)
           .then(() => {
-            console.log("[Auth Server] MCP OAuth callback completed successfully")
+            authLog.info("[Auth Server] MCP OAuth callback completed successfully")
           })
           .catch((error) => {
-            console.error("[Auth Server] MCP OAuth callback failed:", error)
+            authLog.error("[Auth Server] MCP OAuth callback failed:", error)
           })
 
         // Send success response and close the browser tab
@@ -423,7 +427,7 @@ export function startAuthCallbackServers(): { authServer: Server } {
   })
 
   authServer.listen(AUTH_SERVER_PORT, () => {
-    console.log(`[Auth Server] Listening on http://localhost:${AUTH_SERVER_PORT}`)
+    authLog.info(`[Auth Server] Listening on http://localhost:${AUTH_SERVER_PORT}`)
   })
 
   return { authServer }

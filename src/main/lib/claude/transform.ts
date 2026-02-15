@@ -4,6 +4,10 @@ import type {
   MessageMetadata,
   UIMessageChunk,
 } from "./types";
+import { createLogger } from "../logger";
+
+const log = createLogger("Transform");
+const transformLog = createLogger("TransformDetail");
 
 export function createTransformer(options?: {
   emitSdkMessageUuid?: boolean;
@@ -90,7 +94,7 @@ export function createTransformer(options?: {
         } catch (e) {
           // Stream may have been interrupted mid-JSON (e.g. network error, abort)
           // resulting in incomplete JSON like '{"prompt":"write co'
-          console.error(
+          log.error(
             "[transform] Failed to parse tool input JSON:",
             (e as Error).message,
             "partial:",
@@ -130,20 +134,20 @@ export function createTransformer(options?: {
   return function* transform(msg: any): Generator<UIMessageChunk> {
     // Debug: log ALL message types to understand what SDK sends
     if (isUsingOllama) {
-      console.log(
+      log.info(
         "[Ollama Transform] MSG:",
         msg.type,
         msg.subtype || "",
         msg.event?.type || "",
       );
       if (msg.type === "system") {
-        console.log(
+        log.info(
           "[Ollama Transform] SYSTEM message full:",
           JSON.stringify(msg, null, 2),
         );
       }
       if (msg.type === "stream_event") {
-        console.log(
+        log.info(
           "[Ollama Transform] STREAM_EVENT:",
           msg.event?.type,
           "content_block:",
@@ -151,20 +155,20 @@ export function createTransformer(options?: {
         );
       }
       if (msg.type === "assistant") {
-        console.log(
+        log.info(
           "[Ollama Transform] ASSISTANT message, content blocks:",
           msg.message?.content?.length || 0,
         );
       }
     } else {
-      console.log(
+      log.info(
         "[transform] MSG:",
         msg.type,
         msg.subtype || "",
         msg.event?.type || "",
       );
       if (msg.type === "system") {
-        console.log("[transform] SYSTEM message:", msg.subtype, msg);
+        transformLog.info("SYSTEM message:", msg.subtype, msg);
       }
     }
 
@@ -192,17 +196,17 @@ export function createTransformer(options?: {
       // for that specific API call (= current context window size).
       // The LAST one reflects the final context size.
       const msgUsage = msg.event?.message?.usage;
-      console.log("[transform] message_start usage:", JSON.stringify(msgUsage));
+      transformLog.info("message_start usage:", JSON.stringify(msgUsage));
       if (msgUsage?.input_tokens) {
         lastApiCallInputTokens = msgUsage.input_tokens;
-        console.log("[transform] Updated lastApiCallInputTokens:", lastApiCallInputTokens);
+        transformLog.info("Updated lastApiCallInputTokens:", lastApiCallInputTokens);
       }
     }
 
     // ===== STREAMING EVENTS (token-by-token) =====
     if (msg.type === "stream_event") {
       const event = msg.event;
-      console.log(
+      log.info(
         "[transform] stream_event:",
         event?.type,
         "delta:",
@@ -215,7 +219,7 @@ export function createTransformer(options?: {
         event?.type === "content_block_start" &&
         !event?.content_block?.type
       ) {
-        console.log(
+        log.info(
           "[transform] WARNING: content_block_start with no type, full event:",
           JSON.stringify(event),
         );
@@ -228,11 +232,11 @@ export function createTransformer(options?: {
         event.content_block?.type === "text"
       ) {
         if (isUsingOllama) {
-          console.log(
+          log.info(
             "[Ollama Transform] ✓ TEXT BLOCK START - Model is generating text!",
           );
         } else {
-          console.log("[transform] TEXT BLOCK START");
+          transformLog.info("TEXT BLOCK START");
         }
         yield* endTextBlock();
         yield* endToolInput();
@@ -240,12 +244,12 @@ export function createTransformer(options?: {
         yield { type: "text-start", id: textId };
         textStarted = true;
         if (isUsingOllama) {
-          console.log(
+          log.info(
             "[Ollama Transform] textStarted set to TRUE, textId:",
             textId,
           );
         } else {
-          console.log("[transform] textStarted set to TRUE, textId:", textId);
+          transformLog.info("textStarted set to TRUE, textId:", textId);
         }
       }
 
@@ -255,14 +259,14 @@ export function createTransformer(options?: {
         event.delta?.type === "text_delta"
       ) {
         if (isUsingOllama) {
-          console.log(
+          log.info(
             "[Ollama Transform] ✓ TEXT DELTA received, length:",
             event.delta.text?.length,
             "preview:",
             event.delta.text?.slice(0, 50),
           );
         } else {
-          console.log(
+          log.info(
             "[transform] TEXT DELTA, textStarted:",
             textStarted,
             "delta:",
@@ -285,12 +289,12 @@ export function createTransformer(options?: {
       // Content block stop
       if (event.type === "content_block_stop") {
         if (isUsingOllama) {
-          console.log(
+          log.info(
             "[Ollama Transform] CONTENT BLOCK STOP, textStarted:",
             textStarted,
           );
         } else {
-          console.log(
+          log.info(
             "[transform] CONTENT BLOCK STOP, textStarted:",
             textStarted,
           );
@@ -298,12 +302,12 @@ export function createTransformer(options?: {
         if (textStarted) {
           yield* endTextBlock();
           if (isUsingOllama) {
-            console.log(
+            log.info(
               "[Ollama Transform] Text block ended, textStarted now:",
               textStarted,
             );
           } else {
-            console.log(
+            log.info(
               "[transform] after endTextBlock, textStarted:",
               textStarted,
             );
@@ -403,7 +407,7 @@ export function createTransformer(options?: {
       // Anthropic API sends output_tokens in message_delta at the end of each response.
       if (event.type === "message_delta" && event.usage?.output_tokens) {
         lastApiCallOutputTokens = event.usage.output_tokens;
-        console.log("[transform] Updated lastApiCallOutputTokens:", lastApiCallOutputTokens);
+        transformLog.info("Updated lastApiCallOutputTokens:", lastApiCallOutputTokens);
       }
     }
 
@@ -440,7 +444,7 @@ export function createTransformer(options?: {
         }
 
         if (block.type === "text") {
-          console.log(
+          log.info(
             "[transform] ASSISTANT TEXT block, textStarted:",
             textStarted,
             "text length:",
@@ -451,7 +455,7 @@ export function createTransformer(options?: {
           // Only emit text if we're NOT already streaming (textStarted = false)
           // When includePartialMessages is true, text comes via stream_event
           if (!textStarted) {
-            console.log(
+            log.info(
               "[transform] EMITTING assistant text (textStarted was false)",
             );
             textId = genId();
@@ -462,7 +466,7 @@ export function createTransformer(options?: {
             lastTextId = textId;
             textId = null;
           } else {
-            console.log(
+            log.info(
               "[transform] SKIPPING assistant text (textStarted is true)",
             );
           }
@@ -475,7 +479,7 @@ export function createTransformer(options?: {
 
           // Skip if already emitted via streaming
           if (emittedToolIds.has(block.id)) {
-            console.log(
+            log.info(
               "[transform] SKIPPING duplicate tool_use (already emitted via streaming):",
               block.id,
             );
@@ -511,7 +515,7 @@ export function createTransformer(options?: {
       Array.isArray(msg.message.content)
     ) {
       // DEBUG: Log the message structure to understand tool_use_result
-      console.log("[Transform DEBUG] User message:", {
+      log.info("[Transform DEBUG] User message:", {
         tool_use_result: msg.tool_use_result,
         tool_use_result_type: typeof msg.tool_use_result,
         content_length: msg.message.content.length,
@@ -553,7 +557,7 @@ export function createTransformer(options?: {
             }
             output = output || block.content;
 
-            console.log("[Transform DEBUG] Tool output:", {
+            log.info("[Transform DEBUG] Tool output:", {
               tool_use_id: block.tool_use_id,
               compositeId,
               output_type: typeof output,
@@ -574,7 +578,7 @@ export function createTransformer(options?: {
             ) {
               // Get the original Bash command from our mapping
               const bashCommand = bashCommandMapping.get(block.tool_use_id);
-              console.log(
+              log.info(
                 "[Transform] Background task started:",
                 output.backgroundTaskId,
                 "command:",
@@ -619,7 +623,7 @@ export function createTransformer(options?: {
                   }
                 }
               }
-              console.log(
+              log.info(
                 "[Transform] Background task outputFile extraction:",
                 {
                   contentType: typeof block.content,
@@ -656,7 +660,7 @@ export function createTransformer(options?: {
     // ===== SYSTEM STATUS (compacting, etc.) =====
     if (msg.type === "system") {
       // Debug: log all system message subtypes
-      console.log(
+      log.info(
         "[transform] SYSTEM subtype:",
         msg.subtype,
         "full msg:",
@@ -665,7 +669,7 @@ export function createTransformer(options?: {
 
       // Session init - extract MCP servers, plugins, tools
       if (msg.subtype === "init") {
-        console.log("[MCP Transform] Received SDK init message:", {
+        log.info("[MCP Transform] Received SDK init message:", {
           tools: msg.tools?.length,
           mcp_servers: msg.mcp_servers,
           plugins: msg.plugins,
@@ -722,7 +726,7 @@ export function createTransformer(options?: {
       // Task notification - background task status update (completed/failed/stopped)
       // Note: SDKTaskNotificationMessage doesn't have shell_id, use task_id as shellId
       if (msg.subtype === "task_notification") {
-        console.log("[Transform] Task notification received:", {
+        transformLog.info("Task notification received:", {
           task_id: msg.task_id,
           status: msg.status,
           output_file: msg.output_file,
@@ -745,8 +749,8 @@ export function createTransformer(options?: {
       yield* endToolInput();
 
       // Debug: log the raw result message to understand token data structure
-      console.log("[transform] RESULT msg.usage:", JSON.stringify(msg.usage));
-      console.log(
+      transformLog.info("RESULT msg.usage:", JSON.stringify(msg.usage));
+      log.info(
         "[transform] RESULT msg.modelUsage:",
         JSON.stringify(msg.modelUsage),
       );
@@ -772,7 +776,7 @@ export function createTransformer(options?: {
           )
         : undefined;
 
-      console.log("[transform] Building metadata with lastCall tokens:", {
+      transformLog.info("Building metadata with lastCall tokens:", {
         lastApiCallInputTokens,
         lastApiCallOutputTokens,
         inputTokens,
@@ -796,7 +800,7 @@ export function createTransformer(options?: {
         lastCallInputTokens: lastApiCallInputTokens || undefined,
         lastCallOutputTokens: lastApiCallOutputTokens || undefined,
       };
-      console.log("[transform] Emitting message-metadata:", JSON.stringify(metadata));
+      transformLog.info("Emitting message-metadata:", JSON.stringify(metadata));
       yield { type: "message-metadata", messageMetadata: metadata };
       yield { type: "finish-step" };
       yield { type: "finish", messageMetadata: metadata };

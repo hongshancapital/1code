@@ -1,5 +1,9 @@
 import { eq } from "drizzle-orm"
 import { getDatabase, projects } from "../../../lib/db"
+import { createLogger } from "../../../lib/logger"
+
+const inboxLog = createLogger("Inbox")
+
 
 export const INBOX_PROJECT_ID = "inbox-special-project"
 
@@ -25,6 +29,6 @@ export async function ensureInboxProject(): Promise<void> {
       isPlayground: false,
     })
 
-    console.log("[Inbox] Created special inbox project")
+    inboxLog.info("Created special inbox project")
   }
 }

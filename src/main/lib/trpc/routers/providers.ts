@@ -19,6 +19,11 @@ import { getDatabase } from "../../db"
 import { modelProviders, cachedModels, anthropicAccounts, anthropicSettings } from "../../db/schema"
 import { createId } from "../../db/utils"
 import { getEnv } from "../../env"
+import { createLogger } from "../../logger"
+
+const anthropicLog = createLogger("Anthropic")
+const providersLog = createLogger("Providers")
+
 
 // ============ Encryption helpers ============
 
@@ -439,7 +444,7 @@ async function getAnthropicModels(): Promise<{ models: ModelInfo[]; error: strin
     })
 
     if (!response.ok) {
-      console.warn(`[Anthropic] API returned ${response.status}, using fallback models`)
+      anthropicLog.warn(`API returned ${response.status}, using fallback models`)
       return { models: ANTHROPIC_FALLBACK_MODELS, error: null }
     }
 
@@ -459,7 +464,7 @@ async function getAnthropicModels(): Promise<{ models: ModelInfo[]; error: strin
 
     return { models: models.length > 0 ? models : ANTHROPIC_FALLBACK_MODELS, error: null }
   } catch (error) {
-    console.warn("[Anthropic] Failed to fetch models, using fallback:", error)
+    anthropicLog.warn("Failed to fetch models, using fallback:", error)
     return { models: ANTHROPIC_FALLBACK_MODELS, error: null }
   }
 }
@@ -533,7 +538,7 @@ export const providersRouter = router({
           })
         }
       } catch (error) {
-        console.error("[Providers] Failed to query custom providers:", error)
+        providersLog.error("Failed to query custom providers:", error)
         // Continue with virtual providers (anthropic, litellm)
       }
 
@@ -579,12 +584,12 @@ export const providersRouter = router({
       if (provider.manualModels) {
         try {
           manualModels = JSON.parse(provider.manualModels)
-          console.log(`[Providers.get] Parsed manualModels for ${input.id}:`, manualModels)
+          anthropicLog.info(`[Providers.get] Parsed manualModels for ${input.id}:`, manualModels)
         } catch (e) {
-          console.error(`[Providers.get] Failed to parse manualModels for ${input.id}:`, e, provider.manualModels)
+          anthropicLog.error(`[Providers.get] Failed to parse manualModels for ${input.id}:`, e, provider.manualModels)
         }
       } else {
-        console.log(`[Providers.get] No manualModels for ${input.id}, raw value:`, provider.manualModels)
+        anthropicLog.info(`[Providers.get] No manualModels for ${input.id}, raw value:`, provider.manualModels)
       }
 
       return {
@@ -655,7 +660,7 @@ export const providersRouter = router({
       const id = createId()
 
       const manualModelsJson = hasManualModels ? JSON.stringify(input.manualModels) : null
-      console.log(`[Providers.addCustom] Saving provider ${input.name} with manualModels:`, manualModelsJson)
+      anthropicLog.info(`[Providers.addCustom] Saving provider ${input.name} with manualModels:`, manualModelsJson)
 
       db.insert(modelProviders)
         .values({
@@ -670,7 +675,7 @@ export const providersRouter = router({
         })
         .run()
 
-      console.log(`[Providers.addCustom] Provider ${id} saved successfully`)
+      anthropicLog.info(`[Providers.addCustom] Provider ${id} saved successfully`)
       return { success: true, id }
     }),
 
@@ -705,10 +710,10 @@ export const providersRouter = router({
       // null clears manual models, undefined keeps existing
       if (input.manualModels !== undefined) {
         updates.manualModels = input.manualModels ? JSON.stringify(input.manualModels) : null
-        console.log(`[Providers.updateCustom] Updating manualModels for ${input.id}:`, updates.manualModels)
+        anthropicLog.info(`[Providers.updateCustom] Updating manualModels for ${input.id}:`, updates.manualModels)
       }
 
-      console.log(`[Providers.updateCustom] Updating provider ${input.id} with:`, Object.keys(updates))
+      anthropicLog.info(`[Providers.updateCustom] Updating provider ${input.id} with:`, Object.keys(updates))
       db.update(modelProviders)
         .set(updates)
         .where(eq(modelProviders.id, input.id))
@@ -858,7 +863,7 @@ export const providersRouter = router({
 
       // If manual models are configured, use them directly (no API call needed)
       if (manualModels && manualModels.length > 0) {
-        console.log(`[Providers] Using manual models for ${input.providerId}:`, manualModels)
+        providersLog.info(`Using manual models for ${input.providerId}:`, manualModels)
         const models: ModelInfo[] = manualModels.map((id) => ({
           id,
           name: id,
@@ -987,7 +992,7 @@ export const providersRouter = router({
           error: null,
         }
       } catch (error) {
-        console.error(`[Providers] Failed to fetch models for ${input.providerId}:`, error)
+        providersLog.error(`Failed to fetch models for ${input.providerId}:`, error)
         return {
           models: [],
           defaultModelId: null,

@@ -12,6 +12,10 @@ import type {
   CliConfig,
   EnvironmentConfig,
 } from "./types"
+import { createLogger } from "../logger"
+
+const cliLog = createLogger("CLI")
+
 
 export class WindowsPlatformProvider extends BasePlatformProvider {
   readonly platform = "win32" as const
@@ -135,8 +139,8 @@ export class WindowsPlatformProvider extends BasePlatformProvider {
       // For terminal usage, users can manually add to PATH:
       // $env:Path += ";${installDir}"
 
-      console.log("[CLI] Installed hong command to", installPath)
-      console.log(
+      cliLog.info("Installed hong command to", installPath)
+      cliLog.info(
         "[CLI] To use from terminal, add to PATH:",
         `$env:Path += ";${installDir}"`
       )
@@ -148,7 +152,7 @@ export class WindowsPlatformProvider extends BasePlatformProvider {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Installation failed"
-      console.error("[CLI] Failed to install:", error)
+      cliLog.error("Failed to install:", error)
       return { success: false, error: errorMessage }
     }
   }
@@ -159,7 +163,7 @@ export class WindowsPlatformProvider extends BasePlatformProvider {
 
     try {
       if (!existsSync(installPath)) {
-        console.log("[CLI] CLI command not installed, nothing to uninstall")
+        cliLog.info("CLI command not installed, nothing to uninstall")
         return { success: true }
       }
 
@@ -172,12 +176,12 @@ export class WindowsPlatformProvider extends BasePlatformProvider {
         // Directory not empty or other error, that's okay
       }
 
-      console.log("[CLI] Uninstalled hong command")
+      cliLog.info("Uninstalled hong command")
       return { success: true }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Uninstallation failed"
-      console.error("[CLI] Failed to uninstall:", error)
+      cliLog.error("Failed to uninstall:", error)
       return { success: false, error: errorMessage }
     }
   }

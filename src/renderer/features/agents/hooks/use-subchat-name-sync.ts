@@ -17,6 +17,10 @@ import {
   confirmName,
 } from "../atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
+import { createLogger } from "../../../lib/logger"
+
+const activeChatLog = createLogger("active-chat")
+
 
 export interface UseSubChatNameSyncOptions {
   selectedTeamId: string | null
@@ -40,7 +44,7 @@ export function useSubChatNameSync({
   useEffect(() => {
     if (!window.desktopApi.onSubChatAINameReady) return
     const cleanup = window.desktopApi.onSubChatAINameReady((data) => {
-      console.log("[active-chat] AI name confirmed via IPC:", data)
+      activeChatLog.info("AI name confirmed via IPC:", data)
       // Confirm the name (stop shimmer) - this happens for both AI success and AI failure
       confirmName(setUnconfirmedNameSubChats, data.subChatId)
       // Update the sub-chat name in the store

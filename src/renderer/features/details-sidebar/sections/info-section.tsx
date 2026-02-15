@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { trpc } from "@/lib/trpc"
-import { preferredEditorAtom } from "@/lib/atoms"
+import { preferredEditorAtom, betaRenameFolderEnabledAtom } from "@/lib/atoms"
 import { APP_META } from "../../../../shared/external-apps"
 import { EDITOR_ICONS } from "@/lib/editor-icons"
 import { toast } from "sonner"
@@ -256,6 +256,9 @@ export const InfoSection = memo(function InfoSection({
     },
   })
 
+  // Beta: rename folder feature flag
+  const betaRenameFolderEnabled = useAtomValue(betaRenameFolderEnabledAtom)
+
   // Get preferred editor from settings
   const preferredEditor = useAtomValue(preferredEditorAtom)
 
@@ -407,7 +410,7 @@ export const InfoSection = memo(function InfoSection({
                   className="h-6 w-6 shrink-0"
                   onClick={() => setIsEditingBranch(true)}
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">
@@ -432,7 +435,7 @@ export const InfoSection = memo(function InfoSection({
       {worktreePath && !isPlayground && (
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            {isEditingPath ? (
+            {betaRenameFolderEnabled && isEditingPath ? (
               <InlineEdit
                 currentValue={folderName}
                 onSubmit={(newName) => {
@@ -475,21 +478,23 @@ export const InfoSection = memo(function InfoSection({
                   {t("details.workspace.openIn", { editor: editorLabel })}
                 </TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 shrink-0"
-                    onClick={() => setIsEditingPath(true)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs">
-                  {t("details.workspace.renameFolder")}
-                </TooltipContent>
-              </Tooltip>
+              {betaRenameFolderEnabled && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() => setIsEditingPath(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    {t("details.workspace.renameFolder")}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </>
           )}
         </div>

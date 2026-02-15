@@ -40,6 +40,10 @@ import {
   SelectGroup,
 } from "../../../components/ui/select"
 import { Switch } from "../../../components/ui/switch"
+import { createLogger } from "../../../lib/logger"
+
+const appearanceTabLog = createLogger("appearance-tab")
+
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -191,7 +195,7 @@ export function AgentsAppearanceTab() {
                 source: "imported" as const,
               } as VSCodeFullTheme
             } catch (err) {
-              console.error("[appearance-tab] Failed to load theme:", theme.name, err)
+              appearanceTabLog.error("Failed to load theme:", theme.name, err)
               return null
             }
           })
@@ -201,7 +205,7 @@ export function AgentsAppearanceTab() {
         const validThemes = loadedThemes.filter((t): t is VSCodeFullTheme => t !== null)
         setImportedThemes(validThemes)
       } catch (error) {
-        console.error("Failed to load VS Code themes:", error)
+        appearanceTabLog.error("Failed to load VS Code themes:", error)
       } finally {
         setIsScanning(false)
       }

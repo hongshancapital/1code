@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import { trpc } from "../../../../lib/trpc";
 import { appStore } from "../../../../lib/jotai-store";
 import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../../lib/atoms";
+import { createLogger } from "../../../../lib/logger"
+
+const commitActionsLog = createLogger("CommitActions")
+
 
 interface CommitActionInput {
 	message?: string;
@@ -69,7 +73,7 @@ export function useCommitActions({
 					commitMessage = result.message;
 					onMessageGenerated?.(result.message);
 				} catch (error) {
-					console.error("[CommitActions] Failed to generate message:", error);
+					commitActionsLog.error("Failed to generate message:", error);
 					toast.error("Failed to generate commit message");
 					return false;
 				} finally {

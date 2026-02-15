@@ -8,6 +8,10 @@ import YAML from "yaml"
 import { app } from "electron"
 import { getMergedSettings, getEnabledPlugins } from "../../../lib/trpc/routers/claude-settings"
 import { discoverInstalledPlugins, getPluginComponentPaths } from "../lib"
+import { createLogger } from "../../../lib/logger"
+
+const skillsLog = createLogger("skills")
+
 
 // Interface configuration from hong.yaml
 export interface SkillInterfaceConfig {
@@ -61,7 +65,7 @@ function parseSkillMd(rawContent: string): { name?: string; description?: string
       content: content.trim(),
     }
   } catch (err) {
-    console.error("[skills] Failed to parse frontmatter:", err)
+    skillsLog.error("Failed to parse frontmatter:", err)
     return { content: rawContent.trim() }
   }
 }
@@ -147,7 +151,7 @@ async function walkDirectory(
       }
     }
   } catch (err) {
-    console.error(`[skills] Failed to walk directory ${dirPath}:`, err)
+    skillsLog.error(`Failed to walk directory ${dirPath}:`, err)
   }
 
   return files
@@ -182,7 +186,7 @@ async function scanSkillContents(skillDir: string): Promise<SkillDirectory[]> {
       }
     }
   } catch (err) {
-    console.error(`[skills] Failed to scan skill contents ${skillDir}:`, err)
+    skillsLog.error(`Failed to scan skill contents ${skillDir}:`, err)
   }
 
   return directories.sort((a, b) => a.name.localeCompare(b.name))
@@ -241,7 +245,7 @@ async function scanSkillsDirectory(
 
       // Validate entry name for security (prevent path traversal)
       if (entry.name.includes("..") || entry.name.includes("/") || entry.name.includes("\\")) {
-        console.warn(`[skills] Skipping invalid directory name: ${entry.name}`)
+        skillsLog.warn(`Skipping invalid directory name: ${entry.name}`)
         continue
       }
 
@@ -313,7 +317,7 @@ async function scanSkillsDirectory(
       }
     }
   } catch (err) {
-    console.error(`[skills] Failed to scan directory ${dir}:`, err)
+    skillsLog.error(`Failed to scan directory ${dir}:`, err)
   }
 
   return skills

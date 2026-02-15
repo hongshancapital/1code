@@ -17,6 +17,10 @@ import {
 } from "../../../components/ui/tooltip"
 import { cn } from "../../../lib/utils"
 import { useStreamingStatusStore } from "../stores/streaming-status-store"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("chatUtils")
+
 
 // =============================================================================
 // Helper Functions
@@ -48,7 +52,7 @@ export function waitForStreamingReady(subChatId: string): Promise<void> {
     }
 
     const timeout = setTimeout(() => {
-      console.warn(
+      log.warn(
         `[waitForStreamingReady] Timed out after ${STREAMING_READY_TIMEOUT_MS}ms for subChat ${subChatId.slice(-8)}, proceeding anyway`
       )
       unsub()

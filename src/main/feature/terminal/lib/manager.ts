@@ -7,6 +7,10 @@ import type {
 	SessionResult,
 	TerminalSession,
 } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("manager")
+
 
 export class TerminalManager extends EventEmitter {
 	private sessions = new Map<string, TerminalSession>()
@@ -86,7 +90,7 @@ export class TerminalManager extends EventEmitter {
 				sessionDuration < SHELL_CRASH_THRESHOLD_MS && exitCode !== 0
 
 			if (crashedQuickly && !session.usedFallback) {
-				console.warn(
+				log.warn(
 					`[TerminalManager] Shell "${session.shell}" exited with code ${exitCode} after ${sessionDuration}ms, retrying with fallback shell "${FALLBACK_SHELL}"`,
 				)
 
@@ -99,7 +103,7 @@ export class TerminalManager extends EventEmitter {
 					})
 					return // Recovered - don't emit exit
 				} catch (fallbackError) {
-					console.error(
+					log.error(
 						"[TerminalManager] Fallback shell also failed:",
 						fallbackError,
 					)
@@ -141,7 +145,7 @@ export class TerminalManager extends EventEmitter {
 			cols <= 0 ||
 			rows <= 0
 		) {
-			console.warn(
+			log.warn(
 				`[TerminalManager] Invalid resize geometry for ${paneId}: cols=${cols}, rows=${rows}. Must be positive integers.`,
 			)
 			return
@@ -150,7 +154,7 @@ export class TerminalManager extends EventEmitter {
 		const session = this.sessions.get(paneId)
 
 		if (!session || !session.isAlive) {
-			console.warn(
+			log.warn(
 				`Cannot resize terminal ${paneId}: session not found or not alive`,
 			)
 			return
@@ -162,7 +166,7 @@ export class TerminalManager extends EventEmitter {
 			session.rows = rows
 			session.lastActive = Date.now()
 		} catch (error) {
-			console.error(
+			log.error(
 				`[TerminalManager] Failed to resize terminal ${paneId} (cols=${cols}, rows=${rows}):`,
 				error,
 			)
@@ -174,7 +178,7 @@ export class TerminalManager extends EventEmitter {
 		const session = this.sessions.get(paneId)
 
 		if (!session || !session.isAlive) {
-			console.warn(
+			log.warn(
 				`Cannot signal terminal ${paneId}: session not found or not alive`,
 			)
 			return
@@ -189,7 +193,7 @@ export class TerminalManager extends EventEmitter {
 		const session = this.sessions.get(paneId)
 
 		if (!session) {
-			console.warn(`Cannot kill terminal ${paneId}: session not found`)
+			log.warn(`Cannot kill terminal ${paneId}: session not found`)
 			return
 		}
 
@@ -205,7 +209,7 @@ export class TerminalManager extends EventEmitter {
 		const session = this.sessions.get(paneId)
 
 		if (!session) {
-			console.warn(`Cannot detach terminal ${paneId}: session not found`)
+			log.warn(`Cannot detach terminal ${paneId}: session not found`)
 			return
 		}
 
@@ -220,7 +224,7 @@ export class TerminalManager extends EventEmitter {
 		const session = this.sessions.get(paneId)
 
 		if (!session) {
-			console.warn(
+			log.warn(
 				`Cannot clear scrollback for terminal ${paneId}: session not found`,
 			)
 			return
@@ -299,14 +303,14 @@ export class TerminalManager extends EventEmitter {
 				try {
 					session.pty.kill("SIGKILL")
 				} catch (error) {
-					console.error(`Failed to send SIGKILL to terminal ${paneId}:`, error)
+					log.error(`Failed to send SIGKILL to terminal ${paneId}:`, error)
 				}
 
 				// Force cleanup after another 500ms
 				sigkillTimeout = setTimeout(() => {
 					if (resolved) return
 					if (session.isAlive) {
-						console.error(
+						log.error(
 							`Terminal ${paneId} did not exit after SIGKILL, forcing cleanup`,
 						)
 						session.isAlive = false
@@ -322,7 +326,7 @@ export class TerminalManager extends EventEmitter {
 			try {
 				session.pty.kill()
 			} catch (error) {
-				console.error(`Failed to send SIGTERM to terminal ${paneId}:`, error)
+				log.error(`Failed to send SIGTERM to terminal ${paneId}:`, error)
 				session.isAlive = false
 				this.sessions.delete(paneId)
 				cleanup(false)
@@ -346,7 +350,7 @@ export class TerminalManager extends EventEmitter {
 				try {
 					session.pty.write("\n")
 				} catch (error) {
-					console.warn(
+					log.warn(
 						`[TerminalManager] Failed to refresh prompt for pane ${paneId}:`,
 						error,
 					)

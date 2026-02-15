@@ -19,6 +19,10 @@ import { setSummaryModelConfig } from "./lib/summarizer"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
 import { eq, desc } from "drizzle-orm"
 import { memoryRouter } from "./router"
+import { createLogger } from "../../lib/logger"
+
+const memoryLog = createLogger("Memory")
+
 
 class MemoryExtension implements ExtensionModule {
   name = "memory" as const
@@ -233,7 +237,7 @@ async function buildMemoryContext(
             narrative: r.excerpt,
           }))
       } catch (searchErr) {
-        console.warn(
+        memoryLog.warn(
           "[Memory] Hybrid search failed, using recent:",
           searchErr,
         )
@@ -299,7 +303,7 @@ async function buildMemoryContext(
       return `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
     }
   } catch (err) {
-    console.error("[Memory] Failed to generate context:", err)
+    memoryLog.error("Failed to generate context:", err)
   }
   return undefined
 }

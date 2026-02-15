@@ -93,6 +93,11 @@ import {
 import { getResolvedHotkey } from "../../../lib/hotkeys"
 import { customHotkeysAtom } from "../../../lib/atoms"
 import { useTranslation } from "react-i18next"
+import { createLogger } from "../../../lib/logger"
+
+const voiceInputLog = createLogger("VoiceInput")
+const handleDropLog = createLogger("handleDrop")
+
 
 // Hook to get available models (including offline models if Ollama is available and debug enabled)
 function useAvailableModels() {
@@ -550,7 +555,7 @@ export const ChatInputArea = memo(function ChatInputArea({
   // Debug: log selected Ollama model
   useEffect(() => {
     if (availableModels.isOffline) {
-      console.log(`[Ollama UI] selectedOllamaModel atom value: ${selectedOllamaModel || "(null)"}, currentOllamaModel: ${currentOllamaModel}`)
+      voiceInputLog.info(`[Ollama UI] selectedOllamaModel atom value: ${selectedOllamaModel || "(null)"}, currentOllamaModel: ${currentOllamaModel}`)
     }
   }, [selectedOllamaModel, currentOllamaModel, availableModels.isOffline])
 
@@ -584,14 +589,14 @@ export const ChatInputArea = memo(function ChatInputArea({
     onError: (error, variables) => {
       // Don't revert if sub-chat not found in DB - it may not be persisted yet
       if (error.message === "Sub-chat not found") {
-        console.warn("Sub-chat not found in DB, keeping local mode state")
+        voiceInputLog.warn("Sub-chat not found in DB, keeping local mode state")
         return
       }
       // Revert local state on error
       const revertedMode: AgentMode = variables.mode === "plan" ? "agent" : "plan"
       setSubChatMode(revertedMode)
       useAgentSubChatStore.getState().updateSubChatMode(variables.id, revertedMode)
-      console.error("Failed to update sub-chat mode:", error.message)
+      voiceInputLog.error("Failed to update sub-chat mode:", error.message)
     },
   })
 
@@ -650,7 +655,7 @@ export const ChatInputArea = memo(function ChatInputArea({
         const base64 = await blobToBase64(audioBlob)
         const format = getAudioFormat(audioBlob.type)
 
-        console.log("[VoiceInput] Sending interim audio, size:", totalSize)
+        voiceInputLog.info("Sending interim audio, size:", totalSize)
 
         // Use trpcClient for interim transcription (mutation)
         const result = await trpcClient.voice.transcribe.mutate({
@@ -659,16 +664,16 @@ export const ChatInputArea = memo(function ChatInputArea({
           modelId: "tiny",
         })
 
-        console.log("[VoiceInput] Interim result:", result)
+        voiceInputLog.info("Interim result:", result)
 
         if (result?.text && voiceMountedRef.current) {
           const text = result.text.trim()
-          console.log("[VoiceInput] Interim transcript:", text)
+          voiceInputLog.info("Interim transcript:", text)
           setInterimTranscript(text)
         }
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
-          console.warn("[VoiceInput] Interim transcription error:", err)
+          voiceInputLog.warn("Interim transcription error:", err)
         }
       } finally {
         isInterimTranscribingRef.current = false
@@ -781,7 +786,7 @@ export const ChatInputArea = memo(function ChatInputArea({
     try {
       await startVoiceRecording()
     } catch (err) {
-      console.error("[VoiceInput] Failed to start recording:", err)
+      voiceInputLog.error("Failed to start recording:", err)
     }
   }, [isStreaming, isTranscribing, isVoiceRecording, startVoiceRecording])
 
@@ -796,7 +801,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
       // Don't transcribe very short recordings (likely accidental clicks)
       if (blob.size < 1000) {
-        console.log("[VoiceInput] Recording too short, ignoring")
+        voiceInputLog.info("Recording too short, ignoring")
         return
       }
 
@@ -846,7 +851,7 @@ export const ChatInputArea = memo(function ChatInputArea({
         editorRef.current?.focus()
       }
     } catch (err) {
-      console.error("[VoiceInput] Transcription failed:", err)
+      voiceInputLog.error("Transcription failed:", err)
     } finally {
       if (voiceMountedRef.current) {
         setIsTranscribing(false)
@@ -1261,7 +1266,7 @@ export const ChatInputArea = memo(function ChatInputArea({
             onCacheFileContent?.(mentionId, content)
           } catch (err) {
             // If reading fails, chip is still there - agent can try to read via path
-            console.error(`[handleDrop] Failed to read file content ${filePath}:`, err)
+            handleDropLog.error(`Failed to read file content ${filePath}:`, err)
           }
         } else {
           // For binary files, large files - add as mention only
@@ -1621,7 +1626,7 @@ export const ChatInputArea = memo(function ChatInputArea({
                             <DropdownMenuItem
                               key={model}
                               onClick={() => {
-                                console.log(`[Ollama UI] Setting selected model: ${model}`)
+                                voiceInputLog.info(`[Ollama UI] Setting selected model: ${model}`)
                                 setSelectedOllamaModel(model)
                               }}
                               className="gap-2 justify-between"

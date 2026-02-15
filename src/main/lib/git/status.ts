@@ -10,6 +10,11 @@ import {
 	parseNameStatus,
 } from "./utils/parse-status";
 import { gitCache } from "./cache";
+import { createLogger } from "../logger"
+
+const getStatusLog = createLogger("getStatus")
+const getCommitFilesLog = createLogger("getCommitFiles")
+
 
 export const createStatusRouter = () => {
 	return router({
@@ -26,11 +31,11 @@ export const createStatusRouter = () => {
 				// Check cache first
 				const cached = gitCache.getStatus<GitChangesStatus>(input.worktreePath);
 				if (cached) {
-					console.log("[getStatus] Cache hit for:", input.worktreePath);
+					getStatusLog.info("Cache hit for:", input.worktreePath);
 					return cached;
 				}
 
-				console.log("[getStatus] Cache miss, fetching:", input.worktreePath);
+				getStatusLog.info("Cache miss, fetching:", input.worktreePath);
 				const git = simpleGit(input.worktreePath);
 				const defaultBranch = input.defaultBranch || "main";
 
@@ -72,7 +77,7 @@ export const createStatusRouter = () => {
 				// Store in cache
 				gitCache.setStatus(input.worktreePath, result);
 
-				console.log("[getStatus] Cached and returning:", {
+				getStatusLog.info("Cached and returning:", {
 					branch: result.branch,
 					stagedCount: result.staged.length,
 					unstagedCount: result.unstaged.length,
@@ -90,14 +95,14 @@ export const createStatusRouter = () => {
 				}),
 			)
 			.query(async ({ input }): Promise<ChangedFile[]> => {
-				console.log("[getCommitFiles] START:", {
+				getCommitFilesLog.info("START:", {
 					worktreePath: input.worktreePath,
 					commitHash: input.commitHash,
 				});
 
 				try {
 					assertRegisteredWorktree(input.worktreePath);
-					console.log("[getCommitFiles] Worktree validated");
+					getCommitFilesLog.info("Worktree validated");
 
 					const git = simpleGit(input.worktreePath);
 
@@ -109,13 +114,13 @@ export const createStatusRouter = () => {
 						input.commitHash,
 					]);
 
-					console.log("[getCommitFiles] diff-tree output:", {
+					getCommitFilesLog.info("diff-tree output:", {
 						length: nameStatus.length,
 						output: nameStatus.substring(0, 500), // First 500 chars
 					});
 
 					const files = parseNameStatus(nameStatus);
-					console.log("[getCommitFiles] Parsed files:", {
+					getCommitFilesLog.info("Parsed files:", {
 						count: files.length,
 						files: files.map((f) => ({ path: f.path, status: f.status })),
 					});
@@ -128,10 +133,10 @@ export const createStatusRouter = () => {
 						input.commitHash,
 					]);
 
-					console.log("[getCommitFiles] SUCCESS:", { filesCount: files.length });
+					getCommitFilesLog.info("SUCCESS:", { filesCount: files.length });
 					return files;
 				} catch (error) {
-					console.error("[getCommitFiles] ERROR:", {
+					getCommitFilesLog.error("ERROR:", {
 						error: error instanceof Error ? error.message : String(error),
 						stack: error instanceof Error ? error.stack : undefined,
 						worktreePath: input.worktreePath,

@@ -9,6 +9,10 @@ import { Textarea } from "../../ui/textarea"
 import { IconSpinner } from "../../../icons"
 import { toast } from "sonner"
 import { userPersonalizationAtom } from "../../../lib/atoms"
+import { createLogger } from "../../../lib/logger"
+
+const profileLog = createLogger("Profile")
+
 
 // Hook to detect narrow screen
 function useIsNarrowScreen(): boolean {
@@ -54,7 +58,7 @@ export function AgentsProfileTab() {
 
     // Skip if recently refreshed (unless forced)
     if (!force && lastRefreshTime && now - lastRefreshTime < REFRESH_CACHE_MS) {
-      console.log("[Profile] Skipping refresh, cache still valid")
+      profileLog.info("Skipping refresh, cache still valid")
       return false
     }
 
@@ -97,7 +101,7 @@ export function AgentsProfileTab() {
         toast.success("Profile refreshed")
       }
     } catch (error) {
-      console.error("Failed to refresh profile:", error)
+      profileLog.error("Failed to refresh profile:", error)
       toast.error("Failed to refresh profile")
     } finally {
       setIsRefreshing(false)
@@ -117,7 +121,7 @@ export function AgentsProfileTab() {
         }
       }
     } catch (error) {
-      console.error("Error updating profile:", error)
+      profileLog.error("Error updating profile:", error)
       toast.error(
         error instanceof Error ? error.message : "Failed to update profile"
       )

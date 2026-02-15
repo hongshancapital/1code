@@ -13,6 +13,10 @@ import {
   MENTION_PREFIXES,
   sortByRelevance,
 } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const toolsProviderLog = createLogger("ToolsProvider")
+
 
 /**
  * Data payload for MCP server mentions
@@ -120,7 +124,7 @@ export const toolsProvider = createMentionProvider<ToolData>({
         timing,
       }
     } catch (error) {
-      console.error("[ToolsProvider] Search error:", error)
+      toolsProviderLog.error("Search error:", error)
       return {
         items: [],
         hasMore: false,
@@ -173,7 +177,7 @@ export const toolsProvider = createMentionProvider<ToolData>({
         metadata: { type: "tool" },
       }
     } catch (error) {
-      console.warn(`[ToolsProvider] Failed to deserialize token: ${token}`, error)
+      toolsProviderLog.warn(`Failed to deserialize token: ${token}`, error)
       return null
     }
   },

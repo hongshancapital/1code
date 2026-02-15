@@ -28,6 +28,10 @@ import type {
   UpdateMarketplaceResult,
 } from "./marketplace-types"
 import { clearPluginCache } from "./index"
+import { createLogger } from "../../../lib/logger"
+
+const marketplaceLog = createLogger("Marketplace")
+
 
 /**
  * Ensure the marketplaces directory exists
@@ -98,7 +102,7 @@ export async function cloneMarketplace(
     }
     cloneArgs.push("--depth", "1") // Shallow clone for faster download
 
-    console.log(`[Marketplace] Cloning ${gitUrl} to ${localPath}...`)
+    marketplaceLog.info(`Cloning ${gitUrl} to ${localPath}...`)
     await git.clone(gitUrl, marketplaceName, cloneArgs)
 
     // Validate the cloned repo
@@ -130,7 +134,7 @@ export async function cloneMarketplace(
     // Clear plugin cache to pick up new plugins
     clearPluginCache()
 
-    console.log(`[Marketplace] Successfully cloned ${marketplaceName}`)
+    marketplaceLog.info(`Successfully cloned ${marketplaceName}`)
     return { success: true, marketplace: config }
   } catch (error) {
     // Clean up on failure
@@ -205,7 +209,7 @@ export async function pullMarketplace(
     const git = createGitForNetwork(localPath)
 
     await withGitLock(localPath, async () => {
-      console.log(`[Marketplace] Pulling updates for ${name}...`)
+      marketplaceLog.info(`Pulling updates for ${name}...`)
       await git.pull()
     })
 
@@ -216,7 +220,7 @@ export async function pullMarketplace(
     // Clear plugin cache
     clearPluginCache()
 
-    console.log(`[Marketplace] Successfully updated ${name}`)
+    marketplaceLog.info(`Successfully updated ${name}`)
     return { success: true, updatedAt }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -241,19 +245,19 @@ export async function deleteMarketplace(
     // Remove from config first
     const removed = await removeMarketplaceConfig(name)
     if (!removed) {
-      console.log(`[Marketplace] ${name} not found in config`)
+      marketplaceLog.info(`${name} not found in config`)
     }
 
     // Remove local directory
     if (await marketplaceExistsLocally(name)) {
-      console.log(`[Marketplace] Removing ${localPath}...`)
+      marketplaceLog.info(`Removing ${localPath}...`)
       await fs.rm(localPath, { recursive: true, force: true })
     }
 
     // Clear plugin cache
     clearPluginCache()
 
-    console.log(`[Marketplace] Successfully removed ${name}`)
+    marketplaceLog.info(`Successfully removed ${name}`)
     return { success: true }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
@@ -276,7 +280,7 @@ export async function initializeOfficialMarketplace(): Promise<AddMarketplaceRes
       lastUpdatedAt: new Date().toISOString(),
     }
     await addMarketplaceConfig(config)
-    console.log(`[Marketplace] Official marketplace already exists, added to config`)
+    marketplaceLog.info(`Official marketplace already exists, added to config`)
     return {
       success: true,
       marketplace: config,
@@ -340,7 +344,7 @@ export async function syncExistingMarketplaces(): Promise<void> {
           isOfficial,
         }
         await addMarketplaceConfig(config)
-        console.log(`[Marketplace] Synced existing marketplace: ${entry.name}`)
+        marketplaceLog.info(`Synced existing marketplace: ${entry.name}`)
       }
     }
   } catch {
@@ -362,7 +366,7 @@ export async function initializeKnowledgeWorkMarketplace(): Promise<AddMarketpla
       lastUpdatedAt: new Date().toISOString(),
     }
     await addMarketplaceConfig(config)
-    console.log(`[Marketplace] Knowledge Work marketplace already exists, added to config`)
+    marketplaceLog.info(`Knowledge Work marketplace already exists, added to config`)
     return {
       success: true,
       marketplace: config,

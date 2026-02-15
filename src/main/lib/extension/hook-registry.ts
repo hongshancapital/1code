@@ -16,6 +16,9 @@ import type {
   HookResult,
   IHookRegistry,
 } from "./types"
+import { createLogger } from "../logger"
+
+const hookRegistryLog = createLogger("HookRegistry")
 
 interface RegisteredHandler {
   handler: HookHandler<keyof HookMap>
@@ -124,7 +127,7 @@ export class HookRegistry implements IHookRegistry {
     )
     for (const r of results) {
       if (r.status === "rejected") {
-        console.error(`[HookRegistry] emit "${hookName}" handler 错误:`, r.reason)
+        hookRegistryLog.error(`emit "${hookName}" handler 错误:`, r.reason)
       }
     }
   }
@@ -147,7 +150,7 @@ export class HookRegistry implements IHookRegistry {
           collected.push(r.value)
         }
       } else if (r.status === "rejected") {
-        console.error(
+        hookRegistryLog.error(
           `[HookRegistry] collect "${hookName}" handler 错误:`,
           r.reason,
         )
@@ -169,7 +172,7 @@ export class HookRegistry implements IHookRegistry {
           (h.handler as (i: unknown) => unknown)(current),
         )
       } catch (err) {
-        console.error(
+        hookRegistryLog.error(
           `[HookRegistry] waterfall "${hookName}" handler 错误（中断管道）:`,
           err,
         )

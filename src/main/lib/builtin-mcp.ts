@@ -9,6 +9,10 @@
 import { type AuthManager, getAzureAuthHeaders } from "../auth-manager"
 import { getEnv, getApiOrigin } from "./env"
 import { BROWSER_USER_AGENT } from "./constants"
+import { createLogger } from ".//logger"
+
+const log = createLogger("builtinMcp")
+
 
 // API base URL from validated environment (returns undefined in no-auth mode)
 function getApiBaseUrl(): string | undefined {
@@ -45,13 +49,13 @@ export async function getBuiltinMcpConfig(
   const token = await authManager.getValidToken()
 
   if (!token) {
-    console.log("[Builtin MCP] No auth token available, skipping built-in MCP")
+    log.info("[Builtin MCP] No auth token available, skipping built-in MCP")
     return null
   }
 
   const apiUrl = getApiBaseUrl()
   if (!apiUrl) {
-    console.log("[Builtin MCP] API URL not configured, skipping built-in MCP")
+    log.info("[Builtin MCP] API URL not configured, skipping built-in MCP")
     return null
   }
 
@@ -103,7 +107,7 @@ export async function injectBuiltinMcp(
     ...mcpServers,
   }
 
-  console.log(`[Builtin MCP] Injected ${BUILTIN_MCP_NAME} MCP server`)
+  log.info(`[Builtin MCP] Injected ${BUILTIN_MCP_NAME} MCP server`)
   return result
 }
 

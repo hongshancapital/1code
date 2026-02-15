@@ -8,6 +8,10 @@ import { z } from "zod"
 import * as fs from "fs"
 import * as path from "path"
 import { BrowserWindow } from "electron"
+import { createLogger } from "../logger"
+
+const artifactMcpLog = createLogger("ArtifactMcp")
+
 
 // Dynamic import for ESM module
 let sdkModule: typeof import("@anthropic-ai/claude-agent-sdk") | null = null
@@ -67,7 +71,7 @@ function writeArtifacts(filePath: string, artifacts: StoredArtifact[]): void {
     }
     fs.writeFileSync(filePath, JSON.stringify(artifacts, null, 2), "utf-8")
   } catch (e) {
-    console.error("[ArtifactMcp] Failed to write artifacts:", e)
+    artifactMcpLog.error("Failed to write artifacts:", e)
   }
 }
 
@@ -154,7 +158,7 @@ Call: mark_artifact(file_path="/path/to/report.pdf", description="Monthly Report
             })
           })
 
-          console.log(`[ArtifactMcp] Marked artifact: ${file_path} contexts=${contexts.length}`)
+          artifactMcpLog.info(`Marked artifact: ${file_path} contexts=${contexts.length}`)
 
           return {
             content: [

@@ -1086,7 +1086,7 @@ export function getWebviewScript(): string {
     return { success: true, data: { requests: results, total: total, capturing: capture.active, returned: results.length } };
   };
 
-  console.log('[Browser] Webview script initialized');
+  browserLog.info('Webview script initialized');
 })();
 `;
 }

@@ -14,6 +14,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { mentionSearchEngine } from "../search"
 import type { MentionItem, AggregatedSearchResult } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const useMentionSearchLog = createLogger("useMentionSearch")
+
 
 /**
  * Debounce delay before starting search
@@ -266,7 +270,7 @@ export function useMentionSearch(
         // Don't update state if unmounted
         if (!mountedRef.current) return
 
-        console.error("[useMentionSearch] Error:", err)
+        useMentionSearchLog.error("Error:", err)
         setError(err instanceof Error ? err.message : "Search failed")
         // Don't clear result on error - keep stale data visible
       }

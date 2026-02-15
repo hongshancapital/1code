@@ -20,6 +20,10 @@ import type {
   AggregatedSearchResult,
 } from "../types"
 import { sortByRelevance } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const searchEngineLog = createLogger("SearchEngine")
+
 
 /**
  * Default search options
@@ -162,7 +166,7 @@ export class MentionSearchEngine {
       if (error instanceof Error && error.name === "AbortError") {
         return { items: [], hasMore: false }
       }
-      console.error(`[SearchEngine] Provider "${provider.id}" error:`, error)
+      searchEngineLog.error(`Provider "${provider.id}" error:`, error)
       return {
         items: [],
         hasMore: false,

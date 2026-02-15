@@ -2,6 +2,10 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import { app } from "electron"
+import { createLogger } from "../logger"
+
+const skillManagerLog = createLogger("SkillManager")
+
 
 /**
  * Metadata stored in .hong marker file (JSON format)
@@ -73,7 +77,7 @@ export class SkillManager {
     const targetDir = path.join(this.userSkillsDir, installedDirName)
 
     if (!(await this.isHongManaged(targetDir))) {
-      console.warn(`[SkillManager] Refusing to uninstall non-managed skill: ${installedDirName}`)
+      skillManagerLog.warn(`Refusing to uninstall non-managed skill: ${installedDirName}`)
       return
     }
 
@@ -96,7 +100,7 @@ export class SkillManager {
     try {
       await fs.access(builtinSkillsDir)
     } catch {
-      console.log("[SkillManager] No builtin skills directory found")
+      skillManagerLog.info("No builtin skills directory found")
       return
     }
 
@@ -119,7 +123,7 @@ export class SkillManager {
         // Check if skill is hidden via hong.yaml
         if (await this.isSkillHidden(sourceDir)) {
           await fs.rm(targetDir, { recursive: true, force: true })
-          console.log(`[SkillManager] Removed hidden builtin skill: ${skillName}`)
+          skillManagerLog.info(`Removed hidden builtin skill: ${skillName}`)
           continue
         }
 
@@ -132,9 +136,9 @@ export class SkillManager {
           installedAt: new Date().toISOString(),
         })
 
-        console.log(`[SkillManager] Synced builtin skill: ${skillName}`)
+        skillManagerLog.info(`Synced builtin skill: ${skillName}`)
       } catch (err) {
-        console.warn(`[SkillManager] Failed to sync builtin skill ${skillName}:`, err)
+        skillManagerLog.warn(`Failed to sync builtin skill ${skillName}:`, err)
       }
     }
   }
@@ -176,9 +180,9 @@ export class SkillManager {
           pluginSource,
         })
 
-        console.log(`[SkillManager] Installed plugin skill: ${dirName}`)
+        skillManagerLog.info(`Installed plugin skill: ${dirName}`)
       } catch (err) {
-        console.warn(`[SkillManager] Failed to install plugin skill ${entry.name} from ${pluginSource}:`, err)
+        skillManagerLog.warn(`Failed to install plugin skill ${entry.name} from ${pluginSource}:`, err)
       }
     }
   }
@@ -206,9 +210,9 @@ export class SkillManager {
       if (marker && marker.pluginSource === pluginSource) {
         try {
           await fs.rm(dir, { recursive: true, force: true })
-          console.log(`[SkillManager] Removed plugin skill: ${entry.name}`)
+          skillManagerLog.info(`Removed plugin skill: ${entry.name}`)
         } catch (err) {
-          console.warn(`[SkillManager] Failed to remove plugin skill ${entry.name}:`, err)
+          skillManagerLog.warn(`Failed to remove plugin skill ${entry.name}:`, err)
         }
       }
     }
@@ -231,12 +235,12 @@ export class SkillManager {
     try {
       await fs.access(path.join(originDir, "SKILL.md"))
     } catch {
-      console.warn(`[SkillManager] Skill origin not found: ${originDir}`)
+      skillManagerLog.warn(`Skill origin not found: ${originDir}`)
       return
     }
 
     const dirName = await this.installSkill({ source, originDir, skillName, pluginSource })
-    console.log(`[SkillManager] Enabled skill: ${dirName}`)
+    skillManagerLog.info(`Enabled skill: ${dirName}`)
   }
 
   /**
@@ -246,7 +250,7 @@ export class SkillManager {
    */
   async disableSkill(installedDirName: string): Promise<void> {
     await this.uninstallSkill(installedDirName)
-    console.log(`[SkillManager] Disabled skill: ${installedDirName}`)
+    skillManagerLog.info(`Disabled skill: ${installedDirName}`)
   }
 
   /**

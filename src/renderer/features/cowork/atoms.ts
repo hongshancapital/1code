@@ -1,5 +1,9 @@
 import { atom } from "jotai"
 import { atomWithStorage, atomFamily } from "jotai/utils"
+import { createLogger } from "../../lib/logger"
+
+const artifactsLog = createLogger("Artifacts")
+
 
 // ============================================================================
 // Cowork Mode Toggle
@@ -149,7 +153,7 @@ export const artifactsAtomFamily = atomFamily((subChatId: string) =>
       const prevArtifacts = current[subChatId] ?? []
       // Support both direct value and updater function
       const newArtifacts = typeof update === "function" ? update(prevArtifacts) : update
-      console.log("[Artifacts] Setting artifacts for subChatId:", subChatId, "count:", newArtifacts.length)
+      artifactsLog.info("Setting artifacts for subChatId:", subChatId, "count:", newArtifacts.length)
       set(allArtifactsStorageAtom, { ...current, [subChatId]: newArtifacts })
     }
   )

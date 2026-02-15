@@ -32,6 +32,10 @@ import type {
   AgentSubChat,
   ChatProject,
 } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const chatInstanceContextLog = createLogger("ChatInstanceContext")
+
 
 // ============================================================================
 // Types
@@ -171,7 +175,7 @@ export function ChatInstanceProvider({
       await trpcClient.changes.fetchRemote.mutate({ worktreePath })
       await invalidateChat()
     } catch (error) {
-      console.error("[ChatInstanceContext] Failed to refresh branch:", error)
+      chatInstanceContextLog.error("Failed to refresh branch:", error)
     }
   }, [worktreePath, invalidateChat])
 

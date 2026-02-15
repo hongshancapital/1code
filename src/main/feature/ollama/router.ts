@@ -6,6 +6,10 @@
 import { z } from "zod"
 import { checkInternetConnection, checkOllamaStatus } from "./lib"
 import { publicProcedure, router } from "../../lib/trpc/index"
+import { createLogger } from "../../lib/logger"
+
+const ollamaLog = createLogger("Ollama")
+
 
 /**
  * Generate text using local Ollama model
@@ -26,7 +30,7 @@ async function generateWithOllama(
     // Use provided model, or recommended, or first available
     const modelToUse = model || ollamaStatus.recommendedModel || ollamaStatus.models[0]
     if (!modelToUse) {
-      console.error("[Ollama] No model available")
+      ollamaLog.error("No model available")
       return null
     }
 
@@ -45,14 +49,14 @@ async function generateWithOllama(
     })
 
     if (!response.ok) {
-      console.error("[Ollama] Generate failed:", response.status)
+      ollamaLog.error("Generate failed:", response.status)
       return null
     }
 
     const data = await response.json()
     return data.response?.trim() || null
   } catch (error) {
-    console.error("[Ollama] Generate error:", error)
+    ollamaLog.error("Generate error:", error)
     return null
   }
 }

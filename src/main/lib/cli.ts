@@ -10,6 +10,10 @@ import { app } from "electron"
 import { join } from "path"
 import { existsSync, lstatSync } from "fs"
 import { platform } from "./platform"
+import { createLogger } from ".//logger"
+
+const cliLog = createLogger("CLI")
+
 
 // Launch directory from CLI (e.g., `hong /path/to/project`)
 let launchDirectory: string | null = null
@@ -41,7 +45,7 @@ export function parseLaunchDirectory(): void {
       try {
         const stat = lstatSync(arg)
         if (stat.isDirectory()) {
-          console.log("[CLI] Launch directory:", arg)
+          cliLog.info("Launch directory:", arg)
           launchDirectory = arg
           return
         }

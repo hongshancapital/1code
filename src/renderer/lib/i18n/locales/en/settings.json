@@ -474,6 +474,10 @@
       "description": "Voice-to-text input using local Whisper or OpenAI Whisper API.",
       "devOnly": "Only available in development mode. This feature is still being debugged."
     },
+    "renameFolder": {
+      "title": "Rename Workspace Folder",
+      "description": "Allow renaming workspace folder directly from the workspace widget."
+    },
     "offlineSettings": {
       "title": "Offline Mode Settings",
       "ollamaStatus": "Ollama Status",

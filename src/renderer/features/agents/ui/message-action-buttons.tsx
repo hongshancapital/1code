@@ -18,6 +18,10 @@ import {
   setTtsPlaybackRateAtom,
   PLAYBACK_SPEEDS,
 } from "../stores/message-store"
+import { createLogger } from "../../../lib/logger"
+
+const playButtonLog = createLogger("PlayButton")
+
 
 // ============================================================================
 // COPY BUTTON - Memoized component for copying text
@@ -330,7 +334,7 @@ export const PlayButton = memo(function PlayButton({
       }
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
-        console.error("[PlayButton] TTS error:", error)
+        playButtonLog.error("TTS error:", error)
       }
       cleanup()
       setState("idle")

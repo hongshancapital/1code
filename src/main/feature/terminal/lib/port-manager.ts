@@ -2,6 +2,10 @@ import { EventEmitter } from "node:events"
 import type { DetectedPort } from "./types"
 import { getListeningPortsForPids, getProcessTree } from "./port-scanner"
 import type { TerminalSession } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const portManagerLog = createLogger("PortManager")
+
 
 // How often to poll for port changes (in ms)
 const SCAN_INTERVAL_MS = 2500
@@ -56,7 +60,7 @@ class PortManager extends EventEmitter {
 
 		this.scanInterval = setInterval(() => {
 			this.scanAllSessions().catch((error) => {
-				console.error("[PortManager] Scan error:", error)
+				portManagerLog.error("Scan error:", error)
 			})
 		}, SCAN_INTERVAL_MS)
 

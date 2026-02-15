@@ -6,6 +6,10 @@ import { atomWithStorage } from "jotai/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
 import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom, notificationVolumeAtom } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("useDesktopNotifications")
+
 
 // Track pending notifications count for badge
 const pendingNotificationsAtom = atomWithStorage<number>(
@@ -64,10 +68,10 @@ function playNotificationSound() {
     const audio = new Audio(soundSrc)
     audio.volume = Math.max(0, Math.min(1, volume))
     audio.play().catch((err) => {
-      console.error("Failed to play notification sound:", err)
+      log.error("Failed to play notification sound:", err)
     })
   } catch (err) {
-    console.error("Failed to create audio:", err)
+    log.error("Failed to create audio:", err)
   }
 }
 

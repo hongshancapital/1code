@@ -2,6 +2,10 @@ import cron, { type ScheduledTask } from "node-cron"
 import { eq } from "drizzle-orm"
 import { getDatabase, automations } from "../../../lib/db"
 import type { AutomationEngine } from "./engine"
+import { createLogger } from "../../../lib/logger"
+
+const schedulerLog = createLogger("Scheduler")
+
 
 /**
  * 定时任务调度服务
@@ -25,10 +29,10 @@ export class SchedulerService {
     const task = cron.schedule(
       expression,
       async () => {
-        console.log(`[Scheduler] Cron triggered: ${automationId}`)
+        schedulerLog.info(`Cron triggered: ${automationId}`)
 
         if (!this.engine) {
-          console.error("[Scheduler] Engine not set")
+          schedulerLog.error("Engine not set")
           return
         }
 
@@ -65,7 +69,7 @@ export class SchedulerService {
    */
   async checkMissedTasks(): Promise<void> {
     if (!this.engine) {
-      console.error("[Scheduler] Engine not set for missed tasks check")
+      schedulerLog.error("Engine not set for missed tasks check")
       return
     }
 
@@ -96,7 +100,7 @@ export class SchedulerService {
             now,
           )
         ) {
-          console.log(`[Scheduler] Triggering missed task: ${automation.id}`)
+          schedulerLog.info(`Triggering missed task: ${automation.id}`)
 
           await this.engine.executeAutomation(automation.id, {
             triggeredBy: "startup-missed",

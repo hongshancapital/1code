@@ -3,6 +3,10 @@ import { z } from "zod"
 import { getDatabase, modelUsage, projects, chats, subChats, anthropicAccounts, anthropicSettings } from "../../db"
 import { decryptToken } from "../../crypto"
 import { publicProcedure, router } from "../index"
+import { createLogger } from "../../logger"
+
+const usageLog = createLogger("Usage")
+
 
 // Date range schema for filtering
 const dateRangeSchema = z.object({
@@ -44,7 +48,7 @@ export const usageRouter = router({
           .get()
 
         if (existing) {
-          console.log(`[Usage] Skipping duplicate record: ${input.messageUuid}`)
+          usageLog.info(`Skipping duplicate record: ${input.messageUuid}`)
           return existing
         }
       }
@@ -503,7 +507,7 @@ export const usageRouter = router({
       const data = await response.json()
       return { error: null, data }
     } catch (err) {
-      console.error("[Usage] Anthropic usage API error:", err)
+      usageLog.error("Anthropic usage API error:", err)
       return { error: "network_error", data: null }
     }
   }),

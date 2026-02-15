@@ -14,6 +14,10 @@ import {
 import { createId } from "../../db/utils"
 import { encryptToken, decryptToken } from "../../crypto"
 import { publicProcedure, router } from "../index"
+import { createLogger } from "../../logger"
+
+const claudeCodeLog = createLogger("ClaudeCode")
+
 
 /**
  * Get desktop auth token for server API calls
@@ -200,7 +204,7 @@ export const claudeCodeRouter = router({
           error: data.error ?? null,
         }
       } catch (error) {
-        console.error("[ClaudeCode] Poll status error:", error)
+        claudeCodeLog.error("Poll status error:", error)
         return { state: "error" as const, oauthUrl: null, error: "Connection failed" }
       }
     }),
@@ -261,7 +265,7 @@ export const claudeCodeRouter = router({
 
       storeOAuthToken(oauthToken)
 
-      console.log("[ClaudeCode] Token stored locally")
+      claudeCodeLog.info("Token stored locally")
       return { success: true }
     }),
 
@@ -279,7 +283,7 @@ export const claudeCodeRouter = router({
 
       storeOAuthToken(oauthToken)
 
-      console.log("[ClaudeCode] Token imported locally")
+      claudeCodeLog.info("Token imported locally")
       return { success: true }
     }),
 
@@ -301,7 +305,7 @@ export const claudeCodeRouter = router({
     }
 
     storeOAuthToken(token)
-    console.log("[ClaudeCode] Token imported from system")
+    claudeCodeLog.info("Token imported from system")
     return { success: true }
   }),
 
@@ -331,7 +335,7 @@ export const claudeCodeRouter = router({
           const token = decryptToken(account.oauthToken)
           return { token, error: null }
         } catch (error) {
-          console.error("[ClaudeCode] Decrypt error:", error)
+          claudeCodeLog.error("Decrypt error:", error)
           return { token: null, error: "Failed to decrypt token" }
         }
       }
@@ -352,7 +356,7 @@ export const claudeCodeRouter = router({
       const token = decryptToken(cred.oauthToken)
       return { token, error: null }
     } catch (error) {
-      console.error("[ClaudeCode] Decrypt error:", error)
+      claudeCodeLog.error("Decrypt error:", error)
       return { token: null, error: "Failed to decrypt token" }
     }
   }),
@@ -403,7 +407,7 @@ export const claudeCodeRouter = router({
       .where(eq(claudeCodeCredentials.id, "default"))
       .run()
 
-    console.log("[ClaudeCode] Disconnected")
+    claudeCodeLog.info("Disconnected")
     return { success: true }
   }),
 
@@ -420,7 +424,7 @@ export const claudeCodeRouter = router({
    */
   runSetupToken: publicProcedure.mutation(async () => {
     const result = await runClaudeSetupToken((msg) => {
-      console.log("[ClaudeCode] setup-token:", msg)
+      claudeCodeLog.info("setup-token:", msg)
     })
 
     if (!result.success) {
@@ -434,7 +438,7 @@ export const claudeCodeRouter = router({
     }
 
     storeOAuthToken(token)
-    console.log("[ClaudeCode] Token stored via setup-token")
+    claudeCodeLog.info("Token stored via setup-token")
     return { success: true }
   }),
 

@@ -3,6 +3,10 @@ import { useAtom, useAtomValue } from "jotai"
 import { useCallback, useEffect } from "react"
 import { selectedTeamIdAtom } from "../atoms"
 import { remoteApi } from "../remote-api"
+import { createLogger } from "../logger"
+
+const useUserTeamsLog = createLogger("useUserTeams")
+
 
 /**
  * Fetch user's teams and auto-select first team if none selected
@@ -38,13 +42,13 @@ export function useUserTeams(enabled: boolean = true) {
       // Validate cached teamId exists in current user's teams
       const teamExists = query.data.some((t) => t.id === teamId)
       if (!teamExists) {
-        console.log("[useUserTeams] Cached teamId not found, resetting to first team")
+        useUserTeamsLog.info("Cached teamId not found, resetting to first team")
         setTeamId(query.data[0].id)
       }
     } else {
       // User has no teams - clear stale teamId
       if (teamId) {
-        console.log("[useUserTeams] User has no teams, clearing teamId")
+        useUserTeamsLog.info("User has no teams, clearing teamId")
         setTeamId(null)
       }
     }

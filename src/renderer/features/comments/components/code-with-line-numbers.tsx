@@ -15,6 +15,10 @@ import { CommentInputPopup } from "./comment-input-popup"
 import { useCommentActions } from "../hooks/use-comment-actions"
 import type { ReviewComment } from "../types"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("codeWithLineNumbers")
+
 
 interface CodeWithLineNumbersProps {
   /** The code content to display */
@@ -194,7 +198,7 @@ export const CodeWithLineNumbers = memo(function CodeWithLineNumbers({
           setHighlightedLines(highlighted)
         }
       } catch (err) {
-        console.error("Syntax highlighting error:", err)
+        log.error("Syntax highlighting error:", err)
         if (!cancelled) {
           // Fallback to plain text
           setHighlightedLines(

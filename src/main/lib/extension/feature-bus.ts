@@ -17,6 +17,10 @@ import type {
   BroadcastEvents,
   IFeatureBus,
 } from "./types"
+import { createLogger } from "../logger"
+
+const featureBusLog = createLogger("FeatureBus")
+
 
 const REQUEST_TIMEOUT = 10_000
 
@@ -52,14 +56,14 @@ export class FeatureBus implements IFeatureBus {
         Promise.resolve(handler(input)),
         new Promise<null>((resolve) => {
           timer = setTimeout(() => {
-            console.warn(`[FeatureBus] request "${key}" 超时 (${REQUEST_TIMEOUT}ms)`)
+            featureBusLog.warn(`request "${key}" 超时 (${REQUEST_TIMEOUT}ms)`)
             resolve(null)
           }, REQUEST_TIMEOUT)
         }),
       ])
       return result as EventResponse<E> | null
     } catch (err) {
-      console.error(`[FeatureBus] request "${key}" 错误:`, err)
+      featureBusLog.error(`request "${key}" 错误:`, err)
       return null
     } finally {
       if (timer !== undefined) clearTimeout(timer)
@@ -93,7 +97,7 @@ export class FeatureBus implements IFeatureBus {
       if (r.status === "fulfilled" && r.value !== null && r.value !== undefined) {
         collected.push(r.value as unknown as EventResponse<E>)
       } else if (r.status === "rejected") {
-        console.error(`[FeatureBus] broadcast "${key}" handler 错误:`, r.reason)
+        featureBusLog.error(`broadcast "${key}" handler 错误:`, r.reason)
       }
     }
     return collected
@@ -111,7 +115,7 @@ export class FeatureBus implements IFeatureBus {
   ): () => void {
     const key = event as string
     if (this.requestHandlers.has(key)) {
-      console.warn(
+      featureBusLog.warn(
         `[FeatureBus] request "${key}" handler 被覆盖（仅支持单一 handler）`,
       )
     }

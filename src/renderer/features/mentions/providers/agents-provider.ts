@@ -14,6 +14,10 @@ import {
   MENTION_PREFIXES,
   sortByRelevance,
 } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const agentsProviderLog = createLogger("AgentsProvider")
+
 
 /**
  * Valid model values for agents
@@ -106,7 +110,7 @@ export const agentsProvider = createMentionProvider<AgentData>({
         timing,
       }
     } catch (error) {
-      console.error("[AgentsProvider] Search error:", error)
+      agentsProviderLog.error("Search error:", error)
       return {
         items: [],
         hasMore: false,
@@ -151,7 +155,7 @@ export const agentsProvider = createMentionProvider<AgentData>({
         },
       }
     } catch (error) {
-      console.warn(`[AgentsProvider] Failed to deserialize token: ${token}`, error)
+      agentsProviderLog.warn(`Failed to deserialize token: ${token}`, error)
       return null
     }
   },

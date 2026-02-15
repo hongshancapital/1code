@@ -6,6 +6,11 @@ import { clearNetworkCache } from "../../../feature/ollama/lib/network-detector"
 import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
 import { existsSync, mkdirSync, rmSync, unlinkSync } from "fs"
+import { createLogger } from "../../logger"
+
+const debugLog = createLogger("Debug")
+const copyProductionDbLog = createLogger("copyProductionDb")
+
 // Protocol constant (must match main/index.ts)
 const IS_DEV = !app.isPackaged
 const PROTOCOL = IS_DEV ? "hong-dev" : "hong"
@@ -34,7 +39,7 @@ const lastUserMessageDebugData = new Map<string, UserMessageDebugData>()
  * This is called from claude router when a user sends a message
  */
 export function setLastUserMessageDebug(subChatId: string, data: Record<string, unknown>) {
-  console.log('[Debug] Saving debug data for subChat:', subChatId, 'keys:', Object.keys(data), 'data:', data)
+  debugLog.info('Saving debug data for subChat:', subChatId, 'keys:', Object.keys(data), 'data:', data)
   lastUserMessageDebugData.set(subChatId, {
     subChatId,
     timestamp: new Date().toISOString(),
@@ -95,7 +100,7 @@ export const debugRouter = router({
     // Delete sub_chats first (foreign key constraint)
     db.delete(subChats).run()
     db.delete(chats).run()
-    console.log("[Debug] Cleared all chats and sub-chats")
+    debugLog.info("Cleared all chats and sub-chats")
     return { success: true }
   }),
 
@@ -108,7 +113,7 @@ export const debugRouter = router({
     db.delete(subChats).run()
     db.delete(chats).run()
     db.delete(projects).run()
-    console.log("[Debug] Cleared all database data")
+    debugLog.info("Cleared all database data")
     return { success: true }
   }),
 
@@ -117,7 +122,7 @@ export const debugRouter = router({
    * Clears localStorage flags to restart onboarding flow
    */
   resetOnboarding: publicProcedure.mutation(() => {
-    console.log("[Debug] Reset onboarding - this clears localStorage on renderer side")
+    debugLog.info("Reset onboarding - this clears localStorage on renderer side")
     return { success: true, message: "Clear localStorage:billing-method, localStorage:anthropic-onboarding-completed, localStorage:api-key-onboarding-completed in renderer" }
   }),
 
@@ -127,7 +132,7 @@ export const debugRouter = router({
   openUserDataFolder: publicProcedure.mutation(() => {
     const userDataPath = app.getPath("userData")
     shell.openPath(userDataPath)
-    console.log("[Debug] Opened userData folder:", userDataPath)
+    debugLog.info("Opened userData folder:", userDataPath)
     return { success: true }
   }),
 
@@ -147,7 +152,7 @@ export const debugRouter = router({
       simulateOfflineMode = input.enabled
       // Clear network cache to force immediate re-check
       clearNetworkCache()
-      console.log(`[Debug] Offline simulation ${input.enabled ? "enabled" : "disabled"}`)
+      debugLog.info(`Offline simulation ${input.enabled ? "enabled" : "disabled"}`)
       return { success: true, enabled: simulateOfflineMode }
     }),
 
@@ -156,33 +161,33 @@ export const debugRouter = router({
    * This resets the app to its initial state as if freshly installed
    */
   factoryReset: publicProcedure.mutation(async () => {
-    console.log("[Debug] Starting factory reset...")
+    debugLog.info("Starting factory reset...")
 
     const userDataPath = app.getPath("userData")
-    console.log("[Debug] userData path:", userDataPath)
+    debugLog.info("userData path:", userDataPath)
 
     // 1. Close all database connections
     try {
       closeDatabase()
-      console.log("[Debug] Database connection closed")
+      debugLog.info("Database connection closed")
     } catch (error) {
-      console.warn("[Debug] Failed to close database:", error)
+      debugLog.warn("Failed to close database:", error)
     }
 
     // 2. Clear authentication data before deleting userData
     const authManager = getAuthManager()
     if (authManager) {
       authManager.logout("manual")
-      console.log("[Debug] Auth data cleared")
+      debugLog.info("Auth data cleared")
     }
 
     // 3. Clear session cookies before deleting userData
     try {
       const ses = session.fromPartition("persist:main")
       await ses.clearStorageData()
-      console.log("[Debug] Session storage cleared")
+      debugLog.info("Session storage cleared")
     } catch (error) {
-      console.warn("[Debug] Failed to clear session storage:", error)
+      debugLog.warn("Failed to clear session storage:", error)
     }
 
     // 4. Recursively delete userData directory
@@ -191,17 +196,17 @@ export const debugRouter = router({
     if (existsSync(userDataPath)) {
       try {
         rmSync(userDataPath, { recursive: true, force: true })
-        console.log("[Debug] userData directory deleted")
+        debugLog.info("userData directory deleted")
       } catch (error) {
-        console.error("[Debug] Failed to delete userData directory:", error)
+        debugLog.error("Failed to delete userData directory:", error)
         // If full delete fails, try to at least delete data folder
         const dataPath = join(userDataPath, "data")
         if (existsSync(dataPath)) {
           try {
             rmSync(dataPath, { recursive: true, force: true })
-            console.log("[Debug] data folder deleted as fallback")
+            debugLog.info("data folder deleted as fallback")
           } catch (err) {
-            console.error("[Debug] Failed to delete data folder:", err)
+            debugLog.error("Failed to delete data folder:", err)
           }
         }
       }
@@ -221,14 +226,14 @@ export const debugRouter = router({
           // Production: load from built output
           win.loadFile(join(__dirname, "../../renderer/login.html"))
         }
-        console.log("[Debug] Window navigated to login page")
+        debugLog.info("Window navigated to login page")
       } catch (error) {
-        console.warn("[Debug] Failed to navigate window:", error)
+        debugLog.warn("Failed to navigate window:", error)
       }
     }
 
     // 7. Database will be re-initialized automatically on next access
-    console.log("[Debug] Factory reset complete - database will reinitialize on demand")
+    debugLog.info("Factory reset complete - database will reinitialize on demand")
     return { success: true }
   }),
 
@@ -246,10 +251,10 @@ export const debugRouter = router({
                        userDataPath.includes("Dev") ||
                        userDataPath.includes("Agents Dev")
 
-    console.log("[copyProductionDb] App name:", app.getName())
-    console.log("[copyProductionDb] userData:", userDataPath)
-    console.log("[copyProductionDb] isPackaged:", isPackaged)
-    console.log("[copyProductionDb] isDevBuild:", isDevBuild)
+    copyProductionDbLog.info("App name:", app.getName())
+    copyProductionDbLog.info("userData:", userDataPath)
+    copyProductionDbLog.info("isPackaged:", isPackaged)
+    copyProductionDbLog.info("isDevBuild:", isDevBuild)
 
     if (!isDevBuild) {
       throw new Error(`This operation is only available in development builds (userData: ${userDataPath}, packaged: ${isPackaged})`)
@@ -303,7 +308,7 @@ export const debugRouter = router({
       const sourceDb = new Database(productionDbPath, { readonly: true })
       try {
         sourceDb.exec(`VACUUM INTO '${targetDbPath.replace(/'/g, "''")}'`)
-        console.log(`[Debug] VACUUM INTO from ${productionDbPath} to ${targetDbPath}`)
+        debugLog.info(`VACUUM INTO from ${productionDbPath} to ${targetDbPath}`)
       } finally {
         sourceDb.close()
       }
@@ -316,7 +321,7 @@ export const debugRouter = router({
     // Re-initialize database with the new file
     initDatabase()
 
-    console.log("[Debug] Database copied successfully")
+    debugLog.info("Database copied successfully")
     return { success: true, sourcePath: productionDbPath, targetPath: targetDbPath }
   }),
 

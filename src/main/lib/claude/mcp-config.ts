@@ -43,6 +43,12 @@ import {
 } from "../builtin-mcp";
 import { getAuthManager } from "../../index";
 import { decryptToken } from "../crypto";
+import { createLogger } from "../logger"
+
+const claudeLog = createLogger("claude")
+const mcpLog = createLogger("MCP")
+const getAllMcpConfigLog = createLogger("getAllMcpConfig")
+
 
 /**
  * Get Claude Code OAuth token from local SQLite
@@ -58,13 +64,13 @@ export function getClaudeCodeToken(): string | null {
       .get();
 
     if (!cred?.oauthToken) {
-      console.log("[claude] No Claude Code credentials found");
+      claudeLog.info("No Claude Code credentials found");
       return null;
     }
 
     return decryptToken(cred.oauthToken);
   } catch (error) {
-    console.error("[claude] Error getting Claude Code token:", error);
+    claudeLog.error("Error getting Claude Code token:", error);
     return null;
   }
 }
@@ -193,7 +199,7 @@ export async function getAllMcpConfigHandler() {
           try {
             tools = await fetchToolsForServer(serverConfig);
           } catch (error) {
-            console.error(`[MCP] Failed to fetch tools for ${name}:`, error);
+            mcpLog.error(`Failed to fetch tools for ${name}:`, error);
           }
 
           const cacheKey = mcpCacheKey(scope, name);
@@ -322,12 +328,12 @@ export async function getAllMcpConfigHandler() {
       (a, b) => b.duration - a.duration,
     );
 
-    console.log(
+    claudeLog.info(
       `[MCP] Cache updated in ${totalDuration}ms. Working: ${workingCount}/${workingMcpServers.size}`,
     );
     for (const g of sortedByDuration) {
       if (g.mcpServers.length > 0) {
-        console.log(
+        claudeLog.info(
           `[MCP]   ${g.groupName}: ${g.duration}ms (${g.mcpServers.length} servers)`,
         );
       }
@@ -364,7 +370,7 @@ export async function getAllMcpConfigHandler() {
         const cacheKey = mcpCacheKey(null, BUILTIN_MCP_NAME);
         workingMcpServers.set(cacheKey, builtinTools.length > 0);
       } catch (error) {
-        console.error(`[MCP] Failed to fetch tools for built-in MCP:`, error);
+        mcpLog.error(`Failed to fetch tools for built-in MCP:`, error);
         builtinStatus = "failed";
         workingMcpServers.set(mcpCacheKey(null, BUILTIN_MCP_NAME), false);
       }
@@ -388,10 +394,10 @@ export async function getAllMcpConfigHandler() {
       });
     } else {
       // User is not authenticated - show placeholder with "needs-login" status
-      console.log("[MCP] User not authenticated, adding builtin placeholder");
+      mcpLog.info("User not authenticated, adding builtin placeholder");
       try {
         const placeholder = getBuiltinMcpPlaceholder();
-        console.log("[MCP] Builtin placeholder created:", placeholder.name);
+        mcpLog.info("Builtin placeholder created:", placeholder.name);
         groups.unshift({
           groupName: "Built-in",
           projectPath: null,
@@ -410,12 +416,12 @@ export async function getAllMcpConfigHandler() {
             },
           ],
         });
-        console.log(
+        claudeLog.info(
           "[MCP] Builtin placeholder added to groups, total groups:",
           groups.length,
         );
       } catch (error) {
-        console.error("[MCP] Failed to create builtin placeholder:", error);
+        mcpLog.error("Failed to create builtin placeholder:", error);
         // Still add a minimal placeholder even if getBuiltinMcpPlaceholder fails
         groups.unshift({
           groupName: "Built-in",
@@ -434,7 +440,7 @@ export async function getAllMcpConfigHandler() {
             },
           ],
         });
-        console.log("[MCP] Minimal builtin placeholder added after error");
+        mcpLog.info("Minimal builtin placeholder added after error");
       }
     }
 
@@ -504,7 +510,7 @@ export async function getAllMcpConfigHandler() {
                 try {
                   tools = await fetchToolsForServer(serverConfig);
                 } catch (error) {
-                  console.error(
+                  claudeLog.error(
                     `[MCP] Failed to fetch tools for plugin ${name}:`,
                     error,
                   );
@@ -560,7 +566,7 @@ export async function getAllMcpConfigHandler() {
 
     return { groups };
   } catch (error) {
-    console.error("[getAllMcpConfig] Error:", error);
+    getAllMcpConfigLog.error("Error:", error);
     return { groups: [], error: String(error) };
   }
 }

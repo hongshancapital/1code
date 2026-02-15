@@ -4,6 +4,10 @@
  */
 
 import { isOfflineSimulated } from '../../../lib/trpc/routers/debug'
+import { createLogger } from "../../../lib/logger"
+
+const networkLog = createLogger("Network")
+
 
 export interface NetworkStatus {
   online: boolean
@@ -24,7 +28,7 @@ const CACHE_TTL = 10000 // 10 seconds cache
 export async function checkInternetConnection(): Promise<boolean> {
   // Check if offline mode is being simulated (for testing)
   if (isOfflineSimulated()) {
-    console.log('[Network] Offline mode is being simulated (debug feature)')
+    networkLog.info('Offline mode is being simulated (debug feature)')
     cachedStatus = { online: false, lastCheck: Date.now() }
     return false
   }
@@ -58,7 +62,7 @@ export async function checkInternetConnection(): Promise<boolean> {
       // If we get any response, internet is available
       if (response.ok || response.status >= 400) {
         cachedStatus = { online: true, lastCheck: now }
-        console.log(`[Network] Internet check: ONLINE (via ${endpoint})`)
+        networkLog.info(`Internet check: ONLINE (via ${endpoint})`)
         return true
       }
     } catch {
@@ -69,7 +73,7 @@ export async function checkInternetConnection(): Promise<boolean> {
 
   // All endpoints failed - likely offline
   cachedStatus = { online: false, lastCheck: now }
-  console.log('[Network] Internet check: OFFLINE (all endpoints failed)')
+  networkLog.info('Internet check: OFFLINE (all endpoints failed)')
   return false
 }
 

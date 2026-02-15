@@ -1,6 +1,10 @@
 import { ipcMain, BrowserWindow } from "electron";
 import { gitWatcherRegistry, type GitWatchEvent } from "./git-watcher";
 import { gitCache } from "../cache";
+import { createLogger } from "../../logger"
+
+const gitWatcherLog = createLogger("GitWatcher")
+
 
 /**
  * IPC Bridge for GitWatcher.
@@ -63,7 +67,7 @@ export function registerGitWatcherIPC(): void {
 			);
 
 			activeSubscriptions.set(worktreePath, { windowId, unsubscribe });
-			console.log(
+			gitWatcherLog.info(
 				`[GitWatcher] Window ${windowId} subscribed to: ${worktreePath}`,
 			);
 		},
@@ -79,7 +83,7 @@ export function registerGitWatcherIPC(): void {
 			if (subscription) {
 				subscription.unsubscribe();
 				activeSubscriptions.delete(worktreePath);
-				console.log(
+				gitWatcherLog.info(
 					`[GitWatcher] Window ${subscription.windowId} unsubscribed from: ${worktreePath}`,
 				);
 			}
@@ -96,7 +100,7 @@ export function cleanupWindowSubscriptions(windowId: number): void {
 		if (subscription.windowId === windowId) {
 			subscription.unsubscribe();
 			activeSubscriptions.delete(path);
-			console.log(`[GitWatcher] Cleaned up subscription for closed window ${windowId}: ${path}`);
+			gitWatcherLog.info(`Cleaned up subscription for closed window ${windowId}: ${path}`);
 		}
 	}
 }
@@ -115,5 +119,5 @@ export async function cleanupGitWatchers(): Promise<void> {
 
 	// Dispose all watchers
 	await gitWatcherRegistry.disposeAll();
-	console.log("[GitWatcher] All watchers cleaned up");
+	gitWatcherLog.info("All watchers cleaned up");
 }

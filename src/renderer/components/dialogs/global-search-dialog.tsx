@@ -41,6 +41,10 @@ import {
 } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { useTranslation } from "react-i18next"
+import { createLogger } from "../../lib/logger"
+
+const globalSearchLog = createLogger("GlobalSearch")
+
 
 // Match the type from hybrid-search.ts but define locally to avoid main->renderer import
 export interface HybridSearchResult {
@@ -379,7 +383,7 @@ export function GlobalSearchDialog() {
           toast.info(t('globalSearch.notFound'))
         }
       } catch (error) {
-        console.error("[GlobalSearch] Navigation error:", error)
+        globalSearchLog.error("Navigation error:", error)
         toast.error(t('globalSearch.navigationError'))
       }
     } else {

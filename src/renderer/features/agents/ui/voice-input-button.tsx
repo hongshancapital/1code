@@ -9,6 +9,10 @@ import {
   blobToBase64,
   getAudioFormat,
 } from "../../../lib/hooks/use-voice-recording"
+import { createLogger } from "../../../lib/logger"
+
+const voiceInputLog = createLogger("VoiceInput")
+
 
 interface VoiceInputButtonProps {
   onTranscript: (text: string) => void
@@ -59,7 +63,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
 
   const transcribeMutation = trpc.voice.transcribe.useMutation({
     onError: (err) => {
-      console.error("[VoiceInput] Transcription error:", err)
+      voiceInputLog.error("Transcription error:", err)
       if (isMountedRef.current) {
         setTranscribeError(err.message)
       }
@@ -113,7 +117,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
 
       if (!response.ok) {
         // Ignore errors during interim transcription
-        console.warn("[VoiceInput] Interim transcription failed:", response.status)
+        voiceInputLog.warn("Interim transcription failed:", response.status)
         return
       }
 
@@ -129,7 +133,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
     } catch (err) {
       // Ignore abort errors and network errors
       if (err instanceof Error && err.name !== "AbortError") {
-        console.warn("[VoiceInput] Interim transcription error:", err)
+        voiceInputLog.warn("Interim transcription error:", err)
       }
     } finally {
       isInterimTranscribingRef.current = false
@@ -151,7 +155,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
     try {
       await startRecording()
     } catch (err) {
-      console.error("[VoiceInput] Failed to start recording:", err)
+      voiceInputLog.error("Failed to start recording:", err)
     }
   }, [disabled, isTranscribing, isRecording, startRecording])
 
@@ -166,7 +170,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
 
       // Don't transcribe very short recordings (likely accidental clicks)
       if (blob.size < 1000) {
-        console.log("[VoiceInput] Recording too short, ignoring")
+        voiceInputLog.info("Recording too short, ignoring")
         return
       }
 
@@ -188,7 +192,7 @@ export const VoiceInputButton = memo(function VoiceInputButton({
         onTranscript(result.text.trim())
       }
     } catch (err) {
-      console.error("[VoiceInput] Transcription failed:", err)
+      voiceInputLog.error("Transcription failed:", err)
     } finally {
       if (isMountedRef.current) {
         setIsTranscribing(false)

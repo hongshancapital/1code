@@ -42,6 +42,10 @@ import { OpenLocallyDialog } from "../agents/components/open-locally-dialog"
 import { useAutoImport } from "../agents/hooks/use-auto-import"
 import { trpc } from "../../lib/trpc"
 import type { RemoteChat } from "../../lib/remote-api"
+import { createLogger } from "../../lib/logger"
+
+const inboxViewLog = createLogger("InboxView")
+
 
 interface InboxChat {
   id: string
@@ -374,7 +378,7 @@ export function InboxView() {
           setImportDialogOpen(true)
         }
       } catch (err) {
-        console.error("[InboxView] Failed to fetch chat for fork locally:", err)
+        inboxViewLog.error("Failed to fetch chat for fork locally:", err)
       }
     },
     [projects, getMatchingProjects, autoImport]

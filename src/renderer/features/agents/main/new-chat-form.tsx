@@ -131,6 +131,11 @@ import {
 import { CLAUDE_MODELS } from "../lib/models"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "../../../lib/router"
+import { createLogger } from "../../../lib/logger"
+
+const newChatFormLog = createLogger("NewChatForm")
+const handleDropLog = createLogger("handleDrop")
+
 
 // Hook to get available models (including offline models if Ollama is available and debug enabled)
 function useAvailableModels() {
@@ -561,7 +566,7 @@ export function NewChatForm({
     try {
       await startRecording()
     } catch (err) {
-      console.error("[NewChatForm] Failed to start recording:", err)
+      newChatFormLog.error("Failed to start recording:", err)
     }
   }, [isUploading, isTranscribing, isVoiceRecording, startRecording])
 
@@ -570,7 +575,7 @@ export function NewChatForm({
     try {
       const blob = await stopRecording()
       if (blob.size < 1000) {
-        console.log("[NewChatForm] Recording too short, ignoring")
+        newChatFormLog.info("Recording too short, ignoring")
         return
       }
       setIsTranscribing(true)
@@ -591,7 +596,7 @@ export function NewChatForm({
         setHasContent(true)
       }
     } catch (err) {
-      console.error("[NewChatForm] Transcription failed:", err)
+      newChatFormLog.error("Transcription failed:", err)
     } finally {
       setIsTranscribing(false)
     }
@@ -813,7 +818,7 @@ export function NewChatForm({
             branchesQuery.refetch()
           },
           onError: (error) => {
-            console.error("Failed to fetch remote branches:", error)
+            newChatFormLog.error("Failed to fetch remote branches:", error)
           },
         },
       )
@@ -1110,7 +1115,7 @@ export function NewChatForm({
         setCurrentProjectMode(newMode)
       }
     } catch (error) {
-      console.error("Failed to update project mode:", error)
+      newChatFormLog.error("Failed to update project mode:", error)
       toast.error("Failed to update project mode")
     }
   }, [validatedProject, updateModeMutation, setSelectedProject, setCurrentProjectMode])
@@ -1170,7 +1175,7 @@ export function NewChatForm({
             message = content.replace(/\$ARGUMENTS/g, args.trim())
           }
         } catch (error) {
-          console.error("Failed to process custom command:", error)
+          newChatFormLog.error("Failed to process custom command:", error)
           // Fall through with original message
         }
       }
@@ -1282,7 +1287,7 @@ export function NewChatForm({
         }
         setJustCreatedIds((prev) => new Set([...prev, ...ids]))
       } catch (error) {
-        console.error("Failed to create chat:", error)
+        newChatFormLog.error("Failed to create chat:", error)
         toast.error("Failed to create chat")
       }
       return
@@ -1688,7 +1693,7 @@ export function NewChatForm({
             fileContentsRef.current.set(mentionId, content)
           } catch (err) {
             // If reading fails, chip is still there - agent can try to read via path
-            console.error(`[handleDrop] Failed to read file content ${filePath}:`, err)
+            handleDropLog.error(`Failed to read file content ${filePath}:`, err)
           }
         } else {
           // For binary files, large files - add as mention only

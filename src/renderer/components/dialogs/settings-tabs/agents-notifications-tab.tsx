@@ -12,6 +12,10 @@ import { Switch } from "../../ui/switch"
 import { Button } from "../../ui/button"
 import { appStore } from "../../../lib/jotai-store"
 import { cn } from "../../../lib/utils"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("agentsNotificationsTab")
+
 
 // Built-in sound definitions
 const BUILTIN_SOUNDS = [
@@ -53,14 +57,14 @@ function previewSound(soundId: string | null, volume: number): () => void {
     const audio = new Audio(soundSrc)
     audio.volume = Math.max(0, Math.min(1, volume))
     audio.play().catch((err) => {
-      console.error("Failed to play sound:", err)
+      log.error("Failed to play sound:", err)
     })
     return () => {
       audio.pause()
       audio.currentTime = 0
     }
   } catch (err) {
-    console.error("Failed to create audio:", err)
+    log.error("Failed to create audio:", err)
     return () => {}
   }
 }
@@ -134,7 +138,7 @@ export function AgentsNotificationsTab() {
   // Select a custom sound file
   const handleSelectCustomFile = useCallback(async () => {
     if (!window.desktopApi?.selectAudioFile) {
-      console.error("selectAudioFile not available")
+      log.error("selectAudioFile not available")
       return
     }
 

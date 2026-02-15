@@ -13,6 +13,11 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as crypto from "crypto";
 import path from "path";
+import { createLogger } from "../logger"
+
+const claudeLog = createLogger("claude")
+const ollamaLog = createLogger("Ollama")
+
 
 /**
  * Schedule cleanup of uploaded files after a delay.
@@ -31,7 +36,7 @@ function scheduleUploadCleanup(
     for (const filePath of paths) {
       try {
         await fs.unlink(filePath);
-        console.log(`[claude] Cleaned up uploaded file: ${filePath}`);
+        claudeLog.info(`Cleaned up uploaded file: ${filePath}`);
       } catch (err) {
         // Silently swallow errors (file may have been deleted already)
       }
@@ -70,7 +75,7 @@ export function mergeUnansweredMessages(
   }
 
   if (previousUnansweredMessages.length > 0) {
-    console.log(
+    claudeLog.info(
       `[claude] Merging ${previousUnansweredMessages.length} previous unanswered messages into prompt`,
     );
     // Join with double newlines to separate distinct messages clearly
@@ -129,9 +134,9 @@ export async function buildImagePrompt(
         Buffer.from(img.base64Data, "base64"),
       );
       savedImagePaths.push(filePath);
-      console.log(`[claude] Saved uploaded image to: ${filePath}`);
+      claudeLog.info(`Saved uploaded image to: ${filePath}`);
     } catch (err) {
-      console.error(`[claude] Failed to save uploaded image:`, err);
+      claudeLog.error(`Failed to save uploaded image:`, err);
     }
   }
 
@@ -301,7 +306,7 @@ ${history}
 [/CONVERSATION HISTORY]
 
 `;
-      console.log(
+      claudeLog.info(
         `[Ollama] Added ${historyParts.length} messages to history (${history.length} chars)`,
       );
     }
@@ -341,7 +346,7 @@ ${history}
       ollamaRuntimeInfo = `\n\n[RUNTIME]\nAvailable tools:\n${toolsList}\n[/RUNTIME]`;
     }
   } catch (e) {
-    console.warn("[Ollama] Failed to get runtime environment:", e);
+    ollamaLog.warn("Failed to get runtime environment:", e);
   }
 
   const ollamaContext = `[CONTEXT]
@@ -373,6 +378,6 @@ ${historyText}[CURRENT REQUEST]
 ${prompt}
 [/CURRENT REQUEST]`;
 
-  console.log("[Ollama] Context prefix added to prompt");
+  ollamaLog.info("Context prefix added to prompt");
   return ollamaContext;
 }

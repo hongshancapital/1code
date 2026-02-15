@@ -11,6 +11,11 @@ import {
   getEffectiveAuthProvider,
 } from "./providers"
 import { startOktaServer, stopOktaServer, type AuthCallbackHandlers } from "../../../lib/auth-callback-server"
+import { createLogger } from "../../../lib/logger"
+
+const apiLog = createLogger("API")
+const authLog = createLogger("Auth")
+
 
 // API base URL from validated environment (returns undefined in no-auth mode)
 function getApiBaseUrl(): string | undefined {
@@ -54,7 +59,7 @@ async function fetchApi<T = unknown>(
 ): Promise<ApiResponse<T>> {
   const apiBaseUrl = getApiBaseUrl()
   if (!apiBaseUrl) {
-    console.warn("[API] API URL not configured - running in no-auth mode")
+    apiLog.warn("API URL not configured - running in no-auth mode")
     return { ok: false, status: 0, data: null, error: "API not configured" }
   }
   const url = `${apiBaseUrl}${path}`
@@ -77,18 +82,18 @@ async function fetchApi<T = unknown>(
   }
 
   // Debug logging in dev mode
-  console.log("[API] ========== Request Debug ==========")
-  console.log("[API] URL:", url)
-  console.log("[API] Method:", method)
-  console.log("[API] Headers:", JSON.stringify({
+  apiLog.info("========== Request Debug ==========")
+  apiLog.info("URL:", url)
+  apiLog.info("Method:", method)
+  apiLog.info("Headers:", JSON.stringify({
     ...headers,
     Authorization: `Bearer ${accessToken.substring(0, 20)}...${accessToken.substring(accessToken.length - 10)}` // Mask token
   }, null, 2))
   if (options?.body) {
-    console.log("[API] Body:", JSON.stringify(options.body, null, 2))
+    apiLog.info("Body:", JSON.stringify(options.body, null, 2))
   }
-  console.log("[API] Token length:", accessToken.length)
-  console.log("[API] =====================================")
+  apiLog.info("Token length:", accessToken.length)
+  apiLog.info("=====================================")
 
   try {
     const response = await fetch(url, {
@@ -97,32 +102,32 @@ async function fetchApi<T = unknown>(
       body: options?.body ? JSON.stringify(options.body) : undefined,
     })
 
-    console.log("[API] ========== Response Debug ==========")
-    console.log("[API] Status:", response.status, response.statusText)
-    console.log("[API] Response Headers:", JSON.stringify(Object.fromEntries((response.headers as any).entries()), null, 2))
+    apiLog.info("========== Response Debug ==========")
+    apiLog.info("Status:", response.status, response.statusText)
+    apiLog.info("Response Headers:", JSON.stringify(Object.fromEntries((response.headers as any).entries()), null, 2))
 
     if (response.status === 401) {
       const errorText = await response.text()
-      console.log("[API] 401 Response Body:", errorText)
-      console.log("[API] =====================================")
+      apiLog.info("401 Response Body:", errorText)
+      apiLog.info("=====================================")
       return { ok: false, status: 401, data: null, error: "Token expired" }
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.log("[API] Error Response Body:", errorText)
-      console.log("[API] =====================================")
+      apiLog.info("Error Response Body:", errorText)
+      apiLog.info("=====================================")
       return { ok: false, status: response.status, data: null, error: `HTTP ${response.status}: ${errorText}` }
     }
 
     const data = await response.json()
-    console.log("[API] Success Response Data:", JSON.stringify(data, null, 2))
-    console.log("[API] =====================================")
+    apiLog.info("Success Response Data:", JSON.stringify(data, null, 2))
+    apiLog.info("=====================================")
     return { ok: true, status: response.status, data }
   } catch (error) {
-    console.error("[API] ========== Fetch Error ==========")
-    console.error("[API] Error:", error)
-    console.error("[API] =====================================")
+    apiLog.error("========== Fetch Error ==========")
+    apiLog.error("Error:", error)
+    apiLog.error("=====================================")
     return { ok: false, status: 0, data: null, error: String(error) }
   }
 }
@@ -142,7 +147,7 @@ export type { PkceState }
  * Fetch user info from backend API
  */
 async function fetchUserFromApi(accessToken: string): Promise<AuthUser | null> {
-  console.log("[Auth] Fetching user info from API...")
+  authLog.info("Fetching user info from API...")
 
   const response = await fetchApi<{
     id: number | string
@@ -158,7 +163,7 @@ async function fetchUserFromApi(accessToken: string): Promise<AuthUser | null> {
   }
 
   const userInfo = response.data
-  console.log("[Auth] Got user info:", userInfo.id, userInfo.name, "avatarUpdatedAt:", userInfo.avatarUpdatedAt)
+  authLog.info("Got user info:", userInfo.id, userInfo.name, "avatarUpdatedAt:", userInfo.avatarUpdatedAt)
 
   const user: AuthUser = {
     id: String(userInfo.id),
@@ -168,7 +173,7 @@ async function fetchUserFromApi(accessToken: string): Promise<AuthUser | null> {
     username: userInfo.accountName || null,
   }
 
-  console.log("[Auth] User built:", user.email, "avatar:", user.imageUrl ? "yes" : "no")
+  authLog.info("User built:", user.email, "avatar:", user.imageUrl ? "yes" : "no")
   return user
 }
 
@@ -198,7 +203,7 @@ export class AuthManager {
 
     // Log detected auth provider on startup
     const detectedProvider = getEffectiveAuthProvider()
-    console.log(`[Auth] Detected auth provider: ${detectedProvider}`)
+    authLog.info(`Detected auth provider: ${detectedProvider}`)
 
     // Schedule refresh if already authenticated
     if (this.store.isAuthenticated()) {
@@ -232,11 +237,11 @@ export class AuthManager {
       const provider = getCurrentProvider()
 
       if (!provider) {
-        console.warn("[Auth] No auth provider configured - running in no-auth mode")
+        authLog.warn("No auth provider configured - running in no-auth mode")
         throw new Error("Authentication is not configured. Running in no-auth mode.")
       }
 
-      console.log(`[Auth] Starting ${provider.name} PKCE flow...`)
+      authLog.info(`Starting ${provider.name} PKCE flow...`)
 
       // Start Okta callback server before auth flow (for Okta/Azure providers)
       if ((provider.name === "okta" || provider.name === "azure") && this.authCallbackHandlers) {
@@ -246,9 +251,9 @@ export class AuthManager {
       // Start auth flow and store PKCE state
       this.pkceState = provider.startAuthFlow(_mainWindow)
 
-      console.log(`[Auth] Auth flow started with provider: ${provider.name}`)
+      authLog.info(`Auth flow started with provider: ${provider.name}`)
     } catch (error) {
-      console.error("[Auth] Failed to start auth flow:", error)
+      authLog.error("Failed to start auth flow:", error)
       // Stop Okta server on error
       stopOktaServer()
       throw error
@@ -284,7 +289,7 @@ export class AuthManager {
       throw new Error("Auth provider not available for token exchange.")
     }
 
-    console.log(`[Auth] Exchanging authorization code using ${provider.name}...`)
+    authLog.info(`Exchanging authorization code using ${provider.name}...`)
 
     // Exchange code for tokens
     const { tokenData, user: tokenUser } = await provider.exchangeCode(code, this.pkceState)
@@ -326,7 +331,7 @@ export class AuthManager {
     this.store.save(authData)
     this.scheduleRefresh()
 
-    console.log(`[Auth] User authenticated via ${provider.name}:`, user.email, "avatar:", user.imageUrl ? "yes" : "no")
+    authLog.info(`User authenticated via ${provider.name}:`, user.email, "avatar:", user.imageUrl ? "yes" : "no")
 
     return authData
   }
@@ -353,7 +358,7 @@ export class AuthManager {
   async refresh(): Promise<boolean> {
     const refreshToken = this.store.getRefreshToken()
     if (!refreshToken) {
-      console.warn("[Auth] No refresh token available")
+      authLog.warn("No refresh token available")
       return false
     }
 
@@ -362,19 +367,19 @@ export class AuthManager {
     const provider = getProvider(providerType)
 
     if (!provider) {
-      console.warn("[Auth] No auth provider available for refresh")
+      authLog.warn("No auth provider available for refresh")
       return false
     }
 
-    console.log(`[Auth] Refreshing token using ${provider.name}...`)
+    authLog.info(`Refreshing token using ${provider.name}...`)
 
     try {
       const tokenData = await provider.refresh(refreshToken)
 
       if (!tokenData) {
-        console.error("[Auth] Refresh failed - no token data returned")
+        authLog.error("Refresh failed - no token data returned")
         // Provider refresh returns null on error, which means refresh token likely expired
-        console.log("[Auth] Refresh token expired, logging out...")
+        authLog.info("Refresh token expired, logging out...")
         this.logout("session_expired")
         return false
       }
@@ -386,7 +391,7 @@ export class AuthManager {
       }
 
       if (!user) {
-        console.error("[Auth] No user data available after refresh")
+        authLog.error("No user data available after refresh")
         return false
       }
 
@@ -406,7 +411,7 @@ export class AuthManager {
       this.store.save(authData)
       this.scheduleRefresh()
 
-      console.log(`[Auth] Token refreshed successfully via ${provider.name}`)
+      authLog.info(`Token refreshed successfully via ${provider.name}`)
 
       // Notify callback about token refresh (so cookie can be updated)
       if (this.onTokenRefresh) {
@@ -415,7 +420,7 @@ export class AuthManager {
 
       return true
     } catch (error) {
-      console.error("[Auth] Refresh error:", error)
+      authLog.error("Refresh error:", error)
       return false
     }
   }
@@ -441,7 +446,7 @@ export class AuthManager {
       this.refresh()
     }, refreshIn)
 
-    console.log(`[Auth] Scheduled token refresh in ${Math.round(refreshIn / 1000 / 60)} minutes`)
+    authLog.info(`Scheduled token refresh in ${Math.round(refreshIn / 1000 / 60)} minutes`)
   }
 
   /**
@@ -456,7 +461,7 @@ export class AuthManager {
    */
   skipAuth(): void {
     this.store.saveSkipped(true)
-    console.log("[Auth] Authentication skipped by user")
+    authLog.info("Authentication skipped by user")
   }
 
   /**
@@ -524,7 +529,7 @@ export class AuthManager {
       win.webContents.send(eventName, { reason })
     })
 
-    console.log(`[Auth] User logged out (reason: ${reason})`)
+    authLog.info(`User logged out (reason: ${reason})`)
   }
 
   /**
@@ -545,11 +550,11 @@ export class AuthManager {
   async validateAndRefreshUser(): Promise<AuthUser | null> {
     const token = this.store.getToken()
     if (!token) {
-      console.log("[Auth] No saved token found")
+      authLog.info("No saved token found")
       return null
     }
 
-    console.log("[Auth] Validating token with API...")
+    authLog.info("Validating token with API...")
     const user = await fetchUserFromApi(token)
 
     if (!user) {
@@ -588,13 +593,13 @@ export class AuthManager {
       })
 
       if (!response.ok) {
-        console.error("[Auth] Failed to fetch user plan:", response.status)
+        authLog.error("Failed to fetch user plan:", response.status)
         return null
       }
 
       return response.json()
     } catch (error) {
-      console.error("[Auth] Failed to fetch user plan:", error)
+      authLog.error("Failed to fetch user plan:", error)
       return null
     }
   }

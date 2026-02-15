@@ -53,6 +53,10 @@ import {
   type ContentSearchResult,
 } from "./atoms"
 import { editorConfigAtom } from "../../lib/atoms/editor"
+import { createLogger } from "../../lib/logger"
+
+const fileTreeLog = createLogger("FileTree")
+
 
 // ============================================================================
 // Types
@@ -419,11 +423,11 @@ export function FileTreePanel({
   // Content search mutation
   const contentSearchMutation = trpc.files.searchContent.useMutation({
     onMutate: () => {
-      console.log("[FileTree] Starting content search...")
+      fileTreeLog.info("Starting content search...")
       setContentLoading(true)
     },
     onSuccess: (data) => {
-      console.log("[FileTree] Content search success:", data.tool, data.results.length, "results")
+      fileTreeLog.info("Content search success:", data.tool, data.results.length, "results")
       setContentResults(data.results)
       setContentTool(data.tool)
       setContentLoading(false)
@@ -452,7 +456,7 @@ export function FileTreePanel({
       }
     },
     onError: (error) => {
-      console.error("[FileTree] Content search error:", error)
+      fileTreeLog.error("Content search error:", error)
       setContentResults([])
       setContentLoading(false)
       toast.error("Content search failed", {

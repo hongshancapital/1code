@@ -4,6 +4,10 @@
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
 import { getEnv } from "../../env"
+import { createLogger } from "../../logger"
+
+const liteLLMLog = createLogger("LiteLLM")
+
 
 // Model blacklist - these models are not suitable for agent use
 const MODEL_BLACKLIST = [
@@ -114,7 +118,7 @@ export const litellmRouter = router({
         error: null,
       }
     } catch (error) {
-      console.error("[LiteLLM] Failed to fetch models:", error)
+      liteLLMLog.error("Failed to fetch models:", error)
       return {
         models: [],
         defaultModel: null,

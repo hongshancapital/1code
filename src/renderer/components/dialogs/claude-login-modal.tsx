@@ -21,6 +21,10 @@ import { Button } from "../ui/button"
 import { ClaudeCodeIcon, IconSpinner } from "../ui/icons"
 import { Input } from "../ui/input"
 import { Logo } from "../ui/logo"
+import { createLogger } from "../../lib/logger"
+
+const claudeLoginModalLog = createLogger("ClaudeLoginModal")
+
 
 /**
  * Auth flow state machine:
@@ -98,7 +102,7 @@ export function ClaudeLoginModal() {
   const triggerAuthRetry = useCallback(() => {
     const pending = appStore.get(pendingAuthRetryMessageAtom)
     if (pending) {
-      console.log("[ClaudeLoginModal] Auth success - triggering retry for subChatId:", pending.subChatId)
+      claudeLoginModalLog.info("Auth success - triggering retry for subChatId:", pending.subChatId)
       appStore.set(pendingAuthRetryMessageAtom, { ...pending, readyToRetry: true })
     }
   }, [])
@@ -107,7 +111,7 @@ export function ClaudeLoginModal() {
   const clearPendingRetry = useCallback(() => {
     const pending = appStore.get(pendingAuthRetryMessageAtom)
     if (pending && !pending.readyToRetry) {
-      console.log("[ClaudeLoginModal] Modal closed without success - clearing pending retry")
+      claudeLoginModalLog.info("Modal closed without success - clearing pending retry")
       appStore.set(pendingAuthRetryMessageAtom, null)
     }
   }, [])
@@ -156,7 +160,7 @@ export function ClaudeLoginModal() {
       await handleAuthSuccess()
     } catch (err) {
       // CLI failed, try sandbox fallback
-      console.warn("[ClaudeLoginModal] setup-token failed, trying sandbox:", err)
+      claudeLoginModalLog.warn("setup-token failed, trying sandbox:", err)
       startSandboxAuth()
     }
   }, [runSetupTokenMutation, handleAuthSuccess, startSandboxAuth])

@@ -2,6 +2,10 @@ import { useEffect, useState } from "react"
 import { Table2, Loader2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
+import { createLogger } from "../../../lib/logger"
+
+const excelPreviewLog = createLogger("ExcelPreview")
+
 
 interface ExcelPreviewProps {
   filePath: string
@@ -62,7 +66,7 @@ export function ExcelPreview({ filePath, className }: ExcelPreviewProps) {
         setIsLoading(false)
         setHasError(false)
       } catch (err) {
-        console.error("[ExcelPreview] Failed to parse:", err)
+        excelPreviewLog.error("Failed to parse:", err)
         setHasError(true)
         setErrorMessage(err instanceof Error ? err.message : "Parse failed")
         setIsLoading(false)

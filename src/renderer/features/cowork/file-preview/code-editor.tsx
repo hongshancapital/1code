@@ -40,6 +40,10 @@ import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker"
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker"
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker"
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
+import { createLogger } from "../../../lib/logger"
+
+const codeEditorLog = createLogger("CodeEditor")
+
 
 // Set up Monaco environment for workers BEFORE loader.config
 // @ts-ignore - Monaco global environment setup
@@ -380,9 +384,9 @@ export function CodeEditor({
       onDirtyChange?.(false)
       onSave?.()
 
-      console.log("[CodeEditor] File saved:", filePath)
+      codeEditorLog.info("File saved:", filePath)
     } catch (error) {
-      console.error("[CodeEditor] Failed to save file:", error)
+      codeEditorLog.error("Failed to save file:", error)
       // TODO: Show error toast
     }
   }, [

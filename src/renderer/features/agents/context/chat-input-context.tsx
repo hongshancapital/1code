@@ -28,6 +28,10 @@ import {
   type MutableRefObject,
 } from "react"
 import { atom, useAtom, useSetAtom } from "jotai"
+import { createLogger } from "../../../lib/logger"
+
+const chatInputContextLog = createLogger("ChatInputContext")
+
 
 // =============================================================================
 // Types
@@ -225,18 +229,18 @@ export function ChatInputProvider({ children }: ChatInputProviderProps) {
   const sendToActive = useCallback(
     async (message: { role: string; parts: any[] }) => {
       if (!activeInstanceId) {
-        console.warn("[ChatInputContext] No active instance to send to")
+        chatInputContextLog.warn("No active instance to send to")
         return
       }
 
       const reg = registrationsRef.current.get(activeInstanceId)
       if (!reg) {
-        console.warn("[ChatInputContext] Active instance not found in registrations")
+        chatInputContextLog.warn("Active instance not found in registrations")
         return
       }
 
       if (reg.sandboxSetupStatus !== "ready") {
-        console.warn("[ChatInputContext] Sandbox not ready, cannot send")
+        chatInputContextLog.warn("Sandbox not ready, cannot send")
         return
       }
 
@@ -249,7 +253,7 @@ export function ChatInputProvider({ children }: ChatInputProviderProps) {
     async (instanceId: string, message: { role: string; parts: any[] }) => {
       const reg = registrationsRef.current.get(instanceId)
       if (!reg) {
-        console.warn(`[ChatInputContext] Instance ${instanceId} not found`)
+        chatInputContextLog.warn(`Instance ${instanceId} not found`)
         return
       }
 

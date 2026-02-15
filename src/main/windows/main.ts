@@ -18,6 +18,14 @@ import { handleAuthCode } from "../lib/auth-callback-server"
 import { registerGitWatcherIPC } from "../lib/git/watcher"
 import { registerThemeScannerIPC } from "../lib/vscode-theme-scanner"
 import { windowManager } from "./window-manager"
+import { createLogger } from "../lib/logger"
+
+const mainLog = createLogger("Main")
+const dialogSaveFileLog = createLogger("dialog:save-file")
+const authLog = createLogger("Auth")
+const signedFetchLog = createLogger("SignedFetch")
+const streamFetchLog = createLogger("StreamFetch")
+
 
 // Helper to get window from IPC event
 function getWindowFromEvent(
@@ -48,7 +56,7 @@ function registerIpcHandlers(): void {
       writeFileSync(settingsPath, JSON.stringify({ useNativeFrame }, null, 2))
       return true
     } catch (error) {
-      console.error("[Main] Failed to save frame preference:", error)
+      mainLog.error("Failed to save frame preference:", error)
       return false
     }
   })
@@ -121,7 +129,7 @@ function registerIpcHandlers(): void {
           }
         })
       } catch (error) {
-        console.error("[Main] Failed to show notification:", error)
+        mainLog.error("Failed to show notification:", error)
       }
     },
   )
@@ -176,7 +184,7 @@ function registerIpcHandlers(): void {
         writeFileSync(result.filePath, buffer)
         return { success: true, filePath: result.filePath }
       } catch (err) {
-        console.error("[dialog:save-file] Failed to write file:", err)
+        dialogSaveFileLog.error("Failed to write file:", err)
         return { success: false }
       }
     },
@@ -337,10 +345,10 @@ function registerIpcHandlers(): void {
       const baseUrl = getBaseUrl()
       if (baseUrl) {
         await ses.cookies.remove(baseUrl, "x-desktop-token")
-        console.log("[Auth] Cookie cleared on logout")
+        authLog.info("Cookie cleared on logout")
       }
     } catch (err) {
-      console.error("[Auth] Failed to clear cookie:", err)
+      authLog.error("Failed to clear cookie:", err)
     }
     // Show login page in all windows
     for (const win of windowManager.getAll()) {
@@ -387,7 +395,7 @@ function registerIpcHandlers(): void {
     try {
       return await getAuthManager().updateUser(updates)
     } catch (error) {
-      console.error("[Auth] Failed to update user:", error)
+      authLog.error("Failed to update user:", error)
       throw error
     }
   })
@@ -405,15 +413,15 @@ function registerIpcHandlers(): void {
       url: string,
       options?: { method?: string; body?: string; headers?: Record<string, string> },
     ) => {
-      console.log("[SignedFetch] IPC handler called with URL:", url)
+      signedFetchLog.info("IPC handler called with URL:", url)
       if (!validateSender(event)) {
-        console.log("[SignedFetch] Unauthorized sender")
+        signedFetchLog.info("Unauthorized sender")
         return { ok: false, status: 403, data: null, error: "Unauthorized sender" }
       }
-      console.log("[SignedFetch] Sender validated OK")
+      signedFetchLog.info("Sender validated OK")
 
       const token = await getAuthManager().getValidToken()
-      console.log("[SignedFetch] Token:", token ? "present" : "missing", "URL:", url)
+      signedFetchLog.info("Token:", token ? "present" : "missing", "URL:", url)
       if (!token) {
         return { ok: false, status: 401, data: null, error: "Not authenticated" }
       }
@@ -430,7 +438,7 @@ function registerIpcHandlers(): void {
         })
 
         const data = await response.json().catch(() => null)
-        console.log("[SignedFetch] Response:", response.status, response.ok ? "OK" : "FAILED")
+        signedFetchLog.info("Response:", response.status, response.ok ? "OK" : "FAILED")
 
         return {
           ok: response.ok,
@@ -439,7 +447,7 @@ function registerIpcHandlers(): void {
           error: response.ok ? null : `Request failed: ${response.status}`,
         }
       } catch (error) {
-        console.log("[SignedFetch] Error:", error)
+        signedFetchLog.info("Error:", error)
         return {
           ok: false,
           status: 0,
@@ -460,9 +468,9 @@ function registerIpcHandlers(): void {
       url: string,
       options?: { method?: string; body?: string; headers?: Record<string, string> },
     ) => {
-      console.log("[StreamFetch] Starting stream:", streamId, url)
+      streamFetchLog.info("Starting stream:", streamId, url)
       if (!validateSender(event)) {
-        console.log("[StreamFetch] Unauthorized sender")
+        streamFetchLog.info("Unauthorized sender")
         return { ok: false, status: 403, error: "Unauthorized sender" }
       }
 
@@ -482,7 +490,7 @@ function registerIpcHandlers(): void {
           },
         })
 
-        console.log("[StreamFetch] Response:", response.status, response.ok)
+        streamFetchLog.info("Response:", response.status, response.ok)
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => "Unknown error")
@@ -508,14 +516,14 @@ function registerIpcHandlers(): void {
               event.sender.send(`stream:${streamId}:chunk`, value)
             }
           } catch (err) {
-            console.error("[StreamFetch] Stream error:", err)
+            streamFetchLog.error("Stream error:", err)
             event.sender.send(`stream:${streamId}:error`, err instanceof Error ? err.message : "Stream error")
           }
         })()
 
         return { ok: true, status: response.status }
       } catch (error) {
-        console.error("[StreamFetch] Fetch error:", error)
+        streamFetchLog.error("Fetch error:", error)
         return {
           ok: false,
           status: 0,
@@ -536,13 +544,13 @@ function registerIpcHandlers(): void {
  * Show login page in a specific window
  */
 function showLoginPageInWindow(window: BrowserWindow): void {
-  console.log("[Main] Showing login page in window", window.id)
+  mainLog.info("Showing login page in window", window.id)
 
   // In dev mode, login.html is in src/renderer, not out/renderer
   if (process.env.ELECTRON_RENDERER_URL) {
     // Dev mode: load from source directory
     const loginPath = join(app.getAppPath(), "src/renderer/login.html")
-    console.log("[Main] Loading login from:", loginPath)
+    mainLog.info("Loading login from:", loginPath)
     window.loadFile(loginPath)
   } else {
     // Production: load from built output
@@ -554,7 +562,7 @@ function showLoginPageInWindow(window: BrowserWindow): void {
  * Load main app in a specific window (used after skip auth or login)
  */
 function loadAppInWindow(window: BrowserWindow): void {
-  console.log("[Main] Loading main app in window", window.id)
+  mainLog.info("Loading main app in window", window.id)
 
   const devServerUrl = process.env.ELECTRON_RENDERER_URL
   const windowId = windowManager.getStableId(window)
@@ -664,7 +672,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
 
   // Register window with manager and get stable ID for localStorage namespacing
   const stableWindowId = windowManager.register(window)
-  console.log(
+  mainLog.info(
     `[Main] Created window ${window.id} with stable ID "${stableWindowId}" (total: ${windowManager.count()})`,
   )
 
@@ -685,7 +693,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
 
   // Show window when ready
   window.on("ready-to-show", () => {
-    console.log("[Main] Window", window.id, "ready to show")
+    mainLog.info("Window", window.id, "ready to show")
     // Always show native macOS traffic lights
     if (process.platform === "darwin") {
       window.setWindowButtonVisibility(true)
@@ -735,7 +743,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
 
   // Handle window close
   window.on("closed", () => {
-    console.log(`[Main] Window ${window.id} closed`)
+    mainLog.info(`Window ${window.id} closed`)
     // windowManager handles cleanup via 'closed' event listener
   })
 
@@ -748,20 +756,20 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
     // Distinguish between first-time users and returning users (token expired)
     if (authManager?.hasSavedAuth()) {
       // Returning user: token expired, try refresh or auto-start OAuth
-      console.log("[Main] Token expired for returning user, attempting refresh...")
+      mainLog.info("Token expired for returning user, attempting refresh...")
 
       // Attempt refresh asynchronously
       ;(async () => {
         const refreshed = await authManager.refresh()
 
         if (refreshed) {
-          console.log("[Main] Token refresh succeeded, loading main app")
+          mainLog.info("Token refresh succeeded, loading main app")
           // Notify renderer that we're re-authenticating
           window.webContents.send("auth:reauthenticating")
           loadAppInWindow(window)
         } else {
           // Refresh failed, auto-start OAuth for returning users
-          console.log("[Main] Refresh failed, auto-starting OAuth...")
+          mainLog.info("Refresh failed, auto-starting OAuth...")
           // Notify renderer that we're re-authenticating
           window.webContents.send("auth:reauthenticating")
           authManager.startAuthFlow(window)
@@ -774,7 +782,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
       return window
     } else {
       // First-time user: show login page and wait for user choice (login or skip)
-      console.log("[Main] First-time user, showing login page")
+      mainLog.info("First-time user, showing login page")
       showLoginPageInWindow(window)
       return window
     }
@@ -783,7 +791,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   // Load the renderer
   const devServerUrl = process.env.ELECTRON_RENDERER_URL
 
-  console.log("[Main] Authenticated, loading main app")
+  mainLog.info("Authenticated, loading main app")
 
   // Get stable window ID from manager (assigned during register)
   // "main" for first window, "window-2", "window-3", etc. for additional windows
@@ -816,7 +824,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
 
   // Ensure native traffic lights are visible after page load
   window.webContents.on("did-finish-load", () => {
-    console.log("[Main] Page finished loading in window", window.id)
+    mainLog.info("Page finished loading in window", window.id)
     if (process.platform === "darwin") {
       window.setWindowButtonVisibility(true)
     }
@@ -824,7 +832,7 @@ export function createWindow(options?: { chatId?: string; subChatId?: string }):
   window.webContents.on(
     "did-fail-load",
     (_event, errorCode, errorDescription) => {
-      console.error(
+      mainLog.error(
         "[Main] Page failed to load in window",
         window.id,
         ":",

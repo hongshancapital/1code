@@ -9,7 +9,7 @@
  *   modelId: 'tiny',
  *   language: 'auto',
  * })
- * console.log(result.text)
+ * log.info(result.text)
  * ```
  */
 
@@ -22,6 +22,10 @@ export * from "./model-manager"
 // Convenience function that combines conversion + transcription
 import { convertToWav } from "./converter"
 import { transcribeAudio, type TranscribeOptions, type TranscribeResult } from "./transcriber"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("index")
+
 
 export interface LocalTranscribeOptions extends Omit<TranscribeOptions, "modelId"> {
   modelId?: TranscribeOptions["modelId"]

@@ -5,6 +5,10 @@
  * This module validates that required variables are set and provides typed access.
  */
 
+import { createLogger } from "./logger"
+
+const log = createLogger("Env")
+
 /**
  * Required environment variables (app will fail to start without these)
  * Note: Currently empty - all auth-related vars are now optional for graceful degradation
@@ -82,7 +86,7 @@ export function validateEnv(): Env {
   })
 
   if (missingAuthVars.length > 0) {
-    console.warn(
+    log.warn(
       `[Env] Auth configuration incomplete. Missing: ${missingAuthVars.join(", ")}. App will run in no-auth mode.`
     )
   }
@@ -111,7 +115,7 @@ export function validateEnv(): Env {
     MAIN_VITE_LITE_WSS_URL: import.meta.env.MAIN_VITE_LITE_WSS_URL,
   }
 
-  console.log("[Env] Environment validated successfully")
+  log.info("Environment validated successfully")
   return validatedEnv
 }
 

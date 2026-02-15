@@ -26,6 +26,11 @@ import { shellEscapePaths } from "./utils"
 import { TerminalSearch } from "./TerminalSearch"
 import type { TerminalProps, TerminalStreamEvent } from "./types"
 import "xterm/css/xterm.css"
+import { createLogger } from "../../lib/logger"
+
+const terminalLog = createLogger("Terminal")
+const terminalUseEffectLog = createLogger("Terminal:useEffect")
+
 
 export interface TerminalRef {
   scrollToBottom: () => void
@@ -60,13 +65,13 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       try {
         xtermRef.current?.scrollToBottom()
       } catch (err) {
-        console.warn("[Terminal] scrollToBottom failed:", err)
+        terminalLog.warn("scrollToBottom failed:", err)
       }
     },
     clear: () => {
       // Don't use xterm.clear() directly as it can crash due to _renderService.dimensions issue
       // Instead, just clear scrollback on the backend - the terminal will be cleared when re-attached
-      console.log("[Terminal] clear requested - skipping xterm.clear() to avoid crash")
+      terminalLog.info("clear requested - skipping xterm.clear() to avoid crash")
     },
   }), [])
 
@@ -109,7 +114,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
     (data: string) => {
       const parsedCwd = parseCwd(data)
       if (parsedCwd !== null) {
-        console.log("[Terminal] Parsed cwd from OSC-7:", parsedCwd)
+        terminalLog.info("Parsed cwd from OSC-7:", parsedCwd)
         setTerminalCwd(parsedCwd)
         // Also update global atom for the tabs to show
         setGlobalCwds((prev) => ({
@@ -144,7 +149,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
   trpc.terminal.stream.useSubscription(paneId, {
     onData: handleStreamData,
     onError: (err) => {
-      console.error("[Terminal] Stream error:", err)
+      terminalLog.error("Stream error:", err)
       xtermRef.current?.write(
         `\r\n\x1b[31m[Connection error: ${err.message}]\x1b[0m\r\n`,
       )
@@ -194,14 +199,14 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
     const container = containerRef.current
     if (!container || !hasValidSize) return
 
-    console.log("[Terminal:useEffect] MOUNT - paneId:", paneId)
+    terminalUseEffectLog.info("MOUNT - paneId:", paneId)
     const rect = container.getBoundingClientRect()
-    console.log("[Terminal:useEffect] Container rect:", rect)
+    terminalUseEffectLog.info("Container rect:", rect)
 
     let isUnmounted = false
 
     // Create xterm instance
-    console.log("[Terminal:useEffect] Creating terminal instance...", {
+    terminalUseEffectLog.info("Creating terminal instance...", {
       isDark,
     })
     const { xterm, fitAddon, serializeAddon, cleanup } = createTerminalInstance(
@@ -210,11 +215,11 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
         cwd: terminalCwdRef.current || cwd,
         isDark,
         onFileLinkClick: (path, line, column) => {
-          console.log("[Terminal] File link clicked:", path, line, column)
+          terminalLog.info("File link clicked:", path, line, column)
           // TODO: Open file in editor
         },
         onUrlClick: (url) => {
-          console.log("[Terminal] URL clicked:", url)
+          terminalLog.info("URL clicked:", url)
           window.desktopApi.openExternal(url)
         },
       },
@@ -246,7 +251,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       try {
         xterm.clear()
       } catch (err) {
-        console.warn("[Terminal] clear failed in restartTerminal:", err)
+        terminalLog.warn("clear failed in restartTerminal:", err)
       }
       createOrAttachRef.current(
         {
@@ -300,7 +305,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
     }
 
     // Create or attach to session
-    console.log(`[Terminal] Creating session paneId=${paneId}, initialCommands=`, initialCommands)
+    terminalLog.info(`Creating session paneId=${paneId}, initialCommands=`, initialCommands)
     createOrAttachRef.current(
       {
         paneId,
@@ -313,7 +318,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       },
       {
         onSuccess: (result) => {
-          console.log(`[Terminal] Session created, isNew=${result.isNew}`)
+          terminalLog.info(`Session created, isNew=${result.isNew}`)
           applySerializedState(result.serializedState)
           xterm.focus()
         },
@@ -333,7 +338,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       try {
         xterm.clear()
       } catch (err) {
-        console.warn("[Terminal] clear failed in handleClear:", err)
+        terminalLog.warn("clear failed in handleClear:", err)
       }
       clearScrollbackRef.current({ paneId })
     }
@@ -389,7 +394,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
 
     // Cleanup on unmount
     return () => {
-      console.log("[Terminal:useEffect] UNMOUNT - paneId:", paneId)
+      terminalUseEffectLog.info("UNMOUNT - paneId:", paneId)
       isUnmounted = true
       inputDisposable.dispose()
       keyDisposable.dispose()
@@ -402,19 +407,19 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>(function Terminal
       cleanup()
 
       // Serialize terminal state before detaching
-      console.log("[Terminal:useEffect] Serializing state before detach...")
+      terminalUseEffectLog.info("Serializing state before detach...")
       const serializedState = serializeAddon.serialize()
 
       // Detach instead of kill - keeps session alive for reattach
       detachRef.current({ paneId, serializedState })
 
-      console.log("[Terminal:useEffect] Disposing xterm...")
+      terminalUseEffectLog.info("Disposing xterm...")
       xterm.dispose()
       xtermRef.current = null
       fitAddonRef.current = null
       searchAddonRef.current = null
       serializeAddonRef.current = null
-      console.log("[Terminal:useEffect] UNMOUNT complete")
+      terminalUseEffectLog.info("UNMOUNT complete")
     }
     // Note: terminalCwd is accessed via ref to avoid remounting on cwd changes
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -10,6 +10,10 @@ import * as path from "path"
 import * as os from "os"
 import { ipcMain } from "electron"
 import { parse as parseJsonc } from "jsonc-parser"
+import { createLogger } from ".//logger"
+
+const log = createLogger("vscodeThemeScanner")
+
 
 /**
  * Source editor type
@@ -188,7 +192,7 @@ async function scanExtensionsDir(extensionsDir: string, source: EditorSource): P
       }
     }
   } catch (error) {
-    console.error(`Error scanning extensions directory ${extensionsDir}:`, error)
+    log.error(`Error scanning extensions directory ${extensionsDir}:`, error)
   }
 
   return themes
@@ -264,7 +268,7 @@ export function registerThemeScannerIPC(): void {
       const themes = await scanVSCodeThemes()
       return themes
     } catch (error) {
-      console.error("Error scanning VS Code themes:", error)
+      log.error("Error scanning VS Code themes:", error)
       throw error
     }
   })
@@ -286,7 +290,7 @@ export function registerThemeScannerIPC(): void {
 
       return await loadThemeFromPath(normalizedPath)
     } catch (error) {
-      console.error("Error loading VS Code theme:", error)
+      log.error("Error loading VS Code theme:", error)
       throw error
     }
   })

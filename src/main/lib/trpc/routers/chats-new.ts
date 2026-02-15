@@ -29,6 +29,11 @@ import { subChatsRouter } from "./sub-chats"
 import { chatStatsRouter } from "./chat-stats"
 import { chatGitRouter } from "./chat-git"
 import { chatExportRouter } from "./chat-export"
+import { createLogger } from "../../logger"
+
+const worktreeLog = createLogger("Worktree")
+const moveWorktreeLog = createLogger("moveWorktree")
+
 
 // Core Chat CRUD router
 const chatsCoreRouter = router({
@@ -563,7 +568,7 @@ const chatsCoreRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      console.log("[chats.create] called with:", input)
+      worktreeLog.info("[chats.create] called with:", input)
       const db = getDatabase()
 
       // Get project path
@@ -572,7 +577,7 @@ const chatsCoreRouter = router({
         .from(projects)
         .where(eq(projects.id, input.projectId))
         .get()
-      console.log("[chats.create] found project:", project)
+      worktreeLog.info("[chats.create] found project:", project)
       if (!project) throw new Error("Project not found")
 
       // Create chat (fast path)
@@ -581,7 +586,7 @@ const chatsCoreRouter = router({
         .values({ name: input.name, projectId: input.projectId })
         .returning()
         .get()
-      console.log("[chats.create] created chat:", chat)
+      worktreeLog.info("[chats.create] created chat:", chat)
 
       // Create initial sub-chat with user message (AI SDK format)
       // If initialMessageParts is provided, use it; otherwise fallback to text-only message
@@ -614,7 +619,7 @@ const chatsCoreRouter = router({
         })
         .returning()
         .get()
-      console.log("[chats.create] created subChat:", subChat)
+      worktreeLog.info("[chats.create] created subChat:", subChat)
 
       // Worktree creation result (will be set if useWorktree is true)
       let worktreeResult: {
@@ -625,7 +630,7 @@ const chatsCoreRouter = router({
 
       // Only create worktree if useWorktree is true
       if (input.useWorktree) {
-        console.log(
+        worktreeLog.info(
           "[chats.create] creating worktree with baseBranch:",
           input.baseBranch,
           "type:",
@@ -641,7 +646,7 @@ const chatsCoreRouter = router({
           input.branchType,
           input.customBranchName,
         )
-        console.log("[chats.create] worktree result:", result)
+        worktreeLog.info("[chats.create] worktree result:", result)
 
         if (result.success && result.worktreePath) {
           db.update(chats)
@@ -658,7 +663,7 @@ const chatsCoreRouter = router({
             baseBranch: result.baseBranch,
           }
         } else {
-          console.warn(`[Worktree] Failed: ${result.error}`)
+          worktreeLog.warn(`Failed: ${result.error}`)
           // Fallback to project path
           db.update(chats)
             .set({ worktreePath: project.path })
@@ -668,7 +673,7 @@ const chatsCoreRouter = router({
         }
       } else {
         // Local mode: use project path directly, no branch info
-        console.log("[chats.create] local mode - using project path directly")
+        worktreeLog.info("[chats.create] local mode - using project path directly")
         db.update(chats)
           .set({ worktreePath: project.path })
           .where(eq(chats.id, chat.id))
@@ -684,7 +689,7 @@ const chatsCoreRouter = router({
         subChats: [subChat],
       }
 
-      console.log("[chats.create] returning:", response)
+      worktreeLog.info("[chats.create] returning:", response)
       return response
     }),
 
@@ -818,10 +823,10 @@ const chatsCoreRouter = router({
 
       // --- Pre-cleanup: stop watchers & terminals (best-effort) ---
       await gitWatcherRegistry.dispose(chat.worktreePath).catch((err: unknown) => {
-        console.warn(`[moveWorktree] Failed to dispose watcher: ${err}`)
+        moveWorktreeLog.warn(`Failed to dispose watcher: ${err}`)
       })
       await terminalManager.killByWorkspaceId(input.chatId).catch((err: unknown) => {
-        console.warn(`[moveWorktree] Failed to kill terminals: ${err}`)
+        moveWorktreeLog.warn(`Failed to kill terminals: ${err}`)
       })
 
       // --- Move directory ---
@@ -865,7 +870,7 @@ const chatsCoreRouter = router({
 
         // Delete old directory (best-effort — failure is non-fatal)
         await fsRm(chat.worktreePath, { recursive: true, force: true }).catch((delErr) => {
-          console.warn(
+          worktreeLog.warn(
             `[moveWorktree] Old directory not removed: ${(delErr as Error).message}. ` +
             `You may delete it manually: ${chat.worktreePath}`
           )
@@ -892,7 +897,7 @@ const chatsCoreRouter = router({
           .get()
 
         if (project && project.path === chat.worktreePath) {
-          console.log(`[moveWorktree] Also updating project.path: ${project.path} → ${newWorktreePath}`)
+          moveWorktreeLog.info(`Also updating project.path: ${project.path} → ${newWorktreePath}`)
           db.update(projects)
             .set({ path: newWorktreePath, updatedAt: new Date() })
             .where(eq(projects.id, chat.projectId))
@@ -921,15 +926,15 @@ const chatsCoreRouter = router({
           if (existsSync(oldDir) && !existsSync(newDir)) {
             await mkdir(dirname(newDir), { recursive: true })
             await rename(oldDir, newDir)
-            console.log(`[moveWorktree] Session dir moved: ${oldSanitized} → ${newSanitized}`)
+            moveWorktreeLog.info(`Session dir moved: ${oldSanitized} → ${newSanitized}`)
           }
         } catch (err) {
-          console.warn(`[moveWorktree] Failed to move session dir for ${sc.id}:`, err)
+          moveWorktreeLog.warn(`Failed to move session dir for ${sc.id}:`, err)
           // Non-fatal: conversation will start fresh if session file is missing
         }
       }
 
-      console.log(`[moveWorktree] Moved worktree for chat ${input.chatId} to ${newWorktreePath}`)
+      moveWorktreeLog.info(`Moved worktree for chat ${input.chatId} to ${newWorktreePath}`)
 
       // --- Invalidate caches for old path ---
       gitCache.invalidateStatus(chat.worktreePath)
@@ -970,12 +975,12 @@ const chatsCoreRouter = router({
       // Kill terminal processes in background (don't await)
       terminalManager.killByWorkspaceId(input.id).then((killResult) => {
         if (killResult.killed > 0) {
-          console.log(
+          worktreeLog.info(
             `[chats.archive] Killed ${killResult.killed} terminal session(s) for workspace ${input.id}`,
           )
         }
       }).catch((error) => {
-        console.error(`[chats.archive] Error killing processes:`, error)
+        worktreeLog.error(`[chats.archive] Error killing processes:`, error)
       })
 
       // Optionally delete worktree in background (don't await)
@@ -989,7 +994,7 @@ const chatsCoreRouter = router({
         if (project) {
           removeWorktree(project.path, chat.worktreePath).then((worktreeResult) => {
             if (worktreeResult.success) {
-              console.log(
+              worktreeLog.info(
                 `[chats.archive] Deleted worktree for workspace ${input.id}`,
               )
               // Clear worktreePath since it's deleted (keep branch for reference)
@@ -998,12 +1003,12 @@ const chatsCoreRouter = router({
                 .where(eq(chats.id, input.id))
                 .run()
             } else {
-              console.warn(
+              worktreeLog.warn(
                 `[chats.archive] Failed to delete worktree: ${worktreeResult.error}`,
               )
             }
           }).catch((error) => {
-            console.error(`[chats.archive] Error removing worktree:`, error)
+            worktreeLog.error(`[chats.archive] Error removing worktree:`, error)
           })
         }
       }
@@ -1055,12 +1060,12 @@ const chatsCoreRouter = router({
       ).then((killResults) => {
         const totalKilled = killResults.reduce((sum, r) => sum + r.killed, 0)
         if (totalKilled > 0) {
-          console.log(
+          worktreeLog.info(
             `[chats.archiveBatch] Killed ${totalKilled} terminal session(s) for ${input.chatIds.length} workspace(s)`,
           )
         }
       }).catch((error) => {
-        console.error(`[chats.archiveBatch] Error killing processes:`, error)
+        worktreeLog.error(`[chats.archiveBatch] Error killing processes:`, error)
       })
 
       return result
@@ -1087,7 +1092,7 @@ const chatsCoreRouter = router({
         if (project) {
           const result = await removeWorktree(project.path, chat.worktreePath)
           if (!result.success) {
-            console.warn(`[Worktree] Cleanup failed: ${result.error}`)
+            worktreeLog.warn(`Cleanup failed: ${result.error}`)
           }
         }
       }

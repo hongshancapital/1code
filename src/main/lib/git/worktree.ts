@@ -14,6 +14,11 @@ import {
 import { checkGitLfsAvailable, getShellEnvironment } from "./shell-env";
 import { executeWorktreeSetup } from "./worktree-config";
 import { generateWorktreeFolderName } from "./worktree-naming";
+import { createLogger } from "../logger"
+
+const gitLog = createLogger("git")
+const worktreeLog = createLogger("worktree")
+
 
 const execFileAsync = promisify(execFile);
 
@@ -64,7 +69,7 @@ async function repoUsesLfs(repoPath: string): Promise<boolean> {
 		}
 	} catch (error) {
 		if (!isEnoent(error)) {
-			console.warn(`[git] Could not check .git/lfs directory: ${error}`);
+			gitLog.warn(`Could not check .git/lfs directory: ${error}`);
 		}
 	}
 
@@ -82,7 +87,7 @@ async function repoUsesLfs(repoPath: string): Promise<boolean> {
 			}
 		} catch (error) {
 			if (!isEnoent(error)) {
-				console.warn(`[git] Could not read ${filePath}: ${error}`);
+				gitLog.warn(`Could not read ${filePath}: ${error}`);
 			}
 		}
 	}
@@ -192,7 +197,7 @@ export async function createWorktree(
 			(lowerError.includes(".lock") && lowerError.includes("file exists"));
 
 		if (isLockError) {
-			console.error(
+			gitLog.error(
 				`Git lock file error during worktree creation: ${errorMessage}`,
 			);
 			throw new Error(
@@ -211,14 +216,14 @@ export async function createWorktree(
 			(lowerError.includes("lfs") && usesLfs);
 
 		if (isLfsError) {
-			console.error(`Git LFS error during worktree creation: ${errorMessage}`);
+			gitLog.error(`Git LFS error during worktree creation: ${errorMessage}`);
 			throw new Error(
 				`Failed to create worktree: This repository uses Git LFS, but git-lfs was not found or failed. ` +
 					`Please install git-lfs (e.g., 'brew install git-lfs') and run 'git lfs install'.`, { cause: error },
 			);
 		}
 
-		console.error(`Failed to create worktree: ${errorMessage}`);
+		gitLog.error(`Failed to create worktree: ${errorMessage}`);
 		throw new Error(`Failed to create worktree: ${errorMessage}`, { cause: error });
 	}
 }
@@ -239,7 +244,7 @@ export async function removeWorktree(
 		return { success: true };
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		console.error(`Failed to remove worktree: ${errorMessage}`);
+		gitLog.error(`Failed to remove worktree: ${errorMessage}`);
 		return { success: false, error: errorMessage };
 	}
 }
@@ -266,7 +271,7 @@ export async function worktreeExists(
 		const worktreePrefix = `worktree ${worktreePath}`;
 		return lines.some((line) => line.trim() === worktreePrefix);
 	} catch (error) {
-		console.error(`Failed to check worktree existence: ${error}`);
+		gitLog.error(`Failed to check worktree existence: ${error}`);
 		throw error;
 	}
 }
@@ -1055,13 +1060,13 @@ export async function createWorktreeForChat(
 		executeWorktreeSetup(worktreePath, projectPath)
 			.then((setupResult) => {
 				if (!setupResult.success) {
-					console.warn(`[worktree] Setup completed with errors: ${setupResult.errors.join(", ")}`);
+					worktreeLog.warn(`Setup completed with errors: ${setupResult.errors.join(", ")}`);
 				} else {
-					console.log(`[worktree] Setup completed successfully for ${chatId}`);
+					worktreeLog.info(`Setup completed successfully for ${chatId}`);
 				}
 			})
 			.catch((setupError) => {
-				console.warn(`[worktree] Setup failed: ${setupError}`);
+				worktreeLog.warn(`Setup failed: ${setupError}`);
 			});
 
 		return { success: true, worktreePath, branch, baseBranch };

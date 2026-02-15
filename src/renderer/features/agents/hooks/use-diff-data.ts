@@ -21,6 +21,10 @@ import {
   type ParsedDiffFile,
 } from "../ui/agent-diff-view"
 import { subChatFilesAtom } from "../atoms"
+import { createLogger } from "../../../lib/logger"
+
+const fetchDiffStatsLog = createLogger("fetchDiffStats")
+
 
 // =============================================================================
 // Types
@@ -329,7 +333,7 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
         }
       }
     } catch (error) {
-      console.error("[fetchDiffStats] Error:", error)
+      fetchDiffStatsLog.error("Error:", error)
       setDiffStats((prev) => ({ ...prev, isLoading: false }))
     } finally {
       isFetchingDiffRef.current = false

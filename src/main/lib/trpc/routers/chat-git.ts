@@ -18,6 +18,13 @@ import { computeContentHash, gitCache } from "../../git/cache"
 import { splitUnifiedDiffByFile } from "../../git/diff-parser"
 import { execWithShellEnv } from "../../git/shell-env"
 import { publicProcedure, router } from "../index"
+import { createLogger } from "../../logger"
+
+const generateCommitMessageLog = createLogger("generateCommitMessage")
+const getPrContextLog = createLogger("getPrContext")
+const mergePrLog = createLogger("mergePr")
+const getWorktreeStatusLog = createLogger("getWorktreeStatus")
+
 
 export const chatGitRouter = router({
   /**
@@ -213,7 +220,7 @@ export const chatGitRouter = router({
           return selectedPaths.has(filePath) ||
             [...selectedPaths].some(sp => filePath.endsWith(sp) || sp.endsWith(filePath))
         })
-        console.log(`[generateCommitMessage] Filtered ${files.length} files from ${input.filePaths.length} selected paths`)
+        generateCommitMessageLog.info(`Filtered ${files.length} files from ${input.filePaths.length} selected paths`)
       }
 
       if (files.length === 0) {
@@ -243,11 +250,11 @@ export const chatGitRouter = router({
             diffContext,
           )
           if (msg) {
-            console.log("[generateCommitMessage] Summary AI generated:", msg)
+            generateCommitMessageLog.info("Summary AI generated:", msg)
             return { message: msg }
           }
         } catch (error) {
-          console.warn("[generateCommitMessage] Summary AI failed, falling back:", (error as Error).message)
+          generateCommitMessageLog.warn("Summary AI failed, falling back:", (error as Error).message)
         }
       }
 
@@ -281,12 +288,12 @@ export const chatGitRouter = router({
           if (data.message) {
             return { message: data.message }
           }
-          console.warn("[generateCommitMessage] API returned ok but no message in response")
+          generateCommitMessageLog.warn("API returned ok but no message in response")
         } else {
-          console.warn(`[generateCommitMessage] API returned ${response.status}`)
+          generateCommitMessageLog.warn(`API returned ${response.status}`)
         }
       } catch (error) {
-        console.warn(`[generateCommitMessage] API call failed: ${error instanceof Error ? error.message : String(error)}`)
+        generateCommitMessageLog.warn(`API call failed: ${error instanceof Error ? error.message : String(error)}`)
       }
 
       // Fallback: Generate commit message with conventional commits style
@@ -341,7 +348,7 @@ export const chatGitRouter = router({
         message = `${prefix}: update ${uniqueFileNames.length} files`
       }
 
-      console.log("[generateCommitMessage] Generated fallback message:", message)
+      generateCommitMessageLog.info("Generated fallback message:", message)
       return { message }
     }),
 
@@ -386,7 +393,7 @@ export const chatGitRouter = router({
           hasUpstream,
         }
       } catch (error) {
-        console.error("[getPrContext] Error:", error)
+        getPrContextLog.error("Error:", error)
         return null
       }
     }),
@@ -484,7 +491,7 @@ export const chatGitRouter = router({
         )
         return { success: true }
       } catch (error) {
-        console.error("[mergePr] Error:", error)
+        mergePrLog.error("Error:", error)
         const errorMsg = error instanceof Error ? error.message : "Failed to merge PR"
 
         // Check for conflict-related error messages from gh CLI
@@ -533,7 +540,7 @@ export const chatGitRouter = router({
         }
       } catch (error) {
         // Worktree path doesn't exist or git error
-        console.warn("[getWorktreeStatus] Error checking worktree:", error)
+        getWorktreeStatusLog.warn("Error checking worktree:", error)
         return { hasWorktree: false, uncommittedCount: 0 }
       }
     }),

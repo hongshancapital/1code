@@ -97,6 +97,10 @@ import type { ReviewComment } from "../../comments/types"
 import { useDocumentComments } from "../hooks/use-document-comments"
 import { reviewCommentsAtomFamily } from "../atoms/review-atoms"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("agentDiffView")
+
 export type DiffViewMode = "unified" | "split"
 
 // Simple fast string hash (djb2 algorithm) for content change detection
@@ -1828,7 +1832,7 @@ export const AgentDiffView = forwardRef<AgentDiffViewRef, AgentDiffViewProps>(
             setFileContents(newContents)
           }
         } catch (error) {
-          console.error("Failed to prefetch file contents:", error)
+          log.error("Failed to prefetch file contents:", error)
         } finally {
           setIsLoadingFileContents(false)
         }

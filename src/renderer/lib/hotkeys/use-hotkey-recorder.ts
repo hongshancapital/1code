@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createLogger } from "../logger"
+
+const log = createLogger("HotkeyRecorder")
 
 /**
  * Hook options for hotkey recording
@@ -143,8 +146,8 @@ function buildDisplayString(modifiers: Set<string>, key: string | null): string 
  * Usage:
  * ```tsx
  * const { currentKeys, currentDisplay, recorderRef } = useHotkeyRecorder({
- *   onRecord: (hotkey) => console.log("Recorded:", hotkey),
- *   onCancel: () => console.log("Cancelled"),
+ *   onRecord: (hotkey) => log.info("Recorded:", hotkey),
+ *   onCancel: () => log.info("Cancelled"),
  *   isRecording: true,
  * })
  * ```

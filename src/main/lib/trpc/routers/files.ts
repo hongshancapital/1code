@@ -8,6 +8,10 @@ import { platform } from "node:os"
 import { app } from "electron"
 import { watch } from "node:fs"
 import { observable } from "@trpc/server/observable"
+import { createLogger } from "../../logger"
+
+const filesLog = createLogger("files")
+
 
 // Directories to ignore when scanning
 const IGNORED_DIRS = new Set([
@@ -130,7 +134,7 @@ async function scanDirectory(
     }
   } catch (error) {
     // Silently skip directories we can't read
-    console.warn(`[files] Could not read directory: ${currentPath}`, error)
+    filesLog.warn(`Could not read directory: ${currentPath}`, error)
   }
 
   return entries
@@ -246,7 +250,7 @@ export const filesRouter = router({
         // Verify the path exists and is a directory
         const pathStat = await stat(projectPath)
         if (!pathStat.isDirectory()) {
-          console.warn(`[files] Not a directory: ${projectPath}`)
+          filesLog.warn(`Not a directory: ${projectPath}`)
           return []
         }
 
@@ -256,14 +260,14 @@ export const filesRouter = router({
         // Debug: log folder count
         const folderCount = entries.filter(e => e.type === "folder").length
         const fileCount = entries.filter(e => e.type === "file").length
-        console.log(`[files] Scanned ${projectPath}: ${folderCount} folders, ${fileCount} files`)
+        filesLog.info(`Scanned ${projectPath}: ${folderCount} folders, ${fileCount} files`)
 
         // Filter and sort by query
         const results = filterEntries(entries, query, limit)
-        console.log(`[files] Query "${query}": returning ${results.length} results, folders: ${results.filter(r => r.type === "folder").length}`)
+        filesLog.info(`Query "${query}": returning ${results.length} results, folders: ${results.filter(r => r.type === "folder").length}`)
         return results
       } catch (error) {
-        console.error(`[files] Error searching files:`, error)
+        filesLog.error(`Error searching files:`, error)
         return []
       }
     }),
@@ -301,7 +305,7 @@ export const filesRouter = router({
         // Verify the path exists and is a directory
         const pathStat = await stat(targetPath)
         if (!pathStat.isDirectory()) {
-          console.warn(`[files] Not a directory: ${targetPath}`)
+          filesLog.warn(`Not a directory: ${targetPath}`)
           return []
         }
 
@@ -351,7 +355,7 @@ export const filesRouter = router({
 
         return results
       } catch (error) {
-        console.error(`[files] Error listing directory:`, error)
+        filesLog.error(`Error listing directory:`, error)
         return []
       }
     }),
@@ -385,7 +389,7 @@ export const filesRouter = router({
         const content = await readFile(filePath, "utf-8")
         return content
       } catch (error) {
-        console.error(`[files] Error reading file:`, error)
+        filesLog.error(`Error reading file:`, error)
         throw error
       }
     }),
@@ -443,7 +447,7 @@ export const filesRouter = router({
           size: fileStat.size,
         }
       } catch (error) {
-        console.error(`[files] Error reading binary file:`, error)
+        filesLog.error(`Error reading binary file:`, error)
         throw error
       }
     }),
@@ -563,7 +567,7 @@ export const filesRouter = router({
       // Write file
       await writeFile(filePath, text, "utf-8")
 
-      console.log(`[files] Wrote pasted text to ${filePath} (${text.length} bytes)`)
+      filesLog.info(`Wrote pasted text to ${filePath} (${text.length} bytes)`)
 
       return {
         filePath,
@@ -649,7 +653,7 @@ export const filesRouter = router({
           parentPaths: Array.from(parentPaths),
         }
       } catch (error) {
-        console.error(`[files] Error searching files:`, error)
+        filesLog.error(`Error searching files:`, error)
         return { results: [], parentPaths: [] }
       }
     }),
@@ -694,7 +698,7 @@ export const filesRouter = router({
           const rgPath = rgPaths[rgPathIndex]
           rgPathIndex++
 
-          console.log(`[files] Trying ripgrep at: ${rgPath} for content search: "${query}" in ${projectPath}`)
+          filesLog.info(`Trying ripgrep at: ${rgPath} for content search: "${query}" in ${projectPath}`)
 
           const args = [
             "--json",
@@ -788,7 +792,7 @@ export const filesRouter = router({
         }
 
         const tryFindstr = () => {
-          console.log(`[files] Trying findstr for content search: "${query}" in ${projectPath}`)
+          filesLog.info(`Trying findstr for content search: "${query}" in ${projectPath}`)
 
           // Windows findstr command
           const args = ["/S", "/N", "/P"]
@@ -815,7 +819,7 @@ export const filesRouter = router({
 
           findstr.on("close", (code) => {
             if (code === 2) {
-              console.error(`[files] findstr failed`)
+              filesLog.error(`findstr failed`)
               resolve({ results: [], tool: "findstr-failed" })
               return
             }
@@ -845,13 +849,13 @@ export const filesRouter = router({
           })
 
           findstr.on("error", (err) => {
-            console.error(`[files] findstr spawn error:`, err)
+            filesLog.error(`findstr spawn error:`, err)
             resolve({ results: [], tool: "findstr-error" })
           })
         }
 
         const tryGrep = () => {
-          console.log(`[files] Trying grep for content search: "${query}" in ${projectPath}`)
+          filesLog.info(`Trying grep for content search: "${query}" in ${projectPath}`)
 
           const grepPath = "/usr/bin/grep"
           const args = ["-r", "-n", "-H"]
@@ -926,10 +930,10 @@ export const filesRouter = router({
 
       try {
         await writeFile(filePath, content, "utf-8")
-        console.log(`[files] Wrote file: ${filePath} (${content.length} bytes)`)
+        filesLog.info(`Wrote file: ${filePath} (${content.length} bytes)`)
         return { success: true }
       } catch (error) {
-        console.error(`[files] Error writing file:`, error)
+        filesLog.error(`Error writing file:`, error)
         throw error
       }
     }),
@@ -1051,7 +1055,7 @@ export async function cleanupStaleDraftAttachmentDirs(): Promise<void> {
     }
 
     if (cleaned > 0) {
-      console.log(`[files] Cleaned up ${cleaned} stale draft attachment dirs`)
+      filesLog.info(`Cleaned up ${cleaned} stale draft attachment dirs`)
     }
   } catch {
     /* baseDir doesn't exist yet — nothing to clean */

@@ -2,6 +2,10 @@ import * as shiki from "shiki"
 import { isBuiltinTheme } from "../vscode-themes"
 import { getBuiltinThemeById } from "./builtin-themes"
 import type { VSCodeFullTheme } from "../atoms"
+import { createLogger } from "../logger"
+
+const log = createLogger("shikiThemeLoader")
+
 
 /**
  * Shared Shiki highlighter instance
@@ -153,7 +157,7 @@ export async function loadFullTheme(theme: VSCodeFullTheme): Promise<void> {
     await highlighter.loadTheme(shikiTheme)
     fullThemesCache.set(theme.id, shikiTheme)
   } catch (error) {
-    console.error(`Failed to load full theme ${theme.id}:`, error)
+    log.error(`Failed to load full theme ${theme.id}:`, error)
     // Don't throw - allow fallback to default theme
   }
 }
@@ -229,7 +233,7 @@ export async function ensureThemeLoaded(themeId: string): Promise<void> {
   }
 
   // Theme not found - this is an error case
-  console.warn(`Theme ${themeId} not found, falling back to github-dark`)
+  log.warn(`Theme ${themeId} not found, falling back to github-dark`)
 }
 
 /**

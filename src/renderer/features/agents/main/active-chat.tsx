@@ -494,7 +494,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // Don't revert if sub-chat not found in DB - it may not be persisted yet
       // This is expected for new sub-chats that haven't been saved to DB
       if (error.message === "Sub-chat not found") {
-        log.warn("Sub-chat not found in DB, keeping local mode state");
+        handleRollbackLog.warn("Sub-chat not found in DB, keeping local mode state");
         return;
       }
 
@@ -506,7 +506,7 @@ const ChatViewInner = memo(function ChatViewInner({
       useAgentSubChatStore
         .getState()
         .updateSubChatMode(variables.subChatId, revertedMode);
-      log.error("Failed to update sub-chat mode:", error.message);
+      handleRollbackLog.error("Failed to update sub-chat mode:", error.message);
     },
   });
 
@@ -1563,7 +1563,7 @@ const ChatViewInner = memo(function ChatViewInner({
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
           }
         } catch (error) {
-          log.error("Failed to expand custom slash command:", error);
+          handleRollbackLog.error("Failed to expand custom slash command:", error);
         }
       }
     }
@@ -1790,7 +1790,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
         await sendMessageRef.current({ role: "user", parts });
       } catch (error) {
-        log.error(
+        handleRollbackLog.error(
           "[handleSendFromQueue] Error sending queued message:",
           error,
         );
@@ -1940,7 +1940,7 @@ const ChatViewInner = memo(function ChatViewInner({
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
           }
         } catch (error) {
-          log.error("Failed to expand custom slash command:", error);
+          handleRollbackLog.error("Failed to expand custom slash command:", error);
         }
       }
     }
@@ -2666,6 +2666,7 @@ export function ChatView({
   // - staleTime: 30s — 消息只在流式传输时变化（由 subscription 实时更新），切换时无需立即重新加载
   // - gcTime: 10min — 切回旧 workspace 时能直接使用缓存
   // - select: 在 React Query 层面做一次 JSON.parse，结果自动缓存，避免 getOrCreateChat 中重复解析
+  // - placeholderData: keepPreviousData — 切 tab 时保留旧 subchat 数据，避免 data 变 undefined 触发 loading gate
   const { data: subChatMessagesData, isLoading: isLoadingMessages } =
     trpc.chats.getSubChatMessages.useQuery(
       { id: effectiveSubChatId! },
@@ -2673,6 +2674,7 @@ export function ChatView({
         enabled: !!effectiveSubChatId && chatSourceMode === "local",
         staleTime: 30_000,
         gcTime: 10 * 60_000,
+        placeholderData: (prev) => prev,
         select: (data) => {
           if (!data?.messages) return null
           try {
@@ -3228,7 +3230,7 @@ export function ChatView({
             });
             // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
             if (parsed.length > existingMessages.length) {
-              log.info(
+              handleRollbackLog.info(
                 "[getOrCreateChat] Recreating chat with new messages",
               );
               chatRegistry.unregister(subChatId);
@@ -3295,7 +3297,7 @@ export function ChatView({
             };
           });
         } catch (err) {
-          log.warn(
+          handleRollbackLog.warn(
             "[getOrCreateChat] Failed to parse lazy-loaded messages",
             err,
           );
@@ -3758,7 +3760,7 @@ export function ChatView({
             queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
           });
         } catch (error) {
-          log.error(
+          handleRollbackLog.error(
             "[ChatInstanceContext] Failed to refresh branch:",
             error,
           );
@@ -3834,8 +3836,6 @@ export function ChatView({
                         agentSubChats={agentSubChats}
                         allSubChats={allSubChats}
                         isLocalChatLoading={isLocalChatLoading}
-                        isLoadingMessages={isLoadingMessages}
-                        subChatMessagesData={subChatMessagesData}
                         getOrCreateChat={getOrCreateChat}
                         handleAutoRename={handleAutoRename}
                         handleCreateNewSubChat={handleCreateNewSubChat}

@@ -9,6 +9,10 @@ import { join } from "path"
 import { and, gte, lte, eq } from "drizzle-orm"
 import { getDatabase, projects, chats, subChats } from "../../../lib/db"
 import type { InsightStats, ReportType } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const insightsLog = createLogger("Insights")
+
 
 export interface ExportedChat {
   chatId: string
@@ -230,7 +234,7 @@ export async function cleanupDataDir(dataDir: string): Promise<void> {
   try {
     await rm(dataDir, { recursive: true, force: true })
   } catch (error) {
-    console.warn("[Insights] Failed to cleanup data dir:", dataDir, error)
+    insightsLog.warn("Failed to cleanup data dir:", dataDir, error)
   }
 }
 
@@ -253,7 +257,7 @@ export async function cleanupOldDataDirs(daysToKeep = 7): Promise<void> {
           const dirStat = await stat(dirPath)
           if (now - dirStat.mtimeMs > maxAge) {
             await rm(dirPath, { recursive: true, force: true })
-            console.log("[Insights] Cleaned up old data dir:", entry.name)
+            insightsLog.info("Cleaned up old data dir:", entry.name)
           }
         } catch {
           // Ignore stat errors

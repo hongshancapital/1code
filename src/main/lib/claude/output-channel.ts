@@ -12,6 +12,10 @@
  */
 
 import type { OutputChannel } from "./engine-types"
+import { createLogger } from "../logger"
+
+const log = createLogger("outputChannel")
+
 
 // ============================================================================
 // Channel Implementations
@@ -28,21 +32,21 @@ export class ConsoleChannel implements OutputChannel {
   }
 
   onMessage(chunk: unknown): void {
-    console.log(`${this.prefix} Message:`, chunk)
+    log.info(`${this.prefix} Message:`, chunk)
   }
 
   onToolCall(toolName: string, input: unknown, output: unknown): void {
-    console.log(`${this.prefix} Tool: ${toolName}`)
-    console.log(`${this.prefix}   Input:`, input)
-    console.log(`${this.prefix}   Output:`, output)
+    log.info(`${this.prefix} Tool: ${toolName}`)
+    log.info(`${this.prefix}   Input:`, input)
+    log.info(`${this.prefix}   Output:`, output)
   }
 
   onError(error: Error): void {
-    console.error(`${this.prefix} Error:`, error.message)
+    log.error(`${this.prefix} Error:`, error.message)
   }
 
   onComplete(result: { sessionId?: string; stats?: unknown }): void {
-    console.log(`${this.prefix} Complete:`, result)
+    log.info(`${this.prefix} Complete:`, result)
   }
 }
 

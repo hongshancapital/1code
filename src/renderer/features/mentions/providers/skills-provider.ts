@@ -14,6 +14,10 @@ import {
   MENTION_PREFIXES,
   sortByRelevance,
 } from "../types"
+import { createLogger } from "../../../lib/logger"
+
+const skillsProviderLog = createLogger("SkillsProvider")
+
 
 /**
  * Data payload for skill mentions
@@ -92,7 +96,7 @@ export const skillsProvider = createMentionProvider<SkillData>({
         timing,
       }
     } catch (error) {
-      console.error("[SkillsProvider] Search error:", error)
+      skillsProviderLog.error("Search error:", error)
       return {
         items: [],
         hasMore: false,
@@ -136,7 +140,7 @@ export const skillsProvider = createMentionProvider<SkillData>({
         },
       }
     } catch (error) {
-      console.warn(`[SkillsProvider] Failed to deserialize token: ${token}`, error)
+      skillsProviderLog.warn(`Failed to deserialize token: ${token}`, error)
       return null
     }
   },

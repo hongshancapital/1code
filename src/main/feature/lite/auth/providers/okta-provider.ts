@@ -9,6 +9,10 @@ import type { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
 import { generateCodeVerifier, generateCodeChallenge, generateState } from "./pkce"
 import { getEnv } from "../../../../lib/env"
 import { OKTA_CALLBACK_PORT } from "../../../../constants"
+import { createLogger } from "../../../../lib/logger"
+
+const oktaLog = createLogger("Okta")
+
 
 /**
  * Get Okta configuration from environment.
@@ -46,7 +50,7 @@ function parseIdToken(idToken: string): AuthUser {
       username: payload.preferred_username || payload.email?.split("@")[0] || null,
     }
   } catch (error) {
-    console.error("[Okta] Failed to parse id_token:", error)
+    oktaLog.error("Failed to parse id_token:", error)
     throw new Error("Failed to parse user information from token", { cause: error })
   }
 }
@@ -76,8 +80,8 @@ export class OktaProvider implements AuthProvider {
     authorizeUrl.searchParams.set("code_challenge", codeChallenge)
     authorizeUrl.searchParams.set("code_challenge_method", "S256")
 
-    console.log("[Okta] Starting PKCE flow...")
-    console.log("[Okta] Redirect URI:", this.getRedirectUri())
+    oktaLog.info("Starting PKCE flow...")
+    oktaLog.info("Redirect URI:", this.getRedirectUri())
 
     shell.openExternal(authorizeUrl.toString())
 
@@ -95,7 +99,7 @@ export class OktaProvider implements AuthProvider {
     const { issuer, clientId } = getOktaConfig()
     const { codeVerifier } = pkceState
 
-    console.log("[Okta] Exchanging authorization code for tokens...")
+    oktaLog.info("Exchanging authorization code for tokens...")
 
     const tokenUrl = `${issuer}/v1/token`
     const body = new URLSearchParams({
@@ -117,12 +121,12 @@ export class OktaProvider implements AuthProvider {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("[Okta] Token exchange failed:", error)
+      oktaLog.error("Token exchange failed:", error)
       throw new Error(error.error_description || error.error || `Token exchange failed: ${response.status}`)
     }
 
     const tokenData: TokenResponse = await response.json()
-    console.log("[Okta] Token exchange successful")
+    oktaLog.info("Token exchange successful")
 
     if (!tokenData.id_token) {
       throw new Error("No id_token in response. Make sure 'openid' scope is requested.")
@@ -136,7 +140,7 @@ export class OktaProvider implements AuthProvider {
   async refresh(refreshToken: string): Promise<TokenResponse | null> {
     const { issuer, clientId } = getOktaConfig()
 
-    console.log("[Okta] Refreshing token...")
+    oktaLog.info("Refreshing token...")
 
     const tokenUrl = `${issuer}/v1/token`
     const body = new URLSearchParams({
@@ -157,12 +161,12 @@ export class OktaProvider implements AuthProvider {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("[Okta] Refresh failed:", response.status, error)
+      oktaLog.error("Refresh failed:", response.status, error)
       return null
     }
 
     const tokenData: TokenResponse = await response.json()
-    console.log("[Okta] Token refreshed successfully")
+    oktaLog.info("Token refreshed successfully")
 
     return tokenData
   }

@@ -115,6 +115,14 @@ export const betaAutomationsEnabledAtom = atom(
   (_get, set, value: boolean) => set(_betaAutomationsEnabledStorageAtom, value)
 )
 
+// Beta: Enable Rename Folder (worktree move) in workspace widget
+export const betaRenameFolderEnabledAtom = atomWithStorage<boolean>(
+  "preferences:beta-rename-folder-enabled",
+  false, // Default OFF
+  undefined,
+  { getOnInit: true },
+)
+
 // Beta: Enable Tasks functionality in Claude Code SDK
 export const enableTasksAtom = atomWithStorage<boolean>(
   "preferences:enable-tasks",
@@ -159,7 +167,7 @@ if (typeof window !== "undefined") {
     const wasInPlanMode = oldValue === "true"
     localStorage.setItem(newKey, JSON.stringify(wasInPlanMode ? "plan" : "agent"))
     localStorage.removeItem(oldKey)
-    console.log("[atoms] Migrated isPlanMode to defaultAgentMode:", wasInPlanMode ? "plan" : "agent")
+    atomsLog.info("Migrated isPlanMode to defaultAgentMode:", wasInPlanMode ? "plan" : "agent")
   }
 }
 
@@ -223,6 +231,10 @@ export const languagePreferenceAtom = atomWithStorage<LanguagePreference>(
 
 // Custom hotkeys
 import type { CustomHotkeysConfig } from "../hotkeys/types"
+import { createLogger } from "../logger"
+
+const atomsLog = createLogger("atoms")
+
 export type { CustomHotkeysConfig }
 
 export const customHotkeysAtom = atomWithStorage<CustomHotkeysConfig>(

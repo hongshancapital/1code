@@ -56,6 +56,10 @@ import { RemoteChatTransport } from "../lib/remote-chat-transport"
 import { isRemoteChat, getSandboxId, getProjectPath } from "../types"
 import type { AgentChat } from "../types"
 import { appStore } from "../../../lib/jotai-store"
+import { createLogger } from "../../../lib/logger"
+
+const getOrCreateChatLog = createLogger("getOrCreateChat")
+
 
 // ============================================================================
 // Types
@@ -170,7 +174,7 @@ export function MessageSendProvider({ children }: MessageSendProviderProps) {
       // Check if CWD changed (playground to project transition)
       const entry = chatRegistry.getEntry(subChatId)
       if (worktreePath && entry?.cwd && entry.cwd !== worktreePath) {
-        console.log("[getOrCreateChat] CWD changed, hot-updating transport", {
+        getOrCreateChatLog.info("CWD changed, hot-updating transport", {
           subChatId: subChatId.slice(-8),
           oldCwd: entry.cwd,
           newCwd: worktreePath,
@@ -221,7 +225,7 @@ export function MessageSendProvider({ children }: MessageSendProviderProps) {
           }
         })
       } catch (err) {
-        console.warn("[getOrCreateChat] Failed to parse messages", err)
+        getOrCreateChatLog.warn("Failed to parse messages", err)
       }
     } else if (Array.isArray(subChat?.messages)) {
       messages = subChat.messages as unknown[]
@@ -263,7 +267,7 @@ export function MessageSendProvider({ children }: MessageSendProviderProps) {
     }
 
     if (!transport) {
-      console.error("[getOrCreateChat] No transport available")
+      getOrCreateChatLog.error("No transport available")
       return null
     }
 

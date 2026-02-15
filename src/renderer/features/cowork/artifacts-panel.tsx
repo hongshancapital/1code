@@ -6,6 +6,10 @@ import { cn } from "../../lib/utils"
 import { useAgentSubChatStore } from "../agents/stores/sub-chat-store"
 import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atoms"
 import { filePreviewPathAtom } from "./atoms"
+import { createLogger } from "../../lib/logger"
+
+const artifactsPanelLog = createLogger("ArtifactsPanel")
+
 
 // ============================================================================
 // Types
@@ -208,7 +212,7 @@ export function ArtifactsPanelContent({ onFileSelect }: ArtifactsPanelProps) {
   const setPreviewPath = useSetAtom(filePreviewPathAtom)
 
   // Debug logging
-  console.log("[ArtifactsPanel] activeSubChatId:", activeSubChatId, "effectiveId:", effectiveId, "rawArtifacts:", rawArtifacts)
+  artifactsPanelLog.info("activeSubChatId:", activeSubChatId, "effectiveId:", effectiveId, "rawArtifacts:", rawArtifacts)
 
   // Ensure artifacts is always an array
   const artifacts = Array.isArray(rawArtifacts) ? rawArtifacts : []

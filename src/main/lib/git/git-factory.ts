@@ -2,6 +2,10 @@ import type { SimpleGit, SimpleGitOptions } from "simple-git";
 import simpleGit from "simple-git";
 import { stat, unlink } from "fs/promises";
 import { join } from "path";
+import { createLogger } from "../logger"
+
+const gitFactoryLog = createLogger("git-factory")
+
 
 /**
  * Default timeout values for git operations (in milliseconds)
@@ -125,7 +129,7 @@ export async function cleanStaleLockFiles(
 			if (age > maxAgeMs) {
 				await unlink(lockPath);
 				removedLocks.push(lockPath);
-				console.log(`[git-factory] Removed stale lock file: ${lockPath} (age: ${Math.round(age / 1000)}s)`);
+				gitFactoryLog.info(`Removed stale lock file: ${lockPath} (age: ${Math.round(age / 1000)}s)`);
 			}
 		} catch {
 			// Lock file doesn't exist, which is fine
@@ -173,7 +177,7 @@ export async function withLockRetry<T>(
 			lastError = error;
 
 			if (isLockFileError(error) && attempt < maxRetries) {
-				console.log(`[git-factory] Lock file conflict on attempt ${attempt + 1}, cleaning and retrying...`);
+				gitFactoryLog.info(`Lock file conflict on attempt ${attempt + 1}, cleaning and retrying...`);
 
 				// Try to clean stale locks
 				await cleanStaleLockFiles(worktreePath);

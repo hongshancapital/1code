@@ -10,6 +10,10 @@ import { useAtomValue } from "jotai"
 import type * as Monaco from "monaco-editor"
 import { trpc, trpcClient } from "../trpc"
 import { selectedProjectAtom } from "../atoms"
+import { createLogger } from "../logger"
+
+const lspLog = createLogger("LSP")
+
 
 // Map Monaco language IDs to our LSP language types
 function mapMonacoLanguage(
@@ -162,9 +166,9 @@ export function useLSPClient({
           },
         })
         setIsConnected(true)
-        console.log(`[LSP Client] Connected to ${lspLanguage} server`)
+        lspLog.info(`[LSP Client] Connected to ${lspLanguage} server`)
       } catch (err) {
-        console.error("[LSP Client] Failed to start:", err)
+        lspLog.error("[LSP Client] Failed to start:", err)
         setError(err instanceof Error ? err.message : "Failed to connect")
         setIsConnected(false)
       } finally {
@@ -195,9 +199,9 @@ export function useLSPClient({
           content,
         })
         fileOpenRef.current = true
-        console.log(`[LSP Client] File opened: ${filePath}`)
+        lspLog.info(`[LSP Client] File opened: ${filePath}`)
       } catch (err) {
-        console.error("[LSP Client] Failed to open file:", err)
+        lspLog.error("[LSP Client] Failed to open file:", err)
       }
     },
     [filePath, isConnected, openFileMutation]
@@ -215,7 +219,7 @@ export function useLSPClient({
           content,
         })
       } catch (err) {
-        console.error("[LSP Client] Failed to update file:", err)
+        lspLog.error("[LSP Client] Failed to update file:", err)
       }
     },
     [filePath, isConnected, updateFileMutation]
@@ -233,9 +237,9 @@ export function useLSPClient({
         filePath,
       })
       fileOpenRef.current = false
-      console.log(`[LSP Client] File closed: ${filePath}`)
+      lspLog.info(`[LSP Client] File closed: ${filePath}`)
     } catch (err) {
-      console.error("[LSP Client] Failed to close file:", err)
+      lspLog.error("[LSP Client] Failed to close file:", err)
     }
   }, [filePath, closeFileMutation])
 
@@ -302,7 +306,7 @@ export function useLSPClient({
                 })),
               }
             } catch (err) {
-              console.error("[LSP] Completion error:", err)
+              lspLog.error("Completion error:", err)
               return { suggestions: [] }
             }
           },
@@ -363,7 +367,7 @@ export function useLSPClient({
               },
             }
           } catch (err) {
-            console.error("[LSP] Hover error:", err)
+            lspLog.error("Hover error:", err)
             return null
           }
         },
@@ -423,7 +427,7 @@ export function useLSPClient({
                 dispose: () => {},
               }
             } catch (err) {
-              console.error("[LSP] Signature help error:", err)
+              lspLog.error("Signature help error:", err)
               return null
             }
           },
@@ -464,7 +468,7 @@ export function useLSPClient({
                 },
               }))
             } catch (err) {
-              console.error("[LSP] Definition error:", err)
+              lspLog.error("Definition error:", err)
               return null
             }
           },
@@ -505,7 +509,7 @@ export function useLSPClient({
                 },
               }))
             } catch (err) {
-              console.error("[LSP] References error:", err)
+              lspLog.error("References error:", err)
               return null
             }
           },
@@ -542,7 +546,7 @@ export function useLSPClient({
 
           monaco.editor.setModelMarkers(model, "lsp", markers)
         } catch (err) {
-          console.error("[LSP] Diagnostics error:", err)
+          lspLog.error("Diagnostics error:", err)
         }
       }
 

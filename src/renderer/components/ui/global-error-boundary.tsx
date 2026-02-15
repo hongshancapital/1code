@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next"
 import { Copy, Check } from "lucide-react"
 import { Button } from "./button"
 import i18n from "../../lib/i18n"
+import { createLogger } from "../../lib/logger"
+
+const globalErrorBoundaryLog = createLogger("GlobalErrorBoundary")
+
 
 interface GlobalErrorBoundaryProps {
   children: ReactNode
@@ -49,7 +53,7 @@ function ErrorDetails({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error("Failed to copy error:", err)
+      globalErrorBoundaryLog.error("Failed to copy error:", err)
     }
   }
 
@@ -171,7 +175,7 @@ export class GlobalErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[GlobalErrorBoundary] Fatal error caught:", error, errorInfo)
+    globalErrorBoundaryLog.error("Fatal error caught:", error, errorInfo)
 
     // 存储 errorInfo 到 state（用于 UI 显示）
     this.setState({ errorInfo })
@@ -196,11 +200,11 @@ export class GlobalErrorBoundary extends Component<
           },
           level: "fatal",
         })
-        console.log("[GlobalErrorBoundary] Error reported to Sentry")
+        globalErrorBoundaryLog.info("Error reported to Sentry")
       })
       .catch((sentryErr) => {
         // Dev 模式下 Sentry 未加载，只记录到控制台
-        console.warn(
+        globalErrorBoundaryLog.warn(
           "[GlobalErrorBoundary] Failed to report to Sentry:",
           sentryErr
         )

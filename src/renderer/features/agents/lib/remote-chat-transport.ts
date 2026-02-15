@@ -1,5 +1,9 @@
 import type { ChatTransport, UIMessage } from "ai"
 import { toast } from "sonner"
+import { createLogger } from "../../../lib/logger"
+
+const remoteTransportLog = createLogger("RemoteTransport")
+
 
 // Cache the API base URL (fetched once from main process)
 let cachedApiBase: string | null = null
@@ -45,7 +49,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
     abortSignal?: AbortSignal
   }): Promise<ReadableStream<UIMessageChunk>> {
     if (!window.desktopApi?.streamFetch) {
-      console.error("[RemoteTransport] Desktop API not available")
+      remoteTransportLog.error("Desktop API not available")
       toast.error("Desktop API not available", {
         description: "Please restart the application",
       })
@@ -54,7 +58,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
 
     const streamId = generateStreamId()
     const subId = this.config.subChatId.slice(-8)
-    console.log(`[RemoteTransport] START`, {
+    remoteTransportLog.info(`START`, {
       streamId,
       subId,
       chatId: this.config.chatId,
@@ -96,7 +100,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
       }
     )
 
-    console.log(`[RemoteTransport] Stream fetch started`, {
+    remoteTransportLog.info(`Stream fetch started`, {
       streamId,
       subId,
       ok: result.ok,
@@ -104,7 +108,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
     })
 
     if (!result.ok) {
-      console.error(`[RemoteTransport] ERROR`, { subId, status: result.status, error: result.error })
+      remoteTransportLog.error(`ERROR`, { subId, status: result.status, error: result.error })
 
       if (result.status === 401) {
         toast.error("Authentication failed", {
@@ -160,7 +164,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
           const data = line.slice(6).trim()
 
           if (data === "[DONE]") {
-            console.log(`[RemoteTransport] FINISH sub=${subId} chunks=${chunkCount}`)
+            remoteTransportLog.info(`FINISH sub=${subId} chunks=${chunkCount}`)
             streamDone = true
             if (resolveNext) {
               resolveNext({ done: true })
@@ -173,7 +177,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
             const chunk = JSON.parse(data)
             chunkCount++
             if (chunkCount <= 3) {
-              console.log(`[RemoteTransport] Chunk #${chunkCount}`, {
+              remoteTransportLog.info(`Chunk #${chunkCount}`, {
                 subId,
                 type: chunk.type,
                 preview: JSON.stringify(chunk).slice(0, 200),
@@ -187,7 +191,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
               pendingChunks.push(chunk)
             }
           } catch {
-            console.warn(`[RemoteTransport] Failed to parse chunk`, { subId, data: data.slice(0, 100) })
+            remoteTransportLog.warn(`Failed to parse chunk`, { subId, data: data.slice(0, 100) })
           }
         }
       }
@@ -197,7 +201,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
     cleanupChunk = window.desktopApi.onStreamChunk(streamId, processBytes)
 
     cleanupDone = window.desktopApi.onStreamDone(streamId, () => {
-      console.log(`[RemoteTransport] DONE sub=${subId} chunks=${chunkCount}`)
+      remoteTransportLog.info(`DONE sub=${subId} chunks=${chunkCount}`)
       streamDone = true
       if (resolveNext) {
         resolveNext({ done: true })
@@ -206,7 +210,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
     })
 
     cleanupError = window.desktopApi.onStreamError(streamId, (error: string) => {
-      console.error(`[RemoteTransport] Stream error sub=${subId}:`, error)
+      remoteTransportLog.error(`Stream error sub=${subId}:`, error)
       streamError = new Error(error)
       if (rejectNext) {
         rejectNext(streamError)
@@ -217,7 +221,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
     // Handle abort
     if (abortSignal) {
       abortSignal.addEventListener("abort", () => {
-        console.log(`[RemoteTransport] ABORT sub=${subId} chunks=${chunkCount}`)
+        remoteTransportLog.info(`ABORT sub=${subId} chunks=${chunkCount}`)
         streamDone = true
         cleanup()
       })
@@ -265,7 +269,7 @@ export class RemoteChatTransport implements ChatTransport<UIMessage> {
         }
       },
       cancel: () => {
-        console.log(`[RemoteTransport] CANCEL sub=${subId} chunks=${chunkCount}`)
+        remoteTransportLog.info(`CANCEL sub=${subId} chunks=${chunkCount}`)
         cleanup()
       },
     })

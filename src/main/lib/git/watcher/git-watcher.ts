@@ -1,4 +1,8 @@
 import { EventEmitter } from "events";
+import { createLogger } from "../../logger";
+
+const log = createLogger("GitWatcher");
+const gitWatcherLog = createLogger("GitWatcherDetail");
 
 // Chokidar is ESM-only, so we need to dynamically import it
 // FSWatcher type: chokidar.watch returns FSWatcher which has on/close methods
@@ -124,11 +128,11 @@ export class GitWatcher extends EventEmitter {
 				flushChanges();
 			})
 			.on("error", (error: Error) => {
-				console.error("[GitWatcher] Error:", error);
+				gitWatcherLog.error("Error:", error);
 				this.emit("error", error);
 			});
 
-		console.log(`[GitWatcher] Watching: ${config.worktreePath}`);
+		gitWatcherLog.info(`Watching: ${config.worktreePath}`);
 	}
 
 	/**
@@ -152,7 +156,7 @@ export class GitWatcher extends EventEmitter {
 		await this.watcher?.close();
 		this.pendingChanges.clear();
 		this.removeAllListeners();
-		console.log(`[GitWatcher] Disposed: ${this.worktreePath}`);
+		gitWatcherLog.info(`Disposed: ${this.worktreePath}`);
 	}
 }
 
@@ -187,7 +191,7 @@ class GitWatcherRegistry {
 						try {
 							callback(event);
 						} catch (error) {
-							console.error(
+							log.error(
 								"[GitWatcherRegistry] Listener error:",
 								error,
 							);

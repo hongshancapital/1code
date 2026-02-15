@@ -12,6 +12,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
+import { createLogger } from "../../logger"
+
+const writeClaudeSessionLog = createLogger("writeClaudeSession")
+const openLocallyLog = createLogger("OPEN-LOCALLY")
+const sandboxImportLog = createLogger("sandbox-import")
+
 
 const execAsync = promisify(exec);
 
@@ -64,13 +70,13 @@ async function writeClaudeSession(
 	const sanitizedPath = localProjectPath.replace(/[/.]/g, "-");
 	const projectDir = join(isolatedConfigDir, "projects", sanitizedPath);
 
-	console.log(`[writeClaudeSession] ========== DEBUG ==========`);
-	console.log(`[writeClaudeSession] subChatId: ${subChatId}`);
-	console.log(`[writeClaudeSession] localProjectPath: ${localProjectPath}`);
-	console.log(`[writeClaudeSession] sanitizedPath: ${sanitizedPath}`);
-	console.log(`[writeClaudeSession] isolatedConfigDir: ${isolatedConfigDir}`);
-	console.log(`[writeClaudeSession] projectDir: ${projectDir}`);
-	console.log(`[writeClaudeSession] sessionId: ${session.sessionId}`);
+	writeClaudeSessionLog.info(`========== DEBUG ==========`);
+	writeClaudeSessionLog.info(`subChatId: ${subChatId}`);
+	writeClaudeSessionLog.info(`localProjectPath: ${localProjectPath}`);
+	writeClaudeSessionLog.info(`sanitizedPath: ${sanitizedPath}`);
+	writeClaudeSessionLog.info(`isolatedConfigDir: ${isolatedConfigDir}`);
+	writeClaudeSessionLog.info(`projectDir: ${projectDir}`);
+	writeClaudeSessionLog.info(`sessionId: ${session.sessionId}`);
 
 	await mkdir(projectDir, { recursive: true });
 
@@ -81,7 +87,7 @@ async function writeClaudeSession(
 	const sessionFilePath = join(projectDir, `${session.sessionId}.jsonl`);
 	await writeFile(sessionFilePath, rewrittenData, "utf-8");
 
-	console.log(`[writeClaudeSession] Wrote session file: ${sessionFilePath}`);
+	writeClaudeSessionLog.info(`Wrote session file: ${sessionFilePath}`);
 
 	// Write sessions-index.json (with fallbacks for empty metadata)
 	const indexData = {
@@ -103,8 +109,8 @@ async function writeClaudeSession(
 	const indexPath = join(projectDir, "sessions-index.json");
 	await writeFile(indexPath, JSON.stringify(indexData, null, 2), "utf-8");
 
-	console.log(`[writeClaudeSession] Wrote index file: ${indexPath}`);
-	console.log(`[writeClaudeSession] ========== END DEBUG ==========`);
+	writeClaudeSessionLog.info(`Wrote index file: ${indexPath}`);
+	writeClaudeSessionLog.info(`========== END DEBUG ==========`);
 }
 
 export const sandboxImportRouter = router({
@@ -128,7 +134,7 @@ export const sandboxImportRouter = router({
 				throw new Error("API URL not configured");
 			}
 
-			console.log(`[OPEN-LOCALLY] Starting import: remoteChatId=${input.remoteChatId}, remoteSubChatId=${input.remoteSubChatId || "all"}, sandboxId=${input.sandboxId}`);
+			openLocallyLog.info(`Starting import: remoteChatId=${input.remoteChatId}, remoteSubChatId=${input.remoteSubChatId || "all"}, sandboxId=${input.sandboxId}`);
 
 			// Auth removed - sandbox import requires manual token or alternative auth
 			const token: string | null = null;
@@ -151,7 +157,7 @@ export const sandboxImportRouter = router({
 			const chatExportUrl = input.remoteSubChatId
 				? `${apiUrl}/api/agents/chat/${input.remoteChatId}/export?subChatId=${input.remoteSubChatId}`
 				: `${apiUrl}/api/agents/chat/${input.remoteChatId}/export`;
-			console.log(`[OPEN-LOCALLY] Fetching chat data from: ${chatExportUrl}`);
+			openLocallyLog.info(`Fetching chat data from: ${chatExportUrl}`);
 
 			const chatResponse = await fetch(chatExportUrl, {
 				method: "GET",
@@ -165,7 +171,7 @@ export const sandboxImportRouter = router({
 			}
 
 			const remoteChatData = remoteChatSchema.parse(await chatResponse.json());
-			console.log(`[OPEN-LOCALLY] Found ${remoteChatData.subChats.length} subchat(s) to import`);
+			openLocallyLog.info(`Found ${remoteChatData.subChats.length} subchat(s) to import`);
 
 			// Extract sessionId from the target subchat's messages BEFORE calling sandbox export
 			// This allows us to request only the specific session from the sandbox
@@ -177,7 +183,7 @@ export const sandboxImportRouter = router({
 					(m: any) => m.role === "assistant"
 				);
 				targetSessionId = lastAssistant?.metadata?.sessionId;
-				console.log(`[OPEN-LOCALLY] Target sessionId from subchat messages: ${targetSessionId || "none"}`);
+				openLocallyLog.info(`Target sessionId from subchat messages: ${targetSessionId || "none"}`);
 			}
 
 			// Create worktree for the chat
@@ -200,10 +206,10 @@ export const sandboxImportRouter = router({
 				false, // fullExport = false
 				targetSessionId, // sessionId to filter
 			);
-			console.log(`[OPEN-LOCALLY] Received ${importResult.claudeSessions?.length || 0} Claude session(s) from sandbox`);
+			openLocallyLog.info(`Received ${importResult.claudeSessions?.length || 0} Claude session(s) from sandbox`);
 
 			if (!importResult.success) {
-				console.warn(
+				writeClaudeSessionLog.warn(
 					`[sandbox-import] Git state import failed: ${importResult.error}`,
 				);
 				// Continue anyway - chat history is still valuable
@@ -224,7 +230,7 @@ export const sandboxImportRouter = router({
 
 			// Import sub-chats with messages and Claude sessions
 			const claudeSessions = importResult.claudeSessions || [];
-			console.log(`[sandbox-import] Available Claude sessions: ${claudeSessions.length}`);
+			sandboxImportLog.info(`Available Claude sessions: ${claudeSessions.length}`);
 
 			for (const remoteSubChat of remoteChatData.subChats) {
 				const messagesArray = remoteSubChat.messages || [];
@@ -261,9 +267,9 @@ export const sandboxImportRouter = router({
 							worktreeResult.worktreePath!,
 							matchingSession,
 						);
-						console.log(`[sandbox-import] Wrote Claude session for subChat ${createdSubChat.id} with sessionId ${messageSessionId}`);
+						sandboxImportLog.info(`Wrote Claude session for subChat ${createdSubChat.id} with sessionId ${messageSessionId}`);
 					} catch (sessionErr) {
-						console.error(`[sandbox-import] Failed to write Claude session:`, sessionErr);
+						sandboxImportLog.error(`Failed to write Claude session:`, sessionErr);
 					}
 				}
 			}
@@ -347,8 +353,8 @@ export const sandboxImportRouter = router({
 			}),
 		)
 		.mutation(async ({ input }) => {
-			console.log(`[OPEN-LOCALLY] Starting clone process`);
-			console.log(`[OPEN-LOCALLY] Input:`, {
+			openLocallyLog.info(`Starting clone process`);
+			openLocallyLog.info(`Input:`, {
 				sandboxId: input.sandboxId,
 				remoteChatId: input.remoteChatId,
 				remoteSubChatId: input.remoteSubChatId || "all",
@@ -361,22 +367,22 @@ export const sandboxImportRouter = router({
 			if (!apiUrl) {
 				throw new Error("API URL not configured");
 			}
-			console.log(`[OPEN-LOCALLY] API URL: ${apiUrl}`);
+			openLocallyLog.info(`API URL: ${apiUrl}`);
 
 			// Auth removed - sandbox clone requires manual token or alternative auth
-			console.log(`[OPEN-LOCALLY] Auth manager removed - sandbox clone not available`);
+			openLocallyLog.info(`Auth manager removed - sandbox clone not available`);
 			const token: string | null = null;
 			if (!token) {
-				console.error(`[OPEN-LOCALLY] No auth token available`);
+				openLocallyLog.error(`No auth token available`);
 				throw new Error("Sandbox clone not available - auth manager removed");
 			}
-			console.log(`[OPEN-LOCALLY] Auth token obtained`);
+			openLocallyLog.info(`Auth token obtained`);
 
 			// Fetch remote chat data first (filter by subChatId if provided)
 			const chatExportUrl = input.remoteSubChatId
 				? `${apiUrl}/api/agents/chat/${input.remoteChatId}/export?subChatId=${input.remoteSubChatId}`
 				: `${apiUrl}/api/agents/chat/${input.remoteChatId}/export`;
-			console.log(`[OPEN-LOCALLY] Fetching chat data from: ${chatExportUrl}`);
+			openLocallyLog.info(`Fetching chat data from: ${chatExportUrl}`);
 			const chatResponse = await fetch(chatExportUrl, {
 				method: "GET",
 				headers: {
@@ -385,12 +391,12 @@ export const sandboxImportRouter = router({
 			});
 
 			if (!chatResponse.ok) {
-				console.error(`[OPEN-LOCALLY] Failed to fetch chat data: ${chatResponse.status} ${chatResponse.statusText}`);
+				openLocallyLog.error(`Failed to fetch chat data: ${chatResponse.status} ${chatResponse.statusText}`);
 				throw new Error(`Failed to fetch chat data: ${chatResponse.statusText}`);
 			}
 
 			const chatJson = await chatResponse.json();
-			console.log(`[OPEN-LOCALLY] Remote chat data received:`, {
+			openLocallyLog.info(`Remote chat data received:`, {
 				id: chatJson.id,
 				name: chatJson.name,
 				sandboxId: chatJson.sandboxId,
@@ -399,7 +405,7 @@ export const sandboxImportRouter = router({
 			});
 
 			const remoteChatData = remoteChatSchema.parse(chatJson);
-			console.log(`[OPEN-LOCALLY] Found ${remoteChatData.subChats.length} subchat(s) to import`);
+			openLocallyLog.info(`Found ${remoteChatData.subChats.length} subchat(s) to import`);
 
 			// Extract sessionId from the target subchat's messages BEFORE calling sandbox export
 			let targetSessionId: string | undefined;
@@ -410,49 +416,49 @@ export const sandboxImportRouter = router({
 					(m: any) => m.role === "assistant"
 				);
 				targetSessionId = lastAssistant?.metadata?.sessionId;
-				console.log(`[OPEN-LOCALLY] Target sessionId from subchat messages: ${targetSessionId || "none"}`);
+				openLocallyLog.info(`Target sessionId from subchat messages: ${targetSessionId || "none"}`);
 			}
 
 			// DEBUG: Fetch sandbox debug info to see what Claude sessions exist
 			try {
 				const debugUrl = `${apiUrl}/api/agents/sandbox/${input.sandboxId}/export/debug`;
-				console.log(`[OPEN-LOCALLY] Fetching debug info from: ${debugUrl}`);
+				openLocallyLog.info(`Fetching debug info from: ${debugUrl}`);
 				const debugResponse = await fetch(debugUrl, {
 					method: "GET",
 					headers: { "X-Desktop-Token": token },
 				});
 				if (debugResponse.ok) {
 					const debugData = await debugResponse.json();
-					console.log(`[OPEN-LOCALLY] ========== SANDBOX DEBUG INFO ==========`);
-					console.log(`[OPEN-LOCALLY] Paths:`, debugData.paths);
-					console.log(`[OPEN-LOCALLY] Checks:`, debugData.checks);
-					console.log(`[OPEN-LOCALLY] Files in .claude:`, debugData.files?.claudeHome);
-					console.log(`[OPEN-LOCALLY] Projects dirs:`, debugData.files?.projects);
-					console.log(`[OPEN-LOCALLY] Project dir contents:`, debugData.files?.projectDir);
-					console.log(`[OPEN-LOCALLY] Sessions index:`, debugData.sessionsIndex);
-					console.log(`[OPEN-LOCALLY] Session files exist:`, debugData.sessionFilesExist);
-					console.log(`[OPEN-LOCALLY] Errors:`, debugData.errors);
-					console.log(`[OPEN-LOCALLY] ========== END SANDBOX DEBUG ==========`);
+					openLocallyLog.info(`========== SANDBOX DEBUG INFO ==========`);
+					openLocallyLog.info(`Paths:`, debugData.paths);
+					openLocallyLog.info(`Checks:`, debugData.checks);
+					openLocallyLog.info(`Files in .claude:`, debugData.files?.claudeHome);
+					openLocallyLog.info(`Projects dirs:`, debugData.files?.projects);
+					openLocallyLog.info(`Project dir contents:`, debugData.files?.projectDir);
+					openLocallyLog.info(`Sessions index:`, debugData.sessionsIndex);
+					openLocallyLog.info(`Session files exist:`, debugData.sessionFilesExist);
+					openLocallyLog.info(`Errors:`, debugData.errors);
+					openLocallyLog.info(`========== END SANDBOX DEBUG ==========`);
 				} else {
-					console.log(`[OPEN-LOCALLY] Debug endpoint returned ${debugResponse.status}`);
+					openLocallyLog.info(`Debug endpoint returned ${debugResponse.status}`);
 				}
 			} catch (debugErr) {
-				console.log(`[OPEN-LOCALLY] Debug fetch failed:`, debugErr);
+				openLocallyLog.info(`Debug fetch failed:`, debugErr);
 			}
 
 			// Create target directory
-			console.log(`[OPEN-LOCALLY] Creating target directory: ${input.targetPath}`);
+			openLocallyLog.info(`Creating target directory: ${input.targetPath}`);
 			await mkdir(input.targetPath, { recursive: true });
-			console.log(`[OPEN-LOCALLY] Target directory created`);
+			openLocallyLog.info(`Target directory created`);
 
 			// Initialize git repo
-			console.log(`[OPEN-LOCALLY] Initializing git repo...`);
+			openLocallyLog.info(`Initializing git repo...`);
 			await execAsync("git init", { cwd: input.targetPath });
-			console.log(`[OPEN-LOCALLY] Git repo initialized`);
+			openLocallyLog.info(`Git repo initialized`);
 
 			// Import sandbox git state with FULL export (includes entire repo history)
 			// Pass sessionId to get only that specific session
-			console.log(`[OPEN-LOCALLY] Starting sandbox import with full export, sessionId: ${targetSessionId || "all"}`);
+			openLocallyLog.info(`Starting sandbox import with full export, sessionId: ${targetSessionId || "all"}`);
 			const importResult = await importSandboxToWorktree(
 				input.targetPath,
 				apiUrl,
@@ -462,23 +468,23 @@ export const sandboxImportRouter = router({
 				targetSessionId, // sessionId to filter
 			);
 
-			console.log(`[OPEN-LOCALLY] Import result:`, {
+			openLocallyLog.info(`Import result:`, {
 				success: importResult.success,
 				error: importResult.error,
 				claudeSessionsCount: importResult.claudeSessions?.length || 0,
 			});
 
 			if (!importResult.success) {
-				console.warn(
+				writeClaudeSessionLog.warn(
 					`[OPEN-LOCALLY] Git state import failed: ${importResult.error}`,
 				);
 				// Continue anyway - we can still use the directory
 			}
 
 			// Get git remote info (should have been set from the bundle)
-			console.log(`[OPEN-LOCALLY] Getting git remote info...`);
+			openLocallyLog.info(`Getting git remote info...`);
 			const gitInfo = await getGitRemoteInfo(input.targetPath);
-			console.log(`[OPEN-LOCALLY] Git remote info:`, gitInfo);
+			openLocallyLog.info(`Git remote info:`, gitInfo);
 
 			// Fallback: extract owner/repo from remote chat metadata if git remote wasn't set up
 			// This happens when E2B export doesn't include remoteUrl in the meta
@@ -492,7 +498,7 @@ export const sandboxImportRouter = router({
 				if (repoFromMeta) {
 					const [metaOwner, metaRepo] = repoFromMeta.split("/");
 					if (metaOwner && metaRepo) {
-						console.log(`[OPEN-LOCALLY] Git remote missing, using meta.repository: ${repoFromMeta}`);
+						openLocallyLog.info(`Git remote missing, using meta.repository: ${repoFromMeta}`);
 						finalOwner = metaOwner;
 						finalRepo = metaRepo;
 						finalProvider = "github"; // Assume GitHub for now
@@ -501,42 +507,42 @@ export const sandboxImportRouter = router({
 						// Actually set up the git remote so repo is properly configured
 						try {
 							await execAsync(`git remote add origin ${finalRemoteUrl}`, { cwd: input.targetPath });
-							console.log(`[OPEN-LOCALLY] Added origin remote: ${finalRemoteUrl}`);
+							openLocallyLog.info(`Added origin remote: ${finalRemoteUrl}`);
 						} catch {
 							// Remote might already exist, try to update it
 							try {
 								await execAsync(`git remote set-url origin ${finalRemoteUrl}`, { cwd: input.targetPath });
-								console.log(`[OPEN-LOCALLY] Updated origin remote: ${finalRemoteUrl}`);
+								openLocallyLog.info(`Updated origin remote: ${finalRemoteUrl}`);
 							} catch {
-								console.warn(`[OPEN-LOCALLY] Could not set origin remote`);
+								openLocallyLog.warn(`Could not set origin remote`);
 							}
 						}
 					}
 				}
 			}
 
-			console.log(`[OPEN-LOCALLY] Final git info: owner="${finalOwner}", repo="${finalRepo}"`);
+			openLocallyLog.info(`Final git info: owner="${finalOwner}", repo="${finalRepo}"`);
 
 			// Get the actual current branch from git
-			console.log(`[OPEN-LOCALLY] Getting current branch from git...`);
+			openLocallyLog.info(`Getting current branch from git...`);
 			let actualBranch = remoteChatData.meta?.branch || "main"; // fallback
 			try {
 				const { stdout: currentBranch } = await execAsync("git rev-parse --abbrev-ref HEAD", { cwd: input.targetPath });
 				actualBranch = currentBranch.trim();
-				console.log(`[OPEN-LOCALLY] Actual git branch: ${actualBranch}`);
+				openLocallyLog.info(`Actual git branch: ${actualBranch}`);
 			} catch (err) {
-				console.warn(`[OPEN-LOCALLY] Could not get current branch, using fallback: ${actualBranch}`, err);
+				openLocallyLog.warn(`Could not get current branch, using fallback: ${actualBranch}`, err);
 			}
 
 			// Check if project already exists (from a previous failed attempt)
-			console.log(`[OPEN-LOCALLY] Checking for existing project at path: ${input.targetPath}`);
+			openLocallyLog.info(`Checking for existing project at path: ${input.targetPath}`);
 			const existingProject = db
 				.select()
 				.from(projects)
 				.where(eq(projects.path, input.targetPath))
 				.get();
 
-			console.log(`[OPEN-LOCALLY] Existing project:`, existingProject ? { id: existingProject.id, name: existingProject.name } : null);
+			openLocallyLog.info(`Existing project:`, existingProject ? { id: existingProject.id, name: existingProject.name } : null);
 
 			// Use existing project or create new one
 			const project = existingProject
@@ -565,11 +571,11 @@ export const sandboxImportRouter = router({
 						.returning()
 						.get();
 
-			console.log(`[OPEN-LOCALLY] Project created/updated:`, { id: project.id, name: project.name });
+			openLocallyLog.info(`Project created/updated:`, { id: project.id, name: project.name });
 
 			// Create chat record (using the project path directly, no separate worktree needed
 			// since this is a fresh clone)
-			console.log(`[OPEN-LOCALLY] Creating chat record with branch: ${actualBranch}`);
+			openLocallyLog.info(`Creating chat record with branch: ${actualBranch}`);
 			const chat = db
 				.insert(chats)
 				.values({
@@ -582,18 +588,18 @@ export const sandboxImportRouter = router({
 				.returning()
 				.get();
 
-			console.log(`[OPEN-LOCALLY] Chat created:`, { id: chat.id, name: chat.name });
+			openLocallyLog.info(`Chat created:`, { id: chat.id, name: chat.name });
 
 			// Import sub-chats with messages and Claude sessions
-			console.log(`[OPEN-LOCALLY] Importing ${remoteChatData.subChats.length} sub-chats...`);
+			openLocallyLog.info(`Importing ${remoteChatData.subChats.length} sub-chats...`);
 			const claudeSessions = importResult.claudeSessions || [];
-			console.log(`[OPEN-LOCALLY] Available Claude sessions: ${claudeSessions.length}`);
+			openLocallyLog.info(`Available Claude sessions: ${claudeSessions.length}`);
 
 			for (const remoteSubChat of remoteChatData.subChats) {
 				const messagesArray = remoteSubChat.messages || [];
 				const messagesCount = Array.isArray(messagesArray) ? messagesArray.length : 0;
-				console.log(`[OPEN-LOCALLY] Importing sub-chat: ${remoteSubChat.name} (mode: ${remoteSubChat.mode}, messages: ${messagesCount})`);
-				console.log(`[OPEN-LOCALLY] Messages preview:`, JSON.stringify(messagesArray).slice(0, 500));
+				openLocallyLog.info(`Importing sub-chat: ${remoteSubChat.name} (mode: ${remoteSubChat.mode}, messages: ${messagesCount})`);
+				openLocallyLog.info(`Messages preview:`, JSON.stringify(messagesArray).slice(0, 500));
 
 				// Find sessionId from last assistant message BEFORE creating subChat
 				const lastAssistant = [...messagesArray].reverse().find(
@@ -627,14 +633,14 @@ export const sandboxImportRouter = router({
 							input.targetPath,
 							matchingSession,
 						);
-						console.log(`[OPEN-LOCALLY] Wrote Claude session for subChat ${createdSubChat.id} with sessionId ${messageSessionId}`);
+						openLocallyLog.info(`Wrote Claude session for subChat ${createdSubChat.id} with sessionId ${messageSessionId}`);
 					} catch (sessionErr) {
-						console.error(`[OPEN-LOCALLY] Failed to write Claude session:`, sessionErr);
+						openLocallyLog.error(`Failed to write Claude session:`, sessionErr);
 					}
 				} else if (messageSessionId) {
-					console.log(`[OPEN-LOCALLY] No matching Claude session found for sessionId: ${messageSessionId.slice(0, 8)}...`);
+					openLocallyLog.info(`No matching Claude session found for sessionId: ${messageSessionId.slice(0, 8)}...`);
 				} else {
-					console.log(`[OPEN-LOCALLY] No sessionId in messages or no sessions exported`);
+					openLocallyLog.info(`No sessionId in messages or no sessions exported`);
 				}
 			}
 
@@ -646,7 +652,7 @@ export const sandboxImportRouter = router({
 				.all();
 
 			if (importedSubChats.length === 0) {
-				console.log(`[OPEN-LOCALLY] No sub-chats imported, creating default`);
+				openLocallyLog.info(`No sub-chats imported, creating default`);
 				db.insert(subChats)
 					.values({
 						chatId: chat.id,
@@ -657,8 +663,8 @@ export const sandboxImportRouter = router({
 					.run();
 			}
 
-			console.log(`[OPEN-LOCALLY] Clone completed successfully!`);
-			console.log(`[OPEN-LOCALLY] Final result:`, {
+			openLocallyLog.info(`Clone completed successfully!`);
+			openLocallyLog.info(`Final result:`, {
 				projectId: project.id,
 				chatId: chat.id,
 				gitImportSuccess: importResult.success,

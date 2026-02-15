@@ -1,6 +1,10 @@
 import { useEffect } from "react"
 import { useStore } from "jotai"
 import { artifactsAtomFamily, type Artifact, type ArtifactContext } from "./atoms"
+import { createLogger } from "../../lib/logger"
+
+const artifactsLog = createLogger("Artifacts")
+
 
 /**
  * Hook to listen for file-changed events from Claude tools
@@ -14,11 +18,11 @@ export function useArtifactsListener(currentSubChatId: string | null) {
 
   useEffect(() => {
     if (!window.desktopApi?.onFileChanged) {
-      console.log("[Artifacts] onFileChanged not available")
+      artifactsLog.info("onFileChanged not available")
       return
     }
 
-    console.log("[Artifacts] Setting up file change listener, currentSubChatId:", currentSubChatId)
+    artifactsLog.info("Setting up file change listener, currentSubChatId:", currentSubChatId)
 
     const unsubscribe = window.desktopApi.onFileChanged((data) => {
       const { filePath, type, subChatId: eventSubChatId, contexts } = data as {
@@ -31,7 +35,7 @@ export function useArtifactsListener(currentSubChatId: string | null) {
       // Use the subChatId from the event, fallback to "default"
       const targetSubChatId = eventSubChatId || "default"
 
-      console.log("[Artifacts] Processing file change:", filePath, "type:", type, "targetSubChatId:", targetSubChatId)
+      artifactsLog.info("Processing file change:", filePath, "type:", type, "targetSubChatId:", targetSubChatId)
 
       // Get the atom for the target subChatId
       const artifactsAtom = artifactsAtomFamily(targetSubChatId)
@@ -76,13 +80,13 @@ export function useArtifactsListener(currentSubChatId: string | null) {
           ]
         }
 
-        console.log("[Artifacts] Updated artifacts for subChatId:", targetSubChatId, "count:", newArtifacts.length)
+        artifactsLog.info("Updated artifacts for subChatId:", targetSubChatId, "count:", newArtifacts.length)
         return newArtifacts
       })
     })
 
     return () => {
-      console.log("[Artifacts] Cleaning up file change listener")
+      artifactsLog.info("Cleaning up file change listener")
       unsubscribe()
     }
   }, [store, currentSubChatId])

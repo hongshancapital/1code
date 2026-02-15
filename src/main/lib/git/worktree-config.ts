@@ -2,6 +2,10 @@ import { readFile, writeFile, mkdir, access } from "node:fs/promises"
 import { join, dirname, isAbsolute } from "node:path"
 import { exec } from "node:child_process"
 import { promisify } from "node:util"
+import { createLogger } from "../logger"
+
+const worktreeSetupLog = createLogger("worktree-setup")
+
 
 const execAsync = promisify(exec)
 
@@ -204,7 +208,7 @@ export async function executeWorktreeSetup(
     return result
   }
 
-  console.log(`[worktree-setup] Running ${commandList.length} setup commands in ${worktreePath}`)
+  worktreeSetupLog.info(`Running ${commandList.length} setup commands in ${worktreePath}`)
 
   // Execute each command
   for (const cmd of commandList) {
@@ -230,19 +234,19 @@ export async function executeWorktreeSetup(
       }
 
       result.commandsRun++
-      console.log(`[worktree-setup] ✓ ${cmd}`)
+      worktreeSetupLog.info(`✓ ${cmd}`)
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       result.errors.push(`Command failed: ${cmd}\n${errorMsg}`)
       result.output.push(`[error] ${errorMsg}`)
-      console.error(`[worktree-setup] ✗ ${cmd}: ${errorMsg}`)
+      worktreeSetupLog.error(`✗ ${cmd}: ${errorMsg}`)
       // Continue with next command, don't fail entirely
     }
   }
 
   result.success = result.errors.length === 0
 
-  console.log(
+  worktreeSetupLog.info(
     `[worktree-setup] Completed: ${result.commandsRun}/${commandList.length} commands, ` +
     `${result.errors.length} errors`
   )

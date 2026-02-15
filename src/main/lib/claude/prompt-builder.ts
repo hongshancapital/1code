@@ -20,6 +20,10 @@ import type {
   SystemPromptConfig,
   UserProfile,
 } from "./engine-types"
+import { createLogger } from "../logger"
+
+const promptBuilderLog = createLogger("PromptBuilder")
+
 
 /**
  * Runtime environment tool info
@@ -122,7 +126,7 @@ Please use the user's preferred name naturally and warmly in your responses to c
 The following tools are available on this system. Prefer using these when applicable:
 ${toolsList}`
     } catch (e) {
-      console.warn("[PromptBuilder] Failed to get runtime environment:", e)
+      promptBuilderLog.warn("Failed to get runtime environment:", e)
       return ""
     }
   }

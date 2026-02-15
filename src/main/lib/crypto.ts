@@ -6,6 +6,10 @@
  */
 
 import { safeStorage } from "electron"
+import { createLogger } from ".//logger"
+
+const cryptoLog = createLogger("crypto")
+
 
 /**
  * Encrypt a token string using Electron's safeStorage.
@@ -13,7 +17,7 @@ import { safeStorage } from "electron"
  */
 export function encryptToken(token: string): string {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn("[crypto] Encryption not available, storing as base64")
+    cryptoLog.warn("Encryption not available, storing as base64")
     return Buffer.from(token).toString("base64")
   }
   return safeStorage.encryptString(token).toString("base64")

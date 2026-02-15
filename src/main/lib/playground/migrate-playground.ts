@@ -5,6 +5,10 @@ import { app } from "electron"
 import { chats, getDatabase, projects, subChats } from "../db"
 import { createId } from "../db/utils"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../shared/feature-config"
+import { createLogger } from "../logger"
+
+const playgroundMigrationLog = createLogger("PlaygroundMigration")
+
 
 /**
  * Migrate old-format playground sub-chats to new independent format.
@@ -41,7 +45,7 @@ export async function migrateOldPlaygroundSubChats(): Promise<{ migrated: number
     return { migrated: 0, skipped: 0 }
   }
 
-  console.log("[PlaygroundMigration] Found old-format playground, starting migration...")
+  playgroundMigrationLog.info("Found old-format playground, starting migration...")
 
   // Get all chats under the old playground
   const oldChats = db
@@ -123,7 +127,7 @@ export async function migrateOldPlaygroundSubChats(): Promise<{ migrated: number
 
         migrated++
       } catch (err) {
-        console.error(`[PlaygroundMigration] Failed to migrate sub-chat ${oldSubChat.id}:`, err)
+        playgroundMigrationLog.error(`Failed to migrate sub-chat ${oldSubChat.id}:`, err)
         skipped++
       }
     }
@@ -143,6 +147,6 @@ export async function migrateOldPlaygroundSubChats(): Promise<{ migrated: number
   // Note: We don't delete the old ~/.hong/.playground/ directory itself
   // as it's now the parent directory for new playground chats
 
-  console.log(`[PlaygroundMigration] Migration complete: ${migrated} migrated, ${skipped} skipped`)
+  playgroundMigrationLog.info(`Migration complete: ${migrated} migrated, ${skipped} skipped`)
   return { migrated, skipped }
 }

@@ -11,6 +11,10 @@ import {
   customClaudeConfigAtom,
   litellmSelectedModelAtom,
 } from "../../lib/atoms"
+import { createLogger } from "../../lib/logger"
+
+const insightLog = createLogger("Insight")
+
 
 interface UseInsightGeneratorOptions {
   /** 是否在挂载时自动检查触发条件 */
@@ -84,7 +88,7 @@ export function useInsightGenerator(options: UseInsightGeneratorOptions = {}) {
         })
 
         if (!startResult.success || !startResult.report) {
-          console.warn("[Insight] Start generation failed:", startResult.error)
+          insightLog.warn("Start generation failed:", startResult.error)
           return null
         }
 
@@ -101,7 +105,7 @@ export function useInsightGenerator(options: UseInsightGeneratorOptions = {}) {
               ? { model: litellmSelectedModel }
               : undefined
 
-        console.log("[Insight] Using auth type:", authType)
+        insightLog.info("Using auth type:", authType)
 
         // 3. 执行 AI 生成
         const generateResult = await generateMutation.mutateAsync({
@@ -119,7 +123,7 @@ export function useInsightGenerator(options: UseInsightGeneratorOptions = {}) {
 
         return generateResult
       } catch (error) {
-        console.error("[Insight] Generation error:", error)
+        insightLog.error("Generation error:", error)
         throw error
       }
     },
@@ -138,29 +142,29 @@ export function useInsightGenerator(options: UseInsightGeneratorOptions = {}) {
    */
   const checkAndGenerate = useCallback(async () => {
     try {
-      console.log("[Insight] Starting trigger check...")
+      insightLog.info("Starting trigger check...")
       const result = await recheckTrigger()
-      console.log("[Insight] Trigger check raw result:", result)
+      insightLog.info("Trigger check raw result:", result)
       const checkResult = result.data
 
       if (!checkResult) {
-        console.log("[Insight] No trigger check result returned (data is undefined)")
+        insightLog.info("No trigger check result returned (data is undefined)")
         return
       }
 
-      console.log("[Insight] Trigger check result:", JSON.stringify(checkResult))
+      insightLog.info("Trigger check result:", JSON.stringify(checkResult))
 
       if (checkResult.shouldGenerate && checkResult.reportType) {
-        console.log(
+        insightLog.info(
           `[Insight] Triggering ${checkResult.reportType} report generation...`
         )
         await generateReport(checkResult.reportType)
-        console.log("[Insight] Report generation completed")
+        insightLog.info("Report generation completed")
       } else {
-        console.log(`[Insight] Skip generation - reason: ${checkResult.reason || "unknown"}`)
+        insightLog.info(`Skip generation - reason: ${checkResult.reason || "unknown"}`)
       }
     } catch (error) {
-      console.error("[Insight] Check and generate error:", error)
+      insightLog.error("Check and generate error:", error)
     }
   }, [recheckTrigger, generateReport])
 

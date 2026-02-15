@@ -11,6 +11,10 @@ import { z } from "zod"
 import * as fs from "fs"
 import * as path from "path"
 import { BrowserWindow } from "electron"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("imageGenServer")
+
 
 // Dynamic import for ESM module
 let sdkModule: typeof import("@anthropic-ai/claude-agent-sdk") | null = null
@@ -144,7 +148,7 @@ generate_image(prompt="A serene mountain landscape at sunset with a lake reflect
               const errorText = await response.text().catch(() => "")
               const isUnsupportedParams = errorText.includes("UnsupportedParamsError")
               if (isUnsupportedParams) {
-                console.log("[Image Gen MCP] Retrying with minimal params (model + prompt only)...")
+                log.info("[Image Gen MCP] Retrying with minimal params (model + prompt only)...")
                 response = await doFetch({ model: apiConfig.model, prompt })
               }
               if (!response.ok) {
@@ -289,13 +293,13 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
             }
             const mimeType = mimeMap[ext] || "image/png"
 
-            console.log(`[Image Gen MCP] edit_image: file=${image_path} size=${imageBuffer.length} bytes, model=${apiConfig.model}`)
+            log.info(`[Image Gen MCP] edit_image: file=${image_path} size=${imageBuffer.length} bytes, model=${apiConfig.model}`)
 
             let response: Response | null = null
 
             // Strategy 1: Try /images/generations with image[] array (OpenAI gpt-image-1 style)
             try {
-              console.log("[Image Gen MCP] edit_image: trying /images/generations with image array...")
+              log.info("[Image Gen MCP] edit_image: trying /images/generations with image array...")
               response = await fetch(`${baseUrl}/images/generations`, {
                 method: "POST",
                 headers: {
@@ -316,16 +320,16 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
                 }),
                 signal: AbortSignal.timeout(180000),
               })
-              console.log(`[Image Gen MCP] edit_image: /images/generations response: ${response.status}`)
+              log.info(`[Image Gen MCP] edit_image: /images/generations response: ${response.status}`)
             } catch (err) {
-              console.warn("[Image Gen MCP] edit_image: /images/generations with image array failed:", err instanceof Error ? err.message : err)
+              log.warn("[Image Gen MCP] edit_image: /images/generations with image array failed:", err instanceof Error ? err.message : err)
               response = null
             }
 
             // Strategy 2: Try /images/edits with multipart form data
             if (!response || !response.ok) {
               try {
-                console.log("[Image Gen MCP] edit_image: trying /images/edits with FormData...")
+                log.info("[Image Gen MCP] edit_image: trying /images/edits with FormData...")
                 const formData = new FormData()
                 const blob = new Blob([imageBuffer], { type: mimeType })
                 formData.append("image", blob, path.basename(image_path))
@@ -342,9 +346,9 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
                   body: formData,
                   signal: AbortSignal.timeout(180000),
                 })
-                console.log(`[Image Gen MCP] edit_image: /images/edits response: ${response.status}`)
+                log.info(`[Image Gen MCP] edit_image: /images/edits response: ${response.status}`)
               } catch (err) {
-                console.warn("[Image Gen MCP] edit_image: /images/edits failed:", err instanceof Error ? err.message : err)
+                log.warn("[Image Gen MCP] edit_image: /images/edits failed:", err instanceof Error ? err.message : err)
                 response = null
               }
             }
@@ -352,7 +356,7 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
             // Strategy 3: Fall back to /images/generations with data URI in prompt context
             if (!response || !response.ok) {
               try {
-                console.log("[Image Gen MCP] edit_image: trying /images/generations with data URI fallback...")
+                log.info("[Image Gen MCP] edit_image: trying /images/generations with data URI fallback...")
                 response = await fetch(`${baseUrl}/images/generations`, {
                   method: "POST",
                   headers: {
@@ -369,9 +373,9 @@ edit_image(prompt="Add a rainbow in the sky", image_path="/path/to/landscape.png
                   }),
                   signal: AbortSignal.timeout(180000),
                 })
-                console.log(`[Image Gen MCP] edit_image: data URI fallback response: ${response.status}`)
+                log.info(`[Image Gen MCP] edit_image: data URI fallback response: ${response.status}`)
               } catch (err) {
-                console.warn("[Image Gen MCP] edit_image: data URI fallback failed:", err instanceof Error ? err.message : err)
+                log.warn("[Image Gen MCP] edit_image: data URI fallback failed:", err instanceof Error ? err.message : err)
                 return {
                   content: [
                     {

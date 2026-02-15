@@ -21,6 +21,11 @@ import { useAgentSubChatStore } from "../../features/agents/stores/sub-chat-stor
 import { trpc } from "../trpc"
 import { getQueryClient } from "../../contexts/TRPCProvider"
 import { chatRegistry } from "../../features/agents/stores/chat-registry"
+import { createLogger } from "../logger"
+
+const navigateLog = createLogger("navigate")
+const memoryRouterLog = createLogger("MemoryRouter")
+
 
 /**
  * Core navigation hook for the memory router.
@@ -81,19 +86,19 @@ export function useNavigate() {
       // Set the target project ID so the sidebar knows this project change
       // is intentional (navigation) and doesn't clear the selected chat.
       const t0 = performance.now()
-      console.log('[navigate] resolving project...')
+      navigateLog.info('resolving project...')
       try {
         // OPTIMIZATION: Try to get from cache first (Instant Project Switch)
         // This avoids the 3s blocking delay when switching back to a recently visited workspace
         let chatData = utils.chats.get.getData({ id: route.chatId })
         const t1 = performance.now()
-        console.log(`[navigate] getData: ${(t1 - t0).toFixed(0)}ms, hit=${!!chatData}`)
+        navigateLog.info(`getData: ${(t1 - t0).toFixed(0)}ms, hit=${!!chatData}`)
 
         if (!chatData) {
              // Fallback to fetch if not in cache, but allow stale data (10s) to avoid unnecessary network calls
              chatData = await utils.chats.get.fetch({ id: route.chatId }, { staleTime: 10000 })
              const t2 = performance.now()
-             console.log(`[navigate] fetch fallback: ${(t2 - t1).toFixed(0)}ms`)
+             navigateLog.info(`fetch fallback: ${(t2 - t1).toFixed(0)}ms`)
         }
 
         // Bail if a newer navigation has started while we were awaiting
@@ -105,7 +110,7 @@ export function useNavigate() {
           // Use module-level tracker to skip redundant updates if project ID matches.
           // This avoids the heavy AgentsLayout re-render for same-project navigation.
           if (_lastNavigatedProjectId !== p.id) {
-            console.log('[navigate] setSelectedProject (changed)', { from: _lastNavigatedProjectId?.slice(-8), to: p.id.slice(-8) })
+            navigateLog.info('setSelectedProject (changed)', { from: _lastNavigatedProjectId?.slice(-8), to: p.id.slice(-8) })
             _lastNavigatedProjectId = p.id
 
             // 1. Mark this project ID as the navigation target
@@ -129,11 +134,11 @@ export function useNavigate() {
               })
             })
           } else {
-            console.log('[navigate] setSelectedProject SKIP (same project)', { id: p.id.slice(-8) })
+            navigateLog.info('setSelectedProject SKIP (same project)', { id: p.id.slice(-8) })
           }
         }
       } catch (e) {
-        console.warn("[MemoryRouter] Failed to resolve project for chat:", route.chatId, e)
+        memoryRouterLog.warn("Failed to resolve project for chat:", route.chatId, e)
       }
       // Note: We don't clear navigatedProjectId here. It's fine to leave it set.
       // It will just be overwritten by the next navigation.

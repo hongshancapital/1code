@@ -22,6 +22,10 @@ import {
   generateInsightReport,
 } from "./lib"
 import type { InsightStats, InsightReport } from "./lib"
+import { createLogger } from "../../lib/logger"
+
+const insightsLog = createLogger("Insights")
+
 
 /**
  * 认证配置类型（从前端传入）
@@ -46,7 +50,7 @@ function getClaudeCodeToken(): string | null {
       .get()
 
     if (!cred?.oauthToken) {
-      console.log("[Insights] No Claude Code credentials found")
+      insightsLog.info("No Claude Code credentials found")
       return null
     }
 
@@ -59,7 +63,7 @@ function getClaudeCodeToken(): string | null {
       return cred.oauthToken
     }
   } catch (error) {
-    console.error("[Insights] Error getting Claude Code token:", error)
+    insightsLog.error("Error getting Claude Code token:", error)
     return null
   }
 }
@@ -80,10 +84,10 @@ function buildAuthConfig(
       // Claude Code OAuth
       const oauthToken = getClaudeCodeToken()
       if (!oauthToken) {
-        console.error("[Insights] OAuth selected but no token found")
+        insightsLog.error("OAuth selected but no token found")
         return null
       }
-      console.log("[Insights] Using Claude Code OAuth auth")
+      insightsLog.info("Using Claude Code OAuth auth")
       return { type: "oauth", token: oauthToken }
     }
 
@@ -92,10 +96,10 @@ function buildAuthConfig(
       const baseUrl = customConfig?.baseUrl || env.MAIN_VITE_LITELLM_BASE_URL
       const apiKey = customConfig?.token || env.MAIN_VITE_LITELLM_API_KEY
       if (!baseUrl) {
-        console.error("[Insights] LiteLLM selected but no base URL configured")
+        insightsLog.error("LiteLLM selected but no base URL configured")
         return null
       }
-      console.log("[Insights] Using LiteLLM auth, baseUrl:", baseUrl)
+      insightsLog.info("Using LiteLLM auth, baseUrl:", baseUrl)
       return {
         type: "litellm",
         token: apiKey || "litellm",
@@ -108,10 +112,10 @@ function buildAuthConfig(
       // API Key - 从环境变量获取
       const apiKey = process.env.ANTHROPIC_API_KEY
       if (!apiKey) {
-        console.error("[Insights] API Key selected but not found in env")
+        insightsLog.error("API Key selected but not found in env")
         return null
       }
-      console.log("[Insights] Using ANTHROPIC_API_KEY from env")
+      insightsLog.info("Using ANTHROPIC_API_KEY from env")
       return {
         type: "apikey",
         token: apiKey,
@@ -122,10 +126,10 @@ function buildAuthConfig(
     case "custom": {
       // Custom - 从前端传入的配置
       if (!customConfig?.token || !customConfig?.baseUrl) {
-        console.error("[Insights] Custom selected but config incomplete")
+        insightsLog.error("Custom selected but config incomplete")
         return null
       }
-      console.log("[Insights] Using custom auth config")
+      insightsLog.info("Using custom auth config")
       return {
         type: "custom",
         token: customConfig.token,
@@ -147,10 +151,10 @@ export const insightsRouter = router({
   checkTrigger: publicProcedure.query(async () => {
     try {
       const result = await checkShouldGenerateReport()
-      console.log("[Insights Router] checkTrigger result:", result)
+      insightsLog.info("[Insights Router] checkTrigger result:", result)
       return result
     } catch (error) {
-      console.error("[Insights Router] checkTrigger error:", error)
+      insightsLog.error("[Insights Router] checkTrigger error:", error)
       return {
         shouldGenerate: false,
         reportType: null,
@@ -401,9 +405,9 @@ export const insightsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      console.log("[Insights] ========================================")
-      console.log("[Insights] manualGenerate STARTED with:", input)
-      console.log("[Insights] ========================================")
+      insightsLog.info("========================================")
+      insightsLog.info("manualGenerate STARTED with:", input)
+      insightsLog.info("========================================")
 
       const db = getDatabase()
       const { reportType, targetDate } = input
@@ -413,7 +417,7 @@ export const insightsRouter = router({
         reportType,
         targetDate
       )
-      console.log("[Insights] Date range:", { startDate, endDate, reportDate })
+      insightsLog.info("Date range:", { startDate, endDate, reportDate })
 
       // 检查是否已有该日期的报告
       const existing = db
@@ -424,27 +428,27 @@ export const insightsRouter = router({
         .find((r) => r.reportDate === reportDate)
 
       if (existing) {
-        console.log("[Insights] Existing report found:", existing.id, existing.status)
+        insightsLog.info("Existing report found:", existing.id, existing.status)
         // 如果已存在但失败，允许重新生成
         if (existing.status === "failed") {
-          console.log("[Insights] Deleting failed report to regenerate")
+          insightsLog.info("Deleting failed report to regenerate")
           await db.delete(insights).where(eq(insights.id, existing.id))
         } else {
-          console.log("[Insights] Report already exists, skipping")
+          insightsLog.info("Report already exists, skipping")
           return { success: false, error: "该报告已存在", report: existing }
         }
       }
 
       // 计算统计数据
-      console.log("[Insights] Calculating stats...")
+      insightsLog.info("Calculating stats...")
       const stats = await calculateStats(startDate, endDate, reportType)
-      console.log("[Insights] Stats calculated:", {
+      insightsLog.info("Stats calculated:", {
         totalTokens: stats.usage.totalTokens,
         apiCalls: stats.usage.apiCalls,
       })
 
       // 导出聊天数据
-      console.log("[Insights] Exporting chat data...")
+      insightsLog.info("Exporting chat data...")
       const exportResult = await exportChatData(
         startDate,
         endDate,
@@ -452,10 +456,10 @@ export const insightsRouter = router({
         reportDate,
         stats
       )
-      console.log("[Insights] Chat data exported to:", exportResult.dataDir)
+      insightsLog.info("Chat data exported to:", exportResult.dataDir)
 
       // 创建报告记录
-      console.log("[Insights] Creating report record...")
+      insightsLog.info("Creating report record...")
       const newReport = db
         .insert(insights)
         .values({
@@ -467,7 +471,7 @@ export const insightsRouter = router({
         })
         .returning()
         .get()
-      console.log("[Insights] Report record created:", newReport.id)
+      insightsLog.info("Report record created:", newReport.id)
 
       return {
         success: true,
@@ -506,12 +510,12 @@ export const insightsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      console.log("[Insights] ========================================")
-      console.log("[Insights] generate mutation STARTED for report:", input.reportId)
-      console.log("[Insights] Auth type:", input.authType)
-      console.log("[Insights] User profile:", input.userProfile)
-      console.log("[Insights] Language:", input.language)
-      console.log("[Insights] ========================================")
+      insightsLog.info("========================================")
+      insightsLog.info("generate mutation STARTED for report:", input.reportId)
+      insightsLog.info("Auth type:", input.authType)
+      insightsLog.info("User profile:", input.userProfile)
+      insightsLog.info("Language:", input.language)
+      insightsLog.info("========================================")
       const db = getDatabase()
 
       // 先更新状态为 generating，让 UI 能看到进度
@@ -524,20 +528,20 @@ export const insightsRouter = router({
           })
           .where(eq(insights.id, input.reportId))
           .run()
-        console.log("[Insights] Status updated to generating")
+        insightsLog.info("Status updated to generating")
       } catch (err) {
-        console.error("[Insights] Failed to update status:", err)
+        insightsLog.error("Failed to update status:", err)
       }
 
       try {
         // 根据前端传入的认证类型构建配置
-        console.log("[Insights] Building auth config for type:", input.authType)
+        insightsLog.info("Building auth config for type:", input.authType)
         const authConfig = buildAuthConfig(input.authType, input.customConfig)
         if (!authConfig) {
-          console.error("[Insights] Failed to build auth config")
+          insightsLog.error("Failed to build auth config")
           throw new Error("认证配置无效。请检查您的设置。")
         }
-        console.log("[Insights] Auth config built:", authConfig.type)
+        insightsLog.info("Auth config built:", authConfig.type)
 
         // 构建用户配置
         const userConfig = {
@@ -548,7 +552,7 @@ export const insightsRouter = router({
 
         // 生成报告（传递认证配置和用户配置）
         const result = await generateInsightReport(input.reportId, authConfig, userConfig)
-        console.log("[Insights] Report generated, summary:", result.summary?.slice(0, 50))
+        insightsLog.info("Report generated, summary:", result.summary?.slice(0, 50))
 
         return {
           success: true,
@@ -557,7 +561,7 @@ export const insightsRouter = router({
           reportMarkdown: result.reportMarkdown,
         }
       } catch (error) {
-        console.error("[Insights] Generation error:", error)
+        insightsLog.error("Generation error:", error)
         // 更新为失败状态
         db.update(insights)
           .set({

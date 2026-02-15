@@ -13,6 +13,10 @@
 
 import type { ParsedObservation, ObservationType } from "./types"
 import { OBSERVATION_TYPES, OBSERVATION_CONCEPTS } from "./types"
+import { createLogger } from "../../../lib/logger"
+
+const summarizerLog = createLogger("Summarizer")
+
 
 /** Usage data from memory LLM calls, to be recorded in model_usage */
 export interface MemoryLLMUsage {
@@ -38,9 +42,9 @@ let summaryConfig: SummaryModelConfig | null = null
 export function setSummaryModelConfig(config: SummaryModelConfig | null): void {
   summaryConfig = config
   if (config) {
-    console.log(`[Summarizer] Summary model configured: ${config.providerId}/${config.modelId}`)
+    summarizerLog.info(`Summary model configured: ${config.providerId}/${config.modelId}`)
   } else {
-    console.log("[Summarizer] Summary model cleared, using rule-based parsing")
+    summarizerLog.info("Summary model cleared, using rule-based parsing")
   }
 }
 
@@ -183,7 +187,7 @@ Output: ${outputStr}`
       usage,
     }
   } catch (error) {
-    console.warn("[Summarizer] Enhancement failed, using rule-based:", (error as Error).message)
+    summarizerLog.warn("Enhancement failed, using rule-based:", (error as Error).message)
     return { observation: ruleBased, usage: null }
   }
 }
@@ -268,7 +272,7 @@ export async function generateSessionSummary(
 
     return { summary, usage }
   } catch (error) {
-    console.warn("[Summarizer] Session summary failed:", (error as Error).message)
+    summarizerLog.warn("Session summary failed:", (error as Error).message)
     return null
   }
 }

@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react"
 import { useAtom } from "jotai"
 import { trpc } from "../../lib/trpc"
 import { runSessionsAtom } from "../../lib/atoms/runner"
+import { createLogger } from "../../lib/logger"
+
+const log = createLogger("useRunSessionListener")
+
 
 /**
  * Hook to listen for terminal exit events and update run session state.
@@ -33,7 +37,7 @@ export function useRunSessionListener(projectPath: string) {
           [projectPath]: null,
         }))
 
-        console.log(
+        log.info(
           `[Runner] Process exited with code ${event.exitCode}${
             event.signal ? ` (signal: ${event.signal})` : ""
           }`

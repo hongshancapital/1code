@@ -14,6 +14,12 @@ import {
   computePreviewStatsFromMessages,
   getFallbackName,
 } from "./chat-helpers"
+import { createLogger } from "../../logger"
+
+const rollbackLog = createLogger("rollback")
+const generateSubChatNameLog = createLogger("generateSubChatName")
+const generateSubChatNameBgLog = createLogger("generateSubChatName:bg")
+
 
 export const subChatsRouter = router({
   /**
@@ -195,7 +201,7 @@ export const subChatsRouter = router({
       const messages = JSON.parse(subChat.messages || "[]")
 
       // Log all messages for debugging
-      console.log("[rollback] Looking for message:", {
+      rollbackLog.info("Looking for message:", {
         sdkMessageUuid: input.sdkMessageUuid,
         messageIndex: input.messageIndex,
         dbMessageCount: messages.length,
@@ -220,7 +226,7 @@ export const subChatsRouter = router({
           input.messageIndex < messages.length &&
           messages[input.messageIndex].role === "assistant"
         ) {
-          console.log("[rollback] UUID lookup failed, using messageIndex fallback:", input.messageIndex)
+          rollbackLog.info("UUID lookup failed, using messageIndex fallback:", input.messageIndex)
           targetIndex = input.messageIndex
         }
       }
@@ -233,7 +239,7 @@ export const subChatsRouter = router({
           .map((m: any, idx: number) => ({ msg: m, idx }))
           .filter(({ msg }: { msg: any }) => msg.role === "assistant")
 
-        console.log("[rollback] Fallback 2 - checking assistant messages:",
+        rollbackLog.info("Fallback 2 - checking assistant messages:",
           assistantMsgs.map(({ msg, idx }: { msg: any; idx: number }) => ({
             idx,
             sdkUuid: msg.metadata?.sdkMessageUuid,
@@ -246,14 +252,14 @@ export const subChatsRouter = router({
           // Only use this fallback if the last assistant message has a sdkMessageUuid
           // (indicates historyEnabled was true when message was created)
           if (lastAssistant.msg.metadata?.sdkMessageUuid) {
-            console.log("[rollback] Fallback 2: using last assistant message at index:", lastAssistant.idx)
+            rollbackLog.info("Fallback 2: using last assistant message at index:", lastAssistant.idx)
             targetIndex = lastAssistant.idx
           }
         }
       }
 
       if (targetIndex === -1) {
-        console.error("[rollback] Message not found after all fallbacks. DB has", messages.length, "messages")
+        rollbackLog.error("Message not found after all fallbacks. DB has", messages.length, "messages")
         return { success: false, error: "Message not found" }
       }
 
@@ -261,7 +267,7 @@ export const subChatsRouter = router({
       const targetMessage = messages[targetIndex]
       const targetSdkUuid = targetMessage?.metadata?.sdkMessageUuid || input.sdkMessageUuid
 
-      console.log("[rollback] Found target message at index:", targetIndex, {
+      rollbackLog.info("Found target message at index:", targetIndex, {
         inputSdkUuid: input.sdkMessageUuid,
         targetSdkUuid,
         usedFallback: targetSdkUuid !== input.sdkMessageUuid,
@@ -533,11 +539,11 @@ export const subChatsRouter = router({
     .mutation(async ({ input }) => {
       const fallbackName = getFallbackName(input.userMessage)
 
-      console.log("[generateSubChatName] Returning fallback immediately:", fallbackName)
+      generateSubChatNameLog.info("Returning fallback immediately:", fallbackName)
 
       // Kick off async AI generation (fire-and-forget)
       generateNameWithAI(input, fallbackName).catch((err) => {
-        console.warn("[generateSubChatName] Background AI generation failed:", err)
+        generateSubChatNameLog.warn("Background AI generation failed:", err)
       })
 
       return { name: fallbackName }
@@ -563,7 +569,7 @@ async function generateNameWithAI(
 
   // 1. Try configured summary AI provider
   if (input.summaryProviderId && input.summaryModelId) {
-    console.log("[generateSubChatName:bg] Trying Summary AI provider...")
+    generateSubChatNameBgLog.info("Trying Summary AI provider...")
     try {
       const { callSummaryAIWithUsage } = await import("./summary-ai")
       const startTime = Date.now()
@@ -578,7 +584,7 @@ async function generateNameWithAI(
       )
       if (result?.text) {
         aiName = result.text
-        console.log("[generateSubChatName:bg] Summary AI generated:", aiName, `(${Date.now() - startTime}ms)`)
+        generateSubChatNameBgLog.info("Summary AI generated:", aiName, `(${Date.now() - startTime}ms)`)
 
         // Record usage
         if (result.usage && input.subChatId && input.chatId && input.projectId) {
@@ -597,20 +603,20 @@ async function generateNameWithAI(
               durationMs: Date.now() - startTime,
             }).run()
           } catch (usageErr) {
-            console.warn("[generateSubChatName:bg] Failed to record usage:", (usageErr as Error).message)
+            generateSubChatNameBgLog.warn("Failed to record usage:", (usageErr as Error).message)
           }
         }
       } else {
-        console.warn("[generateSubChatName:bg] Summary AI returned empty result")
+        generateSubChatNameBgLog.warn("Summary AI returned empty result")
       }
     } catch (error) {
-      console.warn("[generateSubChatName:bg] Summary AI failed:", (error as Error).message)
+      generateSubChatNameBgLog.warn("Summary AI failed:", (error as Error).message)
     }
   }
 
   // 2. Try hongshan.com API if no AI name yet
   if (!aiName) {
-    console.log("[generateSubChatName:bg] Trying hongshan.com API...")
+    generateSubChatNameBgLog.info("Trying hongshan.com API...")
     try {
       const { getDeviceInfo } = await import("../../device-id")
       const deviceInfo = getDeviceInfo()
@@ -634,13 +640,13 @@ async function generateNameWithAI(
         const data = await response.json()
         if (data.name && data.name !== fallbackName) {
           aiName = data.name
-          console.log("[generateSubChatName:bg] hongshan.com API returned:", aiName)
+          generateSubChatNameBgLog.info("hongshan.com API returned:", aiName)
         }
       } else {
-        console.warn("[generateSubChatName:bg] hongshan.com API returned:", response.status)
+        generateSubChatNameBgLog.warn("hongshan.com API returned:", response.status)
       }
     } catch (error) {
-      console.warn("[generateSubChatName:bg] hongshan.com API failed:", (error as Error).message)
+      generateSubChatNameBgLog.warn("hongshan.com API failed:", (error as Error).message)
     }
   }
 
@@ -649,7 +655,7 @@ async function generateNameWithAI(
 
   // 4. Update DB if we got a better name from AI
   if (aiName && aiName !== fallbackName && input.subChatId) {
-    console.log("[generateSubChatName:bg] Updating sub-chat name in DB:", aiName)
+    generateSubChatNameBgLog.info("Updating sub-chat name in DB:", aiName)
     const db = getDatabase()
 
     // Update sub-chat name
@@ -660,7 +666,7 @@ async function generateNameWithAI(
 
     // Also update parent chat if this is the first sub-chat
     if (input.isFirstSubChat && input.chatId) {
-      console.log("[generateSubChatName:bg] Also updating parent chat name:", aiName)
+      generateSubChatNameBgLog.info("Also updating parent chat name:", aiName)
       db.update(chats)
         .set({ name: aiName, updatedAt: new Date() })
         .where(eq(chats.id, input.chatId))
@@ -671,7 +677,7 @@ async function generateNameWithAI(
   // 5. Always notify frontend via IPC (both success and failure)
   // This allows frontend to stop shimmer and confirm the name
   if (input.subChatId) {
-    console.log("[generateSubChatName:bg] Sending IPC event to frontend, name:", finalName, aiName ? "(AI)" : "(fallback)")
+    generateSubChatNameBgLog.info("Sending IPC event to frontend, name:", finalName, aiName ? "(AI)" : "(fallback)")
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send("sub-chat:ai-name-ready", {
         subChatId: input.subChatId,

@@ -25,6 +25,10 @@ import type {
   SessionEndData,
 } from "./types"
 import { queueForEmbedding } from "./vector-store"
+import { createLogger } from "../../../lib/logger"
+
+const memoryLog = createLogger("Memory")
+
 
 /**
  * Record memory system LLM usage to model_usage table.
@@ -56,12 +60,12 @@ function recordMemoryUsage(
       })
       .run()
 
-    console.log(
+    memoryLog.info(
       `[Memory] Usage recorded: ${usage.purpose} — ${totalTokens} tokens (${usage.model})`,
     )
   } catch (error) {
     // Non-critical, don't block memory pipeline
-    console.warn("[Memory] Failed to record usage:", (error as Error).message)
+    memoryLog.warn("Failed to record usage:", (error as Error).message)
   }
 }
 
@@ -114,14 +118,14 @@ export const memoryHooks = {
         .get()
 
       if (!session) {
-        console.error("[Memory] Failed to create session: no result")
+        memoryLog.error("Failed to create session: no result")
         return null
       }
 
-      console.log(`[Memory] Session started: ${session.id}`)
+      memoryLog.info(`Session started: ${session.id}`)
       return session.id
     } catch (error) {
-      console.error("[Memory] Failed to create session:", error)
+      memoryLog.error("Failed to create session:", error)
       return null
     }
   },
@@ -143,11 +147,11 @@ export const memoryHooks = {
         createdAtEpoch: Date.now(),
       }).run()
 
-      console.log(
+      memoryLog.info(
         `[Memory] User prompt recorded: #${data.promptNumber} (${data.prompt.slice(0, 50)}...)`,
       )
     } catch (error) {
-      console.error("[Memory] Failed to record user prompt:", error)
+      memoryLog.error("Failed to record user prompt:", error)
     }
   },
 
@@ -192,7 +196,7 @@ export const memoryHooks = {
           }
         } catch (error) {
           // Silently fall back to rule-based
-          console.warn("[Memory] LLM enhancement failed, using rule-based:", (error as Error).message)
+          memoryLog.warn("LLM enhancement failed, using rule-based:", (error as Error).message)
         }
       }
 
@@ -221,11 +225,11 @@ export const memoryHooks = {
         .get()
 
       if (!obs) {
-        console.error("[Memory] Failed to create observation: no result")
+        memoryLog.error("Failed to create observation: no result")
         return
       }
 
-      console.log(
+      memoryLog.info(
         `[Memory] Observation created: ${obs.id} (${parsed.type}: ${parsed.title})`,
       )
 
@@ -239,7 +243,7 @@ export const memoryHooks = {
         obs.createdAtEpoch || Date.now(),
       )
     } catch (error) {
-      console.error("[Memory] Failed to create observation:", error)
+      memoryLog.error("Failed to create observation:", error)
     }
   },
 
@@ -261,16 +265,16 @@ export const memoryHooks = {
         .where(eq(memorySessions.id, data.sessionId))
         .run()
 
-      console.log(`[Memory] Session completed: ${data.sessionId}`)
+      memoryLog.info(`Session completed: ${data.sessionId}`)
 
       // Generate session summary with LLM (async, best-effort)
       if (isSummaryModelConfigured()) {
         this._generateAndStoreSummary(data.sessionId).catch((error) => {
-          console.warn("[Memory] Session summary generation failed:", (error as Error).message)
+          memoryLog.warn("Session summary generation failed:", (error as Error).message)
         })
       }
     } catch (error) {
-      console.error("[Memory] Failed to complete session:", error)
+      memoryLog.error("Failed to complete session:", error)
     }
   },
 
@@ -325,7 +329,7 @@ export const memoryHooks = {
       .where(eq(memorySessions.id, sessionId))
       .run()
 
-    console.log(`[Memory] Session summary generated for: ${sessionId}`)
+    memoryLog.info(`Session summary generated for: ${sessionId}`)
   },
 
   /**
@@ -345,9 +349,9 @@ export const memoryHooks = {
         .where(eq(memorySessions.id, sessionId))
         .run()
 
-      console.log(`[Memory] Session failed: ${sessionId}`)
+      memoryLog.info(`Session failed: ${sessionId}`)
     } catch (error) {
-      console.error("[Memory] Failed to mark session as failed:", error)
+      memoryLog.error("Failed to mark session as failed:", error)
     }
   },
 
@@ -398,11 +402,11 @@ export const memoryHooks = {
         .get()
 
       if (!obs) {
-        console.error("[Memory] Failed to record AI response: no result")
+        memoryLog.error("Failed to record AI response: no result")
         return
       }
 
-      console.log(
+      memoryLog.info(
         `[Memory] AI response recorded: ${obs.id} (${parsed.title?.slice(0, 50)}...)`,
       )
 
@@ -416,7 +420,7 @@ export const memoryHooks = {
         obs.createdAtEpoch || Date.now(),
       )
     } catch (error) {
-      console.error("[Memory] Failed to record AI response:", error)
+      memoryLog.error("Failed to record AI response:", error)
     }
   },
 }

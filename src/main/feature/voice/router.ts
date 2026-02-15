@@ -29,6 +29,10 @@ import {
   deleteModel as deleteWhisperModel,
   getFirstAvailableModel,
 } from "./lib/model-manager"
+import { createLogger } from "../../lib/logger"
+
+const voiceLog = createLogger("Voice")
+
 
 // Max audio size: 25MB (Whisper API limit)
 const MAX_AUDIO_SIZE = 25 * 1024 * 1024
@@ -136,7 +140,7 @@ function getOpenAIApiKey(): string | null {
     .MAIN_VITE_OPENAI_API_KEY
   if (viteKey) {
     cachedOpenAIKey = viteKey
-    console.log(
+    voiceLog.info(
       "[Voice] Using OPENAI_API_KEY from Vite env (MAIN_VITE_OPENAI_API_KEY)"
     )
     return cachedOpenAIKey
@@ -145,7 +149,7 @@ function getOpenAIApiKey(): string | null {
   // Check process.env (works in dev mode)
   if (process.env.OPENAI_API_KEY) {
     cachedOpenAIKey = process.env.OPENAI_API_KEY
-    console.log("[Voice] Using OPENAI_API_KEY from process.env")
+    voiceLog.info("Using OPENAI_API_KEY from process.env")
     return cachedOpenAIKey
   }
 
@@ -155,7 +159,7 @@ function getOpenAIApiKey(): string | null {
     const key = getStrippedShellEnvKey("OPENAI_API_KEY")
     if (key && key.startsWith("sk-")) {
       cachedOpenAIKey = key
-      console.log("[Voice] Using OPENAI_API_KEY from preloaded shell environment")
+      voiceLog.info("Using OPENAI_API_KEY from preloaded shell environment")
       return cachedOpenAIKey
     }
   }
@@ -242,7 +246,7 @@ async function transcribeWithWhisper(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error("[Voice] Whisper API error:", response.status, errorText)
+      voiceLog.error("Whisper API error:", response.status, errorText)
 
       // Provide user-friendly error messages
       if (response.status === 401) {
@@ -291,11 +295,11 @@ export const voiceRouter = router({
 
       // If a specific model was requested but not downloaded, fall back to an available model
       if (input.modelId && !isModelDownloaded(input.modelId)) {
-        console.warn(`[Voice] Requested model '${input.modelId}' not downloaded, falling back to available model`)
+        voiceLog.warn(`Requested model '${input.modelId}' not downloaded, falling back to available model`)
         modelId = getFirstAvailableModel() || preferredModelId
       }
 
-      console.log(
+      voiceLog.info(
         `[Voice] Transcribing ${audioBuffer.length} bytes of ${input.format} audio (provider: ${provider}, model: ${modelId})`
       )
 
@@ -312,14 +316,14 @@ export const voiceRouter = router({
 
         if (localStatus.available) {
           try {
-            console.log(`[Voice] Using local whisper with model: ${modelId}`)
+            voiceLog.info(`Using local whisper with model: ${modelId}`)
 
             const result = await transcribeLocalAudio(audioBuffer, input.format, {
               modelId,
               language,
             })
 
-            console.log(`[Voice] Local transcription: "${result.text.slice(0, 100)}..." (${result.processingTime}ms)`)
+            voiceLog.info(`Local transcription: "${result.text.slice(0, 100)}..." (${result.processingTime}ms)`)
 
             return {
               text: cleanTranscribedText(result.text),
@@ -328,7 +332,7 @@ export const voiceRouter = router({
               detectedLanguage: result.detectedLanguage,
             }
           } catch (err) {
-            console.error("[Voice] Local whisper failed:", err)
+            voiceLog.error("Local whisper failed:", err)
 
             // If provider is 'local', don't fall back
             if (provider === "local") {
@@ -336,7 +340,7 @@ export const voiceRouter = router({
             }
 
             // Fall through to OpenAI
-            console.log("[Voice] Falling back to OpenAI API")
+            voiceLog.info("Falling back to OpenAI API")
           }
         } else if (provider === "local") {
           throw new Error(`Local whisper not available: ${localStatus.reason}`)
@@ -353,7 +357,7 @@ export const voiceRouter = router({
             input.format,
             language
           )
-          console.log(`[Voice] OpenAI transcription result: "${text.slice(0, 100)}..."`)
+          voiceLog.info(`OpenAI transcription result: "${text.slice(0, 100)}..."`)
           return {
             text,
             provider: "openai" as const,
@@ -492,19 +496,19 @@ export const voiceRouter = router({
         return { success: true, alreadyDownloaded: true }
       }
 
-      console.log(`[Voice] Starting download of model: ${input.modelId}`)
+      voiceLog.info(`Starting download of model: ${input.modelId}`)
 
       try {
         await downloadWhisperModel(input.modelId, (progress) => {
           // Progress is tracked in model-manager, can be queried via getModelStatus
           if (progress % 20 === 0) {
-            console.log(`[Voice] Download progress for ${input.modelId}: ${progress}%`)
+            voiceLog.info(`Download progress for ${input.modelId}: ${progress}%`)
           }
         })
 
         return { success: true, alreadyDownloaded: false }
       } catch (err) {
-        console.error(`[Voice] Failed to download model ${input.modelId}:`, err)
+        voiceLog.error(`Failed to download model ${input.modelId}:`, err)
         throw new Error(`Download failed: ${err instanceof Error ? err.message : String(err)}`, { cause: err })
       }
     }),
@@ -551,7 +555,7 @@ export const voiceRouter = router({
         preferredLanguage = input.language
       }
 
-      console.log(`[Voice] Config updated: provider=${preferredProvider}, model=${preferredModelId}, language=${preferredLanguage || "auto"}`)
+      voiceLog.info(`Config updated: provider=${preferredProvider}, model=${preferredModelId}, language=${preferredLanguage || "auto"}`)
 
       return {
         provider: preferredProvider,

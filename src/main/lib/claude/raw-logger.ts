@@ -1,6 +1,10 @@
 import { app } from "electron"
 import { join } from "path"
 import { appendFile, mkdir, stat, readdir, unlink } from "fs/promises"
+import { createLogger } from "../logger"
+
+const rawLoggerLog = createLogger("raw-logger")
+
 
 // Check if logging is enabled (lazy check after app is ready)
 function isEnabled(): boolean {
@@ -64,15 +68,15 @@ export async function cleanupOldLogs(): Promise<void> {
 
         if (age > maxAge) {
           await unlink(filePath)
-          console.log(`[raw-logger] Cleaned up old log: ${file}`)
+          rawLoggerLog.info(`Cleaned up old log: ${file}`)
         }
       } catch (err) {
         // Skip files we can't access
-        console.warn(`[raw-logger] Failed to check file ${file}:`, err)
+        rawLoggerLog.warn(`Failed to check file ${file}:`, err)
       }
     }
   } catch (err) {
-    console.error("[raw-logger] Failed to cleanup old logs:", err)
+    rawLoggerLog.error("Failed to cleanup old logs:", err)
   }
 }
 
@@ -104,7 +108,7 @@ export async function logRawClaudeMessage(
       if (sessionId !== currentSessionId) {
         // Run cleanup in background, don't wait for it
         cleanupOldLogs().catch((err) =>
-          console.error("[raw-logger] Background cleanup failed:", err),
+          rawLoggerLog.error("Background cleanup failed:", err),
         )
       }
     }
@@ -117,7 +121,7 @@ export async function logRawClaudeMessage(
     await appendFile(currentLogFile!, JSON.stringify(entry) + "\n")
   } catch (err) {
     // Don't let logging errors break the main flow
-    console.error("[raw-logger] Failed to log:", err)
+    rawLoggerLog.error("Failed to log:", err)
   }
 }
 

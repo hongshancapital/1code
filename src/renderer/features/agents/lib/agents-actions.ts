@@ -6,6 +6,10 @@
 import type { SettingsTab } from "../../../lib/atoms"
 import type { DesktopView } from "../atoms"
 import { trackClickNewChat } from "../../../lib/sensors-analytics"
+import { createLogger } from "../../../lib/logger"
+
+const actionLog = createLogger("Action")
+
 
 // ============================================================================
 // TYPES
@@ -78,7 +82,7 @@ const createNewAgentAction: AgentActionDefinition = {
   category: "general",
   hotkey: "cmd+n",
   handler: async (context) => {
-    console.log("[Action] create-new-agent handler called")
+    actionLog.info("create-new-agent handler called")
     trackClickNewChat("shortcut")
     // Clear selected chat
     context.setSelectedChatId?.(null)

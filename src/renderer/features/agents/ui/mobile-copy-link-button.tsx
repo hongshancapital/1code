@@ -8,6 +8,10 @@ import {
 } from "../../../components/ui/icons"
 import { cn } from "../../../lib/utils"
 import { useHaptic } from "../../../lib/hooks/use-haptic"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("mobileCopyLinkButton")
+
 
 interface MobileCopyLinkButtonProps {
   url: string
@@ -24,7 +28,7 @@ export function MobileCopyLinkButton({ url }: MobileCopyLinkButtonProps) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
-      console.error("Failed to copy:", error)
+      log.error("Failed to copy:", error)
     }
   }
 

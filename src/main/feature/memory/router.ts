@@ -19,6 +19,10 @@ import type { Observation } from "../../lib/db/schema"
 import { hybridSearch, findRelated } from "./lib/hybrid-search"
 import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding } from "./lib/vector-store"
 import { parseToolToObservation, buildObservationText } from "./lib/observation-parser"
+import { createLogger } from "../../lib/logger"
+
+const memoryLog = createLogger("Memory")
+
 
 // ============ Types ============
 
@@ -155,7 +159,7 @@ async function searchObservationsFts(
       toolCallId: r.toolCallId,
     }))
   } catch (error) {
-    console.error("[Memory] FTS search error:", error)
+    memoryLog.error("FTS search error:", error)
     return []
   }
 }
@@ -210,7 +214,7 @@ async function searchPromptsFts(
       score: -r.rank,
     }))
   } catch (error) {
-    console.error("[Memory] Prompt FTS search error:", error)
+    memoryLog.error("Prompt FTS search error:", error)
     return []
   }
 }
@@ -245,7 +249,7 @@ export const memoryRouter = router({
             limit: input.limit,
           })
         } catch (error) {
-          console.error("[Memory] Hybrid search failed, falling back to FTS:", error)
+          memoryLog.error("Hybrid search failed, falling back to FTS:", error)
           // Fall through to FTS
         }
       }
@@ -336,7 +340,7 @@ export const memoryRouter = router({
             .limit(input.limit)
             .all()
 
-      console.log(`[Memory] getRecentMemories: projectId=${input.projectId} found ${obs.length} observations`)
+      memoryLog.info(`getRecentMemories: projectId=${input.projectId} found ${obs.length} observations`)
 
       // Get sessions with observation counts
       const sessionsWithCounts = db.all<{
@@ -693,7 +697,7 @@ export const memoryRouter = router({
           .get()
 
         if (!session) {
-          console.error(`[Memory] Failed to create session for SubChat ${subChat.id}`)
+          memoryLog.error(`Failed to create session for SubChat ${subChat.id}`)
           failed++
           continue
         }
@@ -769,12 +773,12 @@ export const memoryRouter = router({
 
         synced++
       } catch (error) {
-        console.error(`[Memory] Failed to sync SubChat ${subChat.id}:`, error)
+        memoryLog.error(`Failed to sync SubChat ${subChat.id}:`, error)
         failed++
       }
     }
 
-    console.log(`[Memory] Historical sync completed: synced=${synced}, skipped=${skipped}, failed=${failed}`)
+    memoryLog.info(`Historical sync completed: synced=${synced}, skipped=${skipped}, failed=${failed}`)
     return { synced, skipped, failed, total: allSubChats.length }
   }),
 })

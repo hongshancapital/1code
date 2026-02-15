@@ -11,6 +11,10 @@ import {
   isWindows,
   platform
 } from "../platform"
+import { createLogger } from "../logger"
+
+const claudeBinaryLog = createLogger("claude-binary")
+const claudeEnvLog = createLogger("claude-env")
 
 // Cache the shell environment
 let cachedShellEnv: Record<string, string> | null = null
@@ -53,11 +57,11 @@ export function getBundledClaudeBinaryPath(): string {
 
   // Only log verbose info on first call
   if (process.env.DEBUG_CLAUDE_BINARY) {
-    console.log("[claude-binary] ========== BUNDLED BINARY PATH ==========")
-    console.log("[claude-binary] isDev:", isDev)
-    console.log("[claude-binary] platform:", currentPlatform)
-    console.log("[claude-binary] arch:", arch)
-    console.log("[claude-binary] appPath:", app.getAppPath())
+    claudeBinaryLog.info("========== BUNDLED BINARY PATH ==========")
+    claudeBinaryLog.info("isDev:", isDev)
+    claudeBinaryLog.info("platform:", currentPlatform)
+    claudeBinaryLog.info("arch:", arch)
+    claudeBinaryLog.info("appPath:", app.getAppPath())
   }
 
   // In dev: apps/desktop/resources/bin/{platform}-{arch}/claude
@@ -71,14 +75,14 @@ export function getBundledClaudeBinaryPath(): string {
     : path.join(process.resourcesPath, "bin")
 
   if (process.env.DEBUG_CLAUDE_BINARY) {
-    console.log("[claude-binary] resourcesPath:", resourcesPath)
+    claudeBinaryLog.info("resourcesPath:", resourcesPath)
   }
 
   const binaryName = currentPlatform === "win32" ? "claude.exe" : "claude"
   const binaryPath = path.join(resourcesPath, binaryName)
 
   if (process.env.DEBUG_CLAUDE_BINARY) {
-    console.log("[claude-binary] binaryPath:", binaryPath)
+    claudeBinaryLog.info("binaryPath:", binaryPath)
   }
 
   // Check if binary exists
@@ -86,21 +90,21 @@ export function getBundledClaudeBinaryPath(): string {
 
   // Always log if binary doesn't exist (critical error)
   if (!exists) {
-    console.error(
+    claudeBinaryLog.error(
       "[claude-binary] WARNING: Binary not found at path:",
       binaryPath
     )
-    console.error(
+    claudeBinaryLog.error(
       "[claude-binary] Run 'bun run claude:download' to download it"
     )
   } else if (process.env.DEBUG_CLAUDE_BINARY) {
     const stats = fs.statSync(binaryPath)
     const sizeMB = (stats.size / 1024 / 1024).toFixed(1)
     const isExecutable = (stats.mode & fs.constants.X_OK) !== 0
-    console.log("[claude-binary] exists:", exists)
-    console.log("[claude-binary] size:", sizeMB, "MB")
-    console.log("[claude-binary] isExecutable:", isExecutable)
-    console.log("[claude-binary] ===========================================")
+    claudeBinaryLog.info("exists:", exists)
+    claudeBinaryLog.info("size:", sizeMB, "MB")
+    claudeBinaryLog.info("isExecutable:", isExecutable)
+    claudeBinaryLog.info("===========================================")
   }
 
   // Cache the result
@@ -139,7 +143,7 @@ function stripSensitiveKeys(env: Record<string, string>): void {
   for (const key of STRIPPED_ENV_KEYS) {
     if (key in env) {
       strippedKeyValues.set(key, env[key])
-      console.log(`[claude-env] Stripped ${key} from shell environment`)
+      claudeEnvLog.info(`Stripped ${key} from shell environment`)
       delete env[key]
     }
   }
@@ -166,7 +170,7 @@ export function getClaudeShellEnvironment(): Record<string, string> {
 
   // Windows: use platform provider to build environment
   if (isWindows()) {
-    console.log(
+    claudeBinaryLog.info(
       "[claude-env] Windows detected, deriving PATH without shell invocation"
     )
 
@@ -176,7 +180,7 @@ export function getClaudeShellEnvironment(): Record<string, string> {
     // Strip sensitive keys
     stripSensitiveKeys(env)
 
-    console.log(
+    claudeBinaryLog.info(
       `[claude-env] Built Windows environment with ${Object.keys(env).length} vars`
     )
     cachedShellEnv = env
@@ -185,7 +189,7 @@ export function getClaudeShellEnvironment(): Record<string, string> {
 
   // macOS/Linux: preloadShellEnvironment() should have been called at startup.
   // If cache is still empty, use fallback instead of blocking with execSync.
-  console.warn("[claude-env] Cache miss — preloadShellEnvironment() not yet completed, using fallback")
+  claudeEnvLog.warn("Cache miss — preloadShellEnvironment() not yet completed, using fallback")
   const env = platform.buildEnvironment()
   stripSensitiveKeys(env)
   cachedShellEnv = env
@@ -207,7 +211,7 @@ export function buildClaudeEnv(options?: {
   try {
     Object.assign(env, getClaudeShellEnvironment())
   } catch {
-    console.error("[claude-env] Shell env failed, using process.env")
+    claudeEnvLog.error("Shell env failed, using process.env")
   }
 
   // 2. Overlay current process.env (preserves Electron-set vars)
@@ -290,12 +294,12 @@ export async function preloadShellEnvironment(): Promise<void> {
     const env = parseEnvOutput(stdout)
     stripSensitiveKeys(env)
 
-    console.log(
+    claudeBinaryLog.info(
       `[claude-env] Async preload: ${Object.keys(env).length} environment variables loaded`
     )
     cachedShellEnv = env
   } catch (error) {
-    console.warn("[claude-env] Async preload failed, will use fallback:", (error as Error).message)
+    claudeEnvLog.warn("Async preload failed, will use fallback:", (error as Error).message)
     // Fill cache with fallback so sync call won't block either
     const env = platform.buildEnvironment()
     stripSensitiveKeys(env)
@@ -317,15 +321,15 @@ export function logClaudeEnv(
   env: Record<string, string>,
   prefix: string = ""
 ): void {
-  console.log(`${prefix}[claude-env] HOME: ${env.HOME}`)
-  console.log(`${prefix}[claude-env] USER: ${env.USER}`)
-  console.log(
+  claudeBinaryLog.info(`${prefix}[claude-env] HOME: ${env.HOME}`)
+  claudeBinaryLog.info(`${prefix}[claude-env] USER: ${env.USER}`)
+  claudeBinaryLog.info(
     `${prefix}[claude-env] PATH includes homebrew: ${env.PATH?.includes("/opt/homebrew")}`
   )
-  console.log(
+  claudeBinaryLog.info(
     `${prefix}[claude-env] PATH includes /usr/local/bin: ${env.PATH?.includes("/usr/local/bin")}`
   )
-  console.log(
+  claudeBinaryLog.info(
     `${prefix}[claude-env] ANTHROPIC_AUTH_TOKEN: ${env.ANTHROPIC_AUTH_TOKEN ? "set" : "not set"}`
   )
 }

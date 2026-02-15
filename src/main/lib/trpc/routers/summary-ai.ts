@@ -8,6 +8,10 @@
  * Returns null on failure so callers can fall back to other methods.
  */
 import { getProviderCredentials } from "./providers"
+import { createLogger } from "../../logger"
+
+const summaryAILog = createLogger("SummaryAI")
+
 
 /** Token usage data returned from API calls */
 export interface SummaryAIUsage {
@@ -51,7 +55,7 @@ export async function callSummaryAIWithUsage(
 ): Promise<SummaryAIResult | null> {
   const credentials = await getProviderCredentials(providerId, modelId)
   if (!credentials) {
-    console.warn("[SummaryAI] No credentials for provider:", providerId)
+    summaryAILog.warn("No credentials for provider:", providerId)
     return null
   }
 
@@ -62,13 +66,13 @@ export async function callSummaryAIWithUsage(
       credentials.baseUrl.includes("api.anthropic.com")
 
     if (isAnthropicFormat) {
-      console.log("[SummaryAI] Using Anthropic API format for:", credentials.baseUrl)
+      summaryAILog.info("Using Anthropic API format for:", credentials.baseUrl)
       return await callAnthropicAPI(credentials, systemPrompt, userMessage, maxTokens)
     }
-    console.log("[SummaryAI] Using OpenAI-compatible API format for:", credentials.baseUrl)
+    summaryAILog.info("Using OpenAI-compatible API format for:", credentials.baseUrl)
     return await callOpenAICompatibleAPI(credentials, systemPrompt, userMessage, maxTokens)
   } catch (error) {
-    console.warn("[SummaryAI] Call failed:", (error as Error).message)
+    summaryAILog.warn("Call failed:", (error as Error).message)
     return null
   }
 }
@@ -101,7 +105,7 @@ async function callAnthropicAPI(
   })
 
   if (!response.ok) {
-    console.warn(`[SummaryAI] Anthropic API returned ${response.status}`)
+    summaryAILog.warn(`Anthropic API returned ${response.status}`)
     return null
   }
 
@@ -149,7 +153,7 @@ async function callOpenAICompatibleAPI(
   })
 
   if (!response.ok) {
-    console.warn(`[SummaryAI] OpenAI-compatible API returned ${response.status}`)
+    summaryAILog.warn(`OpenAI-compatible API returned ${response.status}`)
     return null
   }
 

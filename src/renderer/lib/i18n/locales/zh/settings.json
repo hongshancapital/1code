@@ -474,6 +474,10 @@
       "description": "使用本地 Whisper 或 OpenAI API 进行语音转文字输入。",
       "devOnly": "仅开发模式可用。该功能仍在调试中。"
     },
+    "renameFolder": {
+      "title": "重命名工作目录",
+      "description": "允许在工作区部件中直接重命名工作目录文件夹。"
+    },
     "offlineSettings": {
       "title": "离线模式设置",
       "ollamaStatus": "Ollama 状态",

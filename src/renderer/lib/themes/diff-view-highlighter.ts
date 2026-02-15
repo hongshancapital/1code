@@ -8,6 +8,10 @@
 import { getHighlighter } from "./shiki-theme-loader"
 import type { BundledTheme, Highlighter } from "shiki"
 import type { Root } from "hast"
+import { createLogger } from "../logger"
+
+const preloadDiffHighlighterLog = createLogger("preloadDiffHighlighter")
+
 
 // Shiki themes we load
 const SHIKI_THEMES: BundledTheme[] = [
@@ -244,7 +248,7 @@ export async function createCustomDiffHighlighter(): Promise<DiffHighlighter> {
           mergeWhitespaces: false,
         })
       } catch (e) {
-        console.error("Diff highlighter error:", e)
+        preloadDiffHighlighterLog.error("Diff highlighter error:", e)
         return undefined
       }
     },
@@ -283,6 +287,6 @@ export async function getDiffHighlighter(): Promise<DiffHighlighter> {
 export function preloadDiffHighlighter(): void {
   // Start loading in background, don't block
   getDiffHighlighter().catch((err) => {
-    console.warn("[preloadDiffHighlighter] Failed to preload:", err)
+    preloadDiffHighlighterLog.warn("Failed to preload:", err)
   })
 }

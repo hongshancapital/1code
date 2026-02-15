@@ -1,6 +1,10 @@
 import type { Chat } from "@ai-sdk/react"
 import type { IPCChatTransport } from "../lib/ipc-chat-transport"
 import { useStreamingStatusStore } from "./streaming-status-store"
+import { createLogger } from "../../../lib/logger"
+
+const chatRegistryLog = createLogger("ChatRegistry")
+
 
 /**
  * ChatRegistry — Chat 实例注册表
@@ -36,7 +40,7 @@ class ChatRegistry {
     if (entry) {
       entry.lastActiveAt = Date.now() // 刷新活跃时间
       if (entry.isBackground) {
-        console.log(`[ChatRegistry] Instant Restore (LRU): ${subChatId.slice(-8)}`)
+        chatRegistryLog.info(`Instant Restore (LRU): ${subChatId.slice(-8)}`)
         entry.isBackground = false
       }
       return entry.chat
@@ -89,7 +93,7 @@ class ChatRegistry {
     // 这实现了 "假切换"：切出 workspace 时，Chat 实例保留在内存中。
     // 切回时直接复用（Instant Restore），无需从 DB 加载，状态零丢失。
     // 内存占用由 prune() 的 LRU 机制控制。
-    console.log(`[ChatRegistry] Hibernate (Background): ${subChatId.slice(-8)}`)
+    chatRegistryLog.info(`Hibernate (Background): ${subChatId.slice(-8)}`)
     entry.isBackground = true
 
     // 触发清理
@@ -103,7 +107,7 @@ class ChatRegistry {
   updateCwdByParentChatId(parentChatId: string, newCwd: string): void {
     for (const [id, entry] of this.entries) {
       if (entry.parentChatId === parentChatId) {
-        console.log(`[ChatRegistry] Hot-update CWD: ${id.slice(-8)} → ${newCwd}`)
+        chatRegistryLog.info(`Hot-update CWD: ${id.slice(-8)} → ${newCwd}`)
         entry.cwd = newCwd
         entry.transport?.updateCwd(newCwd)
       }
@@ -157,7 +161,7 @@ class ChatRegistry {
     const toDelete = idleChats.slice(0, toDeleteCount)
 
     for (const [id, _] of toDelete) {
-      console.log(`[ChatRegistry] GC Prune (LRU): ${id.slice(-8)}`)
+      chatRegistryLog.info(`GC Prune (LRU): ${id.slice(-8)}`)
       this.entries.delete(id)
       this.manuallyAborted.delete(id)
     }

@@ -8,6 +8,10 @@
 import { useEffect, useMemo } from "react"
 import { useAtom } from "jotai"
 import { browserPendingScreenshotAtomFamily } from "../../browser-sidebar/atoms"
+import { createLogger } from "../../../lib/logger"
+
+const log = createLogger("useBrowserScreenshot")
+
 
 export interface UseBrowserScreenshotOptions {
   parentChatId: string
@@ -51,7 +55,7 @@ export function useBrowserScreenshot({
 
         await handleAddAttachments([file])
       } catch (error) {
-        console.error("Failed to add screenshot to input:", error)
+        log.error("Failed to add screenshot to input:", error)
       } finally {
         setPendingScreenshot(null)
       }

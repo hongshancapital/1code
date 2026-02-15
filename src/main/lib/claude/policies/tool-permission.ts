@@ -15,6 +15,10 @@ import type {
   ToolPermissionDecision,
   ToolContext,
 } from "../engine-types"
+import { createLogger } from "../../logger"
+
+const ollamaLog = createLogger("Ollama")
+
 
 // ============================================================================
 // Tool Sets
@@ -155,7 +159,7 @@ export class OllamaPolicy implements ToolPermissionPolicy {
     }
 
     if (didFix) {
-      console.log(`[Ollama] Fixed ${toolName} tool parameters`)
+      ollamaLog.info(`Fixed ${toolName} tool parameters`)
     }
 
     return ALLOW(updatedInput)

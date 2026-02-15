@@ -370,7 +370,7 @@ export const claudeRouter = router({
         // Shared state for cleanup closure to access
         let currentSessionId: string | null = null;
         let resolvedProjectId = "";
-        log.info(
+        claudeLog.info(
           `[SD] M:START sub=${subId} stream=${streamId.slice(-8)} mode=${input.mode} imageConfig=${input.imageConfig ? `model=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}` : "NOT SET"}`,
         );
 
@@ -598,12 +598,12 @@ export const claudeRouter = router({
                   token: litellmApiKey || "litellm",
                   baseUrl: litellmBaseUrl.replace(/\/+$/, ""),
                 };
-                log.info(
+                claudeLog.info(
                   `[SD] Using LiteLLM mode: model=${input.customConfig.model} baseUrl=${litellmBaseUrl}`,
                 );
               } else {
                 // LiteLLM not configured, fall back to no custom config
-                log.info(
+                claudeLog.info(
                   `[SD] LiteLLM mode requested but MAIN_VITE_LITELLM_BASE_URL not configured`,
                 );
                 resolvedCustomConfig = undefined;
@@ -670,7 +670,7 @@ export const claudeRouter = router({
 
             // Log if agents were mentioned
             if (agentMentions.length > 0) {
-              log.info(
+              claudeLog.info(
                 `[claude] Registering agents via SDK:`,
                 Object.keys(agentsOption),
               );
@@ -810,13 +810,13 @@ export const claudeRouter = router({
                   mcpServersForSdk = loadedConfig.mcpServers;
                 }
               } catch (configErr) {
-                log.error(
+                claudeLog.error(
                   `[claude] Failed to load MCP config via ClaudeConfigLoader:`,
                   configErr,
                 );
               }
             } catch (mkdirErr) {
-              log.error(
+              claudeLog.error(
                 `[claude] Failed to setup isolated config dir:`,
                 mkdirErr,
               );
@@ -830,7 +830,7 @@ export const claudeRouter = router({
             );
 
             if (hasExistingApiConfig) {
-              log.info(
+              claudeLog.info(
                 `[claude] Using existing CLI config - API_KEY: ${claudeEnv.ANTHROPIC_API_KEY ? "set" : "not set"}, BASE_URL: ${claudeEnv.ANTHROPIC_BASE_URL || "default"}`,
               );
             }
@@ -873,7 +873,7 @@ export const claudeRouter = router({
                 .catch(() => false);
 
               if (!sessionExists) {
-                log.info(
+                claudeLog.info(
                   `[claude] Session file not found at ${expectedSessionPath}, skipping resume`,
                 );
                 resumeSessionId = undefined;
@@ -888,21 +888,21 @@ export const claudeRouter = router({
             claudeLog.info(`========== SESSION DEBUG ==========`);
             claudeLog.info(`subChatId: ${input.subChatId}`);
             claudeLog.info(`cwd: ${input.cwd}`);
-            log.info(
+            claudeLog.info(
               `[claude] sanitized cwd (expected): ${expectedSanitizedCwd}`,
             );
             claudeLog.info(`CLAUDE_CONFIG_DIR: ${isolatedConfigDir}`);
-            log.info(
+            claudeLog.info(
               `[claude] Expected session path: ${expectedSessionPath}`,
             );
             claudeLog.info(`Session ID to resume: ${resumeSessionId}`);
-            log.info(
+            claudeLog.info(
               `[claude] Existing sessionId from DB: ${existingSessionId}`,
             );
             claudeLog.info(`Resume at UUID: ${resumeAtUuid}`);
             claudeLog.info(`========== END SESSION DEBUG ==========`);
 
-            log.info(
+            claudeLog.info(
               `[SD] Query options - cwd: ${input.cwd}, projectPath: ${input.projectPath || "(not set)"}, mcpServers: ${mcpServersForSdk ? Object.keys(mcpServersForSdk).join(", ") : "(none)"}`,
             );
             if (finalCustomConfig) {
@@ -911,11 +911,11 @@ export const claudeRouter = router({
                 token: `${finalCustomConfig.token.slice(0, 6)}...`,
               };
               if (isUsingOllama) {
-                log.info(
+                claudeLog.info(
                   `[Ollama] Using offline mode - Model: ${finalCustomConfig.model}, Base URL: ${finalCustomConfig.baseUrl}`,
                 );
               } else {
-                log.info(
+                claudeLog.info(
                   `[claude] Custom config: ${JSON.stringify(redactedConfig)}`,
                 );
               }
@@ -925,7 +925,7 @@ export const claudeRouter = router({
 
             // DEBUG: If using Ollama, test if it's actually responding
             if (isUsingOllama && finalCustomConfig) {
-              log.info("[Ollama Debug] Testing Ollama connectivity...");
+              claudeLog.info("[Ollama Debug] Testing Ollama connectivity...");
               try {
                 const testResponse = await fetch(
                   `${finalCustomConfig.baseUrl}/api/tags`,
@@ -936,32 +936,32 @@ export const claudeRouter = router({
                 if (testResponse.ok) {
                   const data = await testResponse.json();
                   const models = data.models?.map((m: any) => m.name) || [];
-                  log.info(
+                  claudeLog.info(
                     "[Ollama Debug] Ollama is responding. Available models:",
                     models,
                   );
 
                   if (!models.includes(finalCustomConfig.model)) {
-                    log.error(
+                    claudeLog.error(
                       `[Ollama Debug] WARNING: Model "${finalCustomConfig.model}" not found in Ollama!`,
                     );
-                    log.error(`[Ollama Debug] Available models:`, models);
-                    log.error(
+                    claudeLog.error(`[Ollama Debug] Available models:`, models);
+                    claudeLog.error(
                       `[Ollama Debug] This will likely cause the stream to hang or fail silently.`,
                     );
                   } else {
-                    log.info(
+                    claudeLog.info(
                       `[Ollama Debug] ✓ Model "${finalCustomConfig.model}" is available`,
                     );
                   }
                 } else {
-                  log.error(
+                  claudeLog.error(
                     "[Ollama Debug] Ollama returned error:",
                     testResponse.status,
                   );
                 }
               } catch (err) {
-                log.error(
+                claudeLog.error(
                   "[Ollama Debug] Failed to connect to Ollama:",
                   err,
                 );
@@ -973,7 +973,7 @@ export const claudeRouter = router({
             let mcpServersFiltered: Record<string, any> | undefined;
 
             if (isUsingOllama) {
-              log.info(
+              claudeLog.info(
                 "[Ollama] Skipping MCP servers to speed up initialization",
               );
               mcpServersFiltered = undefined;
@@ -1015,7 +1015,7 @@ export const claudeRouter = router({
               }
               perf(`chat:collectMcpServers done (${collectedMcps.length} injected)`);
               if (collectedMcps.length > 0) {
-                log.info(
+                claudeLog.info(
                   `[MCP] Extensions injected ${collectedMcps.length} server(s):`,
                   collectedMcps.map((e) => e.name).join(", "),
                 );
@@ -1024,7 +1024,7 @@ export const claudeRouter = router({
 
             // Log SDK configuration for debugging
             if (isUsingOllama) {
-              log.info("[Ollama Debug] SDK Configuration:", {
+              claudeLog.info("[Ollama Debug] SDK Configuration:", {
                 model: resolvedModel,
                 baseUrl: finalEnv.ANTHROPIC_BASE_URL,
                 cwd: input.cwd,
@@ -1033,7 +1033,7 @@ export const claudeRouter = router({
                 tokenPreview:
                   finalEnv.ANTHROPIC_AUTH_TOKEN?.slice(0, 10) + "...",
               });
-              log.info("[Ollama Debug] Session settings:", {
+              claudeLog.info("[Ollama Debug] Session settings:", {
                 resumeSessionId: resumeSessionId || "none (first message)",
                 mode: resumeSessionId ? "resume" : "continue",
                 note: resumeSessionId
@@ -1048,7 +1048,7 @@ export const claudeRouter = router({
               const agentsMdPath = path.join(input.cwd, "AGENTS.md");
               agentsMdContent = await fs.readFile(agentsMdPath, "utf-8");
               if (agentsMdContent.trim()) {
-                log.info(
+                claudeLog.info(
                   `[claude] Found AGENTS.md at ${agentsMdPath} (${agentsMdContent.length} chars)`,
                 );
               } else {
@@ -1114,7 +1114,7 @@ export const claudeRouter = router({
               input.cwd,
             );
             perf("buildSystemPrompt done");
-            log.info(
+            claudeLog.info(
               "[claude] systemPromptConfig append:",
               systemPromptConfig.append
                 ? systemPromptConfig.append.slice(0, 200)
@@ -1166,7 +1166,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      log.info(
+                      claudeLog.info(
                         "[Ollama] Fixed Read tool: file -> file_path",
                       );
                     }
@@ -1178,7 +1178,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      log.info(
+                      claudeLog.info(
                         "[Ollama] Fixed Write tool: file -> file_path",
                       );
                     }
@@ -1190,7 +1190,7 @@ export const claudeRouter = router({
                     ) {
                       toolInput.file_path = toolInput.file;
                       delete toolInput.file;
-                      log.info(
+                      claudeLog.info(
                         "[Ollama] Fixed Edit tool: file -> file_path",
                       );
                     }
@@ -1199,7 +1199,7 @@ export const claudeRouter = router({
                       if (toolInput.directory && !toolInput.path) {
                         toolInput.path = toolInput.directory;
                         delete toolInput.directory;
-                        log.info(
+                        claudeLog.info(
                           "[Ollama] Fixed Glob tool: directory -> path",
                         );
                       }
@@ -1214,14 +1214,14 @@ export const claudeRouter = router({
                       if (toolInput.query && !toolInput.pattern) {
                         toolInput.pattern = toolInput.query;
                         delete toolInput.query;
-                        log.info(
+                        claudeLog.info(
                           "[Ollama] Fixed Grep tool: query -> pattern",
                         );
                       }
                       if (toolInput.directory && !toolInput.path) {
                         toolInput.path = toolInput.directory;
                         delete toolInput.directory;
-                        log.info(
+                        claudeLog.info(
                           "[Ollama] Fixed Grep tool: directory -> path",
                         );
                       }
@@ -1366,9 +1366,9 @@ export const claudeRouter = router({
                 stderr: (data: string) => {
                   stderrLines.push(data);
                   if (isUsingOllama) {
-                    log.error("[Ollama stderr]", data);
+                    claudeLog.error("[Ollama stderr]", data);
                   } else {
-                    log.error("[claude stderr]", data);
+                    claudeLog.error("[claude stderr]", data);
                   }
                 },
                 // Use bundled binary
@@ -1459,12 +1459,12 @@ export const claudeRouter = router({
               stream = claudeQuery(queryOptions as Parameters<typeof claudeQuery>[0]);
               perf("claudeQuery (SDK create) done — now waiting for first stream message");
             } catch (queryError) {
-              log.error(
+              claudeLog.error(
                 "[CLAUDE] ✗ Failed to create SDK query:",
                 queryError,
               );
               emitError(queryError, "Failed to start Claude query");
-              log.info(
+              claudeLog.info(
                 `[SD] M:END sub=${subId} reason=query_error n=${chunkCount}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -1487,7 +1487,7 @@ export const claudeRouter = router({
               ollamaLog.info(`===== STARTING STREAM ITERATION =====`);
               ollamaLog.info(`Model: ${finalCustomConfig?.model}`);
               ollamaLog.info(`Base URL: ${finalCustomConfig?.baseUrl}`);
-              log.info(
+              claudeLog.info(
                 `[Ollama] Prompt: "${typeof input.prompt === "string" ? input.prompt.slice(0, 100) : "N/A"}..."`,
               );
               ollamaLog.info(`CWD: ${input.cwd}`);
@@ -1510,7 +1510,7 @@ export const claudeRouter = router({
                   const sdkMsgPreview = msg as SdkStreamMessage;
                   ollamaLog.info(`===== MESSAGE #${messageCount} =====`);
                   ollamaLog.info(`Type: ${sdkMsgPreview.type}`);
-                  log.info(
+                  claudeLog.info(
                     `[Ollama] Subtype: ${sdkMsgPreview.subtype || "none"}`,
                   );
                   if (sdkMsgPreview.event) {
@@ -1521,12 +1521,12 @@ export const claudeRouter = router({
                     });
                   }
                   if (sdkMsgPreview.message?.content) {
-                    log.info(
+                    claudeLog.info(
                       `[Ollama] Message content blocks:`,
                       sdkMsgPreview.message.content.length,
                     );
                     sdkMsgPreview.message.content.forEach((block, idx) => {
-                      log.info(
+                      claudeLog.info(
                         `[Ollama]   Block ${idx}: type=${block.type}, text_length=${block.text?.length || 0}`,
                       );
                     });
@@ -1539,12 +1539,12 @@ export const claudeRouter = router({
                   const timeToFirstMessage = Date.now() - streamIterationStart;
                   perf(`FIRST STREAM MESSAGE received (stream wait: ${timeToFirstMessage}ms, total: ${Date.now() - perfStart}ms)`);
                   if (isUsingOllama) {
-                    log.info(
+                    claudeLog.info(
                       `[Ollama] Time to first message: ${timeToFirstMessage}ms`,
                     );
                   }
                   if (timeToFirstMessage > 5000) {
-                    log.warn(
+                    claudeLog.warn(
                       `[claude] SDK initialization took ${(timeToFirstMessage / 1000).toFixed(1)}s (MCP servers loading?)`,
                     );
                   }
@@ -1567,42 +1567,42 @@ export const claudeRouter = router({
                     messageText || errorValue || "Unknown SDK error";
 
                   // Detailed SDK error logging in main process
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] ========================================`,
                   );
-                  log.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`);
-                  log.error(
+                  claudeLog.error(`[CLAUDE SDK ERROR] Raw error: ${sdkError}`);
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Message type: ${sdkMsg.type}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] SubChat ID: ${input.subChatId}`,
                   );
-                  log.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`);
-                  log.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`);
-                  log.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`);
-                  log.error(
+                  claudeLog.error(`[CLAUDE SDK ERROR] Chat ID: ${input.chatId}`);
+                  claudeLog.error(`[CLAUDE SDK ERROR] CWD: ${input.cwd}`);
+                  claudeLog.error(`[CLAUDE SDK ERROR] Mode: ${input.mode}`);
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Session ID: ${sdkMsg.session_id || "none"}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Has custom config: ${!!finalCustomConfig}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Is using Ollama: ${isUsingOllama}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Model: ${resolvedModel || "default"}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Has OAuth token: ${!!claudeCodeToken}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] MCP servers: ${mcpServersFiltered ? Object.keys(mcpServersFiltered).join(", ") : "none"}`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] Full message:`,
                     JSON.stringify(sdkMsg, null, 2),
                   );
-                  log.error(
+                  claudeLog.error(
                     `[CLAUDE SDK ERROR] ========================================`,
                   );
 
@@ -1676,7 +1676,7 @@ export const claudeRouter = router({
                     },
                   } as UIMessageChunk);
 
-                  log.info(
+                  claudeLog.info(
                     `[SD] M:END sub=${subId} reason=sdk_error cat=${errorCategory} n=${chunkCount}`,
                   );
                   sdLog.error(`SDK Error details:`, {
@@ -1717,7 +1717,7 @@ export const claudeRouter = router({
                 // Debug: Log system messages from SDK
                 if (sdkMsg.type === "system") {
                   // Full log to see all fields including MCP errors
-                  log.info(
+                  claudeLog.info(
                     `[SD] SYSTEM message: subtype=${sdkMsg.subtype}`,
                     JSON.stringify(
                       {
@@ -1753,7 +1753,7 @@ export const claudeRouter = router({
                   // Use safeEmit to prevent throws when observer is closed
                   if (!safeEmit(chunk)) {
                     // Observer closed (user clicked Stop), break out of loop
-                    log.info(
+                    claudeLog.info(
                       `[SD] M:EMIT_CLOSED sub=${subId} type=${chunk.type} n=${chunkCount}`,
                     );
                     break;
@@ -1772,7 +1772,7 @@ export const claudeRouter = router({
                       break;
                     case "tool-input-available":
                       // DEBUG: Log tool calls
-                      log.info(
+                      claudeLog.info(
                         `[SD] M:TOOL_CALL sub=${subId} toolName="${chunk.toolName}" mode=${input.mode} callId=${chunk.toolCallId}`,
                       );
 
@@ -1781,7 +1781,7 @@ export const claudeRouter = router({
                         input.mode === "plan" &&
                         chunk.toolName === "ExitPlanMode"
                       ) {
-                        log.info(
+                        claudeLog.info(
                           `[SD] M:PLAN_TOOL_DETECTED sub=${subId} callId=${chunk.toolCallId}`,
                         );
                         exitPlanModeToolCallId = chunk.toolCallId;
@@ -1817,7 +1817,7 @@ export const claudeRouter = router({
                           if (filePath && shouldTrackAsArtifact(filePath)) {
                             // Extract contexts from all tool calls in this message
                             const contexts = extractArtifactContexts(parts);
-                            log.info(
+                            claudeLog.info(
                               `[Claude] Sending file-changed event: path=${filePath} type=${toolPart.type} subChatId=${input.subChatId} contexts=${contexts.length}`,
                             );
                             const windows = BrowserWindow.getAllWindows();
@@ -1845,7 +1845,7 @@ export const claudeRouter = router({
                                     : "create",
                               })
                               .catch((err) =>
-                                log.error(
+                                claudeLog.error(
                                   "[Hook] chat:fileChanged error:",
                                   err,
                                 ),
@@ -1868,7 +1868,7 @@ export const claudeRouter = router({
                           );
                           if (commitMatch) {
                             const [, branchInfo, commitHash] = commitMatch;
-                            log.info(
+                            claudeLog.info(
                               `[Claude] Git commit detected: hash=${commitHash} branch=${branchInfo} subChatId=${input.subChatId}`,
                             );
                             const windows = BrowserWindow.getAllWindows();
@@ -1892,7 +1892,7 @@ export const claudeRouter = router({
                                 commitMessage: commitMsg,
                               })
                               .catch((err) =>
-                                log.error(
+                                claudeLog.error(
                                   "[Hook] chat:gitCommit error:",
                                   err,
                                 ),
@@ -1907,7 +1907,7 @@ export const claudeRouter = router({
                           exitPlanModeToolCallId &&
                           chunk.toolCallId === exitPlanModeToolCallId
                         ) {
-                          log.info(
+                          claudeLog.info(
                             `[SD] M:PLAN_FINISH sub=${subId} - ExitPlanMode completed, aborting to get result with usage data`,
                           );
                           planCompleted = true;
@@ -1934,7 +1934,7 @@ export const claudeRouter = router({
                               promptNumber,
                             })
                             .catch((err) => {
-                              log.error(
+                              claudeLog.error(
                                 "[Hook] chat:toolOutput error:",
                                 err,
                               );
@@ -1989,37 +1989,37 @@ export const claudeRouter = router({
               }
 
               if (messageCount === 0) {
-                log.error(
+                claudeLog.error(
                   `[claude] Stream yielded no messages - model not responding`,
                 );
                 if (isUsingOllama) {
                   ollamaLog.error(`===== DIAGNOSIS =====`);
-                  log.error(
+                  claudeLog.error(
                     `[Ollama] Problem: Stream completed but NO messages received from SDK`,
                   );
                   ollamaLog.error(`This usually means:`);
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   1. Ollama doesn't support Anthropic Messages API format (/v1/messages)`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   2. Model failed to start generating (check Ollama logs: ollama logs)`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   3. Network issue between Claude SDK and Ollama`,
                   );
                   ollamaLog.error(`===== NEXT STEPS =====`);
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   1. Check if model works: curl http://localhost:11434/api/generate -d '{"model":"${finalCustomConfig?.model}","prompt":"test"}'`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   2. Check Ollama version supports Messages API`,
                   );
-                  log.error(
+                  claudeLog.error(
                     `[Ollama]   3. Try using a proxy that converts Anthropic API → Ollama format`,
                   );
                 }
               } else if (messageCount === 1 && isUsingOllama) {
-                log.warn(
+                claudeLog.warn(
                   `[Ollama] Only received 1 message (likely just init). No actual content generated.`,
                 );
               }
@@ -2032,7 +2032,7 @@ export const claudeRouter = router({
                 ollamaLog.error(`===== STREAM ERROR =====`);
                 ollamaLog.error(`Error message: ${err.message}`);
                 ollamaLog.error(`Error stack:`, err.stack);
-                log.error(
+                claudeLog.error(
                   `[Ollama] Messages received before error: ${messageCount}`,
                 );
                 if (stderrOutput) {
@@ -2051,7 +2051,7 @@ export const claudeRouter = router({
 
               if (isSessionNotFound) {
                 // Clear the invalid session ID from database so next attempt starts fresh
-                log.info(
+                claudeLog.info(
                   `[claude] Session not found - clearing invalid sessionId from database`,
                 );
                 // 异步化数据库写入
@@ -2137,7 +2137,7 @@ export const claudeRouter = router({
               }
 
               // ALWAYS save accumulated parts before returning (even on abort/error)
-              log.info(
+              claudeLog.info(
                 `[SD] M:CATCH_SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
               );
               if (currentText.trim()) {
@@ -2201,7 +2201,7 @@ export const claudeRouter = router({
                   });
               }
 
-              log.info(
+              claudeLog.info(
                 `[SD] M:END sub=${subId} reason=stream_error cat=${errorCategory} n=${chunkCount} last=${lastChunkType}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -2215,7 +2215,7 @@ export const claudeRouter = router({
                 new Error("No response received from Claude"),
                 "Empty response",
               );
-              log.info(
+              claudeLog.info(
                 `[SD] M:END sub=${subId} reason=no_response n=${chunkCount}`,
               );
               safeEmit({ type: "finish" } as UIMessageChunk);
@@ -2225,7 +2225,7 @@ export const claudeRouter = router({
 
             // 7. Save final messages to DB
             // ALWAYS save accumulated parts, even on abort (so user sees partial responses after reload)
-            log.info(
+            claudeLog.info(
               `[SD] M:SAVE sub=${subId} aborted=${abortController.signal.aborted} parts=${parts.length}`,
             );
 
@@ -2297,7 +2297,7 @@ export const claudeRouter = router({
 
             // Record usage statistics (if we have token data and projectId)
             // Prefer per-model breakdown from SDK for accurate model attribution
-            log.info(
+            claudeLog.info(
               `[Usage] metadata at finish:`,
               JSON.stringify({
                 hasModelUsage: !!metadata.modelUsage,
@@ -2360,13 +2360,13 @@ export const claudeRouter = router({
               });
 
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
-            log.info(
+            claudeLog.info(
               `[SD] M:END sub=${subId} reason=ok n=${chunkCount} last=${lastChunkType} t=${duration}s`,
             );
             safeComplete();
           } catch (error) {
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
-            log.info(
+            claudeLog.info(
               `[SD] M:END sub=${subId} reason=unexpected_error n=${chunkCount} t=${duration}s`,
             );
             emitError(error, "Unexpected error");
@@ -2379,7 +2379,7 @@ export const claudeRouter = router({
 
         // Cleanup on unsubscribe
         return () => {
-          log.info(
+          claudeLog.info(
             `[SD] M:CLEANUP sub=${subId} sessionId=${currentSessionId || "none"}`,
           );
           isObservableActive = false; // Prevent emit after unsubscribe
@@ -2498,7 +2498,7 @@ export const claudeRouter = router({
     )
     .mutation(async ({ input }) => {
       const { serverName, groupName } = input;
-      log.info(
+      claudeLog.info(
         `[MCP] Retrying connection to ${serverName} in group ${groupName}`,
       );
 
@@ -2567,7 +2567,7 @@ export const claudeRouter = router({
 
         if (tools.length > 0) {
           workingMcpServers.set(cacheKey, true);
-          log.info(
+          claudeLog.info(
             `[MCP] Successfully connected to ${serverName}: ${tools.length} tools`,
           );
           return {
@@ -2592,7 +2592,7 @@ export const claudeRouter = router({
         }
 
         const status = needsAuth ? "needs-auth" : "failed";
-        log.info(
+        claudeLog.info(
           `[MCP] Failed to connect to ${serverName}: status=${status}`,
         );
 
@@ -3037,7 +3037,7 @@ export const claudeRouter = router({
           })
         })
         .catch((error) => {
-          log.error("[MCP Status] Failed to load warmup manager:", error)
+          claudeLog.error("[MCP Status] Failed to load warmup manager:", error)
         })
     })
   }),
@@ -3056,7 +3056,7 @@ export const claudeRouter = router({
         ),
       }
     } catch (error) {
-      log.error("[MCP Warmup State] Error:", error)
+      claudeLog.error("[MCP Warmup State] Error:", error)
       return {
         state: "idle" as const,
         servers: [],

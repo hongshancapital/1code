@@ -3,6 +3,10 @@ import * as path from "path"
 import * as os from "os"
 import { z } from "zod"
 import { router, publicProcedure } from "../index"
+import { createLogger } from "../../logger"
+
+const claudeSettingsLog = createLogger("claudeSettings")
+
 
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), ".claude", "settings.json")
 
@@ -307,7 +311,7 @@ export const claudeSettingsRouter = router({
           await sm.removePluginSkills(input.pluginSource)
         }
       } catch (err) {
-        console.warn("[claudeSettings] Failed to sync plugin skills:", err)
+        claudeSettingsLog.warn("Failed to sync plugin skills:", err)
       }
 
       return { success: true }
@@ -451,7 +455,7 @@ export const claudeSettingsRouter = router({
             await sm.disableSkill(input.skillName)
           }
         } catch (err) {
-          console.warn("[claudeSettings] Failed to sync skill state:", err)
+          claudeSettingsLog.warn("Failed to sync skill state:", err)
         }
       }
 

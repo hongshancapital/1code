@@ -11,6 +11,10 @@ import type {
 } from "../../lib/extension/types"
 import { automationsRouter } from "./router"
 import { AutomationEngine } from "./lib/engine"
+import { createLogger } from "../../lib/logger"
+
+const automationExtensionLog = createLogger("AutomationExtension")
+
 
 class AutomationExtension implements ExtensionModule {
   name = "automations" as const
@@ -22,7 +26,7 @@ class AutomationExtension implements ExtensionModule {
     AutomationEngine.getInstance()
       .initialize()
       .catch((err) => {
-        console.error("[AutomationExtension] init failed:", err)
+        automationExtensionLog.error("init failed:", err)
       })
 
     return () => {

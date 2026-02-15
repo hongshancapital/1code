@@ -11,6 +11,10 @@ import { z } from "zod"
 import { BrowserWindow } from "electron"
 import { getDatabase, subChats, chats } from "../../../lib/db"
 import { eq, asc } from "drizzle-orm"
+import { createLogger } from "../../../lib/logger"
+
+const chatTitleMcpLog = createLogger("ChatTitleMcp")
+
 
 // Dynamic import for ESM module
 let sdkModule: typeof import("@anthropic-ai/claude-agent-sdk") | null = null
@@ -86,7 +90,7 @@ Guidelines:
             })
           })
 
-          console.log(`[ChatTitleMcp] Renamed sub-chat ${context.subChatId} to: ${title}`)
+          chatTitleMcpLog.info(`Renamed sub-chat ${context.subChatId} to: ${title}`)
 
           return {
             content: [
@@ -97,7 +101,7 @@ Guidelines:
             ],
           }
         } catch (error) {
-          console.error("[ChatTitleMcp] Failed to rename:", error)
+          chatTitleMcpLog.error("Failed to rename:", error)
           return {
             content: [
               {

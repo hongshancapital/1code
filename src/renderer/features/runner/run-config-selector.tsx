@@ -79,6 +79,10 @@ import {
   type RunSession,
 } from "../../lib/atoms/runner"
 import { useRunSessionListener } from "./use-run-session-listener"
+import { createLogger } from "../../lib/logger"
+
+const runnerLog = createLogger("Runner")
+
 
 // ============================================================================
 // Ref Interface for external control (shortcuts)
@@ -273,7 +277,7 @@ export const RunConfigSelector = forwardRef<
         }
       }, 2000)
     } catch (error) {
-      console.error("[Runner] Failed to stop:", error)
+      runnerLog.error("Failed to stop:", error)
       // Clear session anyway on error
       setRunSessions((prev) => ({
         ...prev,
