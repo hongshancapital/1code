@@ -15,6 +15,7 @@ import {
 import type { InstallPluginResult, UninstallPluginResult } from "./marketplace-types"
 import { clearPluginCache } from "./index"
 import { createLogger } from "../../../lib/logger"
+import { invalidateEnabledPluginsCache } from "../../../lib/trpc/routers/claude-settings"
 
 const pluginInstallerLog = createLogger("PluginInstaller")
 
@@ -183,6 +184,9 @@ export async function installPlugin(
 
     await writeInstalledPluginsJson(installedPlugins)
 
+    // Auto-enable the plugin after installation
+    await addToEnabledPlugins(pluginSource)
+
     // Clear plugin cache
     clearPluginCache()
 
@@ -253,6 +257,59 @@ export async function uninstallPlugin(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     return { success: false, error: errorMessage }
+  }
+}
+
+/**
+ * Add a plugin to the enabledPlugins list in settings.json
+ */
+async function addToEnabledPlugins(pluginSource: string): Promise<void> {
+  try {
+    // Ensure settings directory exists
+    await fs.mkdir(PATHS.CLAUDE_DIR, { recursive: true })
+
+    // Read or create settings
+    let settings: any = {}
+    try {
+      const content = await fs.readFile(PATHS.CLAUDE_SETTINGS, "utf-8")
+      settings = JSON.parse(content)
+    } catch (error) {
+      // File doesn't exist, start with empty settings
+      pluginInstallerLog.info("[PluginInstaller] Creating new settings.json")
+    }
+
+    // Initialize enabledPlugins if it doesn't exist
+    if (!settings.enabledPlugins) {
+      settings.enabledPlugins = []
+    }
+
+    // Handle both array and object formats
+    if (Array.isArray(settings.enabledPlugins)) {
+      // Add plugin if not already in the list
+      if (!settings.enabledPlugins.includes(pluginSource)) {
+        settings.enabledPlugins.push(pluginSource)
+        pluginInstallerLog.info(`[PluginInstaller] Auto-enabled plugin: ${pluginSource}`)
+      }
+    } else if (typeof settings.enabledPlugins === "object") {
+      // Object format: set to true
+      settings.enabledPlugins[pluginSource] = true
+      pluginInstallerLog.info(`[PluginInstaller] Auto-enabled plugin: ${pluginSource}`)
+    }
+
+    await fs.writeFile(
+      PATHS.CLAUDE_SETTINGS,
+      JSON.stringify(settings, null, 2),
+      "utf-8"
+    )
+
+    // Invalidate cache so frontend sees the change immediately
+    invalidateEnabledPluginsCache()
+  } catch (error) {
+    // Log but don't fail the installation if we can't enable the plugin
+    pluginInstallerLog.warn(
+      "[PluginInstaller] Could not auto-enable plugin:",
+      error instanceof Error ? error.message : error
+    )
   }
 }
 
