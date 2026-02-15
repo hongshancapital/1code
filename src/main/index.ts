@@ -821,7 +821,7 @@ if (gotTheLock) {
     // This populates the cache so all future sessions can use filtered MCP servers
     setTimeout(async () => {
       try {
-        const { getAllMcpConfigHandler } = await import("./lib/trpc/routers/claude")
+        const { getAllMcpConfigHandler } = await import("./lib/claude/mcp-config")
         await getAllMcpConfigHandler()
       } catch (error) {
         console.error("[App] MCP warmup failed:", error)
