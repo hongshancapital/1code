@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../lib/trpc/index"
 import { exec } from "node:child_process"
 import { promisify } from "node:util"
 import { readFile } from "node:fs/promises"
@@ -14,7 +14,7 @@ import {
   type DetectedRuntimes,
   type DetectedTools,
   type RuntimeEnvironment,
-} from "../../runtime"
+} from "./lib"
 
 // Import Windows package manager registry
 import {
@@ -23,10 +23,10 @@ import {
   getInstallLogs,
   clearInstallLogs,
   type InstallLog,
-} from "../../runtime/windows-package-managers"
+} from "./lib/windows-package-managers"
 
 // Import tool definitions to get Windows package IDs
-import { TOOL_DEFINITIONS } from "../../runtime/tool-definitions"
+import { TOOL_DEFINITIONS } from "./lib/tool-definitions"
 
 const execAsync = promisify(exec)
 
@@ -47,13 +47,11 @@ function getEnhancedEnv(): NodeJS.ProcessEnv {
 // Set of skipped categories (persisted in memory for current session)
 const skippedCategories = new Set<string>()
 
-// Cache for runtime detection (debounce only — prevents rapid duplicate calls)
+// Cache for runtime detection (persistent — only invalidated by explicit user actions like refreshRuntimes)
 let runtimeCache: { data: DetectedRuntimes; timestamp: number } | null = null
-const RUNTIME_CACHE_TTL = 3000 // 3s debounce
 
-// Cache for tool detection (debounce only)
+// Cache for tool detection (persistent — only invalidated by explicit user actions like refreshTools/install)
 let toolsCache: { data: DetectedTools; timestamp: number } | null = null
-const TOOLS_CACHE_TTL = 3000 // 3s debounce
 
 // ============================================================================
 // Router
@@ -64,14 +62,11 @@ export const runnerRouter = router({
    * Detect installed runtimes (cached)
    */
   detectRuntimes: publicProcedure.query(async (): Promise<DetectedRuntimes> => {
-    // Return cached data if still valid
-    if (runtimeCache && Date.now() - runtimeCache.timestamp < RUNTIME_CACHE_TTL) {
+    if (runtimeCache) {
       return runtimeCache.data
     }
 
     const data = await detectRuntimes()
-
-    // Cache the result
     runtimeCache = { data, timestamp: Date.now() }
 
     return data
@@ -250,14 +245,11 @@ export const runnerRouter = router({
    * Detect common CLI tools (cached)
    */
   detectTools: publicProcedure.query(async (): Promise<DetectedTools> => {
-    // Return cached data if still valid
-    if (toolsCache && Date.now() - toolsCache.timestamp < TOOLS_CACHE_TTL) {
+    if (toolsCache) {
       return toolsCache.data
     }
 
     const data = await detectAllTools()
-
-    // Cache the result
     toolsCache = { data, timestamp: Date.now() }
 
     return data
@@ -281,8 +273,7 @@ export const runnerRouter = router({
    * Returns only the essential info: one tool per category (highest priority installed)
    */
   getRuntimeEnvironment: publicProcedure.query(async (): Promise<RuntimeEnvironment> => {
-    // Use cached tools data if available
-    if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+    if (!toolsCache) {
       toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
     }
 
@@ -432,7 +423,7 @@ export const runnerRouter = router({
     const platform = process.platform
 
     // Ensure tools are detected first
-    if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+    if (!toolsCache) {
       toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
     }
 
@@ -504,7 +495,7 @@ export const runnerRouter = router({
     // macOS: Check admin privilege first, then install Homebrew
     if (platform === "darwin") {
       // Ensure tools are detected first
-      if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+      if (!toolsCache) {
         toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
       }
 
@@ -624,7 +615,7 @@ export const runnerRouter = router({
  * Get runtime environment info (cached) - for direct import in other modules
  */
 export async function getCachedRuntimeEnvironment(): Promise<RuntimeEnvironment> {
-  if (!toolsCache || Date.now() - toolsCache.timestamp >= TOOLS_CACHE_TTL) {
+  if (!toolsCache) {
     toolsCache = { data: await detectAllTools(), timestamp: Date.now() }
   }
   return getRuntimeEnvironment(toolsCache.data)
