@@ -11,8 +11,8 @@ import type {
   ToolDefinition,
   CleanupFn,
 } from "../../lib/extension/types"
-import { createImageGenMcpServer, getImageGenToolDefinitions } from "../../lib/mcp/image-gen-server"
-import { createImageProcessMcpServer, getImageProcessToolDefinitions } from "../../lib/mcp/image-process-server"
+import { createImageGenMcpServer, getImageGenToolDefinitions } from "./lib/image-gen-server"
+import { createImageProcessMcpServer, getImageProcessToolDefinitions } from "./lib/image-process-server"
 import type { McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
 
 class ImageMcpExtension implements ExtensionModule {

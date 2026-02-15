@@ -14,11 +14,11 @@ import type {
   ExtensionContext,
   CleanupFn,
 } from "../../lib/extension/types"
-import { memoryHooks } from "../../lib/memory/hooks"
-import { setSummaryModelConfig } from "../../lib/memory/summarizer"
+import { memoryHooks } from "./lib/hooks"
+import { setSummaryModelConfig } from "./lib/summarizer"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
 import { eq, desc } from "drizzle-orm"
-import { memoryRouter } from "../../lib/trpc/routers/memory"
+import { memoryRouter } from "./router"
 
 class MemoryExtension implements ExtensionModule {
   name = "memory" as const
@@ -206,7 +206,7 @@ async function buildMemoryContext(
     const userPrompt = prompt?.trim()
     if (userPrompt && userPrompt.length > 5) {
       try {
-        const { hybridSearch } = await import("../../lib/memory/hybrid-search")
+        const { hybridSearch } = await import("./lib/hybrid-search")
 
         // 给 hybridSearch 加超时保护，防止 vector store 初始化阻塞
         const SEARCH_TIMEOUT_MS = 10_000

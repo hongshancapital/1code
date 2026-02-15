@@ -12,9 +12,9 @@ import type {
   ToolDefinition,
   CleanupFn,
 } from "../../lib/extension/types"
-import { createBrowserMcpServer, browserManager } from "../../lib/browser"
-import { getBrowserToolDefinitions } from "../../lib/browser/mcp-server"
-import { browserRouter } from "../../lib/trpc/routers/browser"
+import { createBrowserMcpServer, browserManager } from "./lib"
+import { getBrowserToolDefinitions } from "./lib/mcp-server"
+import { browserRouter } from "./router"
 
 class BrowserMcpExtension implements ExtensionModule {
   name = "browser-mcp" as const

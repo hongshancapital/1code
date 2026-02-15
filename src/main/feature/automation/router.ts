@@ -1,14 +1,14 @@
 import { z } from "zod"
 import { eq, desc } from "drizzle-orm"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../lib/trpc/index"
 import {
   getDatabase,
   automations,
   automationExecutions,
   chats,
-} from "../../db"
-import { AutomationEngine } from "../../automation/engine"
-import { INBOX_PROJECT_ID } from "../../automation/inbox-project"
+} from "../../lib/db"
+import { AutomationEngine } from "./lib/engine"
+import { INBOX_PROJECT_ID } from "./lib/inbox-project"
 
 export const automationsRouter = router({
   /**

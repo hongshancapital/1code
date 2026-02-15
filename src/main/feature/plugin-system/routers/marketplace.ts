@@ -5,13 +5,13 @@
  */
 
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../../lib/trpc/index"
 import {
   readMarketplacesConfig,
   readMarketplaceManifest,
   getMarketplaceLocalPath,
   marketplaceExistsLocally,
-} from "../../plugins/marketplace-config"
+} from "../lib/marketplace-config"
 import {
   cloneMarketplace,
   pullMarketplace,
@@ -19,18 +19,18 @@ import {
   initializeOfficialMarketplace,
   initializeKnowledgeWorkMarketplace,
   syncExistingMarketplaces,
-} from "../../plugins/marketplace-operations"
+} from "../lib/marketplace-operations"
 import {
   installPlugin,
   uninstallPlugin,
   isPluginInstalled,
   getInstalledVersion,
-} from "../../plugins/plugin-installer"
+} from "../lib/plugin-installer"
 import type {
   MarketplaceConfig,
   MarketplaceDetail,
   MarketplaceAvailablePlugin,
-} from "../../plugins/marketplace-types"
+} from "../lib/marketplace-types"
 
 // Track if we've synced existing marketplaces
 let hasSyncedExisting = false

@@ -1,6 +1,9 @@
 import { initTRPC } from "@trpc/server"
 import type { BrowserWindow } from "electron"
 import superjson from "superjson"
+import { createLogger } from "../logger"
+
+const trpcLog = createLogger("tRPC")
 
 /**
  * Context passed to all tRPC procedures
@@ -39,7 +42,7 @@ export const loggerMiddleware = middleware(async ({ path, type, next }) => {
   const start = Date.now()
   const result = await next()
   const duration = Date.now() - start
-  console.log(`[tRPC] ${type} ${path} - ${duration}ms`)
+  trpcLog.debug(`${type} ${path} - ${duration}ms`)
   return result
 })
 

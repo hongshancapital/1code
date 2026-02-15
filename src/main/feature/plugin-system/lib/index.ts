@@ -2,7 +2,7 @@ import * as fs from "fs/promises"
 import type { Dirent } from "fs"
 import * as path from "path"
 import * as os from "os"
-import type { McpServerConfig } from "../claude-config"
+import type { McpServerConfig } from "../../../lib/claude-config"
 
 export interface PluginInfo {
   name: string

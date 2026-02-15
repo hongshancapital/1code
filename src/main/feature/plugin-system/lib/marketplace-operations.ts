@@ -6,12 +6,12 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
-import { PATHS } from "../paths"
+import { PATHS } from "../../../lib/paths"
 import {
   createGitForLongOperation,
   createGitForNetwork,
   withGitLock,
-} from "../git/git-factory"
+} from "../../../lib/git/git-factory"
 import {
   addMarketplaceConfig,
   removeMarketplaceConfig,

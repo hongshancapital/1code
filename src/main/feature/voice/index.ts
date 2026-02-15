@@ -1,12 +1,11 @@
 /**
  * Voice Extension
  *
- * 将 Voice/Whisper 语音输入功能封装为 Extension。
- * 实现文件保留在 lib/whisper/，此处为轻量 wrapper 提供 router。
+ * 语音转文字（本地 Whisper / OpenAI API）。
  */
 
 import type { ExtensionModule } from "../../lib/extension/types"
-import { voiceRouter } from "../../lib/trpc/routers/voice"
+import { voiceRouter } from "./router"
 
 class VoiceExtension implements ExtensionModule {
   name = "voice" as const

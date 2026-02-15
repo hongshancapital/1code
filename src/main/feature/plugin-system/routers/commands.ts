@@ -1,11 +1,11 @@
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../../lib/trpc/index"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
-import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
-import { getEnabledPlugins } from "./claude-settings"
+import { discoverInstalledPlugins, getPluginComponentPaths } from "../lib"
+import { getEnabledPlugins } from "../../../lib/trpc/routers/claude-settings"
 
 /** Format plugin name: "review_by_blair" → "Review By Blair" */
 function formatPluginName(name: string): string {

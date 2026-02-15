@@ -1,4 +1,4 @@
-import { checkInternetConnection } from '../ollama'
+import { checkInternetConnection } from '../../feature/ollama/lib'
 
 /**
  * Warns if a git command requires internet connection and we're offline.

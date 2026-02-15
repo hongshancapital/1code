@@ -10,7 +10,7 @@ import {
   VALID_AGENT_MODELS,
   type FileAgent,
 } from "./agent-utils"
-import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
+import { discoverInstalledPlugins, getPluginComponentPaths } from "../../../feature/plugin-system/lib"
 import { getEnabledPlugins } from "./claude-settings"
 
 // Shared procedure for listing agents

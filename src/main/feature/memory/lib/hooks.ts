@@ -4,7 +4,7 @@
  * Borrowed from claude-mem architecture
  */
 
-import { getDatabase, memorySessions, observations, userPrompts, modelUsage } from "../db"
+import { getDatabase, memorySessions, observations, userPrompts, modelUsage } from "../../../lib/db"
 import { eq } from "drizzle-orm"
 import {
   parseToolToObservation,

@@ -21,7 +21,7 @@ import {
   type ClaudeConfig,
 } from "../claude-config"
 import { getBuiltinMcpConfig, BUILTIN_MCP_NAME } from "../builtin-mcp"
-import { discoverPluginMcpServers } from "../plugins"
+import { discoverPluginMcpServers } from "../../feature/plugin-system/lib"
 import { getEnabledPlugins, getApprovedPluginMcpServers } from "../trpc/routers/claude-settings"
 import { ensureMcpTokensFresh } from "../mcp-auth"
 import type {

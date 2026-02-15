@@ -297,7 +297,7 @@ export const claudeSettingsRouter = router({
         const { getSkillManager } = await import("../../skills")
         const sm = getSkillManager()
         if (input.enabled) {
-          const { discoverInstalledPlugins } = await import("../../plugins")
+          const { discoverInstalledPlugins } = await import("../../../feature/plugin-system/lib")
           const plugins = await discoverInstalledPlugins()
           const plugin = plugins.find((p) => p.source === input.pluginSource)
           if (plugin) {

@@ -4,7 +4,7 @@
  */
 
 import { and, gte, lte, sql, eq } from "drizzle-orm"
-import { getDatabase, modelUsage, projects } from "../db"
+import { getDatabase, modelUsage, projects } from "../../../lib/db"
 import type { InsightStats, ReportType } from "./types"
 
 /**

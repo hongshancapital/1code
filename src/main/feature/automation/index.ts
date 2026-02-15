@@ -1,17 +1,34 @@
 /**
  * Automation Extension
  *
- * 将 Automations 功能（Cron 触发 + AI 执行 + Inbox Actions）封装为 Extension。
- * 实现文件保留在 lib/automation/，此处为轻量 wrapper 提供 router 和生命周期管理。
+ * Cron 触发 + AI 执行 + Inbox Actions。
  */
 
-import type { ExtensionModule } from "../../lib/extension/types"
-import { automationsRouter } from "../../lib/trpc/routers/automations"
+import type {
+  ExtensionModule,
+  ExtensionContext,
+  CleanupFn,
+} from "../../lib/extension/types"
+import { automationsRouter } from "./router"
+import { AutomationEngine } from "./lib/engine"
 
 class AutomationExtension implements ExtensionModule {
   name = "automations" as const
   description = "Cron-triggered AI workflows with inbox actions"
   router = automationsRouter
+
+  initialize(_ctx: ExtensionContext): CleanupFn {
+    // AutomationEngine 初始化（原在 src/main/index.ts 中手动调用）
+    AutomationEngine.getInstance()
+      .initialize()
+      .catch((err) => {
+        console.error("[AutomationExtension] init failed:", err)
+      })
+
+    return () => {
+      AutomationEngine.getInstance().cleanup()
+    }
+  }
 }
 
 export const automationExtension = new AutomationExtension()

@@ -1,12 +1,11 @@
 /**
  * Terminal Extension
  *
- * 将 PTY 终端管理功能封装为 Extension。
- * 实现文件保留在 lib/terminal/，此处为轻量 wrapper 提供 router。
+ * PTY 终端管理。
  */
 
 import type { ExtensionModule } from "../../lib/extension/types"
-import { terminalRouter } from "../../lib/trpc/routers/terminal"
+import { terminalRouter } from "./router"
 
 class TerminalExtension implements ExtensionModule {
   name = "terminal" as const

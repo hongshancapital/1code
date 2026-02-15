@@ -2,7 +2,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
-import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
+import { discoverInstalledPlugins, getPluginComponentPaths } from "../../../feature/plugin-system/lib"
 import { getEnabledPlugins } from "./claude-settings"
 
 // Valid model values for agents

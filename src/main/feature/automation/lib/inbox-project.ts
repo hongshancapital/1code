@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm"
-import { getDatabase, projects } from "../db"
+import { getDatabase, projects } from "../../../lib/db"
 
 export const INBOX_PROJECT_ID = "inbox-special-project"
 

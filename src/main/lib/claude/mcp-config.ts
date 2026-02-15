@@ -35,7 +35,7 @@ import {
 } from "../trpc/routers/claude-settings";
 import {
   discoverPluginMcpServers,
-} from "../plugins";
+} from "../../feature/plugin-system/lib";
 import {
   BUILTIN_MCP_NAME,
   getBuiltinMcpConfig,

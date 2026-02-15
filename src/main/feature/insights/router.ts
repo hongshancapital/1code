@@ -6,9 +6,9 @@
 import { eq } from "drizzle-orm"
 import { safeStorage } from "electron"
 import { z } from "zod"
-import { getDatabase, insights, claudeCodeCredentials } from "../../db"
-import { getEnv } from "../../env"
-import { publicProcedure, router } from "../index"
+import { getDatabase, insights, claudeCodeCredentials } from "../../lib/db"
+import { getEnv } from "../../lib/env"
+import { publicProcedure, router } from "../../lib/trpc/index"
 import {
   checkShouldGenerateReport,
   getLatestReport,
@@ -20,8 +20,8 @@ import {
   cleanupDataDir,
   cleanupOldDataDirs,
   generateInsightReport,
-} from "../../insights"
-import type { InsightStats, InsightReport } from "../../insights"
+} from "./lib"
+import type { InsightStats, InsightReport } from "./lib"
 
 /**
  * 认证配置类型（从前端传入）

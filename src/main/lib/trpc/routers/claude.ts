@@ -62,9 +62,9 @@ import {
 import {
   discoverInstalledPlugins,
   discoverPluginMcpServers,
-} from "../../plugins";
+} from "../../../feature/plugin-system/lib";
 import { getAuthManager } from "../../../index";
-import { getCachedRuntimeEnvironment } from "./runner";
+import { getCachedRuntimeEnvironment } from "../../../feature/runner/router";
 import { getHooks } from "../../extension";
 import { setLastUserMessageDebug } from "./debug";
 import {

@@ -9,7 +9,7 @@
 
 import { z } from "zod"
 import { BrowserWindow } from "electron"
-import { getDatabase, subChats, chats } from "../db"
+import { getDatabase, subChats, chats } from "../../../lib/db"
 import { eq, asc } from "drizzle-orm"
 
 // Dynamic import for ESM module

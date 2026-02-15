@@ -1,10 +1,10 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../lib/trpc/index"
 import { observable } from "@trpc/server/observable"
-import { terminalManager } from "../../terminal/manager"
-import type { TerminalEvent } from "../../terminal/types"
+import { terminalManager } from "./lib/manager"
+import type { TerminalEvent } from "./lib/types"
 import { TRPCError } from "@trpc/server"
 
 export const terminalRouter = router({

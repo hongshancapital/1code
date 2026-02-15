@@ -6,7 +6,7 @@
  * without importing the full app lifecycle from index.ts.
  */
 import { session, app, shell, BrowserWindow } from "electron"
-import { BROWSER_USER_AGENT } from "../constants"
+import { BROWSER_USER_AGENT } from "../../../lib/constants"
 
 /**
  * Configure the "persist:browser" session with a proper User-Agent.

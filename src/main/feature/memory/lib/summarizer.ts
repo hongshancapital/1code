@@ -138,7 +138,7 @@ export async function enhanceObservation(
   }
 
   try {
-    const { callSummaryAIWithUsage } = await import("../trpc/routers/summary-ai")
+    const { callSummaryAIWithUsage } = await import("../../../lib/trpc/routers/summary-ai")
 
     // Build context for LLM
     const inputStr = truncate(JSON.stringify(toolInput), 1500)
@@ -234,7 +234,7 @@ export async function generateSessionSummary(
   if (!summaryConfig) return null
 
   try {
-    const { callSummaryAIWithUsage } = await import("../trpc/routers/summary-ai")
+    const { callSummaryAIWithUsage } = await import("../../../lib/trpc/routers/summary-ai")
 
     const promptsSummary = userPrompts.length > 0
       ? `User prompts:\n${userPrompts.map((p, i) => `${i + 1}. ${truncate(p, 200)}`).join("\n")}`

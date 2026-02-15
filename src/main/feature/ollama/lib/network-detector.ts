@@ -3,7 +3,7 @@
  * Checks if internet is available for Claude API
  */
 
-import { isOfflineSimulated } from '../trpc/routers/debug'
+import { isOfflineSimulated } from '../../../lib/trpc/routers/debug'
 
 export interface NetworkStatus {
   online: boolean

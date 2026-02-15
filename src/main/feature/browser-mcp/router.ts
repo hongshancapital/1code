@@ -5,9 +5,9 @@
 
 import { observable } from "@trpc/server/observable"
 import { z } from "zod"
-import { browserManager } from "../../browser"
-import type { BrowserOperationType, CursorPosition, RecentAction } from "../../browser"
-import { publicProcedure, router } from "../index"
+import { browserManager } from "./lib"
+import type { BrowserOperationType, CursorPosition, RecentAction } from "./lib"
+import { publicProcedure, router } from "../../lib/trpc/index"
 
 export const browserRouter = router({
   /** Check if browser is ready */

@@ -5,19 +5,19 @@ import {
   automationExecutions,
   chats,
   subChats,
-} from "../db"
+} from "../../../lib/db"
 import { SchedulerService } from "./scheduler"
 import { INBOX_PROJECT_ID } from "./inbox-project"
 import type { TriggerData, TriggerConfig } from "./types"
 import type {
-  ClaudeEngine} from "../claude";
+  ClaudeEngine} from "../../../lib/claude";
 import {
   createAutomationEngine as createClaudeAutomationEngine,
   AutomationPromptStrategy,
   createAutomationPolicy,
   createBufferChannel,
-} from "../claude"
-import type { AuthManager } from "../../auth-manager"
+} from "../../../lib/claude"
+import type { AuthManager } from "../../../auth-manager"
 
 /**
  * 自动化执行引擎（单例）

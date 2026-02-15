@@ -13,7 +13,7 @@ import type {
   CleanupFn,
 } from "../../lib/extension/types"
 import type { McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
-import { createChatTitleMcpServer } from "../../lib/mcp/chat-title-server"
+import { createChatTitleMcpServer } from "./lib/chat-title-server"
 import { getDatabase, subChats } from "../../lib/db"
 import { eq } from "drizzle-orm"
 

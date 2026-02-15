@@ -4,8 +4,8 @@
  */
 
 import { z } from "zod"
-import { checkInternetConnection, checkOllamaStatus } from "../../ollama"
-import { publicProcedure, router } from "../index"
+import { checkInternetConnection, checkOllamaStatus } from "./lib"
+import { publicProcedure, router } from "../../lib/trpc/index"
 
 /**
  * Generate text using local Ollama model

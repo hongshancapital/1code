@@ -10,7 +10,7 @@
 import { execSync } from "node:child_process"
 import os from "node:os"
 import { z } from "zod"
-import { publicProcedure, router } from "../index"
+import { publicProcedure, router } from "../../lib/trpc/index"
 
 // Import local whisper module
 import {
@@ -20,8 +20,8 @@ import {
   isModelDownloaded,
   WHISPER_MODELS,
   type WhisperModelId,
-} from "../../whisper"
-import { isTranscriptionAvailable } from "../../whisper/transcriber"
+} from "./lib"
+import { isTranscriptionAvailable } from "./lib/transcriber"
 import {
   getAllModelStatus,
   getModelStatus,
@@ -29,7 +29,7 @@ import {
   cancelDownload as cancelWhisperDownload,
   deleteModel as deleteWhisperModel,
   getFirstAvailableModel,
-} from "../../whisper/model-manager"
+} from "./lib/model-manager"
 
 // Max audio size: 25MB (Whisper API limit)
 const MAX_AUDIO_SIZE = 25 * 1024 * 1024

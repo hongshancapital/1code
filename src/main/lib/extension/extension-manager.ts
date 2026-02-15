@@ -12,6 +12,7 @@ import type { AnyRouter } from "@trpc/server"
 import type { ExtensionModule, ExtensionContext, CleanupFn } from "./types"
 import { HookRegistry } from "./hook-registry"
 import { FeatureBus } from "./feature-bus"
+import { createLogger } from "../logger"
 
 export class ExtensionManager {
   private static instance: ExtensionManager | null = null
@@ -68,7 +69,7 @@ export class ExtensionManager {
    */
   async initializeAll(): Promise<void> {
     if (this.initialized) {
-      console.warn("[ExtensionManager] 重复调用 initializeAll()，已跳过。")
+      createLogger("ExtensionManager").warn("重复调用 initializeAll()，已跳过。")
       return
     }
     this.initialized = true
@@ -82,9 +83,9 @@ export class ExtensionManager {
         if (typeof cleanup === "function") {
           this.cleanups.set(ext.name, cleanup)
         }
-        console.log(`[Extension:${ext.name}] 初始化完成`)
+        createLogger(`ext:${ext.name}`).info("初始化完成")
       } catch (err) {
-        console.error(`[Extension:${ext.name}] 初始化失败:`, err)
+        createLogger(`ext:${ext.name}`).error("初始化失败:", err)
       }
     }
   }
@@ -99,9 +100,9 @@ export class ExtensionManager {
         const cleanup = this.cleanups.get(ext.name)
         if (cleanup) await cleanup()
         this.hookRegistry.removeBySource(ext.name)
-        console.log(`[Extension:${ext.name}] 已清理`)
+        createLogger(`ext:${ext.name}`).info("已清理")
       } catch (err) {
-        console.error(`[Extension:${ext.name}] 清理失败:`, err)
+        createLogger(`ext:${ext.name}`).error("清理失败:", err)
       }
     }
     this.cleanups.clear()
@@ -164,7 +165,7 @@ export class ExtensionManager {
           results[category] = tools
         }
       } catch (err) {
-        console.error(`[Extension:${ext.name}] listTools() failed:`, err)
+        createLogger(`ext:${ext.name}`).error("listTools() failed:", err)
       }
     }
     return results
@@ -175,13 +176,13 @@ export class ExtensionManager {
   // ---------------------------------------------------------------------------
 
   private _createContext(extName: string): ExtensionContext {
-    const prefix = `[Extension:${extName}]`
+    const scopedLog = createLogger(`ext:${extName}`)
     return {
       hooks: this.hookRegistry,
       bus: this.featureBus,
-      log: (...args: unknown[]) => console.log(prefix, ...args),
-      warn: (...args: unknown[]) => console.warn(prefix, ...args),
-      error: (...args: unknown[]) => console.error(prefix, ...args),
+      log: (...args: unknown[]) => scopedLog.info(...args),
+      warn: (...args: unknown[]) => scopedLog.warn(...args),
+      error: (...args: unknown[]) => scopedLog.error(...args),
     }
   }
 }

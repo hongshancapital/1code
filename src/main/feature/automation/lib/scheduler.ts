@@ -1,6 +1,6 @@
 import cron, { type ScheduledTask } from "node-cron"
 import { eq } from "drizzle-orm"
-import { getDatabase, automations } from "../db"
+import { getDatabase, automations } from "../../../lib/db"
 import type { AutomationEngine } from "./engine"
 
 /**

@@ -7,7 +7,7 @@
 
 import * as fs from "fs/promises"
 import * as path from "path"
-import { PATHS } from "../paths"
+import { PATHS } from "../../../lib/paths"
 import {
   readMarketplaceManifest,
   getMarketplaceLocalPath,

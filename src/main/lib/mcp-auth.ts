@@ -11,7 +11,7 @@ import {
 } from './claude-config';
 import { getClaudeShellEnvironment } from './claude/env';
 import { CraftOAuth, fetchOAuthMetadata, getMcpBaseUrl, type OAuthMetadata, type OAuthTokens } from './oauth';
-import { discoverPluginMcpServers } from './plugins';
+import { discoverPluginMcpServers } from '../feature/plugin-system/lib';
 import { bringToFront } from './window';
 
 // Safe console methods to prevent EPIPE errors when stdout is closed

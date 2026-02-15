@@ -7,7 +7,7 @@ import { app } from "electron"
 import { mkdir, writeFile, rm } from "fs/promises"
 import { join } from "path"
 import { and, gte, lte, eq } from "drizzle-orm"
-import { getDatabase, projects, chats, subChats } from "../db"
+import { getDatabase, projects, chats, subChats } from "../../../lib/db"
 import type { InsightStats, ReportType } from "./types"
 
 export interface ExportedChat {

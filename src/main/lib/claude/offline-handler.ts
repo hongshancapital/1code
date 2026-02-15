@@ -2,7 +2,7 @@
  * Offline mode handler - auto-fallback to Ollama when internet is unavailable
  */
 
-import { checkInternetConnection, checkOllamaStatus, getOllamaConfig } from '../ollama'
+import { checkInternetConnection, checkOllamaStatus, getOllamaConfig } from '../../feature/ollama/lib'
 
 export type CustomClaudeConfig = {
   model: string

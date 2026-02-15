@@ -6,8 +6,8 @@
 
 import { eq } from "drizzle-orm";
 import { query as claudeQuery } from "@anthropic-ai/claude-agent-sdk";
-import { getDatabase, insights } from "../db";
-import { getBundledClaudeBinaryPath, buildClaudeEnv } from "../claude";
+import { getDatabase, insights } from "../../../lib/db";
+import { getBundledClaudeBinaryPath, buildClaudeEnv } from "../../../lib/claude";
 import type { InsightStats, ReportType } from "./types";
 
 /**

@@ -5,9 +5,9 @@
  */
 
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../lib/trpc/index"
 import { observable } from "@trpc/server/observable"
-import { lspManager } from "../../lsp/manager"
+import { lspManager } from "./lib/manager"
 
 // Input schemas
 const sessionIdSchema = z.string()

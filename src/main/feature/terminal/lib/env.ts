@@ -4,7 +4,7 @@ import {
   getDefaultShell as platformGetDefaultShell,
   detectShell as platformDetectShell,
   detectLocale as platformDetectLocale,
-} from "../platform"
+} from "../../../lib/platform"
 
 export const FALLBACK_SHELL =
   platform.platform === "win32" ? "cmd.exe" : "/bin/sh"

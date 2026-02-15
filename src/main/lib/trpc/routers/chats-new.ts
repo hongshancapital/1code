@@ -23,7 +23,7 @@ import {
 import { gitCache } from "../../git/cache"
 import { withGitLock } from "../../git/git-factory"
 import { gitWatcherRegistry } from "../../git/watcher/git-watcher"
-import { terminalManager } from "../../terminal/manager"
+import { terminalManager } from "../../../feature/terminal/lib/manager"
 import { publicProcedure, router } from "../index"
 import { subChatsRouter } from "./sub-chats"
 import { chatStatsRouter } from "./chat-stats"

@@ -1,13 +1,13 @@
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../../lib/trpc/index"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as os from "os"
 import matter from "gray-matter"
 import YAML from "yaml"
 import { app } from "electron"
-import { getMergedSettings, getEnabledPlugins } from "./claude-settings"
-import { discoverInstalledPlugins, getPluginComponentPaths } from "../../plugins"
+import { getMergedSettings, getEnabledPlugins } from "../../../lib/trpc/routers/claude-settings"
+import { discoverInstalledPlugins, getPluginComponentPaths } from "../lib"
 
 // Interface configuration from hong.yaml
 export interface SkillInterfaceConfig {

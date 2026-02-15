@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod"
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../lib/trpc/index"
 import {
   chats,
   getDatabase,
@@ -13,12 +13,12 @@ import {
   observations,
   subChats,
   userPrompts,
-} from "../../db"
+} from "../../lib/db"
 import { eq, desc, and, sql, count } from "drizzle-orm"
-import type { Observation } from "../../db/schema"
-import { hybridSearch, findRelated } from "../../memory/hybrid-search"
-import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding } from "../../memory/vector-store"
-import { parseToolToObservation, buildObservationText } from "../../memory/observation-parser"
+import type { Observation } from "../../lib/db/schema"
+import { hybridSearch, findRelated } from "./lib/hybrid-search"
+import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding } from "./lib/vector-store"
+import { parseToolToObservation, buildObservationText } from "./lib/observation-parser"
 
 // ============ Types ============
 
@@ -455,7 +455,7 @@ export const memoryRouter = router({
       const db = getDatabase()
       db.delete(observations).where(eq(observations.id, input.id)).run()
       // Also delete from vector store
-      const { deleteObservation: deleteVector } = await import("../../memory/vector-store")
+      const { deleteObservation: deleteVector } = await import("./lib/vector-store")
       await deleteVector(input.id).catch(console.error)
       return { success: true }
     }),
@@ -486,7 +486,7 @@ export const memoryRouter = router({
     db.delete(userPrompts).run()
     db.delete(memorySessions).run()
     // Clear entire vector store
-    const { clearAll } = await import("../../memory/vector-store")
+    const { clearAll } = await import("./lib/vector-store")
     await clearAll().catch(console.error)
     return { success: true }
   }),

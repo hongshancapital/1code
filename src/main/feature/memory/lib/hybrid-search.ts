@@ -4,7 +4,7 @@
  * (Reciprocal Rank Fusion) for optimal results
  */
 
-import { getDatabase, observations } from "../db"
+import { getDatabase, observations } from "../../../lib/db"
 import { eq, sql } from "drizzle-orm"
 import { searchSimilar } from "./vector-store"
 

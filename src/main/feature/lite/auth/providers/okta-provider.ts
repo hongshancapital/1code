@@ -6,7 +6,7 @@
 
 import { shell } from "electron"
 import type { AuthProvider, AuthUser, TokenResponse, PkceState } from "./types"
-import { generateCodeVerifier, generateCodeChallenge, generateState } from "../../../../lib/okta/pkce"
+import { generateCodeVerifier, generateCodeChallenge, generateState } from "./pkce"
 import { getEnv } from "../../../../lib/env"
 import { OKTA_CALLBACK_PORT } from "../../../../constants"
 

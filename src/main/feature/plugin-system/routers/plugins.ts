@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "../index"
+import { router, publicProcedure } from "../../../lib/trpc/index"
 import * as fs from "fs/promises"
 import * as path from "path"
 import matter from "gray-matter"
@@ -7,8 +7,8 @@ import {
   getPluginComponentPaths,
   discoverPluginMcpServers,
   clearPluginCache,
-} from "../../plugins"
-import { getEnabledPlugins } from "./claude-settings"
+} from "../lib"
+import { getEnabledPlugins } from "../../../lib/trpc/routers/claude-settings"
 
 interface PluginComponent {
   name: string
