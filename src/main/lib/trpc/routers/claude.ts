@@ -1,5 +1,5 @@
 import { observable } from "@trpc/server/observable";
-import { eq, like, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { app, BrowserWindow, safeStorage } from "electron";
 import * as fs from "fs/promises";
 import { readFileSync, existsSync } from "fs";
@@ -42,9 +42,6 @@ import {
   chats,
   claudeCodeCredentials,
   getDatabase,
-  memorySessions,
-  modelUsage,
-  observations,
   subChats,
 } from "../../db";
 import { createRollbackStash } from "../../git/stash";
@@ -76,10 +73,7 @@ import {
 } from "../../builtin-mcp";
 import { getAuthManager } from "../../../index";
 import { getCachedRuntimeEnvironment } from "./runner";
-import { memoryHooks } from "../../memory";
-import { createBrowserMcpServer, browserManager } from "../../browser";
-import { createImageGenMcpServer } from "../../mcp/image-gen-server";
-import { createImageProcessMcpServer } from "../../mcp/image-process-server";
+import { getHooks } from "../../extension";
 import { setLastUserMessageDebug } from "./debug";
 
 /**
@@ -1574,47 +1568,23 @@ export const claudeRouter = router({
                 .run();
             }
 
-            // 2.4. Memory hooks: Start session and record user prompt (fire-and-forget)
-            let memorySessionId: string | null = null;
+            // 2.4. Memory hooks: Start session and record user prompt (via Extension Hook)
             const promptNumber =
               existingMessages.filter((m: any) => m.role === "user").length + 1;
-            if (projectId && input.memoryRecordingEnabled !== false) {
-              // Sync summary model config for LLM-enhanced observations
-              try {
-                const { setSummaryModelConfig } =
-                  await import("../../memory/summarizer");
-                if (input.summaryProviderId && input.summaryModelId) {
-                  setSummaryModelConfig({
-                    providerId: input.summaryProviderId,
-                    modelId: input.summaryModelId,
-                  });
-                } else {
-                  setSummaryModelConfig(null);
-                }
-              } catch {
-                // Summarizer not available, continue with rule-based
-              }
-
-              try {
-                memorySessionId = await memoryHooks.onSessionStart({
-                  subChatId: input.subChatId,
-                  projectId,
-                  chatId: input.chatId,
-                });
-                if (memorySessionId) {
-                  await memoryHooks.onUserPrompt({
-                    sessionId: memorySessionId,
-                    prompt: input.prompt,
-                    promptNumber,
-                  });
-                }
-              } catch (memErr) {
-                console.error(
-                  "[Memory] Hook error (onSessionStart/onUserPrompt):",
-                  memErr,
-                );
-              }
-            }
+            await getHooks().call("chat:sessionStart", {
+              subChatId: input.subChatId,
+              chatId: input.chatId,
+              projectId: projectId || "",
+              cwd: input.cwd,
+              mode: input.mode as "plan" | "agent",
+              prompt: input.prompt,
+              promptNumber,
+              isResume: !!input.sessionId,
+              sessionId: input.sessionId,
+              memoryRecordingEnabled: input.memoryRecordingEnabled,
+              summaryProviderId: input.summaryProviderId,
+              summaryModelId: input.summaryModelId,
+            });
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
             let resolvedCustomConfig = input.customConfig;
@@ -2109,80 +2079,28 @@ export const claudeRouter = router({
                 mcpServersFiltered = mcpServersForSdk;
               }
 
-              // Always add browser MCP server — tools handle not-ready state internally
-              // This ensures browser_navigate can open the panel on demand even if it wasn't open at session start
-              try {
-                const browserMcp = await createBrowserMcpServer();
-                // Set working directory for relative path resolution
-                if (input.cwd) {
-                  browserManager.workingDirectory = input.cwd;
-                }
-                mcpServersFiltered = {
-                  ...mcpServersFiltered,
-                  browser: browserMcp,
-                };
-                console.log(
-                  "[Browser MCP] Added browser MCP server (ready:",
-                  browserManager.isReady,
-                  ")",
-                );
-              } catch (err) {
-                console.error("[Browser MCP] Failed to create server:", err);
-              }
-
-              // Add image generation MCP server if image config is provided
-              console.log(
-                "[Image Gen MCP] imageConfig:",
-                input.imageConfig
-                  ? `provider=${input.imageConfig.model} baseUrl=${input.imageConfig.baseUrl}`
-                  : "not set",
-              );
-              if (input.imageConfig) {
-                try {
-                  const imageGenMcp = await createImageGenMcpServer({
-                    cwd: input.cwd,
-                    subChatId: input.subChatId,
-                    apiConfig: {
-                      baseUrl: input.imageConfig.baseUrl,
-                      apiKey: input.imageConfig.apiKey,
-                      model: input.imageConfig.model,
-                    },
-                  });
-                  mcpServersFiltered = {
-                    ...mcpServersFiltered,
-                    "image-gen": imageGenMcp,
-                  };
-                  console.log(
-                    "[Image Gen MCP] Added image generation MCP server, all MCP keys:",
-                    mcpServersFiltered
-                      ? Object.keys(mcpServersFiltered)
-                      : "none",
-                  );
-                } catch (err) {
-                  console.error(
-                    "[Image Gen MCP] Failed to create server:",
-                    err,
-                  );
-                }
-              }
-
-              // Add image processing MCP server (local sharp-based, always available)
-              try {
-                const imageProcessMcp = await createImageProcessMcpServer({
+              // Hook: collectMcpServers — Extensions inject their MCP servers
+              const collectedMcps = await getHooks().call(
+                "chat:collectMcpServers",
+                {
                   cwd: input.cwd,
                   subChatId: input.subChatId,
-                });
+                  projectId: projectId || "",
+                  isOllama: isUsingOllama,
+                  existingServers: mcpServersFiltered || {},
+                  imageConfig: input.imageConfig,
+                },
+              );
+              for (const entry of collectedMcps) {
                 mcpServersFiltered = {
                   ...mcpServersFiltered,
-                  "image-process": imageProcessMcp,
+                  [entry.name]: entry.config,
                 };
+              }
+              if (collectedMcps.length > 0) {
                 console.log(
-                  "[Image Process MCP] Added image processing MCP server",
-                );
-              } catch (err) {
-                console.error(
-                  "[Image Process MCP] Failed to create server:",
-                  err,
+                  `[MCP] Extensions injected ${collectedMcps.length} server(s):`,
+                  collectedMcps.map((e) => e.name).join(", "),
                 );
               }
             }
@@ -2391,142 +2309,21 @@ ${prompt}
               console.log("[Ollama] Context prefix added to prompt");
             }
 
-            // Build memory context (only when enabled, default true)
-            // Uses hybrid search (FTS + vector) when prompt is available,
-            // with recent sessions as stable context
-            let memoryAppendSection: string | undefined;
-            if (input.memoryEnabled !== false && projectId) {
-              try {
-                // 1. Always include recent session summaries (stable context)
-                const memorySess = db
-                  .select()
-                  .from(memorySessions)
-                  .where(eq(memorySessions.projectId, projectId))
-                  .orderBy(desc(memorySessions.startedAtEpoch))
-                  .limit(5)
-                  .all();
-
-                // 2. Use hybrid search for semantically relevant observations
-                // Falls back to recent observations if search fails
-                let relevantObs: Array<{
-                  type: string;
-                  title: string | null;
-                  narrative: string | null;
-                }> = [];
-                const userPrompt = input.prompt?.trim();
-                if (userPrompt && userPrompt.length > 5) {
-                  try {
-                    const { hybridSearch } =
-                      await import("../../memory/hybrid-search");
-                    const searchResults = await hybridSearch({
-                      query: userPrompt,
-                      projectId,
-                      type: "observations",
-                      limit: 15,
-                    });
-                    // Filter out noise: skip "conversation"/"response" type (AI responses) and low-score results
-                    relevantObs = searchResults
-                      .filter(
-                        (r) => r.type === "observation" && r.score > 0.005,
-                      )
-                      .map((r) => ({
-                        type: (r as any).observationType || r.type,
-                        title: r.title,
-                        narrative: r.excerpt,
-                      }));
-                  } catch (searchErr) {
-                    console.warn(
-                      "[Memory] Hybrid search failed, using recent:",
-                      searchErr,
-                    );
-                  }
-                }
-
-                // Fallback: recent observations (excluding response type to reduce noise)
-                if (relevantObs.length === 0) {
-                  const recentObs = db
-                    .select()
-                    .from(observations)
-                    .where(eq(observations.projectId, projectId))
-                    .orderBy(desc(observations.createdAtEpoch))
-                    .limit(30)
-                    .all();
-                  relevantObs = recentObs
-                    .filter(
-                      (o) => o.type !== "conversation" && o.type !== "response",
-                    )
-                    .slice(0, 15)
-                    .map((o) => ({
-                      type: o.type,
-                      title: o.title,
-                      narrative: o.narrative,
-                    }));
-                }
-
-                // 3. Build context markdown
-                const lines: string[] = [];
-                if (memorySess.length > 0) {
-                  lines.push("## Recent Sessions\n");
-                  for (const session of memorySess) {
-                    if (session.summaryRequest) {
-                      lines.push(`- **${session.summaryRequest}**`);
-                      if (session.summaryLearned) {
-                        lines.push(`  - Learned: ${session.summaryLearned}`);
-                      }
-                      if (session.summaryCompleted) {
-                        lines.push(
-                          `  - Completed: ${session.summaryCompleted}`,
-                        );
-                      }
-                    }
-                  }
-                  lines.push("");
-                }
-                if (relevantObs.length > 0) {
-                  lines.push("## Recent Observations\n");
-                  for (const o of relevantObs) {
-                    lines.push(`- [${o.type}] ${o.title}`);
-                    if (o.narrative) {
-                      lines.push(`  > ${o.narrative.slice(0, 200)}`);
-                    }
-                  }
-                }
-
-                const content = lines.join("\n");
-                if (content.trim()) {
-                  memoryAppendSection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`;
-                }
-              } catch (err) {
-                console.error("[Memory] Failed to generate context:", err);
-              }
-            }
+            // Build append sections via enhancePrompt waterfall hook
+            // Memory context + Browser context are injected by their respective Extensions
+            const enhanced = await getHooks().call("chat:enhancePrompt", {
+              appendSections: [],
+              cwd: input.cwd,
+              projectId: projectId || "",
+              subChatId: input.subChatId,
+              prompt: input.prompt,
+              isOllama: isUsingOllama,
+              memoryEnabled: input.memoryEnabled,
+            });
+            const appendSections = enhanced.appendSections;
 
             // Build system prompt using PromptBuilder (composable architecture)
             const promptBuilder = getPromptBuilder();
-
-            // Collect append sections
-            const appendSections: string[] = [];
-            if (memoryAppendSection) {
-              appendSections.push(memoryAppendSection);
-            }
-
-            // Inject browser context when user is actively browsing
-            if (
-              browserManager.isReady &&
-              browserManager.currentUrl &&
-              browserManager.currentUrl !== "about:blank"
-            ) {
-              const browserTitle = browserManager.currentTitle || "Unknown";
-              const browserUrl = browserManager.currentUrl;
-              appendSections.push(
-                `# Active Browser Context
-The user is currently using the built-in browser and viewing:
-- **Page Title**: ${browserTitle}
-- **URL**: ${browserUrl}
-
-If the user needs help with the page content, you can use the browser MCP tools (browser_lock, browser_snapshot, browser_click, browser_fill, browser_screenshot, etc.) to assist them. Remember to call browser_lock before and browser_unlock after using browser tools.`,
-              );
-            }
 
             const systemPromptConfig = await promptBuilder.buildSystemPrompt(
               {
@@ -3301,19 +3098,16 @@ If the user needs help with the page content, you can use the browser MCP tools 
                           abortController.abort();
                         }
 
-                        // Memory hook: Record tool output (fire-and-forget)
-                        // Extract toolName from type if not set directly (type is "tool-Read", "tool-Edit" etc)
+                        // Hook: Record tool output (fire-and-forget)
                         const toolName =
                           toolPart.toolName ||
                           toolPart.type?.replace("tool-", "");
-                        console.log(
-                          `[Memory] Tool output: toolName=${toolName} memorySessionId=${memorySessionId} projectId=${projectId}`,
-                        );
-                        if (memorySessionId && projectId && toolName) {
-                          memoryHooks
-                            .onToolOutput({
-                              sessionId: memorySessionId,
-                              projectId,
+                        if (toolName) {
+                          getHooks()
+                            .call("chat:toolOutput", {
+                              sessionId: null,
+                              projectId: projectId || "",
+                              subChatId: input.subChatId,
                               toolName,
                               toolInput: toolPart.input,
                               toolOutput: chunk.output,
@@ -3322,7 +3116,7 @@ If the user needs help with the page content, you can use the browser MCP tools 
                             })
                             .catch((err) => {
                               console.error(
-                                "[Memory] Hook error (onToolOutput):",
+                                "[Hook] chat:toolOutput error:",
                                 err,
                               );
                             });
@@ -3562,106 +3356,23 @@ If the user needs help with the page content, you can use the browser MCP tools 
                   await createRollbackStash(input.cwd, metadata.sdkMessageUuid);
                 }
 
-                // Record usage statistics (even on error, if projectId is available)
-                // Prefer per-model breakdown from SDK for accurate model attribution
-                if (!projectId) {
-                  console.warn(
-                    `[Usage] Skipping usage recording on error - projectId not found`,
-                  );
-                } else if (
-                  metadata.modelUsage &&
-                  Object.keys(metadata.modelUsage).length > 0
-                ) {
-                  try {
-                    // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
-                    const existingUsage = metadata.sdkMessageUuid
-                      ? db
-                          .select()
-                          .from(modelUsage)
-                          .where(
-                            like(
-                              modelUsage.messageUuid,
-                              `${metadata.sdkMessageUuid}-%`,
-                            ),
-                          )
-                          .get()
-                      : null;
-
-                    if (!existingUsage) {
-                      for (const [model, usage] of Object.entries(
-                        metadata.modelUsage,
-                      )) {
-                        const totalTokens =
-                          usage.inputTokens + usage.outputTokens;
-                        db.insert(modelUsage)
-                          .values({
-                            subChatId: input.subChatId,
-                            chatId: input.chatId,
-                            projectId,
-                            model,
-                            inputTokens: usage.inputTokens,
-                            outputTokens: usage.outputTokens,
-                            totalTokens,
-                            costUsd: usage.costUSD?.toFixed(6),
-                            sessionId: metadata.sessionId,
-                            messageUuid: metadata.sdkMessageUuid
-                              ? `${metadata.sdkMessageUuid}-${model}`
-                              : undefined,
-                            mode: input.mode,
-                            durationMs: metadata.durationMs,
-                          })
-                          .run();
-                        console.log(
-                          `[Usage] Recorded ${model} (on error): ${usage.inputTokens} in, ${usage.outputTokens} out`,
-                        );
-                      }
-                    }
-                  } catch (usageErr) {
-                    console.error(
-                      `[Usage] Failed to record per-model usage:`,
-                      usageErr,
-                    );
-                  }
-                } else if (metadata.inputTokens || metadata.outputTokens) {
-                  try {
-                    // Fallback case uses exact match since messageUuid is stored without model suffix
-                    const existingUsage = metadata.sdkMessageUuid
-                      ? db
-                          .select()
-                          .from(modelUsage)
-                          .where(
-                            eq(modelUsage.messageUuid, metadata.sdkMessageUuid),
-                          )
-                          .get()
-                      : null;
-
-                    if (!existingUsage) {
-                      db.insert(modelUsage)
-                        .values({
-                          subChatId: input.subChatId,
-                          chatId: input.chatId,
-                          projectId,
-                          model:
-                            finalCustomConfig?.model ||
-                            "claude-sonnet-4-20250514",
-                          inputTokens: metadata.inputTokens || 0,
-                          outputTokens: metadata.outputTokens || 0,
-                          totalTokens: metadata.totalTokens || 0,
-                          costUsd: metadata.totalCostUsd?.toFixed(6),
-                          sessionId: metadata.sessionId,
-                          messageUuid: metadata.sdkMessageUuid,
-                          mode: input.mode,
-                          durationMs: metadata.durationMs,
-                        })
-                        .run();
-                      console.log(
-                        `[Usage] Recorded (on error, fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out`,
-                      );
-                    }
-                  } catch (usageErr) {
-                    console.error(`[Usage] Failed to record usage:`, usageErr);
-                  }
-                }
+                // Hook: Record usage statistics (even on error)
+                getHooks()
+                  .call("chat:streamError", {
+                    subChatId: input.subChatId,
+                    chatId: input.chatId,
+                    projectId: projectId || "",
+                    metadata,
+                    error: resolvedError instanceof Error
+                      ? resolvedError
+                      : new Error(String(resolvedError)),
+                    mode: input.mode,
+                    finalModel: finalCustomConfig?.model,
+                    durationMs: metadata.durationMs,
+                  })
+                  .catch((err) => {
+                    console.error("[Hook] chat:streamError error:", err);
+                  });
               }
 
               console.log(
@@ -3768,147 +3479,53 @@ If the user needs help with the page content, you can use the browser MCP tools 
                 projectId,
               }),
             );
-            if (!projectId) {
-              console.warn(
-                `[Usage] Skipping usage recording - projectId not found for chat ${input.chatId}`,
-              );
-            } else if (
-              metadata.modelUsage &&
-              Object.keys(metadata.modelUsage).length > 0
-            ) {
-              try {
-                // Check for duplicate by sdkMessageUuid (using like to match "-model" suffix pattern)
-                const existingUsage = metadata.sdkMessageUuid
-                  ? db
-                      .select()
-                      .from(modelUsage)
-                      .where(
-                        like(
-                          modelUsage.messageUuid,
-                          `${metadata.sdkMessageUuid}-%`,
-                        ),
-                      )
-                      .get()
-                  : null;
-
-                if (!existingUsage) {
-                  // Record separate entries for each model used
-                  for (const [model, usage] of Object.entries(
-                    metadata.modelUsage,
-                  )) {
-                    const totalTokens = usage.inputTokens + usage.outputTokens;
-                    db.insert(modelUsage)
-                      .values({
-                        subChatId: input.subChatId,
-                        chatId: input.chatId,
-                        projectId,
-                        model,
-                        inputTokens: usage.inputTokens,
-                        outputTokens: usage.outputTokens,
-                        totalTokens,
-                        costUsd: usage.costUSD?.toFixed(6),
-                        sessionId: metadata.sessionId,
-                        messageUuid: metadata.sdkMessageUuid
-                          ? `${metadata.sdkMessageUuid}-${model}`
-                          : undefined,
-                        mode: input.mode,
-                        durationMs: metadata.durationMs,
-                      })
-                      .run();
-                    console.log(
-                      `[Usage] Recorded ${model}: ${usage.inputTokens} in, ${usage.outputTokens} out, cost: ${usage.costUSD?.toFixed(4) || "?"}`,
-                    );
-                  }
-                } else {
-                  console.log(
-                    `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
-                  );
-                }
-              } catch (usageErr) {
-                console.error(
-                  `[Usage] Failed to record per-model usage:`,
-                  usageErr,
-                );
-              }
-            } else if (metadata.inputTokens || metadata.outputTokens) {
-              // Fallback: use aggregate data if per-model breakdown not available
-              // Note: Uses exact match since fallback messageUuid is stored without model suffix
-              try {
-                const existingUsage = metadata.sdkMessageUuid
-                  ? db
-                      .select()
-                      .from(modelUsage)
-                      .where(
-                        eq(modelUsage.messageUuid, metadata.sdkMessageUuid),
-                      )
-                      .get()
-                  : null;
-
-                if (!existingUsage) {
-                  db.insert(modelUsage)
-                    .values({
-                      subChatId: input.subChatId,
-                      chatId: input.chatId,
-                      projectId,
-                      model:
-                        finalCustomConfig?.model || "claude-sonnet-4-20250514",
-                      inputTokens: metadata.inputTokens || 0,
-                      outputTokens: metadata.outputTokens || 0,
-                      totalTokens: metadata.totalTokens || 0,
-                      costUsd: metadata.totalCostUsd?.toFixed(6),
-                      sessionId: metadata.sessionId,
-                      messageUuid: metadata.sdkMessageUuid,
-                      mode: input.mode,
-                      durationMs: metadata.durationMs,
-                    })
-                    .run();
-                  console.log(
-                    `[Usage] Recorded (fallback): ${metadata.inputTokens || 0} in, ${metadata.outputTokens || 0} out, cost: ${metadata.totalCostUsd?.toFixed(4) || "?"}`,
-                  );
-                } else {
-                  console.log(
-                    `[Usage] Skipping duplicate: ${metadata.sdkMessageUuid}`,
-                  );
-                }
-              } catch (usageErr) {
-                console.error(`[Usage] Failed to record usage:`, usageErr);
-              }
-            }
+            // Hook: Record usage statistics (success path)
+            getHooks()
+              .call("chat:streamComplete", {
+                subChatId: input.subChatId,
+                chatId: input.chatId,
+                projectId: projectId || "",
+                metadata,
+                assistantText: currentText,
+                mode: input.mode,
+                finalModel: finalCustomConfig?.model,
+                durationMs: metadata.durationMs,
+              })
+              .catch((err) => {
+                console.error("[Hook] chat:streamComplete error:", err);
+              });
 
             // Create snapshot stash for rollback support
             if (historyEnabled && metadata.sdkMessageUuid && input.cwd) {
               await createRollbackStash(input.cwd, metadata.sdkMessageUuid);
             }
 
-            // Memory hook: Record AI response text (fire-and-forget)
-            if (memorySessionId && projectId && currentText.trim()) {
-              memoryHooks
-                .onAssistantMessage({
-                  sessionId: memorySessionId,
+            // Hook: Record AI response text (fire-and-forget)
+            if (projectId && currentText.trim()) {
+              getHooks()
+                .call("chat:assistantMessage", {
+                  sessionId: null,
                   projectId,
+                  subChatId: input.subChatId,
                   text: currentText,
                   messageId: metadata.sdkMessageUuid,
                   promptNumber,
                 })
                 .catch((err) => {
-                  console.error(
-                    "[Memory] Hook error (onAssistantMessage):",
-                    err,
-                  );
+                  console.error("[Hook] chat:assistantMessage error:", err);
                 });
             }
 
-            // Memory hook: End session (fire-and-forget)
-            if (memorySessionId) {
-              memoryHooks
-                .onSessionEnd({
-                  sessionId: memorySessionId,
-                  subChatId: input.subChatId,
-                })
-                .catch((err) => {
-                  console.error("[Memory] Hook error (onSessionEnd):", err);
-                });
-            }
+            // Hook: End session (fire-and-forget)
+            getHooks()
+              .call("chat:sessionEnd", {
+                sessionId: null,
+                subChatId: input.subChatId,
+                projectId: projectId || "",
+              })
+              .catch((err) => {
+                console.error("[Hook] chat:sessionEnd error:", err);
+              });
 
             const duration = ((Date.now() - streamStart) / 1000).toFixed(1);
             console.log(

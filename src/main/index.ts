@@ -757,8 +757,18 @@ if (gotTheLock) {
       // 加载 chat lifecycle hooks（运行时模式注册副作用）
       await import("./lib/extension/hooks/chat-lifecycle")
       const { liteExtension } = await import("./feature/lite")
+      const { memoryExtension } = await import("./feature/memory")
+      const { browserMcpExtension } = await import("./feature/browser-mcp")
+      const { imageMcpExtension } = await import("./feature/image-mcp")
+      const { usageTrackingExtension } = await import(
+        "./feature/usage-tracking"
+      )
       const em = getExtensionManager()
       em.register(liteExtension)
+      em.register(memoryExtension)
+      em.register(browserMcpExtension)
+      em.register(imageMcpExtension)
+      em.register(usageTrackingExtension)
       await em.initializeAll()
       console.log("[App] ExtensionManager initialized")
     } catch (error) {

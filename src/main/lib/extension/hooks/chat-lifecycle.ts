@@ -2,7 +2,7 @@
  * Chat 生命周期 Hook 定义
  *
  * 对应 claude.ts 中的生命周期节点：
- * - 8 个 emit（通知型）
+ * - 10 个 emit（通知型，含 streamComplete/streamError）
  * - 1 个 collect（收集 MCP servers）
  * - 1 个 waterfall（增强 prompt）
  */
@@ -25,6 +25,12 @@ export interface ChatSessionStartPayload {
   promptNumber: number
   isResume: boolean
   sessionId?: string
+  /** Memory 录制开关（默认 true） */
+  memoryRecordingEnabled?: boolean
+  /** Summary model provider ID */
+  summaryProviderId?: string
+  /** Summary model ID */
+  summaryModelId?: string
 }
 
 export interface ChatUserPromptPayload {
@@ -89,6 +95,8 @@ export interface McpCollectPayload {
   projectId: string
   isOllama: boolean
   existingServers: Record<string, McpServerWithMeta>
+  /** Image generation API config (baseUrl + apiKey + model) */
+  imageConfig?: { baseUrl: string; apiKey: string; model: string }
 }
 
 export interface McpServerEntry {
@@ -104,6 +112,35 @@ export interface PromptEnhancePayload {
   subChatId: string
   prompt: string
   isOllama: boolean
+  /** Memory context 注入开关（默认 true） */
+  memoryEnabled?: boolean
+}
+
+/** emit: 流式完成（成功路径，用于 usage tracking） */
+export interface ChatStreamCompletePayload {
+  subChatId: string
+  chatId: string
+  projectId: string
+  /** SDK metadata（含 modelUsage、inputTokens、outputTokens、sessionId 等） */
+  metadata: Record<string, any>
+  assistantText: string
+  mode: string
+  /** 实际使用的 model（含 fallback） */
+  finalModel?: string
+  /** Duration in ms */
+  durationMs?: number
+}
+
+/** emit: 流式错误（错误路径，用于 usage tracking） */
+export interface ChatStreamErrorPayload {
+  subChatId: string
+  chatId: string
+  projectId: string
+  metadata: Record<string, any>
+  error: Error
+  mode: string
+  finalModel?: string
+  durationMs?: number
 }
 
 // =============================================================================
@@ -125,6 +162,12 @@ declare module "../types" {
     >
     "chat:sessionEnd": HookDefinition<"emit", ChatSessionEndPayload, void>
     "chat:cleanup": HookDefinition<"emit", ChatCleanupPayload, void>
+    "chat:streamComplete": HookDefinition<
+      "emit",
+      ChatStreamCompletePayload,
+      void
+    >
+    "chat:streamError": HookDefinition<"emit", ChatStreamErrorPayload, void>
 
     // collect: 收集型
     "chat:collectMcpServers": HookDefinition<
@@ -154,5 +197,7 @@ registerHookMode("chat:gitCommit", "emit")
 registerHookMode("chat:assistantMessage", "emit")
 registerHookMode("chat:sessionEnd", "emit")
 registerHookMode("chat:cleanup", "emit")
+registerHookMode("chat:streamComplete", "emit")
+registerHookMode("chat:streamError", "emit")
 registerHookMode("chat:collectMcpServers", "collect")
 registerHookMode("chat:enhancePrompt", "waterfall")
