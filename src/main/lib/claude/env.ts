@@ -1,5 +1,5 @@
 import { app } from "electron"
-import { execSync, execFile } from "node:child_process"
+import { execFile } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -27,6 +27,10 @@ const STRIPPED_ENV_KEYS = [
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_VERTEX",
 ]
+
+// Separately cached stripped keys (e.g. OPENAI_API_KEY for voice router)
+// These are saved before stripSensitiveKeys removes them from the main cache
+const strippedKeyValues = new Map<string, string>()
 
 // Cache the bundled binary path (only compute once)
 let cachedBinaryPath: string | null = null
@@ -128,15 +132,25 @@ function parseEnvOutput(output: string): Record<string, string> {
 }
 
 /**
- * Strip sensitive keys from environment
+ * Strip sensitive keys from environment.
+ * Saves stripped values separately so other modules (e.g. voice) can access them.
  */
 function stripSensitiveKeys(env: Record<string, string>): void {
   for (const key of STRIPPED_ENV_KEYS) {
     if (key in env) {
+      strippedKeyValues.set(key, env[key])
       console.log(`[claude-env] Stripped ${key} from shell environment`)
       delete env[key]
     }
   }
+}
+
+/**
+ * Get a key that was stripped from the shell environment.
+ * Used by voice router to read OPENAI_API_KEY without spawning a shell.
+ */
+export function getStrippedShellEnvKey(key: string): string | undefined {
+  return strippedKeyValues.get(key)
 }
 
 /**
@@ -169,43 +183,13 @@ export function getClaudeShellEnvironment(): Record<string, string> {
     return { ...env }
   }
 
-  // macOS/Linux: spawn interactive login shell to get full environment
-  const shell = getDefaultShell()
-  const command = `echo -n "${DELIMITER}"; env; echo -n "${DELIMITER}"; exit`
-
-  try {
-    const output = execSync(`${shell} -ilc '${command}'`, {
-      encoding: "utf8",
-      timeout: 15000,
-      env: {
-        // Prevent Oh My Zsh from blocking with auto-update prompts
-        DISABLE_AUTO_UPDATE: "true",
-        // Minimal env to bootstrap the shell
-        HOME: os.homedir(),
-        USER: os.userInfo().username,
-        SHELL: shell,
-      },
-    })
-
-    const env = parseEnvOutput(output)
-    stripSensitiveKeys(env)
-
-    console.log(
-      `[claude-env] Loaded ${Object.keys(env).length} environment variables from shell`
-    )
-    cachedShellEnv = env
-    return { ...env }
-  } catch (error) {
-    console.error("[claude-env] Failed to load shell environment:", error)
-
-    // Fallback: use platform provider
-    const env = platform.buildEnvironment()
-    stripSensitiveKeys(env)
-
-    console.log("[claude-env] Using fallback environment from platform provider")
-    cachedShellEnv = env
-    return { ...env }
-  }
+  // macOS/Linux: preloadShellEnvironment() should have been called at startup.
+  // If cache is still empty, use fallback instead of blocking with execSync.
+  console.warn("[claude-env] Cache miss — preloadShellEnvironment() not yet completed, using fallback")
+  const env = platform.buildEnvironment()
+  stripSensitiveKeys(env)
+  cachedShellEnv = env
+  return { ...env }
 }
 
 /**

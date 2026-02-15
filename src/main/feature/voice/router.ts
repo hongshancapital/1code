@@ -7,9 +7,8 @@
  * Priority: local whisper → OpenAI API
  */
 
-import { execSync } from "node:child_process"
-import os from "node:os"
 import { z } from "zod"
+import { getStrippedShellEnvKey } from "../../lib/claude/env"
 import { publicProcedure, router } from "../../lib/trpc/index"
 
 // Import local whisper module
@@ -150,29 +149,14 @@ function getOpenAIApiKey(): string | null {
     return cachedOpenAIKey
   }
 
-  // Try to get from shell environment (for production builds)
-  // Skip on Windows - shell invocation doesn't work the same way
-  if (process.platform !== "win32") {
-    try {
-      const shell = process.env.SHELL || "/bin/zsh"
-      const result = execSync(`${shell} -ilc 'echo $OPENAI_API_KEY'`, {
-        encoding: "utf8",
-        timeout: 15000,
-        env: {
-          HOME: os.homedir(),
-          USER: os.userInfo().username,
-          SHELL: shell,
-        } as unknown as NodeJS.ProcessEnv,
-      })
-
-      const key = result.trim()
-      if (key && key !== "$OPENAI_API_KEY" && key.startsWith("sk-")) {
-        cachedOpenAIKey = key
-        console.log("[Voice] Using OPENAI_API_KEY from shell environment")
-        return cachedOpenAIKey
-      }
-    } catch (err) {
-      console.error("[Voice] Failed to read OPENAI_API_KEY from shell:", err)
+  // Try to get from preloaded shell environment (cached by env.ts at startup)
+  // This avoids blocking the main process with execSync
+  {
+    const key = getStrippedShellEnvKey("OPENAI_API_KEY")
+    if (key && key.startsWith("sk-")) {
+      cachedOpenAIKey = key
+      console.log("[Voice] Using OPENAI_API_KEY from preloaded shell environment")
+      return cachedOpenAIKey
     }
   }
 
