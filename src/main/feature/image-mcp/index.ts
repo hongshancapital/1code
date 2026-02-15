@@ -8,9 +8,10 @@
 import type {
   ExtensionModule,
   ExtensionContext,
+  ToolDefinition,
 } from "../../lib/extension/types"
-import { createImageGenMcpServer } from "../../lib/mcp/image-gen-server"
-import { createImageProcessMcpServer } from "../../lib/mcp/image-process-server"
+import { createImageGenMcpServer, getImageGenToolDefinitions } from "../../lib/mcp/image-gen-server"
+import { createImageProcessMcpServer, getImageProcessToolDefinitions } from "../../lib/mcp/image-process-server"
 import type { McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
 
 class ImageMcpExtension implements ExtensionModule {
@@ -67,6 +68,28 @@ class ImageMcpExtension implements ExtensionModule {
         { source: this.name },
       ),
     )
+  }
+
+  async listTools(): Promise<{ category: string; tools: ToolDefinition[] }[]> {
+    const dummyCtx = { cwd: process.cwd(), subChatId: "tool-discovery", apiConfig: { baseUrl: "", apiKey: "", model: "" } }
+    const results: { category: string; tools: ToolDefinition[] }[] = []
+    const fmt = (t: any): ToolDefinition => ({
+      name: t.name,
+      description: t.description || "",
+      inputSchema: t.inputSchema || t.input_schema || {},
+    })
+
+    try {
+      const genDefs = await getImageGenToolDefinitions(dummyCtx)
+      results.push({ category: "imageGen", tools: genDefs.map(fmt) })
+    } catch { /* image-gen might not be available */ }
+
+    try {
+      const procDefs = await getImageProcessToolDefinitions(dummyCtx)
+      results.push({ category: "imageProcess", tools: procDefs.map(fmt) })
+    } catch { /* ignore */ }
+
+    return results
   }
 
   async cleanup(): Promise<void> {

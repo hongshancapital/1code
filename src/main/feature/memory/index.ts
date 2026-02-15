@@ -17,10 +17,12 @@ import { memoryHooks } from "../../lib/memory/hooks"
 import { setSummaryModelConfig } from "../../lib/memory/summarizer"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
 import { eq, desc } from "drizzle-orm"
+import { memoryRouter } from "../../lib/trpc/routers/memory"
 
 class MemoryExtension implements ExtensionModule {
   name = "memory" as const
   description = "Memory session tracking and context injection"
+  router = memoryRouter
 
   private sessionMap = new Map<string, string>() // subChatId → memorySessionId
   private cleanupFns: Array<() => void> = []

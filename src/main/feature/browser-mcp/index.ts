@@ -9,8 +9,10 @@
 import type {
   ExtensionModule,
   ExtensionContext,
+  ToolDefinition,
 } from "../../lib/extension/types"
 import { createBrowserMcpServer, browserManager } from "../../lib/browser"
+import { getBrowserToolDefinitions } from "../../lib/browser/mcp-server"
 
 class BrowserMcpExtension implements ExtensionModule {
   name = "browser-mcp" as const
@@ -76,6 +78,22 @@ If the user needs help with the page content, you can use the browser MCP tools 
         { source: this.name, priority: 200 },
       ),
     )
+  }
+
+  async listTools(): Promise<{ category: string; tools: ToolDefinition[] }[]> {
+    try {
+      const defs = await getBrowserToolDefinitions()
+      return [{
+        category: "browser",
+        tools: defs.map((t: any) => ({
+          name: t.name,
+          description: t.description || "",
+          inputSchema: t.inputSchema || t.input_schema || {},
+        })),
+      }]
+    } catch {
+      return []
+    }
   }
 
   async cleanup(): Promise<void> {

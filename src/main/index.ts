@@ -763,12 +763,18 @@ if (gotTheLock) {
       const { usageTrackingExtension } = await import(
         "./feature/usage-tracking"
       )
+      const { automationExtension } = await import("./feature/automation")
+      const { voiceExtension } = await import("./feature/voice")
+      const { insightsExtension } = await import("./feature/insights")
       const em = getExtensionManager()
       em.register(liteExtension)
       em.register(memoryExtension)
       em.register(browserMcpExtension)
       em.register(imageMcpExtension)
       em.register(usageTrackingExtension)
+      em.register(automationExtension)
+      em.register(voiceExtension)
+      em.register(insightsExtension)
       await em.initializeAll()
       console.log("[App] ExtensionManager initialized")
     } catch (error) {

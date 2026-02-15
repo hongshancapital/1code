@@ -122,6 +122,28 @@ export class ExtensionManager {
     return this.extensions.map((e) => e.name)
   }
 
+  /**
+   * 收集所有 Extension 声明的内部 Tools
+   * 用于 internal-tools 发现，替代硬编码导入
+   */
+  async listAllTools(): Promise<
+    Record<string, { name: string; description: string; inputSchema: Record<string, unknown> }[]>
+  > {
+    const results: Record<string, { name: string; description: string; inputSchema: Record<string, unknown> }[]> = {}
+    for (const ext of this.extensions) {
+      if (!ext.listTools) continue
+      try {
+        const categories = await ext.listTools()
+        for (const { category, tools } of categories) {
+          results[category] = tools
+        }
+      } catch (err) {
+        console.error(`[Extension:${ext.name}] listTools() failed:`, err)
+      }
+    }
+    return results
+  }
+
   // ---------------------------------------------------------------------------
   // 内部方法
   // ---------------------------------------------------------------------------

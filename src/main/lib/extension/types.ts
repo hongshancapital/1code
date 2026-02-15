@@ -221,12 +221,20 @@ export interface ExtensionContext {
   error: (...args: unknown[]) => void
 }
 
+export interface ToolDefinition {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
 export interface ExtensionModule {
   name: string
   description?: string
   router?: AnyRouter
   /** router 在 AppRouter 中的 key，默认用 name */
   routerKey?: string
+  /** 声明此 Extension 提供的内部 Tools（供 internal-tools 发现） */
+  listTools?(): Promise<{ category: string; tools: ToolDefinition[] }[]>
   initialize?(ctx: ExtensionContext): void | Promise<void>
   cleanup?(): void | Promise<void>
 }
