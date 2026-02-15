@@ -17,6 +17,7 @@
     "no-template-curly-in-string": "warn",
     "no-var": "error",
     "eqeqeq": "error",
+    "no-console": "warn",
 
     "no-await-in-loop": "off",
 

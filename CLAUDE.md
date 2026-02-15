@@ -60,11 +60,14 @@ src/main/
     │   ├── env.ts           # Environment variable building
     │   └── policies/        # Tool permission rules
     │
+    ├── logger.ts            # Unified logger (electron-log wrapper)
+    │
     ├── trpc/routers/        # tRPC routers (hardcoded + Extension)
     │   ├── index.ts         # createAppRouter (merges Extension routers)
     │   ├── claude.ts        # Core: SDK streaming + chat subscription
     │   ├── chats-new.ts     # Chat lifecycle CRUD
     │   ├── summary-ai.ts    # Lightweight AI calls (naming, commit msgs)
+    │   ├── logger.ts        # Log query + real-time subscription
     │   └── ...              # 20+ domain routers
     │
     ├── db/                  # Drizzle + SQLite
@@ -97,7 +100,19 @@ src/renderer/
 └── lib/
     ├── atoms/               # Global Jotai atoms (modularized)
     ├── stores/              # Zustand stores
+    ├── logger.ts            # Renderer logger (lightweight console wrapper)
     └── trpc.ts              # tRPC client
+```
+
+### Shared (`src/shared/`)
+
+```
+src/shared/
+├── log-types.ts             # Cross-process log type definitions
+├── changes-types.ts         # Git changes types
+├── detect-language.ts       # Language detection
+├── external-apps.ts         # External app types
+└── feature-config.ts        # Feature config types
 ```
 
 ## Extension System
@@ -137,6 +152,8 @@ Features are pluginized via `ExtensionModule` interface. Each Extension can prov
 **Auth**: Anthropic OAuth (PKCE) / Okta SAML / API Key. Tokens encrypted via `safeStorage`. Deep links: `hong://` (prod) / `hong-dev://` (dev).
 
 **Git Security**: Path validation + command sanitization + secure FS. `simple-git` with lock mechanism.
+
+**Logging**: Unified logger based on `electron-log`. Main process: `src/main/lib/logger.ts` — file transport (5MB rotation, gzip archive for 90d), Sentry transport (error → captureMessage, warn → breadcrumb), ring buffer transport (2000 entries for UI panel). Renderer: `src/renderer/lib/logger.ts` — lightweight console wrapper with formatted output. Usage: `import { createLogger } from '../lib/logger'; const log = createLogger('ModuleName')`. Raw Claude SDK logs remain separate in `src/main/lib/claude/raw-logger.ts`. Lint rule `no-console: warn` enforced via oxlint.
 
 ## Database
 
@@ -191,3 +208,5 @@ bun run dev                                            # Fresh start
 ```
 
 Dev mode uses separate userData path and `hong-dev://` protocol.
+
+**Log files:** `~/Library/Logs/Hong/main.log` (current) + date-archived `.log` files + `archive/*.log.gz` (monthly compressed, 90d retention). View in Settings → Debug → Log Viewer. Migration script: `bun scripts/migrate-console-to-logger.ts`.
