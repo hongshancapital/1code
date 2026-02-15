@@ -216,6 +216,7 @@ export class McpWarmupManager extends EventEmitter {
     scope: string | null,
   ): Promise<void> {
     const cacheKey = mcpCacheKey(scope, name)
+    const serverStartTime = Date.now()
 
     // 初始化状态
     this._updateServerState(name, {
@@ -261,7 +262,7 @@ export class McpWarmupManager extends EventEmitter {
             lastSuccess: Date.now(),
             tools: tools.map((t) => t.name),
           })
-          console.log(`[MCP Warmup] ${name} - Connected (${tools.length} tools)`)
+          console.log(`[MCP Warmup] ${name} - Connected (${tools.length} tools) in ${Date.now() - serverStartTime}ms`)
           return
         }
 
@@ -273,7 +274,7 @@ export class McpWarmupManager extends EventEmitter {
           retryCount,
           lastAttempt: Date.now(),
         })
-        console.warn(`[MCP Warmup] ${name} - No tools found`)
+        console.warn(`[MCP Warmup] ${name} - No tools found (${Date.now() - serverStartTime}ms)`)
         return
       } catch (error: any) {
         const isTimeout = error?.message?.includes("Timeout")
@@ -303,7 +304,7 @@ export class McpWarmupManager extends EventEmitter {
             retryCount,
             lastAttempt: Date.now(),
           })
-          console.error(`[MCP Warmup] ${name} - Failed after ${MAX_RETRIES} retries`)
+          console.error(`[MCP Warmup] ${name} - Failed after ${MAX_RETRIES} retries (${Date.now() - serverStartTime}ms total)`)
           return
         }
       }

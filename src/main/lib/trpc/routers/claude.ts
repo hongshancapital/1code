@@ -476,6 +476,14 @@ export const claudeRouter = router({
                 .run();
             }
 
+            // === PERF TIMING: Track each phase to diagnose first-message delay ===
+            const perfStart = Date.now();
+            const perf = (label: string) => {
+              const elapsed = Date.now() - perfStart;
+              console.log(`[PERF] +${elapsed}ms  ${label}`);
+            };
+            perf("Start message pipeline");
+
             // 2.4. Memory hooks: Start session and record user prompt (via Extension Hook)
             const promptNumber =
               existingMessages.filter((m: any) => m.role === "user").length + 1;
@@ -493,6 +501,7 @@ export const claudeRouter = router({
               summaryProviderId: input.summaryProviderId,
               summaryModelId: input.summaryModelId,
             });
+            perf("chat:sessionStart hook done");
 
             // 2.5. Resolve custom config - handle LiteLLM mode (empty token/baseUrl means use env)
             let resolvedCustomConfig = input.customConfig;
@@ -529,6 +538,7 @@ export const claudeRouter = router({
 
             // 2.6. AUTO-FALLBACK: Check internet and switch to Ollama if offline
             // Only check if offline mode is enabled in settings
+            perf("checkOfflineFallback start");
             const claudeCodeToken = getClaudeCodeToken();
             const offlineResult = await checkOfflineFallback(
               resolvedCustomConfig,
@@ -536,6 +546,8 @@ export const claudeRouter = router({
               undefined, // selectedOllamaModel - will be read from customConfig if present
               input.offlineModeEnabled ?? false, // Pass offline mode setting
             );
+
+            perf("checkOfflineFallback done");
 
             if (offlineResult.error) {
               emitError(
@@ -704,6 +716,7 @@ export const claudeRouter = router({
 
               // Load MCP servers via ClaudeConfigLoader (unified configuration)
               try {
+                perf("configLoader.getConfig start (includes MCP warmup wait)");
                 const configLoader = getConfigLoader();
                 const authManager = getAuthManager();
                 const loadedConfig = await configLoader.getConfig(
@@ -718,6 +731,7 @@ export const claudeRouter = router({
                   authManager,
                 );
 
+                perf(`configLoader.getConfig done (${Object.keys(loadedConfig.mcpServers).length} servers)`);
                 if (Object.keys(loadedConfig.mcpServers).length > 0) {
                   mcpServersForSdk = loadedConfig.mcpServers;
                 }
@@ -883,6 +897,7 @@ export const claudeRouter = router({
               mcpServersFiltered = undefined;
             } else {
               // Refresh MCP tokens (disabled servers already filtered by ConfigLoader)
+              perf("ensureMcpTokensFresh start");
               if (
                 mcpServersForSdk &&
                 Object.keys(mcpServersForSdk).length > 0
@@ -895,8 +910,10 @@ export const claudeRouter = router({
               } else {
                 mcpServersFiltered = mcpServersForSdk;
               }
+              perf("ensureMcpTokensFresh done");
 
               // Hook: collectMcpServers — Extensions inject their MCP servers
+              perf("chat:collectMcpServers start");
               const collectedMcps = await getHooks().call(
                 "chat:collectMcpServers",
                 {
@@ -914,6 +931,7 @@ export const claudeRouter = router({
                   [entry.name]: entry.config,
                 };
               }
+              perf(`chat:collectMcpServers done (${collectedMcps.length} injected)`);
               if (collectedMcps.length > 0) {
                 console.log(
                   `[MCP] Extensions injected ${collectedMcps.length} server(s):`,
@@ -984,6 +1002,7 @@ export const claudeRouter = router({
 
             // Build append sections via enhancePrompt waterfall hook
             // Memory context + Browser context are injected by their respective Extensions
+            perf("chat:enhancePrompt start");
             const enhanced = await getHooks().call("chat:enhancePrompt", {
               appendSections: [],
               cwd: input.cwd,
@@ -994,8 +1013,10 @@ export const claudeRouter = router({
               memoryEnabled: input.memoryEnabled,
             });
             const appendSections = enhanced.appendSections;
+            perf(`chat:enhancePrompt done (${appendSections.length} sections)`);
 
             // Build system prompt using PromptBuilder (composable architecture)
+            perf("buildSystemPrompt start");
             const promptBuilder = getPromptBuilder();
 
             const systemPromptConfig = await promptBuilder.buildSystemPrompt(
@@ -1010,6 +1031,7 @@ export const claudeRouter = router({
               },
               input.cwd,
             );
+            perf("buildSystemPrompt done");
             console.log(
               "[claude] systemPromptConfig append:",
               systemPromptConfig.append
@@ -1289,6 +1311,7 @@ export const claudeRouter = router({
             };
 
             // 5. Run Claude SDK
+            perf("claudeQuery (SDK create) start");
             let stream;
             try {
               // Save debug data before sending to SDK
@@ -1352,6 +1375,7 @@ export const claudeRouter = router({
                 finalCustomConfig,
               });
               stream = claudeQuery(queryOptions as Parameters<typeof claudeQuery>[0]);
+              perf("claudeQuery (SDK create) done — now waiting for first stream message");
             } catch (queryError) {
               console.error(
                 "[CLAUDE] ✗ Failed to create SDK query:",
@@ -1431,6 +1455,7 @@ export const claudeRouter = router({
                 if (!firstMessageReceived) {
                   firstMessageReceived = true;
                   const timeToFirstMessage = Date.now() - streamIterationStart;
+                  perf(`FIRST STREAM MESSAGE received (stream wait: ${timeToFirstMessage}ms, total: ${Date.now() - perfStart}ms)`);
                   if (isUsingOllama) {
                     console.log(
                       `[Ollama] Time to first message: ${timeToFirstMessage}ms`,

@@ -360,7 +360,8 @@ export class ClaudeConfigLoader {
       const warmupPromise = warmupManager.getWarmupPromise()
 
       if (warmupPromise) {
-        console.log("[ConfigLoader] Waiting for MCP warmup (max 15s)...")
+        const warmupWaitStart = Date.now()
+        console.log("[ConfigLoader] Waiting for MCP warmup (max 15s)... workingMcpServers.size=0")
 
         try {
           await Promise.race([
@@ -369,11 +370,15 @@ export class ClaudeConfigLoader {
               setTimeout(() => reject(new Error("Warmup timeout")), 15000)
             ),
           ])
-          console.log("[ConfigLoader] MCP warmup completed")
+          console.log(`[ConfigLoader] MCP warmup completed in ${Date.now() - warmupWaitStart}ms, cache size now: ${workingMcpServers.size}`)
         } catch (error) {
-          console.warn("[ConfigLoader] Warmup timeout, using current cache")
+          console.warn(`[ConfigLoader] Warmup timeout after ${Date.now() - warmupWaitStart}ms, cache size: ${workingMcpServers.size}`)
         }
+      } else {
+        console.log("[ConfigLoader] No warmup promise (warmup not started?), cache size:", workingMcpServers.size)
       }
+    } else {
+      console.log(`[ConfigLoader] MCP cache hit, ${workingMcpServers.size} servers cached — skipping warmup wait`)
     }
 
     // Load all MCP servers in parallel
