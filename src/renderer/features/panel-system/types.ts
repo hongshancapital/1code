@@ -80,20 +80,27 @@ export interface PanelDefinition {
   useIsAvailable?: () => boolean
 
   /**
-   * Legacy open state hook — marks this panel as "legacy" (not yet fully migrated).
+   * Legacy open state hook — reads panel open/close from legacy atoms.
    *
-   * When present, PanelZoneSlot treats this panel differently:
-   * - The component is rendered WITHOUT an outer container (ResizableSidebar etc.),
-   *   because legacy panel components already include their own containers internally.
-   * - PanelZone only performs hookAvailable gating; open/close/resize/displayMode
-   *   are all managed by the component's internal legacy atoms.
+   * When present, PanelZoneSlot uses this hook's isOpen/close instead of
+   * panelIsOpenAtomFamily. This allows gradual migration while active-chat.tsx
+   * still manages state through legacy atoms + useSidebarMutualExclusion.
    *
-   * Returns { isOpen, close } for legacy bridge compatibility.
-   *
-   * Once a panel's internal ResizableSidebar is removed and it becomes a pure
-   * content component, remove this hook — PanelZone will then provide the container.
+   * Returns { isOpen, close } so PanelZone can both check visibility
+   * and close the panel through the correct path.
    */
   useIsOpen?: () => { isOpen: boolean; close: () => void }
+
+  /**
+   * Whether the panel component includes its own container (ResizableSidebar etc.).
+   *
+   * When true, PanelZone renders the component directly without wrapping it
+   * in a ResizableSidebar/ResizableBottomPanel — avoiding double-nesting.
+   * The component manages its own open/close, resize, and display mode internally.
+   *
+   * When false (default), PanelZone provides the container and manages resize.
+   */
+  selfContained?: boolean
 }
 
 // =============================================================================

@@ -4,11 +4,18 @@
  * PanelZone 根据 position 过滤匹配的 Panel，
  * 为每个活跃 Panel 渲染对应的容器（ResizableSidebar / ResizableBottomPanel / Overlay）。
  *
- * 两种 Panel 模式：
- * - Legacy 面板（有 useIsOpen hook）：组件内部已自带 ResizableSidebar 等容器，
- *   PanelZone 只控制 hookAvailable 可用性，容器由组件内部管理。
- * - 已迁移面板（无 useIsOpen）：PanelZone 提供外层容器 + resize 管理，
- *   Panel 只接收 PanelRenderProps。
+ * 三种渲染路径（基于 PanelDefinition.selfContained）：
+ *
+ * A) selfContained 面板（Diff/Terminal/FileViewer/Explorer/Details）：
+ *    组件内部已自带 ResizableSidebar 等容器和 isOpen/resize 管理。
+ *    PanelZone 只做 hookAvailable 门控，不套外层容器。
+ *
+ * B) 非 selfContained + useIsOpen 面板（Plan/Preview）：
+ *    PanelZone 提供 ResizableSidebar 容器，isOpen 来自 legacy hook。
+ *    过渡阶段：当消费者迁移完毕后移除 useIsOpen。
+ *
+ * C) 完全迁移面板（Browser）：
+ *    PanelZone 提供完整容器管理，isOpen 来自 panelIsOpenAtomFamily。
  *
  * Usage:
  *   <PanelZone position="right" />
@@ -127,16 +134,20 @@ interface PanelZoneSlotProps {
 /**
  * PanelZoneSlot — 单个 Panel 在 Zone 中的渲染。
  *
- * 两种渲染路径：
+ * 三种渲染路径（基于 definition.selfContained）：
  *
- * A) Legacy 面板（definition.useIsOpen 存在）：
+ * A) selfContained 面板（Diff/Terminal/FileViewer/Explorer/Details）：
  *    组件内部已自带 ResizableSidebar 等容器和 isOpen/resize 管理。
  *    PanelZoneSlot 只做 hookAvailable 门控 — 可用时直接渲染组件，
  *    不套任何外层容器，避免双重 ResizableSidebar 嵌套。
- *    仅在 "right" zone 渲染（legacy 面板的 displayMode 由内部管理）。
+ *    仅在 "right" zone 渲染（这些面板的 displayMode 由内部管理）。
  *
- * B) 已迁移面板（无 useIsOpen）：
- *    PanelZone 提供完整的容器管理（ResizableSidebar / ResizableBottomPanel / Overlay），
+ * B) 非 selfContained + useIsOpen 面板（Plan/Preview）：
+ *    PanelZone 提供 ResizableSidebar 容器，isOpen 来自 legacy hook。
+ *    Panel 是纯内容组件，不含自己的 ResizableSidebar。
+ *
+ * C) 完全迁移面板（Browser，无 useIsOpen）：
+ *    PanelZone 提供完整的容器管理，
  *    通过 panelIsOpenAtomFamily 控制 isOpen，panel.displayMode 决定 zone 匹配。
  */
 const PanelZoneSlot = memo(function PanelZoneSlot({
@@ -152,51 +163,57 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
   // Legacy bridge hook — 必须无条件调用（React hooks 规则）
   const legacyState = definition.useIsOpen ? definition.useIsOpen() : null
 
-  // 是否为 legacy 面板（内部自带 ResizableSidebar 容器）
-  const isLegacy = !!definition.useIsOpen
-
-  // Size atom — 由 Zone 容器管理 resize（仅已迁移面板使用，但必须无条件调用）
+  // Size atom — 由 Zone 容器管理 resize（非 selfContained 面板使用，但必须无条件调用）
   const sizeAtom = useMemo(
     () => panelSizeAtomFamily({ panelId: definition.id, subChatId: "" }),
     [definition.id],
   )
   const [size] = useAtom(sizeAtom)
 
-  const closePanel = isLegacy && legacyState ? legacyState.close : panel.close
+  // close 来源：有 legacy hook 时用 legacy，否则用 panel.close
+  const closePanel = legacyState ? legacyState.close : panel.close
 
   // Panel 组件的 props
   const renderProps: PanelRenderProps = useMemo(
     () => ({
       displayMode: panel.displayMode,
-      size: isLegacy ? panel.size : size,
+      size: definition.selfContained ? panel.size : size,
       onClose: closePanel,
       onDisplayModeChange: panel.setDisplayMode,
     }),
-    [panel.displayMode, panel.size, isLegacy, size, closePanel, panel.setDisplayMode],
+    [panel.displayMode, panel.size, definition.selfContained, size, closePanel, panel.setDisplayMode],
   )
 
   const Component = definition.component
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 路径 A: Legacy 面板
-  // 组件内部已自带 ResizableSidebar 等容器和 isOpen/resize/displayMode 管理。
-  // PanelZone 只做 hookAvailable 门控，不套外层容器。
-  // 仅在 "right" zone 渲染（legacy 面板默认都在右侧）。
+  // 路径 A: selfContained 面板 + right zone + displayMode 匹配
+  // 组件内部已自带 ResizableSidebar 等容器和 isOpen/resize 管理。
+  // PanelZone 只做 hookAvailable + displayMode 门控，不套外层容器。
+  // 当 displayMode 不匹配 right（如 Terminal 切到 bottom），
+  // 则跳过路径 A，让 bottom zone 的路径 B/C 来渲染。
   // ═══════════════════════════════════════════════════════════════════════════
-  if (isLegacy) {
-    if (zonePosition !== "right") return null
+  if (definition.selfContained && zonePosition === "right") {
     if (!hookAvailable) return null
+    if (!displayModeMatchesZone(panel.displayMode, "right")) return null
     return <Component {...renderProps} />
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 路径 B: 已迁移面板（如 Browser）
-  // PanelZone 提供完整容器管理。
+  // 路径 B & C: 需要 PanelZone 提供容器的情况
+  //   - 非 selfContained 面板（Plan/Preview/Browser）
+  //   - selfContained 面板在非 right zone（如 Terminal 在 bottom zone）
+  //
+  // isOpen 来源：
+  //   - 有 useIsOpen（legacy bridge）→ legacyState.isOpen
+  //   - 无 useIsOpen（完全迁移）→ panel.isOpen
   // ═══════════════════════════════════════════════════════════════════════════
+
+  const isOpen = legacyState ? legacyState.isOpen : panel.isOpen
 
   // isActive = panel 打开 + 可用 + displayMode 匹配当前 zone
   const isActive =
-    panel.isOpen &&
+    isOpen &&
     hookAvailable &&
     displayModeMatchesZone(panel.displayMode, zonePosition)
 

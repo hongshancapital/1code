@@ -42,12 +42,15 @@ import type { PanelDefinition } from "./types"
  * 已在 panel-registry.ts 的 DEFAULT_PANELS 中声明。
  */
 export const builtinPanelDefinitions: PanelDefinition[] = [
-  { id: PANEL_IDS.DIFF, component: DiffPanel, useIsAvailable: useDiffAvailability, useIsOpen: useDiffIsOpen },
+  // selfContained: 组件内部有 ResizableSidebar，PanelZone 不套外层容器
+  { id: PANEL_IDS.DIFF, component: DiffPanel, useIsAvailable: useDiffAvailability, useIsOpen: useDiffIsOpen, selfContained: true },
+  { id: PANEL_IDS.TERMINAL, component: TerminalPanelWrapper, useIsAvailable: useTerminalAvailability, useIsOpen: useTerminalIsOpen, selfContained: true },
+  { id: PANEL_IDS.FILE_VIEWER, component: FileViewerPanelWrapper, useIsAvailable: useFileViewerAvailability, useIsOpen: useFileViewerIsOpen, selfContained: true },
+  { id: PANEL_IDS.EXPLORER, component: ExplorerPanelWrapper, useIsAvailable: useExplorerAvailability, useIsOpen: useExplorerIsOpen, selfContained: true },
+  { id: PANEL_IDS.DETAILS, component: DetailsPanelWrapper, useIsAvailable: useDetailsAvailability, useIsOpen: useDetailsIsOpen, selfContained: true },
+
+  // 非 selfContained: 纯内容组件，PanelZone 提供 ResizableSidebar 容器
   { id: PANEL_IDS.PLAN, component: PlanPanel, useIsAvailable: usePlanAvailability, useIsOpen: usePlanIsOpen },
   { id: PANEL_IDS.PREVIEW, component: PreviewPanelWrapper, useIsAvailable: usePreviewAvailability, useIsOpen: usePreviewIsOpen },
-  { id: PANEL_IDS.TERMINAL, component: TerminalPanelWrapper, useIsAvailable: useTerminalAvailability, useIsOpen: useTerminalIsOpen },
   { id: PANEL_IDS.BROWSER, component: BrowserPanelWrapper, useIsAvailable: useBrowserAvailability },
-  { id: PANEL_IDS.FILE_VIEWER, component: FileViewerPanelWrapper, useIsAvailable: useFileViewerAvailability, useIsOpen: useFileViewerIsOpen },
-  { id: PANEL_IDS.EXPLORER, component: ExplorerPanelWrapper, useIsAvailable: useExplorerAvailability, useIsOpen: useExplorerIsOpen },
-  { id: PANEL_IDS.DETAILS, component: DetailsPanelWrapper, useIsAvailable: useDetailsAvailability, useIsOpen: useDetailsIsOpen },
 ]

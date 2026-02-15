@@ -15,6 +15,7 @@
 
 import { createContext, memo, useContext, useMemo, type ReactNode } from "react"
 import type { PanelDefinition } from "./types"
+import { initializeDefaultPanels } from "./stores/panel-registry"
 
 // =============================================================================
 // Context
@@ -56,6 +57,9 @@ export interface PanelsProviderProps {
  * 将 PanelDefinition[] 转为 Map 存入 Context，
  * PanelZone 从中读取并渲染匹配当前 zone 的 Panel。
  */
+// 模块级别确保 registry 填充（只执行一次）
+initializeDefaultPanels()
+
 export const PanelsProvider = memo(function PanelsProvider({
   panels,
   children,

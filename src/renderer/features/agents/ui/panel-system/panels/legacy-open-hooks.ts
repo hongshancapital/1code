@@ -9,8 +9,8 @@
  * Once all consumers migrate to usePanel(), these hooks can be removed.
  */
 
-import { useCallback, useMemo } from "react"
-import { useAtom, useAtomValue } from "jotai"
+import { useCallback, useLayoutEffect, useMemo } from "react"
+import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { useChatInstanceSafe } from "../../../context/chat-instance-context"
 import { useAgentSubChatStore } from "../../../stores/sub-chat-store"
 import {
@@ -22,10 +22,13 @@ import {
 } from "../../../atoms"
 import {
   terminalSidebarOpenAtomFamily,
+  terminalDisplayModeAtom,
 } from "../../../../terminal/atoms"
 import {
   detailsSidebarOpenAtom,
 } from "../../../../details-sidebar/atoms"
+import { panelDisplayModeAtomFamily } from "../../../stores/panel-state-manager"
+import { PANEL_IDS } from "../../../stores/panel-registry"
 
 // =============================================================================
 // Diff Panel
@@ -69,6 +72,14 @@ export function useTerminalIsOpen(): { isOpen: boolean; close: () => void } {
     [chatId],
   )
   const [isOpen, setIsOpen] = useAtom(terminalAtom)
+
+  // 同步 legacy terminalDisplayModeAtom → panel system panelDisplayModeAtomFamily
+  // 用 useLayoutEffect 确保在 paint 前同步，避免一帧的 zone 不匹配
+  const legacyDisplayMode = useAtomValue(terminalDisplayModeAtom)
+  const setPanelDisplayMode = useSetAtom(panelDisplayModeAtomFamily(PANEL_IDS.TERMINAL))
+  useLayoutEffect(() => {
+    setPanelDisplayMode(legacyDisplayMode)
+  }, [legacyDisplayMode, setPanelDisplayMode])
 
   const close = useCallback(() => setIsOpen(false), [setIsOpen])
   return { isOpen, close }
