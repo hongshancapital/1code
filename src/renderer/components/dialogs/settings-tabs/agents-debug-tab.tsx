@@ -132,9 +132,13 @@ export function AgentsDebugTab() {
 
   // Copy production database to dev (dev only)
   const copyProductionDbMutation = trpc.debug.copyProductionDb.useMutation({
-    onSuccess: (_data) => {
+    onSuccess: (data) => {
+      // Extract app name from source path
+      // e.g., "/Users/xxx/Library/Application Support/hong-desktop/data/agents.db" -> "hong-desktop"
+      const sourceName = data.sourcePath.split('/').slice(-3, -2)[0] || 'unknown'
+
       toast.success(t('debug.toast.productionDbCopied'), {
-        description: t('debug.toast.productionDbCopiedDesc'),
+        description: `${t('debug.toast.productionDbCopiedFrom')}: ${sourceName}`,
       })
       refetchDb()
       // Reload to pick up new data

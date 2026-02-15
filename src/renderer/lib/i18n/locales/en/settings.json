@@ -813,7 +813,8 @@
       "offlineSimDisabled": "Offline simulation disabled",
       "offlineSimDisabledDesc": "Network detection restored to normal",
       "productionDbCopied": "Production database copied",
-      "productionDbCopiedDesc": "Reloading with new data..."
+      "productionDbCopiedDesc": "Reloading with new data...",
+      "productionDbCopiedFrom": "Source"
     },
     "logViewer": {
       "title": "Log Viewer",
