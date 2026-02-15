@@ -4,8 +4,11 @@
  * PanelZone 根据 position 过滤匹配的 Panel，
  * 为每个活跃 Panel 渲染对应的容器（ResizableSidebar / ResizableBottomPanel / Overlay）。
  *
- * Panel 组件本身不关心容器和 resize — 这些由 PanelZone 外部管理。
- * Panel 只接收 PanelRenderProps（displayMode, size, onClose, onDisplayModeChange）。
+ * 两种 Panel 模式：
+ * - Legacy 面板（有 useIsOpen hook）：组件内部已自带 ResizableSidebar 等容器，
+ *   PanelZone 只控制 hookAvailable 可用性，容器由组件内部管理。
+ * - 已迁移面板（无 useIsOpen）：PanelZone 提供外层容器 + resize 管理，
+ *   Panel 只接收 PanelRenderProps。
  *
  * Usage:
  *   <PanelZone position="right" />
@@ -122,17 +125,19 @@ interface PanelZoneSlotProps {
 }
 
 /**
- * PanelZoneSlot — 单个 Panel 的容器路由。
+ * PanelZoneSlot — 单个 Panel 在 Zone 中的渲染。
  *
- * 职责：
- * - 调用 usePanel() 获取状态
- * - 调用 useIsAvailable() 检查运行时可用性
- * - 计算 isActive = isOpen && isAvailable && displayMode 匹配 zone
- * - 根据 zone 选择容器（ResizableSidebar / ResizableBottomPanel / Overlay）
- * - 构建 PanelRenderProps 传给 Panel 组件
- * - keepMounted panel 使用 CSS 隐藏而非 unmount
+ * 两种渲染路径：
  *
- * Resize 由容器管理，Panel 组件只读取 size。
+ * A) Legacy 面板（definition.useIsOpen 存在）：
+ *    组件内部已自带 ResizableSidebar 等容器和 isOpen/resize 管理。
+ *    PanelZoneSlot 只做 hookAvailable 门控 — 可用时直接渲染组件，
+ *    不套任何外层容器，避免双重 ResizableSidebar 嵌套。
+ *    仅在 "right" zone 渲染（legacy 面板的 displayMode 由内部管理）。
+ *
+ * B) 已迁移面板（无 useIsOpen）：
+ *    PanelZone 提供完整的容器管理（ResizableSidebar / ResizableBottomPanel / Overlay），
+ *    通过 panelIsOpenAtomFamily 控制 isOpen，panel.displayMode 决定 zone 匹配。
  */
 const PanelZoneSlot = memo(function PanelZoneSlot({
   definition,
@@ -141,43 +146,61 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
 }: PanelZoneSlotProps) {
   const panel = usePanel(definition.id)
 
-  // 运行时可用性（依赖 hooks）
+  // 运行时可用性（依赖 hooks）— 所有 hooks 必须无条件调用
   const hookAvailable = definition.useIsAvailable ? definition.useIsAvailable() : true
 
-  // Legacy bridge: 如果 definition 提供了 useIsOpen，使用它代替 panelIsOpenAtomFamily。
-  // 这允许仍在使用 legacy atoms 的 panel 逐步迁移。
+  // Legacy bridge hook — 必须无条件调用（React hooks 规则）
   const legacyState = definition.useIsOpen ? definition.useIsOpen() : null
-  const isOpen = legacyState ? legacyState.isOpen : panel.isOpen
-  const closePanel = legacyState ? legacyState.close : panel.close
 
-  // isActive = panel 打开 + 可用 + displayMode 匹配当前 zone
-  const isActive =
-    isOpen &&
-    hookAvailable &&
-    displayModeMatchesZone(panel.displayMode, zonePosition)
+  // 是否为 legacy 面板（内部自带 ResizableSidebar 容器）
+  const isLegacy = !!definition.useIsOpen
 
-  // Size atom — 由 Zone 容器管理 resize，Panel 只读
+  // Size atom — 由 Zone 容器管理 resize（仅已迁移面板使用，但必须无条件调用）
   const sizeAtom = useMemo(
     () => panelSizeAtomFamily({ panelId: definition.id, subChatId: "" }),
     [definition.id],
   )
   const [size] = useAtom(sizeAtom)
 
-  // keepMounted 从 PanelConfig 读取
-  const keepMounted = panel.config?.keepMounted ?? false
+  const closePanel = isLegacy && legacyState ? legacyState.close : panel.close
 
-  // Panel 组件的 props — 只含 Panel 需要感知的信息
+  // Panel 组件的 props
   const renderProps: PanelRenderProps = useMemo(
     () => ({
       displayMode: panel.displayMode,
-      size,
+      size: isLegacy ? panel.size : size,
       onClose: closePanel,
       onDisplayModeChange: panel.setDisplayMode,
     }),
-    [panel.displayMode, size, closePanel, panel.setDisplayMode],
+    [panel.displayMode, panel.size, isLegacy, size, closePanel, panel.setDisplayMode],
   )
 
   const Component = definition.component
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 路径 A: Legacy 面板
+  // 组件内部已自带 ResizableSidebar 等容器和 isOpen/resize/displayMode 管理。
+  // PanelZone 只做 hookAvailable 门控，不套外层容器。
+  // 仅在 "right" zone 渲染（legacy 面板默认都在右侧）。
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isLegacy) {
+    if (zonePosition !== "right") return null
+    if (!hookAvailable) return null
+    return <Component {...renderProps} />
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 路径 B: 已迁移面板（如 Browser）
+  // PanelZone 提供完整容器管理。
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // isActive = panel 打开 + 可用 + displayMode 匹配当前 zone
+  const isActive =
+    panel.isOpen &&
+    hookAvailable &&
+    displayModeMatchesZone(panel.displayMode, zonePosition)
+
+  const keepMounted = panel.config?.keepMounted ?? false
 
   // ── right zone → ResizableSidebar ──
   if (zonePosition === "right") {

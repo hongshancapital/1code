@@ -1,29 +1,14 @@
 /**
- * Panel System - Plugin-based panel management
+ * Panel System — Agents 侧入口
  *
- * Architecture:
- *   PanelRegistry     → 元数据（id, displayModes, group, priority）
- *   PanelStateManager → 运行时状态（isOpen, displayMode, size, 互斥）
- *   usePanel()        → 消费接口（PanelHandle）
- *   PanelDefinition   → 渲染配置（component, useIsAvailable）
- *   PanelsProvider    → 实例生命周期管理 + Context
- *   PanelZone         → 投影区域，根据 position 渲染匹配的 Panel + 容器
- *
- * Usage:
- *   <PanelsProvider panels={builtinPanelDefinitions}>
- *     <div className="flex h-full flex-col">
- *       <div className="flex-1 overflow-hidden flex">
- *         <ChatArea />
- *         <PanelZone position="right" />
- *       </div>
- *       <PanelZone position="bottom" />
- *     </div>
- *     <PanelZone position="overlay" />
- *   </PanelsProvider>
+ * 框架层已迁移到 @/features/panel-system，此文件统一 re-export：
+ * - 从 @/features/panel-system 导出纯框架层 API
+ * - 从当前目录导出依赖 agents context 的组件（PanelRenderer, PanelZone）
  */
 
-// Registry (config + groups)
+// ── 框架层（from @/features/panel-system） ──
 export {
+  // Registry
   panelRegistry,
   PANEL_IDS,
   PANEL_GROUP_IDS,
@@ -44,24 +29,38 @@ export {
   type PanelId,
   type DisplayMode,
   type PanelGroupConfig,
-} from "../../stores/panel-registry"
 
-// State management
-export {
+  // State Manager
   panelIsOpenAtomFamily,
   panelDisplayModeAtomFamily,
   panelSizeAtomFamily,
   getDefaultPanelState,
+  createOpenPanelAction,
+  createClosePanelAction,
+  createTogglePanelAction,
   type PanelStateValue,
-} from "../../stores/panel-state-manager"
 
-// Core hook
+  // Types
+  type ZonePosition,
+  type PanelRenderProps,
+  type PanelDefinition,
+  type PanelZoneProps,
+
+  // Provider
+  PanelsProvider,
+  usePanelsContext,
+  type PanelsProviderProps,
+} from "../../../panel-system"
+
+// ── Agents 侧组件（依赖 agents context） ──
+
+// Core hook (depends on ChatInstanceContext)
 export {
   usePanel,
   type PanelHandle,
 } from "../../hooks/use-panel-state"
 
-// Renderer components (legacy — PanelGate still used for inline availability checks)
+// Renderer (depends on ChatCapabilities/ProjectMode/Platform contexts)
 export {
   PanelGate,
   PanelListRenderer,
@@ -70,25 +69,11 @@ export {
   type PanelListRendererProps,
 } from "./panel-renderer"
 
-// Types
-export {
-  type ZonePosition,
-  type PanelRenderProps,
-  type PanelDefinition,
-  type PanelZoneProps,
-} from "./types"
-
-// Provider + Zone
-export {
-  PanelsProvider,
-  usePanelsContext,
-  type PanelsProviderProps,
-} from "./panels-provider"
-
+// Zone (depends on usePanel → ChatInstanceContext)
 export {
   PanelZone,
   displayModeToZone,
 } from "./panel-zone"
 
-// Definitions
+// Definitions (connects panel registry to concrete panel components)
 export { builtinPanelDefinitions } from "./panel-definitions"

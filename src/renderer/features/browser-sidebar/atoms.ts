@@ -10,8 +10,8 @@ import {
   panelIsOpenAtomFamily,
   createOpenPanelAction,
   createClosePanelAction,
-} from "../agents/stores/panel-state-manager"
-import { PANEL_IDS } from "../agents/stores/panel-registry"
+  PANEL_IDS,
+} from "../panel-system"
 
 /** Browser sidebar visibility (deprecated - use browserVisibleAtomFamily) */
 export const browserSidebarOpenAtom = atom(false)
