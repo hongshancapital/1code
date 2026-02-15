@@ -622,6 +622,7 @@ export const claudeRouter = router({
             );
 
             perf("checkOfflineFallback done");
+            perf("phase3: createTransformer start");
 
             if (offlineResult.error) {
               emitError(
@@ -645,6 +646,7 @@ export const claudeRouter = router({
               emitSdkMessageUuid: historyEnabled,
               isUsingOllama,
             });
+            perf("phase3: createTransformer done");
 
             // 4. Setup accumulation state
             const parts: any[] = [];
@@ -656,17 +658,20 @@ export const claudeRouter = router({
 
             // FIX: Merge previous unanswered user messages to prevent context loss on interruption
             // Merge previous unanswered user messages to prevent context loss on interruption
+            perf("phase3: mergeUnanswered start");
             const effectivePrompt = mergeUnansweredMessages(existingMessages, input.prompt);
 
             // Parse mentions from prompt (agents, skills, files, folders)
             const { cleanedPrompt, agentMentions, skillMentions } =
               parseMentions(effectivePrompt);
+            perf("phase3: parseMentions done");
 
             // Build agents option for SDK (proper registration via options.agents)
             const agentsOption = await buildAgentsOption(
               agentMentions,
               input.cwd,
             );
+            perf("phase3: buildAgentsOption done");
 
             // Log if agents were mentioned
             if (agentMentions.length > 0) {
@@ -700,14 +705,17 @@ export const claudeRouter = router({
 
             // Build prompt: if there are images, create an AsyncIterable<SDKUserMessage>
             // Otherwise use simple string prompt
+            perf("phase3: buildImagePrompt start");
             const imagePrompt = await buildImagePrompt(
               input.images || [],
               finalPrompt,
               input.cwd,
             );
             const prompt: string | AsyncIterable<SDKUserMessage> = imagePrompt || finalPrompt;
+            perf("phase3: buildImagePrompt done");
 
             // Build full environment for Claude SDK (includes HOME, PATH, etc.)
+            perf("phase3: buildClaudeEnv start");
             const claudeEnv = buildClaudeEnv({
               ...(finalCustomConfig && {
                 customEnv: {
@@ -717,6 +725,7 @@ export const claudeRouter = router({
               }),
               enableTasks: input.enableTasks ?? true,
             });
+            perf("phase3: buildClaudeEnv done");
 
             // Debug logging in dev
             if (process.env.NODE_ENV !== "production") {
@@ -740,6 +749,7 @@ export const claudeRouter = router({
             // This is needed because SDK looks for skills at $CLAUDE_CONFIG_DIR/skills/
             // OPTIMIZATION: Only create symlinks once per subChatId (cached)
             try {
+              perf("phase3: mkdir+symlinks start");
               await fs.mkdir(isolatedConfigDir, { recursive: true });
 
               // Only create symlinks if not already created for this config dir
