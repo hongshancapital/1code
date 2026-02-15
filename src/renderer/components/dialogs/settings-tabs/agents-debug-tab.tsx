@@ -894,7 +894,7 @@ function LogViewerSection() {
   }, [entries, autoScroll])
 
   // Open log folder
-  const openLogFolderMutation = trpc.debug.openUserDataFolder.useMutation()
+  const openLogFolderMutation = trpc.logger.openLogFolder.useMutation()
   const { data: logPath } = trpc.logger.getLogPath.useQuery(undefined, {
     enabled: active,
   })
