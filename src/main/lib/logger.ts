@@ -18,7 +18,7 @@ import { app } from "electron"
 import { EventEmitter } from "events"
 import { createReadStream, createWriteStream, readdirSync, renameSync, statSync, unlinkSync, mkdirSync, existsSync } from "fs"
 import { createGzip } from "zlib"
-import { join, basename } from "path"
+import { join, basename, dirname } from "path"
 import { pipeline } from "stream/promises"
 import type { LogEntry, LogLevel, LogQueryParams } from "../../shared/log-types"
 import { LOG_LEVEL_PRIORITY } from "../../shared/log-types"
@@ -221,8 +221,7 @@ export function getLogFilePath(): string {
 }
 
 export function getLogDirectory(): string {
-  const filePath = getLogFilePath()
-  return join(filePath, "..")
+  return dirname(getLogFilePath())
 }
 
 export function getLogFiles(): Array<{ name: string; path: string; size: number; mtime: string }> {

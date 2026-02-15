@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { shell } from "electron"
+import { mkdirSync } from "fs"
 import { router, publicProcedure } from "../index"
 import { observable } from "@trpc/server/observable"
 import {
@@ -84,9 +85,10 @@ export const loggerRouter = router({
   }),
 
   /** Open log directory in system file manager */
-  openLogFolder: publicProcedure.mutation(() => {
+  openLogFolder: publicProcedure.mutation(async () => {
     const dir = getLogDirectory()
-    shell.openPath(dir)
-    return { path: dir }
+    mkdirSync(dir, { recursive: true })
+    const errMsg = await shell.openPath(dir)
+    return { path: dir, error: errMsg || undefined }
   }),
 })
