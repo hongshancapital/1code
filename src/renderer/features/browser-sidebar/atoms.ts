@@ -6,6 +6,12 @@
 import { atom } from "jotai"
 import { atomFamily, atomWithStorage } from "jotai/utils"
 import type { CursorPosition, RecentAction } from "./types"
+import {
+  panelIsOpenAtomFamily,
+  createOpenPanelAction,
+  createClosePanelAction,
+} from "../agents/stores/panel-state-manager"
+import { PANEL_IDS } from "../agents/stores/panel-registry"
 
 /** Browser sidebar visibility (deprecated - use browserVisibleAtomFamily) */
 export const browserSidebarOpenAtom = atom(false)
@@ -16,10 +22,26 @@ export const browserActiveAtomFamily = atomFamily((chatId: string) =>
   atomWithStorage<boolean>(`browser-active-${chatId}`, false)
 )
 
-/** Browser visible state (panel is open/collapsed) - per chat, not persisted
- * Controls whether the sidebar panel is rendered */
-export const browserVisibleAtomFamily = atomFamily((_chatId: string) =>
-  atom<boolean>(false)
+/**
+ * Browser visible state — proxy to the unified Panel System.
+ *
+ * Reads from panelIsOpenAtomFamily({ chatId, panelId: "browser" }),
+ * writes dispatch open/close actions (with automatic mutual exclusion).
+ *
+ * This ensures all existing consumers (browser-panel.tsx, chat-view-layout.tsx,
+ * agents-content.tsx, file-preview-dialog.tsx) stay in sync with PanelZone.
+ */
+export const browserVisibleAtomFamily = atomFamily((chatId: string) =>
+  atom(
+    (get) => get(panelIsOpenAtomFamily({ chatId, panelId: PANEL_IDS.BROWSER })),
+    (get, set, isOpen: boolean) => {
+      if (isOpen) {
+        set(createOpenPanelAction(PANEL_IDS.BROWSER, chatId))
+      } else {
+        set(createClosePanelAction(PANEL_IDS.BROWSER, chatId))
+      }
+    },
+  )
 )
 
 /** Browser loading state - per chat

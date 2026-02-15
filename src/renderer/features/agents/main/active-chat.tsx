@@ -2516,18 +2516,13 @@ export function ChatView({
   const isUnifiedSidebarEnabled = useAtomValue(unifiedSidebarEnabledAtom)
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpenRaw] = useAtom(detailsSidebarOpenAtom)
 
-  // Browser sidebar state - extracted to useBrowserSidebar hook
+  // Browser sidebar state - IPC events bridge to new Panel System
   const {
     betaBrowserEnabled,
-    isBrowserSidebarOpen,
-    setIsBrowserSidebarOpen,
     setBrowserActive,
     setBrowserUrl,
     setBrowserPendingScreenshot,
-  } = useBrowserSidebar({
-    chatId,
-    setIsDetailsSidebarOpenRaw,
-  })
+  } = useBrowserSidebar({ chatId })
 
   const setIsDetailsSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
     const newValue = typeof open === 'function' ? open(isDetailsSidebarOpen) : open

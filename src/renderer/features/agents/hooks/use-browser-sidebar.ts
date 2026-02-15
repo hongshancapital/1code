@@ -1,38 +1,36 @@
 /**
  * useBrowserSidebar - Manages browser sidebar state and IPC events
  *
- * Extracted from active-chat.tsx to improve maintainability.
- * Handles:
- * - Browser sidebar visibility and active state
- * - Browser URL state
- * - Browser screenshot state
- * - Mutual exclusion with Details sidebar
- * - IPC events for browser navigation and panel show
+ * Bridges IPC events (onBrowserNavigate, onBrowserShowPanel) to the
+ * new Panel System (panelIsOpenAtomFamily) so PanelZone can render the
+ * Browser panel. Also maintains legacy atoms for backward compatibility.
  */
 
 import { useCallback, useEffect, useMemo } from "react"
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { betaBrowserEnabledAtom } from "../../../lib/atoms"
+import { appStore } from "../../../lib/jotai-store"
 import {
-  browserVisibleAtomFamily,
   browserActiveAtomFamily,
   browserUrlAtomFamily,
   browserPendingScreenshotAtomFamily,
 } from "../../browser-sidebar"
+import { PANEL_IDS } from "../stores/panel-registry"
+import {
+  panelIsOpenAtomFamily,
+  createOpenPanelAction,
+  createClosePanelAction,
+} from "../stores/panel-state-manager"
 
 export interface UseBrowserSidebarOptions {
   chatId: string
-  /** Raw setter for Details sidebar (from parent component) */
-  setIsDetailsSidebarOpenRaw: (value: boolean) => void
 }
 
 export interface UseBrowserSidebarReturn {
   /** Whether browser beta feature is enabled */
   betaBrowserEnabled: boolean
-  /** Whether browser sidebar is open */
+  /** Whether browser sidebar is open (reads from new panel system) */
   isBrowserSidebarOpen: boolean
-  /** Set browser sidebar open state (handles mutual exclusion with Details) */
-  setIsBrowserSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   /** Set browser active state */
   setBrowserActive: (active: boolean) => void
   /** Set browser URL */
@@ -42,83 +40,71 @@ export interface UseBrowserSidebarReturn {
 }
 
 /**
- * Hook for managing browser sidebar state
+ * Hook for managing browser sidebar state via the unified Panel System.
  *
- * Handles:
- * - Per-chat browser visibility, active, URL, and screenshot atoms
- * - Mutual exclusion: Browser sidebar and Details sidebar cannot be open at the same time
- * - IPC events: browser navigation requests and panel show requests
+ * IPC events directly dispatch panel open/close actions through appStore,
+ * which triggers PanelZone rendering with automatic mutual exclusion.
  */
 export function useBrowserSidebar({
   chatId,
-  setIsDetailsSidebarOpenRaw,
 }: UseBrowserSidebarOptions): UseBrowserSidebarReturn {
-  // Browser beta feature check
   const betaBrowserEnabled = useAtomValue(betaBrowserEnabledAtom)
 
-  // Browser sidebar state (per-chat)
-  const browserVisibleAtom = useMemo(
-    () => browserVisibleAtomFamily(chatId),
-    [chatId]
+  // Read browser open state from the new panel system
+  const browserPanelOpenAtom = useMemo(
+    () => panelIsOpenAtomFamily({ chatId, panelId: PANEL_IDS.BROWSER }),
+    [chatId],
   )
+  const [isBrowserSidebarOpen] = useAtom(browserPanelOpenAtom)
+
+  // Browser-specific atoms (URL, active, screenshot)
   const browserActiveAtom = useMemo(
     () => browserActiveAtomFamily(chatId),
-    [chatId]
+    [chatId],
   )
   const browserUrlAtom = useMemo(
     () => browserUrlAtomFamily(chatId),
-    [chatId]
+    [chatId],
   )
   const browserPendingScreenshotAtom = useMemo(
     () => browserPendingScreenshotAtomFamily(chatId),
-    [chatId]
+    [chatId],
   )
 
-  const [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw] = useAtom(browserVisibleAtom)
   const setBrowserActive = useSetAtom(browserActiveAtom)
   const setBrowserUrl = useSetAtom(browserUrlAtom)
   const setBrowserPendingScreenshot = useSetAtom(browserPendingScreenshotAtom)
 
-  // Mutual exclusion: Browser sidebar and Details sidebar cannot be open at the same time
-  const setIsBrowserSidebarOpen = useCallback(
-    (open: boolean | ((prev: boolean) => boolean)) => {
-      const newValue = typeof open === "function" ? open(isBrowserSidebarOpen) : open
-      if (newValue) {
-        setIsDetailsSidebarOpenRaw(false) // Close details when opening browser
-      }
-      setIsBrowserSidebarOpenRaw(newValue)
-    },
-    [isBrowserSidebarOpen, setIsBrowserSidebarOpenRaw, setIsDetailsSidebarOpenRaw]
-  )
+  // Helper: open browser panel via the new panel system (handles mutual exclusion)
+  const openBrowserPanel = useCallback(() => {
+    const openAction = createOpenPanelAction(PANEL_IDS.BROWSER, chatId)
+    appStore.set(openAction)
+  }, [chatId])
 
   // Listen for browser navigation requests from chat links
   useEffect(() => {
     const cleanup = window.desktopApi.onBrowserNavigate((url: string) => {
       setBrowserUrl(url)
-      setIsBrowserSidebarOpenRaw(true)
       setBrowserActive(true)
-      // Close details sidebar (mutual exclusion)
-      setIsDetailsSidebarOpenRaw(false)
+      openBrowserPanel()
     })
     return cleanup
-  }, [setBrowserUrl, setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
+  }, [setBrowserUrl, setBrowserActive, openBrowserPanel])
 
   // Listen for browser:show-panel from main process (AI lock/ensureReady)
   // Must be here (always mounted) — not in BrowserSidebar which only mounts when visible
   useEffect(() => {
     if (!window.desktopApi.onBrowserShowPanel) return
     const cleanup = window.desktopApi.onBrowserShowPanel(() => {
-      setIsBrowserSidebarOpenRaw(true)
       setBrowserActive(true)
-      setIsDetailsSidebarOpenRaw(false)
+      openBrowserPanel()
     })
     return cleanup
-  }, [setIsBrowserSidebarOpenRaw, setBrowserActive, setIsDetailsSidebarOpenRaw])
+  }, [setBrowserActive, openBrowserPanel])
 
   return {
     betaBrowserEnabled,
     isBrowserSidebarOpen,
-    setIsBrowserSidebarOpen,
     setBrowserActive,
     setBrowserUrl,
     setBrowserPendingScreenshot,

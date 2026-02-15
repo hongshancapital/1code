@@ -78,6 +78,20 @@ export interface PanelDefinition {
    * For static conditions, use PanelConfig.isAvailable instead.
    */
   useIsAvailable?: () => boolean
+
+  /**
+   * Custom open state hook — for panels still using legacy atoms.
+   *
+   * When provided, PanelZoneSlot uses this hook's return value instead of
+   * panelIsOpenAtomFamily for determining visibility. This allows gradual
+   * migration: panels keep reading legacy atoms while PanelZone manages containers.
+   *
+   * Returns { isOpen, close } so PanelZone can both check visibility
+   * and close the panel through the correct path.
+   *
+   * Once all consumers migrate to usePanel(), remove this hook.
+   */
+  useIsOpen?: () => { isOpen: boolean; close: () => void }
 }
 
 // =============================================================================

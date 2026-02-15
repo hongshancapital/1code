@@ -144,9 +144,15 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
   // 运行时可用性（依赖 hooks）
   const hookAvailable = definition.useIsAvailable ? definition.useIsAvailable() : true
 
+  // Legacy bridge: 如果 definition 提供了 useIsOpen，使用它代替 panelIsOpenAtomFamily。
+  // 这允许仍在使用 legacy atoms 的 panel 逐步迁移。
+  const legacyState = definition.useIsOpen ? definition.useIsOpen() : null
+  const isOpen = legacyState ? legacyState.isOpen : panel.isOpen
+  const closePanel = legacyState ? legacyState.close : panel.close
+
   // isActive = panel 打开 + 可用 + displayMode 匹配当前 zone
   const isActive =
-    panel.isOpen &&
+    isOpen &&
     hookAvailable &&
     displayModeMatchesZone(panel.displayMode, zonePosition)
 
@@ -165,10 +171,10 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
     () => ({
       displayMode: panel.displayMode,
       size,
-      onClose: panel.close,
+      onClose: closePanel,
       onDisplayModeChange: panel.setDisplayMode,
     }),
-    [panel.displayMode, size, panel.close, panel.setDisplayMode],
+    [panel.displayMode, size, closePanel, panel.setDisplayMode],
   )
 
   const Component = definition.component
@@ -178,7 +184,7 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
     return (
       <ResizableSidebar
         isOpen={isActive}
-        onClose={panel.close}
+        onClose={closePanel}
         widthAtom={sizeAtom}
         minWidth={panel.config?.minSize ?? 300}
         maxWidth={panel.config?.maxSize ?? 800}
@@ -201,7 +207,7 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
     return (
       <ResizableBottomPanel
         isOpen={isActive}
-        onClose={panel.close}
+        onClose={closePanel}
         heightAtom={sizeAtom}
         minHeight={panel.config?.minSize ?? 150}
         maxHeight={panel.config?.maxSize ?? 500}
@@ -217,14 +223,14 @@ const PanelZoneSlot = memo(function PanelZoneSlot({
   if (zonePosition === "overlay") {
     if (panel.displayMode === "full-page") {
       return (
-        <FullPageView isOpen={isActive} onClose={panel.close}>
+        <FullPageView isOpen={isActive} onClose={closePanel}>
           <Component {...renderProps} />
         </FullPageView>
       )
     }
     // center-peek (default overlay)
     return (
-      <CenterPeekDialog isOpen={isActive} onClose={panel.close}>
+      <CenterPeekDialog isOpen={isActive} onClose={closePanel}>
         <Component {...renderProps} />
       </CenterPeekDialog>
     )
