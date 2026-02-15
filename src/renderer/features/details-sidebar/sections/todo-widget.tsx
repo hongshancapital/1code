@@ -4,7 +4,7 @@ import { memo, useMemo, useState, useCallback } from "react"
 import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import { PlanIcon, CheckIcon, IconArrowRight, ExpandIcon, CollapseIcon } from "@/components/ui/icons"
+import { PlanIcon, CheckIcon, IconArrowRight, ExpandIcon, CollapseIcon } from "@/icons/icons"
 import { currentTodosAtomFamily, currentTaskToolsAtomFamily } from "@/lib/atoms"
 
 interface TodoItem {

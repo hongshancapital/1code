@@ -6,7 +6,7 @@ import { Check, Lock, X } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
-import { ClaudeCodeIcon, KeyFilledIcon, SettingsFilledIcon, LiteLLMIcon } from "../../components/ui/icons"
+import { ClaudeCodeIcon, KeyFilledIcon, SettingsFilledIcon, LiteLLMIcon } from "../../icons/icons"
 import { authSkippedAtom, billingMethodAtom, type BillingMethod } from "../../lib/atoms"
 import { cn } from "../../lib/utils"
 

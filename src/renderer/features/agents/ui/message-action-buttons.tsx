@@ -8,7 +8,7 @@ import {
   IconSpinner,
   PauseIcon,
   VolumeIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { cn } from "../../../lib/utils"
 import { apiFetch } from "../../../lib/api-fetch"
 import { useHaptic } from "../../../lib/hooks/use-haptic"

@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { IconDoubleChevronDown } from "@/components/ui/icons"
+import { IconDoubleChevronDown } from "@/icons/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { Terminal, type TerminalRef } from "./terminal"
 import { TerminalTabs } from "./terminal-tabs"

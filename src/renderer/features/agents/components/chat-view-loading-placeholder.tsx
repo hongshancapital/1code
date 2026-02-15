@@ -17,7 +17,7 @@ import {
   AgentIcon,
   AttachIcon,
   ClaudeCodeIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { AgentSendButton } from "./agent-send-button"
 
 export interface ChatViewLoadingPlaceholderProps {

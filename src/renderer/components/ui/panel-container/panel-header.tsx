@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react"
 import { Button } from "../button"
-import { IconCloseSidebarRight } from "../icons"
+import { IconCloseSidebarRight } from "../../../icons/icons"
 import { PanelModeSwitcher } from "./panel-mode-switcher"
 import type { PanelDisplayMode } from "./types"
 import { cn } from "../../../lib/utils"

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { X, ImageOff, ChevronLeft, ChevronRight, Copy, Download } from "lucide-react"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 import {
   HoverCard,
   HoverCardTrigger,

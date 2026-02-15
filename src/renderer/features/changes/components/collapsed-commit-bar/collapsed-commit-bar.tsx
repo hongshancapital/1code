@@ -1,7 +1,7 @@
 import { Button } from "../../../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { ChevronUp } from "lucide-react";
-import { IconSpinner } from "../../../../components/ui/icons";
+import { IconSpinner } from "../../../../icons/icons";
 import { cn } from "../../../../lib/utils";
 
 interface CollapsedCommitBarProps {

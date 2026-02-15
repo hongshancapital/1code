@@ -2,7 +2,7 @@
 
 import { useAtomValue } from "jotai"
 import { memo, useState } from "react"
-import { OriginalMCPIcon } from "../../../components/ui/icons"
+import { OriginalMCPIcon } from "../../../icons/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import {
   Tooltip,

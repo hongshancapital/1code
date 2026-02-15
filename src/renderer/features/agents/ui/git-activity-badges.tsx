@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react"
 import {
   ExpandIcon,
   CollapseIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import {
   extractGitActivity,
   extractChangedFiles,

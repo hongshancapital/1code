@@ -21,7 +21,7 @@ import {
   ClaudeCodeIcon,
   PlanIcon,
   ThinkingIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 // Kbd removed - not currently used
 // import { Kbd } from "../../../components/ui/kbd"
 import {

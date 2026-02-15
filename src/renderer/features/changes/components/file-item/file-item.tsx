@@ -24,7 +24,7 @@ import {
 	ClipboardIcon,
 	ExternalLinkIcon,
 	FolderIcon,
-} from "../../../../components/ui/icons";
+} from "../../../../icons/icons";
 import { Minus, Plus } from "lucide-react";
 import type { ChangedFile } from "../../../../../shared/changes-types";
 import { getStatusColor, getStatusIndicator } from "../../utils";

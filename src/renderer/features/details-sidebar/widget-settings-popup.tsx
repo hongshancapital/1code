@@ -11,7 +11,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
-import { PlanIcon, DiffIcon, OriginalMCPIcon } from "@/components/ui/icons"
+import { PlanIcon, DiffIcon, OriginalMCPIcon } from "@/icons/icons"
 import { cn } from "@/lib/utils"
 import {
   WIDGET_REGISTRY,

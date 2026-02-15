@@ -6,7 +6,7 @@ import { selectedProjectAtom, settingsSkillsSidebarWidthAtom } from "../../../li
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { Plus, FileText, Image, FileCode, File } from "lucide-react"
-import { SkillIcon, MarkdownIcon, CodeIcon } from "../../ui/icons"
+import { SkillIcon, MarkdownIcon, CodeIcon } from "../../../icons/icons"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"

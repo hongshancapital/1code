@@ -5,7 +5,7 @@ import { ListTree } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
 import dayjs from "dayjs"
 
-import { CollapseIcon, ExpandIcon, IconTextUndo } from "../../../components/ui/icons"
+import { CollapseIcon, ExpandIcon, IconTextUndo } from "../../../icons/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
 import { isRollingBackAtom, rollbackHandlerAtom } from "../stores/message-store"

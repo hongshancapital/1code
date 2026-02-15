@@ -6,7 +6,7 @@ import { Button } from "../../ui/button"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Plus, Trash2, ChevronDown } from "lucide-react"
-import { AIPenIcon } from "../../ui/icons"
+import { AIPenIcon } from "../../../icons/icons"
 import {
   Select,
   SelectContent,

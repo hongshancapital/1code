@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { X, FileText, FileCode, FileJson } from "lucide-react"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 
 interface AgentFileItemProps {
   id: string

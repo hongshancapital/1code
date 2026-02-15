@@ -1,6 +1,6 @@
 import { trpc } from "../../../lib/trpc"
 import { GitPullRequest } from "lucide-react"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 import { createLogger } from "../../../lib/logger"
 
 const prStatusBarLog = createLogger("PrStatusBar")

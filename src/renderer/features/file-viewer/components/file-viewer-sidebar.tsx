@@ -21,7 +21,7 @@ import {
   IconCenterPeek,
   IconFullPage,
   IconLineNumbers,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { Button } from "@/components/ui/button"
 import {

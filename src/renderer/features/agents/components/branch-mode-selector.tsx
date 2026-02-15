@@ -13,7 +13,7 @@ import {
   CheckIcon,
   BranchIcon,
   SearchIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { cn } from "../../../lib/utils"
 import type { WorkMode } from "../atoms"
 

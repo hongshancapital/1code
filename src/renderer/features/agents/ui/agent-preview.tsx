@@ -8,7 +8,7 @@ import {
   ExternalLinkIcon,
   IconDoubleChevronRight,
   IconChatBubble,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { PreviewUrlInput } from "./preview-url-input"
 import {
   previewPathAtomFamily,

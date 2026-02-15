@@ -12,7 +12,7 @@ import {
   IconSidePeek,
   IconCenterPeek,
   IconFullPage,
-} from "../icons"
+} from "../../../icons/icons"
 import type { PanelDisplayMode } from "./types"
 
 interface PanelModeSwitcherProps {

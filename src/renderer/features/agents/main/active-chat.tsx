@@ -4,7 +4,7 @@ import { Button } from "../../../components/ui/button";
 import {
   IconCloseSidebarRight,
   IconSpinner,
-} from "../../../components/ui/icons";
+} from "../../../icons/icons";
 import { ResizableSidebar } from "../../../components/ui/resizable-sidebar";
 import {
   Tooltip,

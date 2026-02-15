@@ -12,7 +12,7 @@
  */
 
 import { Button } from "../../../../components/ui/button"
-import { IconCloseSidebarRight } from "../../../../components/ui/icons"
+import { IconCloseSidebarRight } from "../../../../icons/icons"
 import { ResizableSidebar } from "../../../../components/ui/resizable-sidebar"
 import type { DiffViewMode } from "../agent-diff-view"
 import { useAtom, useAtomValue } from "jotai"

@@ -24,6 +24,34 @@ import type { LogEntry, LogLevel, LogQueryParams } from "../../shared/log-types"
 import { LOG_LEVEL_PRIORITY } from "../../shared/log-types"
 
 // ---------------------------------------------------------------------------
+// Safe JSON stringify — handles Error objects, circular refs, BigInt, etc.
+// ---------------------------------------------------------------------------
+
+function safeJsonStringify(value: unknown): string {
+  if (value instanceof Error) {
+    return `${value.name}: ${value.message}${value.stack ? `\n${value.stack}` : ""}`
+  }
+  try {
+    const seen = new WeakSet()
+    return JSON.stringify(value, (_key, v) => {
+      if (v instanceof Error) {
+        return { name: v.name, message: v.message, stack: v.stack }
+      }
+      if (typeof v === "bigint") {
+        return v.toString()
+      }
+      if (typeof v === "object" && v !== null) {
+        if (seen.has(v)) return "[Circular]"
+        seen.add(v)
+      }
+      return v
+    })
+  } catch {
+    return String(value)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Ring buffer for UI log panel
 // ---------------------------------------------------------------------------
 
@@ -95,7 +123,7 @@ export function initializeLogger(): void {
     if (level !== "error" && level !== "warn") return
 
     const text = message.data
-      .map((d: unknown) => (typeof d === "string" ? d : JSON.stringify(d)))
+      .map((d: unknown) => (typeof d === "string" ? d : safeJsonStringify(d)))
       .join(" ")
 
     const scope = message.scope || ""
@@ -129,7 +157,7 @@ export function initializeLogger(): void {
       level: message.level as LogLevel,
       scope: message.scope || "",
       message: message.data
-        .map((d: unknown) => (typeof d === "string" ? d : JSON.stringify(d)))
+        .map((d: unknown) => (typeof d === "string" ? d : safeJsonStringify(d)))
         .join(" "),
       data: message.data.length > 1 ? message.data.slice(1) : undefined,
       process: "main",

@@ -5,7 +5,7 @@ import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { trpc } from "@/lib/trpc"
 import { Input } from "@/components/ui/input"
-import { SearchIcon, FilesIcon } from "@/components/ui/icons"
+import { SearchIcon, FilesIcon } from "@/icons/icons"
 import { getFileIconByExtension } from "../../agents/mentions/agents-file-mention"
 import { recentlyOpenedFilesAtom } from "../../agents/atoms"
 

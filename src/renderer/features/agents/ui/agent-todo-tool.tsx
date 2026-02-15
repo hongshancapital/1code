@@ -11,7 +11,7 @@ import {
   PlanIcon,
   IconDoubleChevronRight,
   IconArrowRight,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { getToolStatus } from "./agent-tool-registry"
 import { areToolPropsEqual } from "./agent-tool-utils"
 import { cn } from "../../../lib/utils"

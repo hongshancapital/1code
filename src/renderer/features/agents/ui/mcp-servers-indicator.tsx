@@ -14,7 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip"
-import { OriginalMCPIcon } from "../../../components/ui/icons"
+import { OriginalMCPIcon } from "../../../icons/icons"
 import { sessionInfoAtom, type MCPServerStatus } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"

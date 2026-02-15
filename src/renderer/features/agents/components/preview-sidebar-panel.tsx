@@ -11,7 +11,7 @@
 import { memo } from "react"
 import { ResizableSidebar } from "@/components/ui/resizable-sidebar"
 import { Button } from "../../../components/ui/button"
-import { IconCloseSidebarRight } from "../../../components/ui/icons"
+import { IconCloseSidebarRight } from "../../../icons/icons"
 import { AgentPreview } from "../ui/agent-preview"
 import { agentsPreviewSidebarWidthAtom } from "../atoms"
 

@@ -3,7 +3,7 @@ import { atomFamily, atomWithStorage } from "jotai/utils"
 import { atomWithWindowStorage } from "../../../lib/window-storage"
 import type { LucideIcon } from "lucide-react"
 import { Box, FileText, Terminal, FileDiff, ListTodo, Package, FolderTree, Cpu, Sparkles, Activity } from "lucide-react"
-import { OriginalMCPIcon } from "../../../components/ui/icons"
+import { OriginalMCPIcon } from "../../../icons/icons"
 import {
   type WidgetId,
   type ProjectMode,

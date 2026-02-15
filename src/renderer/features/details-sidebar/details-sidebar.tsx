@@ -16,7 +16,7 @@ import {
   PlanIcon,
   DiffIcon,
   OriginalMCPIcon,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { cn } from "@/lib/utils"
 import { useResolvedHotkeyDisplay } from "@/lib/hotkeys"

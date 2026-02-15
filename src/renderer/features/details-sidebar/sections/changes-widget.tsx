@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowUpRight } from "lucide-react"
-import { DiffIcon } from "@/components/ui/icons"
+import { DiffIcon } from "@/icons/icons"
 import {
   Tooltip,
   TooltipContent,

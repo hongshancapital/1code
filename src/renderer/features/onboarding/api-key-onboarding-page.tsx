@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { ChevronLeft, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { IconSpinner, KeyFilledIcon, SettingsFilledIcon } from "../../components/ui/icons"
+import { IconSpinner, KeyFilledIcon, SettingsFilledIcon } from "../../icons/icons"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
 import { Logo } from "../../components/ui/logo"

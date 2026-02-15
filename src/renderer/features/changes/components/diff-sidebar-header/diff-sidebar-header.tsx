@@ -20,7 +20,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "../../../../components/ui/tooltip";
-import { IconCloseSidebarRight, IconFetch, IconForcePush, IconSpinner, IconReview, ExternalLinkIcon } from "../../../../components/ui/icons";
+import { IconCloseSidebarRight, IconFetch, IconForcePush, IconSpinner, IconReview, ExternalLinkIcon } from "../../../../icons/icons";
 import { Search } from "lucide-react";
 import { DiffViewModeSwitcher } from "./diff-view-mode-switcher";
 import { memo, useEffect, useRef, useState } from "react";

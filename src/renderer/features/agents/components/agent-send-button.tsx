@@ -6,7 +6,7 @@ import {
   EnterIcon,
   IconSpinner,
   MicrophoneIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { Kbd } from "../../../components/ui/kbd"
 import {
   Tooltip,

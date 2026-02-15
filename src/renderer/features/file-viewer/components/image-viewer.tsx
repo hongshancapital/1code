@@ -7,7 +7,7 @@ import {
   IconSidePeek,
   IconCenterPeek,
   IconFullPage,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { Kbd } from "@/components/ui/kbd"
 import {
   Tooltip,

@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react"
-import { ClaudeCodeIcon } from "../../../components/ui/icons"
+import { ClaudeCodeIcon } from "../../../icons/icons"
 import { PlatformIcon } from "./platform-icon"
 import { getAutomationDescription } from "./utils"
 import type { Platform } from "./types"

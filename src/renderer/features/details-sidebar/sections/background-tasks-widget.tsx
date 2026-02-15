@@ -5,7 +5,7 @@ import { useAtom, useSetAtom } from "jotai"
 import { useTranslation } from "react-i18next"
 import { Cpu, Loader2, CheckCircle, XCircle, StopCircle, X, Trash2, ChevronRight, RefreshCw, Terminal as TerminalIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
+import { ExpandIcon, CollapseIcon } from "@/icons/icons"
 import {
   Tooltip,
   TooltipContent,

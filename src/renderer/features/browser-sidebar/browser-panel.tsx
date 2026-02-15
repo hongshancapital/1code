@@ -7,7 +7,7 @@
 import { X, Globe } from "lucide-react"
 import { useAtomValue, useSetAtom } from "jotai"
 import { Button } from "@/components/ui/button"
-import { IconDoubleChevronRight } from "@/components/ui/icons"
+import { IconDoubleChevronRight } from "@/icons/icons"
 import { BrowserSidebar } from "./browser-sidebar"
 import {
   browserTitleAtomFamily,

@@ -27,7 +27,7 @@ import {
   SkillIcon,
   CustomAgentIcon,
   OriginalMCPIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import {
   ChevronRight,
   FileImage,

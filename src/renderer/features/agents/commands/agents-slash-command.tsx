@@ -12,7 +12,7 @@ import {
   memo,
 } from "react"
 import { createPortal } from "react-dom"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 import type { SlashCommandOption } from "./types"
 import {
   filterBuiltinCommands,

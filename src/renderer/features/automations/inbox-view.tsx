@@ -10,7 +10,7 @@ import {
   agentsMobileViewModeAtom,
   inboxMobileViewModeAtom,
 } from "../agents/atoms"
-import { IconSpinner } from "../../components/ui/icons"
+import { IconSpinner } from "../../icons/icons"
 import { Archive as ArchiveIcon, ListFilter, MoreHorizontal, Clock, Check, AlignJustify } from "lucide-react"
 import { Logo } from "../../components/ui/logo"
 import { cn } from "../../lib/utils"

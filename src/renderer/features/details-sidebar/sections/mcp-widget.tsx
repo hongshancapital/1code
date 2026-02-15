@@ -4,7 +4,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { ChevronDown, Settings, Power, RefreshCw, AlertCircle, Clock } from "lucide-react"
 import { memo, useCallback, useMemo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { OriginalMCPIcon } from "../../../components/ui/icons"
+import { OriginalMCPIcon } from "../../../icons/icons"
 import {
   Tooltip,
   TooltipContent,

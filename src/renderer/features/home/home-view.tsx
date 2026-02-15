@@ -8,7 +8,7 @@ import {
 } from "../agents/atoms"
 import { isDesktopAtom, isFullscreenAtom } from "../../lib/atoms"
 import { trpc } from "../../lib/trpc"
-import { IconSpinner } from "../../components/ui/icons"
+import { IconSpinner } from "../../icons/icons"
 import { MessageCircle, AlignJustify } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { useCallback, useMemo } from "react"

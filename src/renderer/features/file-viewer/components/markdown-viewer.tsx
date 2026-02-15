@@ -12,7 +12,7 @@ import {
   IconFullPage,
   MarkdownIcon,
   CodeIcon,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { Kbd } from "@/components/ui/kbd"
 import { getFileIconByExtension } from "../../agents/mentions/agents-file-mention"
 import {

@@ -7,7 +7,7 @@ import {
   IconSpinner,
   PlanIcon,
   AgentIcon,
-} from "../../../components/ui/canvas-icons"
+} from "../../../icons/canvas-icons"
 import { useAtomValue } from "jotai"
 import { agentsUnseenChangesAtom, lastChatModesAtom } from "../atoms"
 

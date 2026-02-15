@@ -6,7 +6,7 @@ import { selectedProjectAtom, settingsAgentsSidebarWidthAtom } from "../../../li
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { Plus } from "lucide-react"
-import { CustomAgentIconFilled } from "../../ui/icons"
+import { CustomAgentIconFilled } from "../../../icons/icons"
 import { Input } from "../../ui/input"
 import { Label } from "../../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"

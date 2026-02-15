@@ -5,7 +5,7 @@ import { Button } from "../../../components/ui/button"
 import {
   LinkIcon,
   CheckIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { cn } from "../../../lib/utils"
 import { useHaptic } from "../../../lib/hooks/use-haptic"
 import { createLogger } from "../../../lib/logger"

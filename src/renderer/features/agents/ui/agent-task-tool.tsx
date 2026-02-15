@@ -15,7 +15,7 @@ import {
   ExpandIcon,
   CollapseIcon,
   CustomAgentIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { CompactMarkdownRenderer } from "../../../components/chat-markdown-renderer"
 import { cn } from "../../../lib/utils"
 

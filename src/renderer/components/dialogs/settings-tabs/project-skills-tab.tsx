@@ -4,7 +4,7 @@ import { trpc } from "../../../lib/trpc"
 import { Switch } from "../../ui/switch"
 import { Button } from "../../ui/button"
 import { ChevronRight } from "lucide-react"
-import { SkillIconFilled } from "../../ui/icons"
+import { SkillIconFilled } from "../../../icons/icons"
 import {
   agentsSettingsDialogActiveTabAtom,
 } from "../../../lib/atoms"

@@ -5,7 +5,7 @@ import { ChevronLeft, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { ClaudeCodeIcon, IconSpinner } from "../../components/ui/icons"
+import { ClaudeCodeIcon, IconSpinner } from "../../icons/icons"
 import { Input } from "../../components/ui/input"
 import { Logo } from "../../components/ui/logo"
 import {

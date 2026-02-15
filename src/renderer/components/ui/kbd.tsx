@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "../../lib/utils"
-import { CmdIcon, EnterIcon, OptionIcon, ShiftIcon } from "./icons"
+import { CmdIcon, EnterIcon, OptionIcon, ShiftIcon } from "../../icons/icons"
 
 export interface KbdProps extends React.HTMLAttributes<HTMLElement> {}
 

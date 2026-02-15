@@ -7,7 +7,7 @@ import { agentsSettingsDialogActiveTabAtom, type SettingsTab } from "../../../li
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { Terminal, ChevronRight, Loader2, Store, Package } from "lucide-react"
-import { PluginFilledIcon, SkillIconFilled, CustomAgentIconFilled, OriginalMCPIcon } from "../../ui/icons"
+import { PluginFilledIcon, SkillIconFilled, CustomAgentIconFilled, OriginalMCPIcon } from "../../../icons/icons"
 import { Button } from "../../ui/button"
 import { Label } from "../../ui/label"
 import { Switch } from "../../ui/switch"

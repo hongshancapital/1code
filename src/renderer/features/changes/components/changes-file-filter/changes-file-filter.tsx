@@ -10,7 +10,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "../../../../components/ui/tooltip";
-import { AgentIcon, CircleFilterIcon } from "../../../../components/ui/icons";
+import { AgentIcon, CircleFilterIcon } from "../../../../icons/icons";
 
 export interface SubChatFilterItem {
 	id: string;

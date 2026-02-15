@@ -30,7 +30,7 @@ import {
   PluginFilledIcon,
   SkillIconFilled,
   TerminalFilledIcon,
-} from "../../components/ui/icons"
+} from "../../icons/icons"
 import { Play, Brain, BrainCircuit, Wrench } from "lucide-react"
 import { desktopViewAtom } from "../agents/atoms"
 

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { settingsToolsSidebarWidthAtom } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
-import { ToolsIcon } from "../../ui/icons"
+import { ToolsIcon } from "../../../icons/icons"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { ChatMarkdownRenderer } from "../../chat-markdown-renderer"
 import {

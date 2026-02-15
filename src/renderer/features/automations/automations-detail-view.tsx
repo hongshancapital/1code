@@ -8,7 +8,7 @@ import {
   automationTemplateParamsAtom,
   agentsSidebarOpenAtom,
 } from "../agents/atoms"
-import { IconSpinner, IconChevronDown, ExternalLinkIcon } from "../../components/ui/icons"
+import { IconSpinner, IconChevronDown, ExternalLinkIcon } from "../../icons/icons"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import {
   ArrowLeft,

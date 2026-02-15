@@ -56,7 +56,7 @@ import {
   AgentIcon,
   ClockIcon,
   QuestionIcon,
-} from "../../components/ui/icons"
+} from "../../icons/icons"
 import {
   Tooltip,
   TooltipContent,

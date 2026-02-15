@@ -8,7 +8,7 @@ import {
   IconSpinner,
   ExpandIcon,
   CollapseIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import {
   Tooltip,

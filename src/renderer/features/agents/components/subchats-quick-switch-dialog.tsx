@@ -11,7 +11,7 @@ import {
   subChatFilesAtom,
   type SubChatFileChange,
 } from "../atoms"
-import { IconSpinner, PlanIcon, AgentIcon } from "../../../components/ui/icons"
+import { IconSpinner, PlanIcon, AgentIcon } from "../../../icons/icons"
 import type { SubChatMeta } from "../stores/sub-chat-store"
 import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 

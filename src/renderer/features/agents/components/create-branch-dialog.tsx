@@ -23,7 +23,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "../../../components/ui/command"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import { formatTimeAgo } from "../../../lib/utils/format-time-ago"

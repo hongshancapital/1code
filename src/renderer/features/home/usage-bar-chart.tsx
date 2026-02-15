@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "../../lib/utils"
 import { trpc } from "../../lib/trpc"
-import { IconSpinner } from "../../components/ui/icons"
+import { IconSpinner } from "../../icons/icons"
 
 interface UsageBarChartProps {
   className?: string

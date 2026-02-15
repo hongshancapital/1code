@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"
-import { KeyboardIcon } from "../../../components/ui/icons"
+import { KeyboardIcon } from "../../../icons/icons"
 import { HandHelping as HandHelpingIcon } from "lucide-react"
 
 const FEEDBACK_URL = "https://github.com/anthropics/claude-code/issues"

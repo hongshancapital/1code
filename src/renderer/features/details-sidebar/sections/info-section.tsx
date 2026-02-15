@@ -7,7 +7,7 @@ import {
   GitBranchFilledIcon,
   FolderFilledIcon,
   GitPullRequestFilledIcon,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { Pencil, ArrowRightCircle, HelpCircle, Loader2 } from "lucide-react"
 import { MoveToWorkspaceDialog } from "@/components/dialogs/move-to-workspace-dialog"
 import {

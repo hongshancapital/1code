@@ -4,7 +4,7 @@ import * as React from "react"
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu"
 import { cn } from "../../lib/utils"
 import { CheckIcon, DotFilledIcon } from "@radix-ui/react-icons"
-import { CaretRightIcon } from "./icons"
+import { CaretRightIcon } from "../../icons/icons"
 import {
   overlayContent,
   overlayItemWithIcon,

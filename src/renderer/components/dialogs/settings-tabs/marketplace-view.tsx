@@ -19,7 +19,7 @@ import {
   ExternalLink,
   Store,
 } from "lucide-react"
-import { PluginFilledIcon } from "../../ui/icons"
+import { PluginFilledIcon } from "../../../icons/icons"
 import { Button } from "../../ui/button"
 import { Label } from "../../ui/label"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"

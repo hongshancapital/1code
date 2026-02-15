@@ -3,7 +3,7 @@
 import { ChevronsUpDown } from "lucide-react"
 import { useSetAtom } from "jotai"
 import { memo, useEffect, useMemo, useState } from "react"
-import { CheckIcon, PlanIcon } from "../../../components/ui/icons"
+import { CheckIcon, PlanIcon } from "../../../icons/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { cn } from "../../../lib/utils"
 import { currentTaskToolsAtomFamily } from "../atoms"

@@ -3,7 +3,7 @@ import { useSetAtom } from "jotai"
 import { trpc } from "../../../lib/trpc"
 import { Button } from "../../ui/button"
 import { ChevronRight, ChevronDown } from "lucide-react"
-import { OriginalMCPIcon } from "../../ui/icons"
+import { OriginalMCPIcon } from "../../../icons/icons"
 import {
   agentsSettingsDialogActiveTabAtom,
 } from "../../../lib/atoms"

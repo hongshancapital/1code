@@ -9,7 +9,7 @@ import {
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { PlusIcon, CustomTerminalIcon } from "@/components/ui/icons"
+import { PlusIcon, CustomTerminalIcon } from "@/icons/icons"
 import {
   Tooltip,
   TooltipContent,

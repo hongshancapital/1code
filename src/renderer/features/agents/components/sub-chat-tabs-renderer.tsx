@@ -11,7 +11,7 @@
 import { memo } from "react"
 import type { Chat } from "@ai-sdk/react"
 import { useAtomValue } from "jotai"
-import { IconSpinner } from "../../../components/ui/icons"
+import { IconSpinner } from "../../../icons/icons"
 import { getFirstSubChatId } from "../main/chat-utils"
 import { useChatInstance } from "../context/chat-instance-context"
 import { isFullscreenAtom } from "../../../lib/atoms"

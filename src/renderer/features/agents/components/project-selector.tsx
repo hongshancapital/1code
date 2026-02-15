@@ -19,7 +19,7 @@ import {
 } from "../../../components/ui/dialog"
 import { Input } from "../../../components/ui/input"
 import { Button } from "../../../components/ui/button"
-import { IconChevronDown, CheckIcon, FolderPlusIcon, GitHubIcon } from "../../../components/ui/icons"
+import { IconChevronDown, CheckIcon, FolderPlusIcon, GitHubIcon } from "../../../icons/icons"
 import { ProjectIcon } from "../../../components/ui/project-icon"
 import { trpc } from "../../../lib/trpc"
 import { selectedProjectAtom, currentProjectModeAtom } from "../atoms"

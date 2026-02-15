@@ -37,7 +37,7 @@ import {
 import {
   ClipboardIcon,
   FolderIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { getFileIconByExtension } from "../mentions/agents-file-mention"
 import {
@@ -55,7 +55,7 @@ import {
   IconChatBubble,
   ExpandIcon,
   CollapseIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import {
   Tooltip,
   TooltipContent,

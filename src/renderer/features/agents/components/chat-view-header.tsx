@@ -20,7 +20,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip"
-import { IconSpinner, IconTextUndo, IconOpenSidebarRight } from "../../../components/ui/icons"
+import { IconSpinner, IconTextUndo, IconOpenSidebarRight } from "../../../icons/icons"
 import { Kbd } from "../../../components/ui/kbd"
 import { MobileChatHeader } from "../ui/mobile-chat-header"
 import { AgentsHeaderControls } from "../ui/agents-header-controls"

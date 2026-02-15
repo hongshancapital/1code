@@ -18,7 +18,7 @@ import {
 import { isFeatureAvailable, IS_DEV } from "../../../lib/feature-flags"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { ExternalLinkIcon } from "../../ui/icons"
+import { ExternalLinkIcon } from "../../../icons/icons"
 import {
   Select,
   SelectContent,

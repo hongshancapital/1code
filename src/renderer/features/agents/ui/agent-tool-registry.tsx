@@ -25,7 +25,7 @@ import {
   SearchIcon,
   SparklesIcon,
   WriteFileIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import i18n from "../../../lib/i18n"
 
 const t = (key: string, options?: Record<string, unknown>) => i18n.t(key, { ns: "chat", ...options })

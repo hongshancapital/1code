@@ -3,7 +3,7 @@
 import { memo } from "react"
 import { useAtomValue } from "jotai"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
-import { QuestionIcon } from "../../../components/ui/icons"
+import { QuestionIcon } from "../../../icons/icons"
 import {
   QUESTIONS_SKIPPED_MESSAGE,
   QUESTIONS_TIMED_OUT_MESSAGE,

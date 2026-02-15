@@ -6,7 +6,7 @@ import {
   IconSpinner,
   ExpandIcon,
   CollapseIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import { TextShimmer } from "../../../components/ui/text-shimmer"
 import { getToolStatus } from "./agent-tool-registry"
 import { AgentToolInterrupted } from "./agent-tool-interrupted"
@@ -65,7 +65,7 @@ export const AgentWebFetchTool = memo(function AgentWebFetchTool({
       >
         <div className="flex items-center gap-1.5 text-xs truncate flex-1 min-w-0">
           <GlobeIcon className="w-3 h-3 shrink-0 text-muted-foreground" />
-          
+
           {isPending ? (
             <TextShimmer
               as="span"
@@ -77,7 +77,7 @@ export const AgentWebFetchTool = memo(function AgentWebFetchTool({
           ) : (
             <span className="text-xs text-muted-foreground">Fetched</span>
           )}
-          
+
           <span className="truncate text-foreground">{hostname}</span>
         </div>
 

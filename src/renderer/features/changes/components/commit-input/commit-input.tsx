@@ -6,7 +6,7 @@ import { trpc } from "../../../../lib/trpc";
 import { appStore } from "../../../../lib/jotai-store";
 import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../../lib/atoms";
 import { cn } from "../../../../lib/utils";
-import { IconSpinner } from "../../../../components/ui/icons";
+import { IconSpinner } from "../../../../icons/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { createLogger } from "../../../../lib/logger"
 

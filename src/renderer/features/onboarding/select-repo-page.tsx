@@ -5,7 +5,7 @@ import { useAtom } from "jotai"
 import { ChevronLeft } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { IconSpinner, GitHubIcon } from "../../components/ui/icons"
+import { IconSpinner, GitHubIcon } from "../../icons/icons"
 import { Logo } from "../../components/ui/logo"
 import { Input } from "../../components/ui/input"
 import { trpc } from "../../lib/trpc"

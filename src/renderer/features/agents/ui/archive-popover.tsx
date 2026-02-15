@@ -34,7 +34,7 @@ import {
   IconTextUndo,
   GitHubLogo,
   CloudIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import {
   Popover,
   PopoverContent,

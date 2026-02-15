@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { GitCommit } from "lucide-react"
-import { IconSpinner, DiffIcon } from "@/components/ui/icons"
+import { IconSpinner, DiffIcon } from "@/icons/icons"
 import { cn } from "@/lib/utils"
 import { getFileIconByExtension } from "@/features/agents/mentions/agents-file-mention"
 

@@ -19,7 +19,7 @@ import {
   ClaudeCodeIcon,
   IconChevronDown,
   PlanIcon,
-} from "../../../components/ui/icons"
+} from "../../../icons/icons"
 import {
   Dialog,
   DialogContent,

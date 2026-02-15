@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "../../lib/utils"
-import { SearchIcon } from "./icons"
+import { SearchIcon } from "../../icons/icons"
 import {
   overlayItem,
   overlaySeparator,

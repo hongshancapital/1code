@@ -18,7 +18,7 @@ import {
   AlertDialogContent,
 } from "../ui/alert-dialog"
 import { Button } from "../ui/button"
-import { ClaudeCodeIcon, IconSpinner } from "../ui/icons"
+import { ClaudeCodeIcon, IconSpinner } from "../../icons/icons"
 import { Input } from "../ui/input"
 import { Logo } from "../ui/logo"
 import { createLogger } from "../../lib/logger"

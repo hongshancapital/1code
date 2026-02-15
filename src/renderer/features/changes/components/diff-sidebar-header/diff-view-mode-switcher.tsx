@@ -12,7 +12,7 @@ import {
   IconSidePeek,
   IconCenterPeek,
   IconFullPage,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import type { DiffViewDisplayMode } from "@/lib/atoms"
 
 interface DiffViewModeSwitcherProps {

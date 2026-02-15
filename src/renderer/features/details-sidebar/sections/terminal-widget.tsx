@@ -7,7 +7,7 @@ import { fullThemeDataAtom } from "@/lib/atoms"
 import { motion } from "motion/react"
 import { ArrowUpRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PlusIcon } from "@/components/ui/icons"
+import { PlusIcon } from "@/icons/icons"
 import {
   Tooltip,
   TooltipContent,

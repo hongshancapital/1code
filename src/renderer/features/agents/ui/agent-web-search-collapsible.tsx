@@ -2,7 +2,7 @@
 
 import { memo, useState, useMemo } from "react"
 import { ChevronRight } from "lucide-react"
-import { ExternalLinkIcon } from "../../../components/ui/icons"
+import { ExternalLinkIcon } from "../../../icons/icons"
 import { areToolPropsEqual } from "./agent-tool-utils"
 import { cn } from "../../../lib/utils"
 

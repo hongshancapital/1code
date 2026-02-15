@@ -20,7 +20,7 @@ import {
   IconDoubleChevronRight,
   IconSidePeek,
   IconBottomPanel,
-} from "@/components/ui/icons"
+} from "@/icons/icons"
 import { AlignJustify, Check, ChevronsDown } from "lucide-react"
 import { Kbd } from "@/components/ui/kbd"
 import { useResolvedHotkeyDisplay } from "@/lib/hotkeys"
