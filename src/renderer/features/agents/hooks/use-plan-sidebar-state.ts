@@ -4,8 +4,10 @@ import {
   currentPlanPathAtomFamily,
   pendingBuildPlanSubChatIdAtom,
   planEditRefetchTriggerAtomFamily,
-  planSidebarOpenAtomFamily,
 } from "../atoms";
+import { panelIsOpenAtomFamily } from "../stores/panel-state-manager";
+import { PANEL_IDS } from "../stores/panel-registry";
+import { useChatInstanceSafe } from "../context/chat-instance-context";
 import { useAgentSubChatStore } from "../stores/sub-chat-store";
 
 export interface UsePlanSidebarStateResult {
@@ -20,17 +22,20 @@ export interface UsePlanSidebarStateResult {
 }
 
 export function usePlanSidebarState(): UsePlanSidebarStateResult {
+  const chatInstance = useChatInstanceSafe();
+  const chatId = chatInstance?.chatId ?? "";
+
   // Subscribe to activeSubChatId for plan sidebar (needs to update when switching sub-chats)
   const activeSubChatIdForPlan = useAgentSubChatStore(
     (state) => state.activeSubChatId,
   );
 
-  // Per-subChat plan sidebar state - each sub-chat remembers its own open/close state
-  const planSidebarAtom = useMemo(
-    () => planSidebarOpenAtomFamily(activeSubChatIdForPlan || ""),
-    [activeSubChatIdForPlan],
+  // Plan sidebar open state — uses new panel state manager (chatId-scoped)
+  const planOpenAtom = useMemo(
+    () => panelIsOpenAtomFamily({ chatId, panelId: PANEL_IDS.PLAN }),
+    [chatId],
   );
-  const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planSidebarAtom);
+  const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planOpenAtom);
 
   const currentPlanPathAtom = useMemo(
     () => currentPlanPathAtomFamily(activeSubChatIdForPlan || ""),

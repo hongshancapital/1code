@@ -32,10 +32,10 @@ import {
   agentsPreviewSidebarWidthAtom,
   fileViewerSidebarWidthAtom,
   diffSidebarOpenAtomFamily,
-  planSidebarOpenAtomFamily,
   terminalDisplayModeAtom,
   terminalBottomHeightAtom,
 } from "../atoms"
+import { panelIsOpenAtomFamily } from "../stores/panel-state-manager"
 import { terminalSidebarOpenAtomFamily } from "../../terminal/atoms"
 import { browserVisibleAtomFamily } from "../../browser-sidebar"
 import { detailsSidebarOpenAtom } from "../../details-sidebar/atoms"
@@ -137,11 +137,11 @@ export const ChatViewLayout = memo(function ChatViewLayout({
   )
   const [isDiffSidebarOpen, setIsDiffSidebarOpen] = useAtom(diffSidebarOpenAtom)
 
-  const planSidebarOpenAtom = useMemo(
-    () => planSidebarOpenAtomFamily(subChatId || ""),
-    [subChatId]
+  const planOpenAtom = useMemo(
+    () => panelIsOpenAtomFamily({ chatId, panelId: PANEL_IDS.PLAN }),
+    [chatId]
   )
-  const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planSidebarOpenAtom)
+  const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planOpenAtom)
 
   const browserVisibleAtom = useMemo(
     () => browserVisibleAtomFamily(chatId),

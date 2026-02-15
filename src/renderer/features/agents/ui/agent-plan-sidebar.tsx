@@ -100,7 +100,7 @@ export function AgentPlanSidebar({
 
   // Extract plan title from markdown (first H1)
   const planTitle = useMemo(() => {
-    if (!planContent) return "Plan"
+    if (!planContent || typeof planContent !== "string") return "Plan"
     const match = planContent.match(/^#\s+(.+)$/m)
     return match ? match[1] : "Plan"
   }, [planContent])

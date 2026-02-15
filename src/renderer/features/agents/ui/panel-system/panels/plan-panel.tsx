@@ -66,10 +66,14 @@ export const PlanPanel = memo(function PlanPanel(
   )
   const [currentPlanPath, setCurrentPlanPath] = useAtom(currentPlanPathAtom)
 
-  // Auto-detect plan path from active sub-chat messages
+  // Auto-detect plan path from active sub-chat messages.
+  // Only runs when currentPlanPath is not already set (to avoid overwriting
+  // a path that was set by agent-plan-file-tool or details-panel).
   useEffect(() => {
+    // Skip if path is already set by an external consumer
+    if (currentPlanPath) return
+
     if (!agentSubChats || agentSubChats.length === 0 || !activeSubChatId) {
-      setCurrentPlanPath(null)
       return
     }
 
@@ -77,7 +81,6 @@ export const PlanPanel = memo(function PlanPanel(
       (sc) => sc.id === activeSubChatId,
     )
     if (!activeSubChat) {
-      setCurrentPlanPath(null)
       return
     }
 
@@ -106,8 +109,10 @@ export const PlanPanel = memo(function PlanPanel(
       }
     }
 
-    setCurrentPlanPath(lastPlanPath)
-  }, [agentSubChats, activeSubChatId, setCurrentPlanPath])
+    if (lastPlanPath) {
+      setCurrentPlanPath(lastPlanPath)
+    }
+  }, [agentSubChats, activeSubChatId, currentPlanPath, setCurrentPlanPath])
 
   // Auto-close when switching to subchat without plan
   const prevSubChatIdRef = useRef(activeSubChatId)

@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import type { FileStatus } from "../../../../shared/changes-types";
 import { getQueryClient } from "../../../contexts/TRPCProvider";
+import { getWindowId } from "../../../contexts/WindowContext";
 import {
   trackClickNewChat,
   trackClickPlanApprove,
@@ -2629,42 +2630,49 @@ export function ChatView({
       { enabled: !!chatId && chatSourceMode === "local" },
     );
 
-  // Lazy load messages for the active sub-chat (performance optimization)
-  // Check if sub-chat belongs to current workspace (from server data or local store)
-  // This prevents loading messages for stale/invalid sub-chat IDs from localStorage
-  // NOTE: Using localAgentChat here is correct because:
-  // 1. The query below is only enabled when chatSourceMode === "local"
-  // 2. localAgentChat is defined above (line 4498) - avoids TDZ with agentChat (line 4529)
-  // 3. Dual-source check handles race condition where store hasn't updated yet
-  const activeSubChatExistsInWorkspace =
-    activeSubChatId &&
-    ((localAgentChat?.subChats ?? []).some((sc: any) => sc.id === activeSubChatId) ||
-      allSubChats.some((sc) => sc.id === activeSubChatId));
+  // [Perf] 并行加载：从 localStorage 提前获取 activeSubChatId
+  // 消除瀑布式请求：之前 Query2(消息) 依赖 Query1(chat元数据) 确定 activeSubChatId
+  // 现在直接从 localStorage 读取，让两个请求并行发起
+  const earlyActiveSubChatId = useMemo(() => {
+    if (!chatId || chatSourceMode !== "local") return null
+    try {
+      const key = `${getWindowId()}:agent-active-sub-chats-${chatId}`
+      return JSON.parse(localStorage.getItem(key) ?? "null")
+    } catch { return null }
+  }, [chatId, chatSourceMode])
+
+  // 使用提前读到的 ID 或 store 中的 ID（哪个先可用用哪个）
+  // 边界情况：localStorage 中的 ID 可能已过期（subchat 被归档/删除）
+  // 后端 getSubChatMessages 返回 null 即可，useEffect 会修正 activeSubChatId
+  const effectiveSubChatId = activeSubChatId || earlyActiveSubChatId
+
+  // [Perf] 消息懒加载 + JSON 预解析
+  // - staleTime: 30s — 消息只在流式传输时变化（由 subscription 实时更新），切换时无需立即重新加载
+  // - gcTime: 10min — 切回旧 workspace 时能直接使用缓存
+  // - select: 在 React Query 层面做一次 JSON.parse，结果自动缓存，避免 getOrCreateChat 中重复解析
   const { data: subChatMessagesData, isLoading: isLoadingMessages } =
     trpc.chats.getSubChatMessages.useQuery(
-      { id: activeSubChatId! },
+      { id: effectiveSubChatId! },
       {
-        // 修复：移除 activeSubChatExistsInWorkspace 条件
-        // 问题：当 localAgentChat 还在加载时，activeSubChatExistsInWorkspace 为 false，
-        // 导致消息查询不执行。由于 staleTime: Infinity，即使后来条件满足，
-        // 查询可能也不会重新执行。
-        // 解决：让查询总是执行，后端会处理不存在的 subChat（返回 null）
-        enabled: !!activeSubChatId && chatSourceMode === "local",
-        // staleTime: Infinity, // REMOVED: Must refetch on mount/switch to get updates that happened in background
+        enabled: !!effectiveSubChatId && chatSourceMode === "local",
+        staleTime: 30_000,
+        gcTime: 10 * 60_000,
+        select: (data) => {
+          if (!data?.messages) return null
+          try {
+            return { parsedMessages: JSON.parse(data.messages) as unknown[] }
+          } catch { return null }
+        },
       },
     );
 
-  // Reset messages cache when parent chatId changes (switching between workspaces)
-  // CRITICAL: Must use resetQueries instead of invalidateQueries because:
-  // - invalidateQueries only marks as stale and refetches in background, keeping old cached data
-  // - With staleTime: Infinity, the old cache is returned immediately (isLoading=false, data=stale)
-  // - This bypasses the loading gate, causing getOrCreateChat to use stale messages
-  // - resetQueries clears the cache entirely (data=undefined, isLoading=true)
-  // - This ensures the loading gate blocks rendering until fresh data arrives
+  // [Perf] 切换 workspace 时标记消息缓存过期（而非清空）
+  // invalidateQueries: 标记过期但保留旧数据 → 切回时秒显示旧数据 + 后台刷新
+  // resetQueries: 清空数据 → 切回时必须重新加载 + 显示 loading（已废弃）
   const prevChatIdRef = useRef(chatId);
   useEffect(() => {
     if (prevChatIdRef.current !== chatId) {
-      getQueryClient()?.resetQueries({
+      getQueryClient()?.invalidateQueries({
         queryKey: [["chats", "getSubChatMessages"]],
       });
       prevChatIdRef.current = chatId;
@@ -2725,15 +2733,18 @@ export function ChatView({
     stream_id?: string | null;
   }>;
 
-  // Auto-detect plan path from ACTIVE sub-chat messages when sub-chat changes
-  // This ensures the plan sidebar shows the correct plan for the active sub-chat only
+  // Auto-detect plan path from ACTIVE sub-chat messages when sub-chat changes.
+  // Only runs when currentPlanPath is not already set — avoids overwriting
+  // a path that was set by agent-plan-file-tool or details-panel "View plan".
   useEffect(() => {
+    // Skip if path is already set by an external consumer
+    if (currentPlanPath) return;
+
     if (
       !agentSubChats ||
       agentSubChats.length === 0 ||
       !activeSubChatIdForPlan
     ) {
-      setCurrentPlanPath(null);
       return;
     }
 
@@ -2742,7 +2753,6 @@ export function ChatView({
       (sc) => sc.id === activeSubChatIdForPlan,
     );
     if (!activeSubChat) {
-      setCurrentPlanPath(null);
       return;
     }
 
@@ -2769,8 +2779,10 @@ export function ChatView({
       }
     }
 
-    setCurrentPlanPath(lastPlanPath);
-  }, [agentSubChats, activeSubChatIdForPlan, setCurrentPlanPath]);
+    if (lastPlanPath) {
+      setCurrentPlanPath(lastPlanPath);
+    }
+  }, [agentSubChats, activeSubChatIdForPlan, currentPlanPath, setCurrentPlanPath]);
 
   // Compute if we're waiting for local chat data (used as loading gate)
   // Only show loading if there's no data AND we're loading - this prevents
@@ -3059,7 +3071,9 @@ export function ChatView({
       store.setChatId(chatId);
       // 重置全局消息状态，防止旧的 currentSubChatIdAtom 导致 IsolatedMessagesSection 跳过渲染
       appStore.set(currentSubChatIdAtom, "default");
-      appStore.set(messageIdsAtom, []);
+      // 不再清空 messageIdsAtom — syncMessagesWithStatusAtom 的 isFullReset 路径
+      // 会在新消息到达时正确处理全量替换，currentSubChatIdAtom="default" 的 guard
+      // 保证过渡期不会写入脏数据（message-store.ts:745）
     }
 
     // Re-get fresh state after setChatId may have loaded from localStorage
@@ -3184,29 +3198,26 @@ export function ChatView({
           // 检查：如果缓存的 Chat 初始化时消息为空，但现在有消息数据了
           // 需要清除缓存并重新创建，以使用新的消息数据
           // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
+          // [Perf] 使用 select 预解析的 parsedMessages，无需再次 JSON.parse
           const hasNewMessages =
-            subChatMessagesData?.messages && subChatId === activeSubChatId;
+            subChatMessagesData?.parsedMessages && subChatId === activeSubChatId;
           if (hasNewMessages) {
-            try {
-              const parsed = JSON.parse(subChatMessagesData.messages);
-              // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
-              const existingMessages = existing.messages ?? [];
-              console.log("[getOrCreateChat] Checking cache", {
-                subChatId: subChatId.slice(-8),
-                cachedMsgCount: existingMessages.length,
-                newMsgCount: parsed.length,
-              });
-              // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
-              if (parsed.length > existingMessages.length) {
-                console.log(
-                  "[getOrCreateChat] Recreating chat with new messages",
-                );
-                chatRegistry.unregister(subChatId);
-                // 不 return，继续往下创建新 Chat
-              } else {
-                return existing;
-              }
-            } catch {
+            const parsed = subChatMessagesData.parsedMessages;
+            // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
+            const existingMessages = existing.messages ?? [];
+            console.log("[getOrCreateChat] Checking cache", {
+              subChatId: subChatId.slice(-8),
+              cachedMsgCount: existingMessages.length,
+              newMsgCount: parsed.length,
+            });
+            // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
+            if (parsed.length > existingMessages.length) {
+              console.log(
+                "[getOrCreateChat] Recreating chat with new messages",
+              );
+              chatRegistry.unregister(subChatId);
+              // 不 return，继续往下创建新 Chat
+            } else {
               return existing;
             }
           } else {
@@ -3220,10 +3231,11 @@ export function ChatView({
 
       // Use lazy-loaded messages for local chats (performance optimization)
       // Remote chats still use messages from agentSubChats
+      // [Perf] 使用 select 预解析的 parsedMessages，无需再次 JSON.parse
       let messages: unknown[] = [];
-      if (subChatMessagesData?.messages && subChatId === activeSubChatId) {
+      if (subChatMessagesData?.parsedMessages && subChatId === activeSubChatId) {
         try {
-          const parsed = JSON.parse(subChatMessagesData.messages);
+          const parsed = subChatMessagesData.parsedMessages;
           // Transform messages from DB format to AI SDK format
           messages = parsed.map((msg: any) => {
             if (!msg.parts) return msg;

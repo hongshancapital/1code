@@ -12,9 +12,11 @@ import { cn } from "../../../lib/utils"
 import {
   currentPlanPathAtomFamily,
   pendingBuildPlanSubChatIdAtom,
-  planSidebarOpenAtomFamily,
   subChatModeAtomFamily,
 } from "../atoms"
+import { panelIsOpenAtomFamily } from "../stores/panel-state-manager"
+import { PANEL_IDS } from "../stores/panel-registry"
+import { useChatInstanceSafe } from "../context/chat-instance-context"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { getToolStatus } from "./agent-tool-registry"
 import { areToolPropsEqual } from "./agent-tool-utils"
@@ -59,16 +61,18 @@ export const AgentPlanFileTool = memo(function AgentPlanFileTool({
   const topGradientRef = useRef<HTMLDivElement>(null)
   const bottomGradientRef = useRef<HTMLDivElement>(null)
 
-  // Plan sidebar atoms - per subChat
-  const planSidebarOpenAtom = useMemo(
-    () => planSidebarOpenAtomFamily(subChatId),
-    [subChatId],
+  // Plan sidebar state — uses new panel state manager (chatId-scoped)
+  const chatInstance = useChatInstanceSafe()
+  const chatId = chatInstance?.chatId ?? ""
+  const planOpenAtom = useMemo(
+    () => panelIsOpenAtomFamily({ chatId, panelId: PANEL_IDS.PLAN }),
+    [chatId],
   )
   const currentPlanPathAtom = useMemo(
     () => currentPlanPathAtomFamily(subChatId),
     [subChatId],
   )
-  const [, setIsPlanSidebarOpen] = useAtom(planSidebarOpenAtom)
+  const [, setIsPlanSidebarOpen] = useAtom(planOpenAtom)
   const [, setCurrentPlanPath] = useAtom(currentPlanPathAtom)
 
   // Only consider streaming if chat is actively streaming

@@ -26,7 +26,6 @@ import { ExplorerPanelWrapper, useExplorerAvailability } from "./panels/explorer
 import { DetailsPanelWrapper, useDetailsAvailability } from "./panels/details-panel"
 import {
   useDiffIsOpen,
-  usePlanIsOpen,
   useTerminalIsOpen,
   usePreviewIsOpen,
   useFileViewerIsOpen,
@@ -50,7 +49,7 @@ export const builtinPanelDefinitions: PanelDefinition[] = [
   { id: PANEL_IDS.DETAILS, component: DetailsPanelWrapper, useIsAvailable: useDetailsAvailability, useIsOpen: useDetailsIsOpen, selfContained: true },
 
   // 非 selfContained: 纯内容组件，PanelZone 提供 ResizableSidebar 容器
-  { id: PANEL_IDS.PLAN, component: PlanPanel, useIsAvailable: usePlanAvailability, useIsOpen: usePlanIsOpen },
+  { id: PANEL_IDS.PLAN, component: PlanPanel, useIsAvailable: usePlanAvailability },
   { id: PANEL_IDS.PREVIEW, component: PreviewPanelWrapper, useIsAvailable: usePreviewAvailability, useIsOpen: usePreviewIsOpen },
   { id: PANEL_IDS.BROWSER, component: BrowserPanelWrapper, useIsAvailable: useBrowserAvailability },
 ]
