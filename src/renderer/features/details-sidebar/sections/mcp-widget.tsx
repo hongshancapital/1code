@@ -15,7 +15,7 @@ import { mcpStatusMapAtom } from "../../../lib/atoms/mcp-status"
 import { cn } from "../../../lib/utils"
 import { pendingMentionAtom, selectedProjectAtom } from "../../agents/atoms"
 import { WIDGET_REGISTRY } from "../atoms"
-import { trpc } from "../../../lib/trpc"
+import { trpc, trpcClient } from "../../../lib/trpc"
 
 /**
  * Built-in MCP server name
