@@ -7,6 +7,7 @@ import { getAuthManager } from "../../../auth-manager"
 import { join } from "path"
 import { existsSync, mkdirSync, rmSync, unlinkSync } from "fs"
 import { createLogger } from "../../logger"
+import { getDeviceInfo, serializeDeviceInfo } from "../../device-info"
 
 const debugLog = createLogger("Debug")
 const copyProductionDbLog = createLogger("copyProductionDb")
@@ -73,6 +74,22 @@ export const debugRouter = router({
       isDev: IS_DEV,
       userDataPath: app.getPath("userData"),
       protocolRegistered,
+    }
+  }),
+
+  /**
+   * Get comprehensive device information
+   * Includes hardware, OS, network info and device identifier hash
+   */
+  getDeviceInfo: publicProcedure.query(() => {
+    const deviceInfo = getDeviceInfo()
+    const serialized = serializeDeviceInfo(deviceInfo)
+
+    debugLog.info("Device info requested:", serialized)
+
+    return {
+      ...deviceInfo,
+      serialized,
     }
   }),
 

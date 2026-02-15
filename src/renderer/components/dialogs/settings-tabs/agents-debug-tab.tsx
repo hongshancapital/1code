@@ -296,6 +296,9 @@ export function AgentsDebugTab() {
         </div>
       </div>
 
+      {/* Device Information */}
+      <DeviceInfoSection />
+
       {/* Developer Tools (dev mode only) */}
       {isDev && (
         <div className="flex flex-col gap-3">
@@ -893,6 +896,181 @@ function InfoRow({
       >
         {isLoading ? "..." : value ?? "-"}
       </span>
+    </div>
+  )
+}
+
+// Device Information Section
+function DeviceInfoSection() {
+  const { t } = useTranslation("settings")
+  const { data: deviceInfo, isLoading } = trpc.debug.getDeviceInfo.useQuery()
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyDeviceId = () => {
+    if (deviceInfo?.deviceId) {
+      navigator.clipboard.writeText(deviceInfo.deviceId)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleCopySerialized = () => {
+    if (deviceInfo?.serialized) {
+      navigator.clipboard.writeText(deviceInfo.serialized)
+      toast.success(t('debug.toast.debugInfoCopied'))
+    }
+  }
+
+  const formatUptime = (seconds: number) => {
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    return `${days}d ${hours}h ${minutes}m`
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          {t('debug.deviceInfo.title')}
+        </h4>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopySerialized}
+          disabled={isLoading || !deviceInfo}
+        >
+          <Copy className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* System Information */}
+      <div className="flex flex-col gap-2">
+        <h5 className="text-xs font-medium text-muted-foreground">
+          {t('debug.deviceInfo.system')}
+        </h5>
+        <div className="rounded-lg border bg-muted/30 divide-y">
+          <InfoRow
+            label={t('debug.deviceInfo.platform')}
+            value={deviceInfo?.platformName}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.osVersion')}
+            value={deviceInfo?.osVersion}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.osRelease')}
+            value={deviceInfo?.osRelease}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.arch')}
+            value={deviceInfo?.arch}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Machine Information */}
+      <div className="flex flex-col gap-2">
+        <h5 className="text-xs font-medium text-muted-foreground">
+          {t('debug.deviceInfo.machine')}
+        </h5>
+        <div className="rounded-lg border bg-muted/30 divide-y">
+          <InfoRow
+            label={t('debug.deviceInfo.hostname')}
+            value={deviceInfo?.hostname}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.username')}
+            value={deviceInfo?.username}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Hardware Information */}
+      <div className="flex flex-col gap-2">
+        <h5 className="text-xs font-medium text-muted-foreground">
+          {t('debug.deviceInfo.hardware')}
+        </h5>
+        <div className="rounded-lg border bg-muted/30 divide-y">
+          <InfoRow
+            label={t('debug.deviceInfo.cpuModel')}
+            value={deviceInfo?.cpuModel}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.cpuCores')}
+            value={deviceInfo ? `${deviceInfo.cpuCores} ${t('debug.deviceInfo.cores')}` : undefined}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.totalMemory')}
+            value={deviceInfo?.totalMemoryGB}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Network Information */}
+      <div className="flex flex-col gap-2">
+        <h5 className="text-xs font-medium text-muted-foreground">
+          {t('debug.deviceInfo.network')}
+        </h5>
+        <div className="rounded-lg border bg-muted/30 divide-y">
+          <InfoRow
+            label={t('debug.deviceInfo.macAddress')}
+            value={deviceInfo?.macAddress || t('debug.deviceInfo.notAvailable')}
+            isLoading={isLoading}
+          />
+          <InfoRow
+            label={t('debug.deviceInfo.networkInterfaces')}
+            value={deviceInfo?.networkInterfaces?.join(', ')}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Device Identifier */}
+      <div className="flex flex-col gap-2">
+        <h5 className="text-xs font-medium text-muted-foreground">
+          {t('debug.deviceInfo.identifier')}
+        </h5>
+        <div className="rounded-lg border bg-muted/30 divide-y">
+          <div className="flex items-center justify-between p-3">
+            <span className="text-sm text-muted-foreground">
+              {t('debug.deviceInfo.deviceId')}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono text-xs">
+                {isLoading ? "..." : deviceInfo?.deviceId?.slice(0, 16) + "..."}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyDeviceId}
+                disabled={isLoading || !deviceInfo}
+                className="h-6 w-6 p-0"
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-green-500" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          </div>
+          <InfoRow
+            label={t('debug.deviceInfo.uptime')}
+            value={deviceInfo ? formatUptime(deviceInfo.uptime) : undefined}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
     </div>
   )
 }
