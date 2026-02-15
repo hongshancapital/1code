@@ -6,6 +6,10 @@ import { join } from "path"
 import { existsSync, mkdirSync, readFileSync } from "fs"
 import { createHash } from "crypto"
 import * as schema from "./schema"
+import { createLogger } from "../logger"
+
+const dbLog = createLogger("DB")
+
 
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null
 let sqlite: Database.Database | null = null
@@ -43,18 +47,18 @@ function getMigrationsPath(): string {
  * This handles the case where migrations failed mid-way or database state is inconsistent
  */
 function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string): void {
-  console.log("[DB] Syncing migration history...")
+  dbLog.info("Syncing migration history...")
 
   // Read migration journal
   const journalPath = join(migrationsPath, "meta", "_journal.json")
   if (!existsSync(journalPath)) {
-    console.log("[DB] No migration journal found, skipping sync")
+    dbLog.info("No migration journal found, skipping sync")
     return
   }
 
   const journal = JSON.parse(readFileSync(journalPath, "utf-8"))
   if (!journal.entries || !Array.isArray(journal.entries)) {
-    console.log("[DB] Invalid migration journal, skipping sync")
+    dbLog.info("Invalid migration journal, skipping sync")
     return
   }
 
@@ -69,7 +73,7 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
   const existingMigrations = sqlite.prepare("SELECT hash FROM __drizzle_migrations").all() as Array<{ hash: string }>
   const existingHashes = new Set(existingMigrations.map((m) => m.hash))
 
-  console.log(`[DB] Found ${journal.entries.length} migrations in journal, ${existingHashes.size} already applied`)
+  dbLog.info(`Found ${journal.entries.length} migrations in journal, ${existingHashes.size} already applied`)
 
   // For each missing migration, try to execute its SQL statements individually,
   // gracefully skipping ones that conflict with existing schema (already exists / duplicate column).
@@ -78,7 +82,7 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
   for (const entry of journal.entries) {
     const sqlPath = join(migrationsPath, `${entry.tag}.sql`)
     if (!existsSync(sqlPath)) {
-      console.log(`[DB] Migration file not found: ${entry.tag}.sql, skipping`)
+      dbLog.info(`Migration file not found: ${entry.tag}.sql, skipping`)
       continue
     }
 
@@ -89,7 +93,7 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
       continue
     }
 
-    console.log(`[DB] Applying missing migration: ${entry.tag}`)
+    dbLog.info(`Applying missing migration: ${entry.tag}`)
 
     // Split by Drizzle's statement breakpoint marker and execute each statement
     const statements = sqlContent
@@ -107,10 +111,10 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
         const msg = e instanceof Error ? e.message : String(e)
         if (msg.includes("already exists") || msg.includes("duplicate column")) {
           skipped++
-          console.log(`[DB]   Skipped (already exists): ${stmt.substring(0, 80)}...`)
+          dbLog.info(`  Skipped (already exists): ${stmt.substring(0, 80)}...`)
         } else {
           // Non-recoverable error — log but continue to avoid blocking startup
-          console.error(`[DB]   Statement failed: ${stmt.substring(0, 80)}...`, msg)
+          dbLog.error(`  Statement failed: ${stmt.substring(0, 80)}...`, msg)
         }
       }
     }
@@ -118,10 +122,10 @@ function syncMigrationHistory(sqlite: Database.Database, migrationsPath: string)
     // Record migration as completed
     sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(hash, entry.when)
     syncedCount++
-    console.log(`[DB]   Migration ${entry.tag}: ${applied} applied, ${skipped} skipped`)
+    dbLog.info(`  Migration ${entry.tag}: ${applied} applied, ${skipped} skipped`)
   }
 
-  console.log(`[DB] Synced ${syncedCount} missing migrations`)
+  dbLog.info(`Synced ${syncedCount} missing migrations`)
 }
 
 /**
@@ -133,7 +137,7 @@ export function initDatabase() {
   }
 
   const dbPath = getDatabasePath()
-  console.log(`[DB] Initializing database at: ${dbPath}`)
+  dbLog.info(`Initializing database at: ${dbPath}`)
 
   // Create SQLite connection
   sqlite = new Database(dbPath)
@@ -145,13 +149,13 @@ export function initDatabase() {
 
   // Run migrations
   const migrationsPath = getMigrationsPath()
-  console.log(`[DB] Running migrations from: ${migrationsPath}`)
+  dbLog.info(`Running migrations from: ${migrationsPath}`)
 
   try {
     migrate(db, { migrationsFolder: migrationsPath })
-    console.log("[DB] Migrations completed")
+    dbLog.info("Migrations completed")
   } catch (error) {
-    console.error("[DB] Migration error:", error)
+    dbLog.error("Migration error:", error)
 
     // Check if error is a schema conflict (table/column already exists)
     // This happens when fallback code or partial migrations already applied changes
@@ -163,12 +167,12 @@ export function initDatabase() {
     const isSchemaConflict = combinedMsg.includes("already exists") || combinedMsg.includes("duplicate column")
 
     if (isSchemaConflict) {
-      console.log("[DB] Detected schema conflict (table/column already exists), syncing migration history...")
+      dbLog.info("Detected schema conflict (table/column already exists), syncing migration history...")
       try {
         syncMigrationHistory(sqlite, migrationsPath)
-        console.log("[DB] Migration history synced, retrying migrations...")
+        dbLog.info("Migration history synced, retrying migrations...")
         migrate(db, { migrationsFolder: migrationsPath })
-        console.log("[DB] Migrations completed after sync")
+        dbLog.info("Migrations completed after sync")
       } catch (syncError) {
         // If retry still fails with same schema conflict, that's OK — schema is already up to date
         const syncCauseMsg = syncError instanceof Error && syncError.cause instanceof Error
@@ -179,14 +183,14 @@ export function initDatabase() {
         const isStillSchemaConflict = syncCombinedMsg.includes("already exists") || syncCombinedMsg.includes("duplicate column")
 
         if (isStillSchemaConflict) {
-          console.log("[DB] Schema already up to date despite migration record mismatch, continuing...")
+          dbLog.info("Schema already up to date despite migration record mismatch, continuing...")
         } else {
-          console.error("[DB] Failed to sync migration history:", syncError)
-          console.log("[DB] Continuing with manual schema fixes...")
+          dbLog.error("Failed to sync migration history:", syncError)
+          dbLog.info("Continuing with manual schema fixes...")
         }
       }
     } else {
-      console.log("[DB] Attempting manual schema fixes...")
+      dbLog.info("Attempting manual schema fixes...")
     }
   }
 
@@ -210,10 +214,10 @@ export function initDatabase() {
       )
     `)
     sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS projects_path_unique ON projects(path)`)
-    console.log("[DB] Projects table ensured")
+    dbLog.info("Projects table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Projects table check:", error.message)
+    dbLog.info("Projects table check:", error.message)
   }
 
   try {
@@ -235,20 +239,20 @@ export function initDatabase() {
       )
     `)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS chats_worktree_path_idx ON chats(worktree_path)`)
-    console.log("[DB] Chats table ensured")
+    dbLog.info("Chats table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Chats table check:", error.message)
+    dbLog.info("Chats table check:", error.message)
   }
 
   // Ensure manually_renamed column exists on chats table
   try {
     sqlite.exec(`ALTER TABLE chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
-    console.log("[DB] Added manually_renamed column to chats")
+    dbLog.info("Added manually_renamed column to chats")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] manually_renamed column check (chats):", error.message)
+      dbLog.info("manually_renamed column check (chats):", error.message)
     }
   }
 
@@ -270,32 +274,32 @@ export function initDatabase() {
         manually_renamed INTEGER DEFAULT 0
       )
     `)
-    console.log("[DB] SubChats table ensured")
+    dbLog.info("SubChats table ensured")
     sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chats_chat_id_idx ON sub_chats(chat_id)`)
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] SubChats table check:", error.message)
+    dbLog.info("SubChats table check:", error.message)
   }
 
   // Ensure manually_renamed column exists on sub_chats table
   try {
     sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN manually_renamed INTEGER DEFAULT 0`)
-    console.log("[DB] Added manually_renamed column to sub_chats")
+    dbLog.info("Added manually_renamed column to sub_chats")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] manually_renamed column check (sub_chats):", error.message)
+      dbLog.info("manually_renamed column check (sub_chats):", error.message)
     }
   }
 
   // Ensure archived_at column exists on sub_chats table (added in migration 0018)
   try {
     sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN archived_at INTEGER`)
-    console.log("[DB] Added archived_at column to sub_chats")
+    dbLog.info("Added archived_at column to sub_chats")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] archived_at column check (sub_chats):", error.message)
+      dbLog.info("archived_at column check (sub_chats):", error.message)
     }
   }
 
@@ -319,10 +323,10 @@ export function initDatabase() {
         source TEXT
       )
     `)
-    console.log("[DB] ModelUsage table ensured")
+    dbLog.info("ModelUsage table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] ModelUsage table check:", error.message)
+    dbLog.info("ModelUsage table check:", error.message)
   }
 
   try {
@@ -343,10 +347,10 @@ export function initDatabase() {
         active_account_id TEXT REFERENCES anthropic_accounts(id) ON DELETE SET NULL
       )
     `)
-    console.log("[DB] Anthropic accounts tables ensured")
+    dbLog.info("Anthropic accounts tables ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Anthropic accounts tables check:", error.message)
+    dbLog.info("Anthropic accounts tables check:", error.message)
   }
 
   // Ensure claude_code_credentials table exists (legacy, deprecated but still referenced)
@@ -359,10 +363,10 @@ export function initDatabase() {
         user_id TEXT
       )
     `)
-    console.log("[DB] Claude code credentials table ensured")
+    dbLog.info("Claude code credentials table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Claude code credentials table check:", error.message)
+    dbLog.info("Claude code credentials table check:", error.message)
   }
 
   // Ensure workspace_tags tables exist (for grouping feature)
@@ -401,10 +405,10 @@ export function initDatabase() {
     sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS sub_chat_tags_unique_idx ON sub_chat_tags(sub_chat_id, tag_id)`)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_tags_sub_chat_idx ON sub_chat_tags(sub_chat_id)`)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_tags_tag_idx ON sub_chat_tags(tag_id)`)
-    console.log("[DB] Workspace tags tables ensured")
+    dbLog.info("Workspace tags tables ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Workspace tags tables check:", error.message)
+    dbLog.info("Workspace tags tables check:", error.message)
   }
 
   // Ensure insights table exists (for usage analysis reports)
@@ -425,29 +429,29 @@ export function initDatabase() {
     `)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS insights_type_date_idx ON insights(report_type, report_date)`)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS insights_created_at_idx ON insights(created_at)`)
-    console.log("[DB] Insights table ensured")
+    dbLog.info("Insights table ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Insights table check:", error.message)
+    dbLog.info("Insights table check:", error.message)
   }
 
   // Ensure summary and report_html columns exist on insights table (for warm coworker style reports)
   try {
     sqlite.exec(`ALTER TABLE insights ADD COLUMN summary TEXT`)
-    console.log("[DB] Added summary column to insights")
+    dbLog.info("Added summary column to insights")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] summary column check:", error.message)
+      dbLog.info("summary column check:", error.message)
     }
   }
   try {
     sqlite.exec(`ALTER TABLE insights ADD COLUMN report_html TEXT`)
-    console.log("[DB] Added report_html column to insights")
+    dbLog.info("Added report_html column to insights")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] report_html column check:", error.message)
+      dbLog.info("report_html column check:", error.message)
     }
   }
 
@@ -619,10 +623,10 @@ export function initDatabase() {
       END
     `)
 
-    console.log("[DB] Memory tables ensured (3 tables + 3 FTS + 9 triggers)")
+    dbLog.info("Memory tables ensured (3 tables + 3 FTS + 9 triggers)")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Memory tables check:", error.message)
+    dbLog.info("Memory tables check:", error.message)
   }
 
   // Ensure model_providers and cached_models tables exist (for unified provider management)
@@ -655,20 +659,20 @@ export function initDatabase() {
     `)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS cached_models_provider_idx ON cached_models(provider_id)`)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS cached_models_category_idx ON cached_models(category)`)
-    console.log("[DB] Model providers tables ensured")
+    dbLog.info("Model providers tables ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Model providers tables check:", error.message)
+    dbLog.info("Model providers tables check:", error.message)
   }
 
   // Ensure manual_models column exists on model_providers (for providers without /models API)
   try {
     sqlite.exec(`ALTER TABLE model_providers ADD COLUMN manual_models TEXT`)
-    console.log("[DB] Added manual_models column to model_providers")
+    dbLog.info("Added manual_models column to model_providers")
   } catch (e: unknown) {
     const error = e as Error
     if (!error.message?.includes("duplicate column")) {
-      console.log("[DB] manual_models column check:", error.message)
+      dbLog.info("manual_models column check:", error.message)
     }
   }
 
@@ -713,10 +717,10 @@ export function initDatabase() {
     `)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS executions_automation_idx ON automation_executions(automation_id)`)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS executions_status_idx ON automation_executions(status)`)
-    console.log("[DB] Automations tables ensured")
+    dbLog.info("Automations tables ensured")
   } catch (e: unknown) {
     const error = e as Error
-    console.log("[DB] Automations tables check:", error.message)
+    dbLog.info("Automations tables check:", error.message)
   }
 
   return db
@@ -740,7 +744,7 @@ export function closeDatabase(): void {
     sqlite.close()
     sqlite = null
     db = null
-    console.log("[DB] Database connection closed")
+    dbLog.info("Database connection closed")
   }
 }
 

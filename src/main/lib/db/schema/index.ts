@@ -103,7 +103,9 @@ export const subChats = sqliteTable("sub_chats", {
     () => new Date(),
   ),
   archivedAt: integer("archived_at", { mode: "timestamp" }),
-})
+}, (table) => [
+  index("sub_chats_chat_id_idx").on(table.chatId),
+])
 
 export const subChatsRelations = relations(subChats, ({ one }) => ({
   chat: one(chats, {

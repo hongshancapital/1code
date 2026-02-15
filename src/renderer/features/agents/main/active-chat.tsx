@@ -291,6 +291,13 @@ import {
 } from "../context/chat-instance-context";
 import { ChatCapabilitiesProvider } from "../context/chat-capabilities-context";
 import { ProjectModeProvider } from "../context/project-mode-context";
+import { createLogger } from "../../../lib/logger"
+
+const handleRollbackLog = createLogger("handleRollback")
+const handleForceSendLog = createLogger("handleForceSend")
+const getOrCreateChatLog = createLogger("getOrCreateChat")
+const createNewSubChatLog = createLogger("createNewSubChat")
+
 
 // Module-level Map to track pending cache cleanup timeouts
 // Used to cancel cleanup if component remounts with same subChatId
@@ -487,7 +494,7 @@ const ChatViewInner = memo(function ChatViewInner({
       // Don't revert if sub-chat not found in DB - it may not be persisted yet
       // This is expected for new sub-chats that haven't been saved to DB
       if (error.message === "Sub-chat not found") {
-        console.warn("Sub-chat not found in DB, keeping local mode state");
+        log.warn("Sub-chat not found in DB, keeping local mode state");
         return;
       }
 
@@ -499,7 +506,7 @@ const ChatViewInner = memo(function ChatViewInner({
       useAgentSubChatStore
         .getState()
         .updateSubChatMode(variables.subChatId, revertedMode);
-      console.error("Failed to update sub-chat mode:", error.message);
+      log.error("Failed to update sub-chat mode:", error.message);
     },
   });
 
@@ -1195,7 +1202,7 @@ const ChatViewInner = memo(function ChatViewInner({
       const messageIndex = messages.findIndex((m) => m.id === assistantMsg.id);
 
       // Debug logging to diagnose rollback issues
-      console.log("[handleRollback] Rolling back to message:", {
+      handleRollbackLog.info("Rolling back to message:", {
         messageId: assistantMsg.id,
         sdkUuid,
         messageIndex,
@@ -1230,7 +1237,7 @@ const ChatViewInner = memo(function ChatViewInner({
         recomputeChangedFiles(result.messages);
         refreshDiff?.();
       } catch (error) {
-        console.error("[handleRollback] Error:", error);
+        handleRollbackLog.error("Error:", error);
         toast.error("Failed to rollback");
       } finally {
         setIsRollingBack(false);
@@ -1556,7 +1563,7 @@ const ChatViewInner = memo(function ChatViewInner({
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
           }
         } catch (error) {
-          console.error("Failed to expand custom slash command:", error);
+          log.error("Failed to expand custom slash command:", error);
         }
       }
     }
@@ -1783,7 +1790,7 @@ const ChatViewInner = memo(function ChatViewInner({
 
         await sendMessageRef.current({ role: "user", parts });
       } catch (error) {
-        console.error(
+        log.error(
           "[handleSendFromQueue] Error sending queued message:",
           error,
         );
@@ -1933,7 +1940,7 @@ const ChatViewInner = memo(function ChatViewInner({
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
           }
         } catch (error) {
-          console.error("Failed to expand custom slash command:", error);
+          log.error("Failed to expand custom slash command:", error);
         }
       }
     }
@@ -1975,7 +1982,7 @@ const ChatViewInner = memo(function ChatViewInner({
     try {
       await sendMessageRef.current({ role: "user", parts });
     } catch (error) {
-      console.error("[handleForceSend] Error sending message:", error);
+      handleForceSendLog.error("Error sending message:", error);
       // Restore editor content so the user can retry
       editorRef.current?.setValue(finalText);
     }
@@ -3192,7 +3199,7 @@ export function ChatView({
         // 检查 CWD 是否变更（playground 转项目后路径变化）
         const entry = chatRegistry.getEntry(subChatId);
         if (worktreePath && entry?.cwd && entry.cwd !== worktreePath) {
-          console.log("[getOrCreateChat] CWD changed, hot-updating transport", {
+          getOrCreateChatLog.info("CWD changed, hot-updating transport", {
             subChatId: subChatId.slice(-8),
             oldCwd: entry.cwd,
             newCwd: worktreePath,
@@ -3214,14 +3221,14 @@ export function ChatView({
             const parsed = subChatMessagesData.parsedMessages;
             // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
             const existingMessages = existing.messages ?? [];
-            console.log("[getOrCreateChat] Checking cache", {
+            getOrCreateChatLog.info("Checking cache", {
               subChatId: subChatId.slice(-8),
               cachedMsgCount: existingMessages.length,
               newMsgCount: parsed.length,
             });
             // 如果数据库有更多消息（例如用户发送后后端已保存但 Chat 对象未更新），重新创建 Chat
             if (parsed.length > existingMessages.length) {
-              console.log(
+              log.info(
                 "[getOrCreateChat] Recreating chat with new messages",
               );
               chatRegistry.unregister(subChatId);
@@ -3288,7 +3295,7 @@ export function ChatView({
             };
           });
         } catch (err) {
-          console.warn(
+          log.warn(
             "[getOrCreateChat] Failed to parse lazy-loaded messages",
             err,
           );
@@ -3315,7 +3322,7 @@ export function ChatView({
       const isChatRemote =
         isRemoteChat(agentChat as unknown as AgentChat | null) || !!chatSandboxId;
 
-      console.log("[getOrCreateChat] Transport selection", {
+      getOrCreateChatLog.info("Transport selection", {
         subChatId: subChatId.slice(-8),
         isChatRemote,
         chatSandboxId,
@@ -3330,7 +3337,7 @@ export function ChatView({
         const subChatName = subChat?.name || "Chat";
         const modelString =
           MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"];
-        console.log("[getOrCreateChat] Using RemoteChatTransport", {
+        getOrCreateChatLog.info("Using RemoteChatTransport", {
           sandboxUrl: chatSandboxUrl,
           model: modelString,
         });
@@ -3354,7 +3361,7 @@ export function ChatView({
       }
 
       if (!transport) {
-        console.error("[getOrCreateChat] No transport available");
+        getOrCreateChatLog.error("No transport available");
         return null;
       }
 
@@ -3538,7 +3545,7 @@ export function ChatView({
     const isNewSubChatRemote =
       isRemoteChat(agentChat as unknown as AgentChat | null) || !!newSubChatSandboxId;
 
-    console.log("[createNewSubChat] Transport selection", {
+    createNewSubChatLog.info("Transport selection", {
       newId: newId.slice(-8),
       isNewSubChatRemote,
       newSubChatSandboxId,
@@ -3552,7 +3559,7 @@ export function ChatView({
       // Remote sandbox chat: use HTTP SSE transport
       const modelString =
         MODEL_ID_MAP[selectedModelId] || MODEL_ID_MAP["sonnet"];
-      console.log("[createNewSubChat] Using RemoteChatTransport", {
+      createNewSubChatLog.info("Using RemoteChatTransport", {
         model: modelString,
       });
       newSubChatTransport = new RemoteChatTransport({
@@ -3751,7 +3758,7 @@ export function ChatView({
             queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
           });
         } catch (error) {
-          console.error(
+          log.error(
             "[ChatInstanceContext] Failed to refresh branch:",
             error,
           );
