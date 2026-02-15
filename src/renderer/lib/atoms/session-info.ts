@@ -2,7 +2,14 @@ import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 
 // MCP Server types
-export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"
+export type MCPServerStatus =
+  | "connecting"
+  | "connected"
+  | "failed"
+  | "timeout"
+  | "retrying"
+  | "needs-auth"
+  | "pending"
 
 export type MCPServerIcon = {
   src: string
@@ -20,6 +27,10 @@ export type MCPServer = {
     icons?: MCPServerIcon[]
   }
   error?: string
+  retryCount?: number
+  lastAttempt?: number
+  lastSuccess?: number
+  tools?: string[]
 }
 
 export type SessionInfo = {

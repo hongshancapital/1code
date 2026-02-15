@@ -1,8 +1,8 @@
 "use client"
 
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
-import { ChevronDown, Settings, Power } from "lucide-react"
-import { memo, useCallback, useMemo, useState } from "react"
+import { ChevronDown, Settings, Power, RefreshCw, AlertCircle, Clock } from "lucide-react"
+import { memo, useCallback, useMemo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { OriginalMCPIcon } from "../../../components/ui/icons"
 import {
@@ -11,9 +11,11 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip"
 import { agentsSettingsDialogActiveTabAtom, agentsSettingsDialogOpenAtom, sessionInfoAtom, disabledMcpServersAtom, type MCPServer } from "../../../lib/atoms"
+import { mcpStatusMapAtom } from "../../../lib/atoms/mcp-status"
 import { cn } from "../../../lib/utils"
 import { pendingMentionAtom, selectedProjectAtom } from "../../agents/atoms"
 import { WIDGET_REGISTRY } from "../atoms"
+import { trpc } from "../../../lib/trpc"
 
 /**
  * Built-in MCP server name
@@ -87,10 +89,36 @@ export const McpWidget = memo(function McpWidget() {
   const sessionInfo = useAtomValue(sessionInfoAtom)
   const selectedProject = useAtomValue(selectedProjectAtom)
   const [disabledServersMap, setDisabledServersMap] = useAtom(disabledMcpServersAtom)
+  const [mcpStatusMap, setMcpStatusMap] = useAtom(mcpStatusMapAtom)
   const setPendingMention = useSetAtom(pendingMentionAtom)
   const setSettingsOpen = useSetAtom(agentsSettingsDialogOpenAtom)
   const setSettingsTab = useSetAtom(agentsSettingsDialogActiveTabAtom)
   const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set())
+
+  // 订阅 MCP 状态变化
+  trpc.claude.mcpStatus.useSubscription(undefined, {
+    onData: (message) => {
+      if (message.type === "serverStatus") {
+        const { name, status, retryCount, lastAttempt, error, tools } = message.data
+
+        setMcpStatusMap((prev) => {
+          const next = new Map(prev)
+          next.set(name, {
+            name,
+            status,
+            retryCount,
+            lastAttempt,
+            error,
+            tools,
+          })
+          return next
+        })
+      }
+    },
+    onError: (error) => {
+      console.error("[MCP Status] Subscription error:", error)
+    },
+  })
 
   // Get disabled servers for current project
   const projectPath = selectedProject?.path || ""
@@ -106,14 +134,15 @@ export const McpWidget = memo(function McpWidget() {
 
   // Toggle MCP server enabled/disabled state
   const toggleMcpServer = useCallback(
-    (serverName: string, e: React.MouseEvent) => {
+    async (serverName: string, e: React.MouseEvent) => {
       e.stopPropagation()
       if (!projectPath) return
 
-      setDisabledServersMap((prev) => {
-        const currentDisabled = prev[projectPath] || []
-        const isCurrentlyDisabled = currentDisabled.includes(serverName)
+      const currentDisabled = disabledServersMap[projectPath] || []
+      const isCurrentlyDisabled = currentDisabled.includes(serverName)
 
+      // 更新本地状态(立即生效,不等待后端)
+      setDisabledServersMap((prev) => {
         if (isCurrentlyDisabled) {
           // Enable: remove from disabled list
           return {
@@ -128,8 +157,27 @@ export const McpWidget = memo(function McpWidget() {
           }
         }
       })
+
+      // 调用后端更新缓存(异步,不阻塞 UI)
+      try {
+        await trpcClient.claude.updateMcpServer.mutate({
+          name: serverName,
+          scope: "project",
+          projectPath,
+          disabled: !isCurrentlyDisabled,
+        })
+      } catch (error) {
+        console.error("[MCP Widget] Failed to update server:", error)
+        // 回滚本地状态
+        setDisabledServersMap((prev) => {
+          return {
+            ...prev,
+            [projectPath]: currentDisabled,
+          }
+        })
+      }
     },
-    [projectPath, setDisabledServersMap]
+    [projectPath, disabledServersMap, setDisabledServersMap]
   )
 
   const toolsByServer = useMemo(() => {
@@ -229,6 +277,12 @@ export const McpWidget = memo(function McpWidget() {
         const isBuiltin = isBuiltinMcp(server.name)
         const isDisabled = disabledServers.has(server.name)
 
+        // 获取实时状态(如果有)
+        const realtimeState = mcpStatusMap.get(server.name)
+        const status = realtimeState?.status || server.status
+        const error = realtimeState?.error
+        const retryCount = realtimeState?.retryCount || 0
+
         return (
           <div key={server.name} className={cn(isDisabled && "opacity-50")}>
             {/* Server row */}
@@ -268,6 +322,35 @@ export const McpWidget = memo(function McpWidget() {
                 className="flex-1 flex items-center gap-1.5 min-w-0"
                 disabled={isDisabled}
               >
+                {/* 状态图标 */}
+                {status === "connecting" && (
+                  <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                )}
+                {status === "retrying" && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <RefreshCw className="h-3 w-3 animate-spin text-blue-500 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>重试中（第 {retryCount + 1} 次）</TooltipContent>
+                  </Tooltip>
+                )}
+                {status === "timeout" && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Clock className="h-3 w-3 text-orange-500 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>连接超时</TooltipContent>
+                  </Tooltip>
+                )}
+                {status === "failed" && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>{error || "连接失败"}</TooltipContent>
+                  </Tooltip>
+                )}
+
                 <ServerIcon server={server} />
                 <span className={cn(
                   "text-xs truncate text-left",

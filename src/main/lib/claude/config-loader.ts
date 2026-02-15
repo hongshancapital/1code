@@ -353,6 +353,29 @@ export class ClaudeConfigLoader {
     authManager?: AuthManager,
     override?: ConfigOverride
   ): Promise<LoadedConfig> {
+    // 如果缓存为空(首次调用),等待预热完成(最多 15 秒)
+    if (workingMcpServers.size === 0) {
+      const { getMcpWarmupManager } = await import("./mcp-warmup-manager")
+      const warmupManager = getMcpWarmupManager()
+      const warmupPromise = warmupManager.getWarmupPromise()
+
+      if (warmupPromise) {
+        console.log("[ConfigLoader] Waiting for MCP warmup (max 15s)...")
+
+        try {
+          await Promise.race([
+            warmupPromise,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Warmup timeout")), 15000)
+            ),
+          ])
+          console.log("[ConfigLoader] MCP warmup completed")
+        } catch (error) {
+          console.warn("[ConfigLoader] Warmup timeout, using current cache")
+        }
+      }
+    }
+
     // Load all MCP servers in parallel
     const [globalServers, projectServers, pluginServers, agentJsonServers, builtinServer] = await Promise.all([
       this.loadGlobalMcpServers(),

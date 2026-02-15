@@ -2671,6 +2671,22 @@ export const claudeRouter = router({
       );
       await writeClaudeConfig(updatedConfig);
 
+      // 如果禁用状态变化,立即更新缓存
+      if (input.disabled !== undefined) {
+        const scope = input.scope === "project" ? projectPath : null
+        const cacheKey = mcpCacheKey(scope, input.name)
+
+        if (input.disabled) {
+          // 禁用时标记为不可用
+          workingMcpServers.set(cacheKey, false)
+          console.log(`[MCP] Disabled server ${input.name}, updated cache`)
+        } else {
+          // 启用时移除缓存(下次 query 会重新检测)
+          workingMcpServers.delete(cacheKey)
+          console.log(`[MCP] Enabled server ${input.name}, cache will refresh on next query`)
+        }
+      }
+
       return { success: true, name: input.name };
     }),
 
@@ -2799,4 +2815,64 @@ export const claudeRouter = router({
 
       return { pending };
     }),
+
+  /**
+   * 订阅 MCP 服务器状态变化(实时推送)
+   */
+  mcpStatus: publicProcedure.subscription(() => {
+    return observable<{
+      type: "serverStatus" | "warmupState"
+      data: any
+    }>((emit) => {
+      // 动态导入,避免循环依赖
+      import("../../claude/mcp-warmup-manager")
+        .then(({ getMcpWarmupManager }) => {
+          const warmupManager = getMcpWarmupManager()
+
+          // 监听服务器状态变化
+          const onServerStatus = (data: any) => {
+            emit.next({ type: "serverStatus", data })
+          }
+
+          // 监听预热状态变化
+          const onWarmupState = (state: string) => {
+            emit.next({ type: "warmupState", data: { state } })
+          }
+
+          warmupManager.on("serverStatusChange", onServerStatus)
+          warmupManager.on("stateChange", onWarmupState)
+
+          // 清理函数
+          emit.cleanup(() => {
+            warmupManager.off("serverStatusChange", onServerStatus)
+            warmupManager.off("stateChange", onWarmupState)
+          })
+        })
+        .catch((error) => {
+          console.error("[MCP Status] Failed to load warmup manager:", error)
+        })
+    })
+  }),
+
+  /**
+   * 获取当前 MCP 预热状态(用于首次加载)
+   */
+  getMcpWarmupState: publicProcedure.query(async () => {
+    try {
+      const { getMcpWarmupManager } = await import("../../claude/mcp-warmup-manager")
+      const warmupManager = getMcpWarmupManager()
+      return {
+        state: warmupManager.getState(),
+        servers: Array.from(warmupManager.serverStates.entries()).map(
+          ([name, state]) => ({ name, ...state })
+        ),
+      }
+    } catch (error) {
+      console.error("[MCP Warmup State] Error:", error)
+      return {
+        state: "idle" as const,
+        servers: [],
+      }
+    }
+  }),
 });

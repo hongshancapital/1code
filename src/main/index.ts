@@ -817,16 +817,17 @@ if (gotTheLock) {
     // Create main window
     createMainWindow()
 
-    // Warm up MCP cache 3 seconds after startup (background, non-blocking)
-    // This populates the cache so all future sessions can use filtered MCP servers
-    setTimeout(async () => {
-      try {
-        const { getAllMcpConfigHandler } = await import("./lib/claude/mcp-config")
-        await getAllMcpConfigHandler()
-      } catch (error) {
-        console.error("[App] MCP warmup failed:", error)
-      }
-    }, 3000)
+    // MCP 预热(非阻塞,立即启动,返回 Promise 供首次 query 等待)
+    // 不再使用 setTimeout 延迟,最大化预热时间
+    const { getMcpWarmupManager } = await import("./lib/claude/mcp-warmup-manager")
+    const warmupManager = getMcpWarmupManager()
+
+    // 启动预热(不等待完成,不阻塞窗口显示)
+    warmupManager.startWarmup().catch((error) => {
+      console.error("[App] MCP warmup failed:", error)
+    })
+
+    console.log("[App] MCP warmup started immediately after app ready")
 
     // Handle directory argument from CLI (e.g., `hong /path/to/project`)
     parseLaunchDirectory()
