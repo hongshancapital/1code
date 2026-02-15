@@ -1431,6 +1431,7 @@ export const AgentsMentionsEditor = memo(
               // Find local position of @ within THIS text node
               let localAtPosition = 0
               let serializedCharCount = 0
+              let foundNode = false
 
               const walker = document.createTreeWalker(
                 editorRef.current,
@@ -1442,6 +1443,7 @@ export const AgentsMentionsEditor = memo(
                 if (walkNode === node) {
                   localAtPosition =
                     triggerStartIndex.current - serializedCharCount
+                  foundNode = true
                   break
                 }
 
@@ -1461,6 +1463,22 @@ export const AgentsMentionsEditor = memo(
                   }
                 }
                 walkNode = walker.nextNode()
+              }
+
+              // Validate localAtPosition - must be non-negative and within node length
+              if (!foundNode || localAtPosition < 0 || localAtPosition > text.length) {
+                console.error("[insertMention] Invalid localAtPosition:", {
+                  foundNode,
+                  localAtPosition,
+                  textLength: text.length,
+                  triggerStartIndex: triggerStartIndex.current,
+                  serializedCharCount,
+                })
+                // Fallback: close trigger and don't insert
+                triggerActive.current = false
+                triggerStartIndex.current = null
+                onCloseTrigger()
+                return
               }
 
               const beforeAt = text.slice(0, localAtPosition)

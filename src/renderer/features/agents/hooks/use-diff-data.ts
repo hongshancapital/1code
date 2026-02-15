@@ -48,7 +48,7 @@ export interface UseDiffDataOptions {
 export interface UseDiffDataResult {
   // State
   diffStats: DiffStats
-  parsedFileDiffs: ParsedDiffFile[] | null
+  parsedFileDiffs: CachedParsedDiffFile[] | null
   prefetchedFileContents: Record<string, string>
   diffContent: string | null
   /** Total file count across all sub-chats (for change detection) */
@@ -56,7 +56,7 @@ export interface UseDiffDataResult {
 
   // Setters
   setDiffStats: (val: DiffStats | ((prev: DiffStats) => DiffStats)) => void
-  setParsedFileDiffs: (files: ParsedDiffFile[] | null) => void
+  setParsedFileDiffs: (files: CachedParsedDiffFile[] | null) => void
   setPrefetchedFileContents: (contents: Record<string, string>) => void
   setDiffContent: (content: string | null) => void
 
@@ -148,7 +148,7 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
 
   // Extract diff data from cache
   const diffStats = diffCache.diffStats
-  const parsedFileDiffs = diffCache.parsedFileDiffs as ParsedDiffFile[] | null
+  const parsedFileDiffs = diffCache.parsedFileDiffs as CachedParsedDiffFile[] | null
   const prefetchedFileContents = diffCache.prefetchedFileContents
   const diffContent = diffCache.diffContent
 
@@ -174,7 +174,7 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
   )
 
   const setParsedFileDiffs = useCallback(
-    (files: ParsedDiffFile[] | null) => {
+    (files: CachedParsedDiffFile[] | null) => {
       setDiffCache((prev) => ({
         ...prev,
         parsedFileDiffs: files as CachedParsedDiffFile[] | null,
@@ -326,7 +326,7 @@ export function useDiffData(options: UseDiffDataOptions): UseDiffDataResult {
             parsedFiles.length,
             "files"
           )
-          setParsedFileDiffs(parsedFiles)
+          setParsedFileDiffs(parsedFiles as CachedParsedDiffFile[])
 
           let additions = 0
           let deletions = 0

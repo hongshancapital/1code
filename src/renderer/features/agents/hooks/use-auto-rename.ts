@@ -12,17 +12,16 @@
 
 import { useCallback, useMemo } from "react"
 import { useAtomValue, useSetAtom } from "jotai"
-import { api } from "../../../lib/trpc"
+import { api } from "../../../lib/mock-api"
 import { appStore } from "../../../lib/jotai-store"
 import { autoRenameAgentChat } from "../utils/auto-rename"
 import {
-  summaryProviderIdAtom,
-  summaryModelIdAtom,
   unconfirmedNameSubChatsAtom,
   markNameUnconfirmed,
   confirmName,
 } from "../atoms"
-import { useAgentSubChatStore } from "../stores/agent-sub-chat-store"
+import { summaryProviderIdAtom, summaryModelIdAtom } from "../../../lib/atoms/model-config"
+import { useAgentSubChatStore } from "../stores/sub-chat-store"
 import { getFirstSubChatId } from "../main/chat-utils"
 
 interface SubChat {

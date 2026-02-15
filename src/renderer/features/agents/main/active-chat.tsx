@@ -24,7 +24,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -46,10 +45,7 @@ import {
   isDesktopAtom,
   isFullscreenAtom,
   normalizeCustomClaudeConfig,
-  selectedOllamaModelAtom,
   soundNotificationsEnabledAtom,
-  summaryProviderIdAtom,
-  summaryModelIdAtom,
 } from "../../../lib/atoms";
 import {
   sessionModelOverrideAtom,
@@ -90,7 +86,6 @@ import {
 import {
   utf8ToBase64,
   waitForStreamingReady,
-  getFirstSubChatId,
   computeTabsToRender,
   ScrollToBottomButton,
   MessageGroup,
@@ -112,7 +107,6 @@ import { DetailsSidebar } from "../../details-sidebar/details-sidebar";
 import { ExpandedWidgetSidebar } from "../../details-sidebar/expanded-widget-sidebar";
 import { FileSearchDialog } from "../../file-viewer/components/file-search-dialog";
 import { BrowserPanel } from "../../browser-sidebar";
-import { browserPendingScreenshotAtomFamily } from "../../browser-sidebar/atoms";
 import { pendingPlanApprovalsAtom } from "../atoms";
 import {
   terminalSidebarOpenAtomFamily,
@@ -142,7 +136,6 @@ import {
   fileViewerOpenAtomFamily,
   clearLoading,
   compactingSubChatsAtom,
-  currentPlanPathAtomFamily,
   diffSidebarOpenAtomFamily,
   diffViewDisplayModeAtom,
   expiredUserQuestionsAtom,
@@ -152,11 +145,8 @@ import {
   lastSelectedModelIdAtom,
   loadingSubChatsAtom,
   MODEL_ID_MAP,
-  pendingAuthRetryMessageAtom,
   pendingBuildPlanSubChatIdAtom,
   pendingUserQuestionsAtom,
-  planEditRefetchTriggerAtomFamily,
-  planSidebarOpenAtomFamily,
   QUESTIONS_SKIPPED_MESSAGE,
   selectedAgentChatIdAtom,
   selectedCommitAtom,
@@ -174,7 +164,6 @@ import {
   suppressInputFocusAtom,
   diffHasPendingChangesAtomFamily,
   unconfirmedNameSubChatsAtom,
-  markNameUnconfirmed,
   confirmName,
   type AgentMode,
   type SelectedCommit,
@@ -186,6 +175,14 @@ import type { TextSelectionSource } from "../context/text-selection-context";
 import { TextSelectionProvider } from "../context/text-selection-context";
 import { useAgentsFileUpload } from "../hooks/use-agents-file-upload";
 import { useAutoImport } from "../hooks/use-auto-import";
+import { useAuthRetryMessage } from "../hooks/use-auth-retry-message";
+import { useBrowserScreenshot } from "../hooks/use-browser-screenshot";
+import { useFileContentsCache } from "../hooks/use-file-contents-cache";
+import { useMessagesSync } from "../hooks/use-messages-sync";
+import { usePlanSidebarState } from "../hooks/use-plan-sidebar-state";
+import { useSearchResultScroll } from "../hooks/use-search-result-scroll";
+import { useTerminalShortcut } from "../hooks/use-terminal-shortcut";
+import { useTextContextAdapter } from "../hooks/use-text-context-adapter";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import {
   useScrollToTarget,
@@ -225,7 +222,6 @@ import {
 } from "../mentions";
 import {
   ChatSearchBar,
-  chatSearchCurrentMatchAtom,
   SearchHighlightProvider,
 } from "../search";
 import { chatRegistry } from "../stores/chat-registry";
@@ -237,7 +233,6 @@ import {
   clearSubChatCaches,
   isRollingBackAtom,
   rollbackHandlerAtom,
-  syncMessagesWithStatusAtom,
   currentSubChatIdAtom,
   messageIdsAtom,
   type MessagePart,
@@ -259,8 +254,8 @@ import {
 import { AgentPlanSidebar } from "../ui/agent-plan-sidebar";
 import { AgentQueueIndicator } from "../ui/agent-queue-indicator";
 import { AgentToolCall } from "../ui/agent-tool-call";
-import { AgentToolRegistry } from "../ui/agent-tool-registry";
 import { isPlanFile } from "../ui/agent-tool-utils";
+import { AgentToolRegistry } from "../ui/agent-tool-registry";
 import { AgentUserMessageBubble } from "../ui/agent-user-message-bubble";
 import {
   AgentUserQuestion,
@@ -272,7 +267,7 @@ import { useCommentInput } from "../hooks/use-comment-input";
 import { ReviewButton } from "../ui/review-button";
 import { SubChatStatusCard } from "../ui/sub-chat-status-card";
 import { TextSelectionPopover } from "../ui/text-selection-popover";
-import { autoRenameAgentChat } from "../utils/auto-rename";
+import { useAutoRename } from "../hooks/use-auto-rename";
 import { ChatInputArea } from "./chat-input-area";
 import { CHAT_LAYOUT } from "./constants";
 import { IsolatedMessagesSection } from "./isolated-messages-section";
@@ -553,52 +548,7 @@ const ChatViewInner = memo(function ChatViewInner({
   );
 
   // Listen for browser screenshots to add to chat input
-  const browserPendingScreenshotAtom = useMemo(
-    () => browserPendingScreenshotAtomFamily(parentChatId),
-    [parentChatId],
-  );
-  const [pendingScreenshot, setPendingScreenshot] = useAtom(
-    browserPendingScreenshotAtom,
-  );
-  useEffect(() => {
-    if (!pendingScreenshot) return;
-
-    // Convert data URL to File and add as attachment
-    const addScreenshotToInput = async () => {
-      try {
-        // Parse data URL: data:image/png;base64,xxxx
-        const [header, base64Data] = pendingScreenshot.split(",");
-        if (!base64Data) return;
-
-        const mimeMatch = header?.match(/data:([^;]+)/);
-        const mimeType = mimeMatch?.[1] || "image/png";
-        const extension = mimeType.split("/")[1] || "png";
-
-        // Convert base64 to blob
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mimeType });
-
-        // Create file
-        const filename = `browser-screenshot-${Date.now()}.${extension}`;
-        const file = new File([blob], filename, { type: mimeType });
-
-        // Add to attachments
-        await handleAddAttachments([file]);
-      } catch (error) {
-        console.error("Failed to add screenshot to input:", error);
-      } finally {
-        // Clear pending screenshot
-        setPendingScreenshot(null);
-      }
-    };
-
-    addScreenshotToInput();
-  }, [pendingScreenshot, setPendingScreenshot, handleAddAttachments]);
+  useBrowserScreenshot({ parentChatId, handleAddAttachments });
 
   // Text context selection hook (for selecting text from assistant messages and diff)
   const {
@@ -626,19 +576,8 @@ const ChatViewInner = memo(function ChatViewInner({
   } = usePastedTextFiles(subChatId);
 
   // File contents cache - stores content for file mentions (keyed by mentionId)
-  // This content gets added to the prompt when sending, without showing a separate card
-  const fileContentsRef = useRef<Map<string, string>>(new Map());
-  const cacheFileContent = useCallback((mentionId: string, content: string) => {
-    fileContentsRef.current.set(mentionId, content);
-  }, []);
-  const clearFileContents = useCallback(() => {
-    fileContentsRef.current.clear();
-  }, []);
-
-  // Clear file contents cache when switching subChats to prevent stale data
-  useEffect(() => {
-    fileContentsRef.current.clear();
-  }, [subChatId]);
+  const { fileContentsRef, cacheFileContent, clearFileContents } =
+    useFileContentsCache({ subChatId });
 
   // Comment input - unified handler for TextSelectionPopover
   const openCommentInput = useCommentInput();
@@ -746,53 +685,12 @@ const ChatViewInner = memo(function ChatViewInner({
     await stopRef.current();
   }, [subChatId]);
 
-  // Wrapper for addTextContext that handles TextSelectionSource
-  const addTextContext = useCallback(
-    (text: string, source: TextSelectionSource) => {
-      if (source.type === "assistant-message") {
-        addTextContextOriginal(text, source.messageId);
-      } else if (source.type === "diff") {
-        addDiffTextContext(
-          text,
-          source.filePath,
-          source.lineNumber,
-          source.lineType,
-        );
-      } else if (source.type === "tool-edit") {
-        // Tool edit selections are treated as code selections (similar to diff)
-        addDiffTextContext(text, source.filePath);
-      } else if (source.type === "plan") {
-        // Plan selections are treated as code selections (similar to diff)
-        addDiffTextContext(text, source.planPath);
-      } else if (source.type === "file-viewer") {
-        // File viewer selections are treated as code selections
-        addDiffTextContext(text, source.filePath);
-      }
-    },
-    [addTextContextOriginal, addDiffTextContext],
-  );
-
-  // Focus handler for text selection popover - focus chat input after adding to context
-  const handleFocusInput = useCallback(() => {
-    editorRef.current?.focus();
-  }, []);
-
-  // Listen for file-viewer "Add to Context" from the custom context menu
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as {
-        text: string;
-        source: TextSelectionSource;
-      };
-      if (detail.text && detail.source) {
-        addTextContext(detail.text, detail.source);
-        editorRef.current?.focus();
-      }
-    };
-    window.addEventListener("file-viewer-add-to-context", handler);
-    return () =>
-      window.removeEventListener("file-viewer-add-to-context", handler);
-  }, [addTextContext]);
+  // Unified text selection source handler + file-viewer event listener
+  const { addTextContext, handleFocusInput } = useTextContextAdapter({
+    addTextContextOriginal,
+    addDiffTextContext,
+    editorRef,
+  });
 
   // Sync loading status to atom for UI indicators
   // Only SET loading here when streaming starts.
@@ -1204,57 +1102,7 @@ const ChatViewInner = memo(function ChatViewInner({
   );
 
   // Watch for pending auth retry message (after successful OAuth flow)
-  const [pendingAuthRetry, setPendingAuthRetry] = useAtom(
-    pendingAuthRetryMessageAtom,
-  );
-
-  useEffect(() => {
-    // Only retry when:
-    // 1. There's a pending message
-    // 2. readyToRetry is true (set by modal on OAuth success)
-    // 3. We're in the correct chat
-    // 4. Not currently streaming
-    if (
-      pendingAuthRetry &&
-      pendingAuthRetry.readyToRetry &&
-      pendingAuthRetry.subChatId === subChatId &&
-      !isStreaming
-    ) {
-      // Clear the pending message immediately to prevent double-sending
-      setPendingAuthRetry(null);
-
-      // Build message parts
-      const parts: Array<
-        { type: "text"; text: string } | { type: "data-image"; data: any }
-      > = [{ type: "text", text: pendingAuthRetry.prompt }];
-
-      // Add images if present
-      if (pendingAuthRetry.images && pendingAuthRetry.images.length > 0) {
-        for (const img of pendingAuthRetry.images) {
-          parts.push({
-            type: "data-image",
-            data: {
-              base64Data: img.base64Data,
-              mediaType: img.mediaType,
-              filename: img.filename,
-            },
-          });
-        }
-      }
-
-      // Send the message to Claude
-      sendMessage({
-        role: "user",
-        parts,
-      });
-    }
-  }, [
-    pendingAuthRetry,
-    isStreaming,
-    sendMessage,
-    setPendingAuthRetry,
-    subChatId,
-  ]);
+  useAuthRetryMessage({ subChatId, isStreaming, sendMessage });
 
   // Handle plan approval - sends "Build plan" message and switches to agent mode
   const handleApprovePlan = useCallback(() => {
@@ -1682,14 +1530,14 @@ const ChatViewInner = memo(function ChatViewInner({
       );
       if (!builtinNames.has(commandName)) {
         try {
-          const commands = await trpcClient.commands.list.query({
+          const commands = await (trpcClient as any).commands.list.query({
             projectPath,
           });
           const cmd = commands.find(
-            (c) => c.name.toLowerCase() === commandName.toLowerCase(),
+            (c: any) => c.name.toLowerCase() === commandName.toLowerCase(),
           );
           if (cmd) {
-            const { content } = await trpcClient.commands.getContent.query({
+            const { content } = await (trpcClient as any).commands.getContent.query({
               path: cmd.path,
             });
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
@@ -2059,14 +1907,14 @@ const ChatViewInner = memo(function ChatViewInner({
       );
       if (!builtinNames.has(commandName)) {
         try {
-          const commands = await trpcClient.commands.list.query({
+          const commands = await (trpcClient as any).commands.list.query({
             projectPath,
           });
           const cmd = commands.find(
-            (c) => c.name.toLowerCase() === commandName.toLowerCase(),
+            (c: any) => c.name.toLowerCase() === commandName.toLowerCase(),
           );
           if (cmd) {
-            const { content } = await trpcClient.commands.getContent.query({
+            const { content } = await (trpcClient as any).commands.getContent.query({
               path: cmd.path,
             });
             finalText = content.replace(/\$ARGUMENTS/g, args.trim());
@@ -2199,82 +2047,11 @@ const ChatViewInner = memo(function ChatViewInner({
       ? CHAT_LAYOUT.stickyTopSidebarOpen
       : CHAT_LAYOUT.stickyTopSidebarClosed;
 
-  // Sync messages to Jotai store for isolated rendering
-  // CRITICAL: Only sync from the ACTIVE tab to prevent overwriting global atoms
-  // Each tab has its own useChat() instance, but global atoms (messageIdsAtom, etc.) are shared.
-  // Only the active tab should update these global atoms.
-  const syncMessages = useSetAtom(syncMessagesWithStatusAtom);
-  useLayoutEffect(() => {
-    // Skip syncing for inactive tabs - they shouldn't update global atoms
-    if (!isActive) return;
-    syncMessages({ messages, status, subChatId });
-  }, [messages, status, subChatId, syncMessages, isActive]);
-
-  // Sync status to global streaming status store for queue processing
-  const setStreamingStatus = useStreamingStatusStore((s) => s.setStatus);
-  useEffect(() => {
-    setStreamingStatus(
-      subChatId,
-      status as "ready" | "streaming" | "submitted" | "error",
-    );
-  }, [subChatId, status, setStreamingStatus]);
+  // Sync messages and streaming status to global stores
+  useMessagesSync({ messages, status, subChatId, isActive });
 
   // Chat search - scroll to current match
-  // Use ref to track scroll lock and prevent race conditions
-  const searchScrollLockRef = useRef<number>(0);
-  const currentSearchMatch = useAtomValue(chatSearchCurrentMatchAtom);
-  useEffect(() => {
-    if (!currentSearchMatch) return;
-
-    const container = chatContainerRef.current;
-    if (!container) return;
-
-    // Increment lock to cancel any pending scroll operations
-    const currentLock = ++searchScrollLockRef.current;
-
-    // Use double requestAnimationFrame + small delay to ensure DOM has updated with new highlights
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          // Check if this scroll operation is still valid (not superseded by newer one)
-          if (searchScrollLockRef.current !== currentLock) return;
-
-          // First try to find the highlight mark
-          let targetElement: Element | null = container.querySelector(
-            ".search-highlight-current",
-          );
-
-          // If no highlight mark, find the message element with matching data attributes
-          if (!targetElement) {
-            const selector = `[data-message-id="${currentSearchMatch.messageId}"][data-part-index="${currentSearchMatch.partIndex}"]`;
-            targetElement = container.querySelector(selector);
-          }
-
-          if (targetElement) {
-            // Check if this is inside a sticky user message container
-            const stickyParent = targetElement.closest(
-              "[data-user-message-id]",
-            );
-            if (stickyParent) {
-              const messageGroupWrapper = stickyParent.parentElement;
-              if (messageGroupWrapper) {
-                messageGroupWrapper.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                });
-                return;
-              }
-            }
-
-            targetElement.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
-          }
-        }, 50);
-      });
-    });
-  }, [currentSearchMatch]);
+  useSearchResultScroll({ chatContainerRef });
 
   // Calculate top offset for search bar based on sub-chat selector
   const searchBarTopOffset = isSubChatsSidebarOpen ? "52px" : undefined;
@@ -2585,12 +2362,10 @@ export function ChatView({
   const isFullscreen = useAtomValue(isFullscreenAtom);
   const isChatFullWidth = useAtomValue(agentsChatFullWidthAtom);
   const customClaudeConfig = useAtomValue(customClaudeConfigAtom);
-  const selectedOllamaModel = useAtomValue(selectedOllamaModelAtom);
   const normalizedCustomClaudeConfig =
     normalizeCustomClaudeConfig(customClaudeConfig);
   const hasCustomClaudeConfig = Boolean(normalizedCustomClaudeConfig);
   const setLoadingSubChats = useSetAtom(loadingSubChatsAtom);
-  const setUnconfirmedNameSubChats = useSetAtom(unconfirmedNameSubChatsAtom);
   const unseenChanges = useAtomValue(agentsUnseenChangesAtom);
   const setUnseenChanges = useSetAtom(agentsUnseenChangesAtom);
   const setSubChatUnseenChanges = useSetAtom(agentsSubChatUnseenChangesAtom);
@@ -2633,23 +2408,22 @@ export function ChatView({
     pendingDiffChangesAtom,
   );
 
-  // Subscribe to activeSubChatId for plan sidebar (needs to update when switching sub-chats)
+  // activeSubChatIdForPlan is used by usePrGitOperations below
   const activeSubChatIdForPlan = useAgentSubChatStore(
     (state) => state.activeSubChatId,
   );
 
-  // Per-subChat plan sidebar state - each sub-chat remembers its own open/close state
-  const planSidebarAtom = useMemo(
-    () => planSidebarOpenAtomFamily(activeSubChatIdForPlan || ""),
-    [activeSubChatIdForPlan],
-  );
-  const [isPlanSidebarOpen, setIsPlanSidebarOpen] = useAtom(planSidebarAtom);
-
-  const currentPlanPathAtom = useMemo(
-    () => currentPlanPathAtomFamily(activeSubChatIdForPlan || ""),
-    [activeSubChatIdForPlan],
-  );
-  const [currentPlanPath, setCurrentPlanPath] = useAtom(currentPlanPathAtom);
+  // Plan sidebar state (atom init, close on switch, approve/expand handlers)
+  const {
+    isPlanSidebarOpen,
+    setIsPlanSidebarOpen,
+    currentPlanPath,
+    setCurrentPlanPath,
+    planEditRefetchTrigger,
+    triggerPlanRefetch,
+    handleApprovePlanFromSidebar,
+    handleExpandPlan,
+  } = usePlanSidebarState();
 
   // File viewer sidebar state - per-chat open file path
   const fileViewerAtom = useMemo(
@@ -2690,46 +2464,6 @@ export function ChatView({
   // Listen for AI-generated sub-chat name from backend (success or failure)
   useSubChatNameSync({ selectedTeamId });
 
-  // Close plan sidebar when switching to a sub-chat that has no plan
-  const prevSubChatIdRef = useRef(activeSubChatIdForPlan);
-  useEffect(() => {
-    if (prevSubChatIdRef.current !== activeSubChatIdForPlan) {
-      // Sub-chat changed - if new one has no plan path, close sidebar
-      if (!currentPlanPath) {
-        setIsPlanSidebarOpen(false);
-      }
-      prevSubChatIdRef.current = activeSubChatIdForPlan;
-    }
-  }, [activeSubChatIdForPlan, currentPlanPath, setIsPlanSidebarOpen]);
-  const setPendingBuildPlanSubChatId = useSetAtom(
-    pendingBuildPlanSubChatIdAtom,
-  );
-
-  // Read plan edit refetch trigger from atom (set by ChatViewInner when Edit completes)
-  const planEditRefetchTriggerAtom = useMemo(
-    () => planEditRefetchTriggerAtomFamily(activeSubChatIdForPlan || ""),
-    [activeSubChatIdForPlan],
-  );
-  const planEditRefetchTrigger = useAtomValue(planEditRefetchTriggerAtom);
-  const triggerPlanRefetch = useSetAtom(planEditRefetchTriggerAtom);
-
-  // Handler for plan sidebar "Build plan" button
-  // Uses getState() to get fresh activeSubChatId (avoids stale closure)
-  const handleApprovePlanFromSidebar = useCallback(() => {
-    const activeSubChatId = useAgentSubChatStore.getState().activeSubChatId;
-    if (activeSubChatId) {
-      setPendingBuildPlanSubChatId(activeSubChatId);
-    }
-  }, [setPendingBuildPlanSubChatId]);
-
-  // Handler for expanding plan sidebar - opens sidebar and triggers refetch
-  // This ensures plan content is refreshed when "View plan" is clicked,
-  // even if the sidebar is already open
-  const handleExpandPlan = useCallback(() => {
-    setIsPlanSidebarOpen(true);
-    // Always trigger refetch when expanding to ensure fresh content
-    triggerPlanRefetch();
-  }, [setIsPlanSidebarOpen, triggerPlanRefetch]);
 
   // Per-chat terminal sidebar state - each chat remembers its own open/close state
   const terminalSidebarAtom = useMemo(
@@ -2741,24 +2475,7 @@ export function ChatView({
   const terminalDisplayMode = useAtomValue(terminalDisplayModeAtom);
 
   // Keyboard shortcut: Cmd+J to toggle terminal
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.metaKey &&
-        !e.altKey &&
-        !e.shiftKey &&
-        !e.ctrlKey &&
-        e.code === "KeyJ"
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsTerminalSidebarOpen(!isTerminalSidebarOpen);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [isTerminalSidebarOpen, setIsTerminalSidebarOpen]);
+  useTerminalShortcut({ isTerminalSidebarOpen, setIsTerminalSidebarOpen });
 
   // Per-chat expanded widget state - for Explorer and other expandable widgets
   const expandedWidgetAtom = useMemo(
@@ -2890,11 +2607,6 @@ export function ChatView({
     clearSubChatUnseen(setSubChatStatus, activeSubChatId);
   }, [activeSubChatId, setSubChatUnseenChanges, setSubChatStatus]);
 
-  // tRPC mutations for renaming
-  const renameSubChatMutation = api.agents.renameSubChat.useMutation();
-  const renameChatMutation = api.agents.renameChat.useMutation();
-  const generateSubChatNameMutation =
-    api.agents.generateSubChatName.useMutation();
 
   // Determine if we're in sandbox mode
   const chatSourceMode = useAtomValue(chatSourceModeAtom);
@@ -2915,7 +2627,7 @@ export function ChatView({
   // 3. Dual-source check handles race condition where store hasn't updated yet
   const activeSubChatExistsInWorkspace =
     activeSubChatId &&
-    ((localAgentChat?.subChats ?? []).some((sc) => sc.id === activeSubChatId) ||
+    ((localAgentChat?.subChats ?? []).some((sc: any) => sc.id === activeSubChatId) ||
       allSubChats.some((sc) => sc.id === activeSubChatId));
   const { data: subChatMessagesData, isLoading: isLoadingMessages } =
     trpc.chats.getSubChatMessages.useQuery(
@@ -2941,7 +2653,7 @@ export function ChatView({
   const prevChatIdRef = useRef(chatId);
   useEffect(() => {
     if (prevChatIdRef.current !== chatId) {
-      getQueryClient().resetQueries({
+      getQueryClient()?.resetQueries({
         queryKey: [["chats", "getSubChatMessages"]],
       });
       prevChatIdRef.current = chatId;
@@ -3002,6 +2714,53 @@ export function ChatView({
     stream_id?: string | null;
   }>;
 
+  // Auto-detect plan path from ACTIVE sub-chat messages when sub-chat changes
+  // This ensures the plan sidebar shows the correct plan for the active sub-chat only
+  useEffect(() => {
+    if (
+      !agentSubChats ||
+      agentSubChats.length === 0 ||
+      !activeSubChatIdForPlan
+    ) {
+      setCurrentPlanPath(null);
+      return;
+    }
+
+    // Find the active sub-chat
+    const activeSubChat = agentSubChats.find(
+      (sc) => sc.id === activeSubChatIdForPlan,
+    );
+    if (!activeSubChat) {
+      setCurrentPlanPath(null);
+      return;
+    }
+
+    // Find last plan file path from active sub-chat only
+    let lastPlanPath: string | null = null;
+    type MessageLike = {
+      role?: string;
+      parts?: Array<{ type?: string; input?: { file_path?: string } }>;
+    };
+    const messages = (
+      Array.isArray(activeSubChat.messages) ? activeSubChat.messages : []
+    ) as MessageLike[];
+    for (const msg of messages) {
+      if (msg.role !== "assistant") continue;
+      const parts = msg.parts || [];
+      for (const part of parts) {
+        if (
+          part.type === "tool-Write" &&
+          part.input?.file_path &&
+          isPlanFile(part.input.file_path)
+        ) {
+          lastPlanPath = part.input.file_path;
+        }
+      }
+    }
+
+    setCurrentPlanPath(lastPlanPath);
+  }, [agentSubChats, activeSubChatIdForPlan, setCurrentPlanPath]);
+
   // Compute if we're waiting for local chat data (used as loading gate)
   // Only show loading if there's no data AND we're loading - this prevents
   // blocking the UI during cache invalidation/refetch when data already exists
@@ -3046,7 +2805,7 @@ export function ChatView({
 
   // Get project mode from chat's associated project
   // Each chat has its own project with its own mode
-  const chatProject = (agentChat as AgentChat | null)?.project as
+  const chatProject = (agentChat as unknown as AgentChat | null)?.project as
     | ChatProject
     | undefined;
   const chatProjectMode: ProjectMode = chatProject?.mode ?? "cowork";
@@ -3097,7 +2856,7 @@ export function ChatView({
   const worktreePath =
     (agentChat?.worktreePath as string | null) ?? selectedProject?.path ?? null;
   // Fallback for web: use sandbox_id
-  const sandboxId = agentChat?.sandbox_id;
+  const sandboxId = agentChat?.sandbox_id ?? undefined;
   const sandboxUrl = sandboxId ? `https://3003-${sandboxId}.e2b.app` : null;
   // Desktop uses worktreePath, web uses sandboxUrl
   const chatWorkingDir = worktreePath || sandboxUrl;
@@ -3380,57 +3139,10 @@ export function ChatView({
           freshState.setOpenSubChats([latest.id]);
         }
       } else {
-        freshState.setActiveSubChat(null);
+        freshState.setActiveSubChat(null as unknown as string);
       }
     }
   }, [agentChat, chatId]);
-
-  // Auto-detect plan path from ACTIVE sub-chat messages when sub-chat changes
-  // This ensures the plan sidebar shows the correct plan for the active sub-chat only
-  useEffect(() => {
-    if (
-      !agentSubChats ||
-      agentSubChats.length === 0 ||
-      !activeSubChatIdForPlan
-    ) {
-      setCurrentPlanPath(null);
-      return;
-    }
-
-    // Find the active sub-chat
-    const activeSubChat = agentSubChats.find(
-      (sc) => sc.id === activeSubChatIdForPlan,
-    );
-    if (!activeSubChat) {
-      setCurrentPlanPath(null);
-      return;
-    }
-
-    // Find last plan file path from active sub-chat only
-    let lastPlanPath: string | null = null;
-    type MessageLike = {
-      role?: string;
-      parts?: Array<{ type?: string; input?: { file_path?: string } }>;
-    };
-    const messages = (
-      Array.isArray(activeSubChat.messages) ? activeSubChat.messages : []
-    ) as MessageLike[];
-    for (const msg of messages) {
-      if (msg.role !== "assistant") continue;
-      const parts = msg.parts || [];
-      for (const part of parts) {
-        if (
-          part.type === "tool-Write" &&
-          part.input?.file_path &&
-          isPlanFile(part.input.file_path)
-        ) {
-          lastPlanPath = part.input.file_path;
-        }
-      }
-    }
-
-    setCurrentPlanPath(lastPlanPath);
-  }, [agentSubChats, activeSubChatIdForPlan, setCurrentPlanPath]);
 
   // Create or get Chat instance for a sub-chat
   const getOrCreateChat = useCallback(
@@ -3563,13 +3275,13 @@ export function ChatView({
       // Create transport based on chat type (local worktree vs remote sandbox)
       // Note: Extended thinking setting is read dynamically inside the transport
       // projectPath: original project path for MCP config lookup (worktreePath is the cwd)
-      const projectPath = getProjectPath(agentChat as AgentChat | null);
-      const chatSandboxId = getSandboxId(agentChat as AgentChat | null);
+      const projectPath = getProjectPath(agentChat as unknown as AgentChat | null);
+      const chatSandboxId = getSandboxId(agentChat as unknown as AgentChat | null);
       const chatSandboxUrl = chatSandboxId
         ? `https://3003-${chatSandboxId}.e2b.app`
         : null;
       const isChatRemote =
-        isRemoteChat(agentChat as AgentChat | null) || !!chatSandboxId;
+        isRemoteChat(agentChat as unknown as AgentChat | null) || !!chatSandboxId;
 
       console.log("[getOrCreateChat] Transport selection", {
         subChatId: subChatId.slice(-8),
@@ -3732,7 +3444,7 @@ export function ChatView({
     const newSubChatMode = defaultAgentMode;
 
     // Check if this is a remote sandbox chat
-    const isChatRemoteForNew = isRemoteChat(agentChat as AgentChat | null);
+    const isChatRemoteForNew = isRemoteChat(agentChat as unknown as AgentChat | null);
 
     let newId: string;
 
@@ -3792,13 +3504,13 @@ export function ChatView({
     store.setActiveSubChat(newId);
 
     // Create empty Chat instance for the new sub-chat
-    const projectPath = getProjectPath(agentChat as AgentChat | null);
-    const newSubChatSandboxId = getSandboxId(agentChat as AgentChat | null);
+    const projectPath = getProjectPath(agentChat as unknown as AgentChat | null);
+    const newSubChatSandboxId = getSandboxId(agentChat as unknown as AgentChat | null);
     const newSubChatSandboxUrl = newSubChatSandboxId
       ? `https://3003-${newSubChatSandboxId}.e2b.app`
       : null;
     const isNewSubChatRemote =
-      isRemoteChat(agentChat as AgentChat | null) || !!newSubChatSandboxId;
+      isRemoteChat(agentChat as unknown as AgentChat | null) || !!newSubChatSandboxId;
 
     console.log("[createNewSubChat] Transport selection", {
       newId: newId.slice(-8),
@@ -3955,8 +3667,8 @@ export function ChatView({
     chatId,
     onNewSubChat: handleCreateNewSubChat,
     onToggleDiffSidebar: useCallback(
-      () => setIsDiffSidebarOpen((prev) => !prev),
-      [],
+      () => setIsDiffSidebarOpen(!isDiffSidebarOpen),
+      [isDiffSidebarOpen, setIsDiffSidebarOpen],
     ),
     onRestoreWorkspace: handleRestoreWorkspace,
     isDiffSidebarOpen,
@@ -3967,153 +3679,13 @@ export function ChatView({
     clearSubChatSelection,
   });
 
-  // Handle auto-rename for sub-chat and parent chat
-  // Receives subChatId as param to avoid stale closure issues
-  const handleAutoRename = useCallback(
-    (userMessage: string, subChatId: string) => {
-      // Check if this is the first sub-chat using agentSubChats directly
-      // to avoid race condition with store initialization
-      const firstSubChatId = getFirstSubChatId(agentSubChats);
-      const isFirst = firstSubChatId === subChatId;
-
-      // Get the sub-chat to check manuallyRenamed flag
-      const subChat = agentSubChats.find((sc) => sc.id === subChatId);
-      if (subChat?.manually_renamed) {
-        console.log(
-          "[auto-rename] Skipping - user has manually renamed this sub-chat",
-        );
-        return;
-      }
-
-      autoRenameAgentChat({
-        subChatId,
-        parentChatId: chatId,
-        userMessage,
-        isFirstSubChat: isFirst,
-        generateName: async (msg) => {
-          const sp = appStore.get(summaryProviderIdAtom);
-          const sm = appStore.get(summaryModelIdAtom);
-          const payload = {
-            userMessage: msg,
-            subChatId,
-            chatId,
-            projectId: chatProject?.id,
-            isFirstSubChat: isFirst,
-            ...(sp && sm && { summaryProviderId: sp, summaryModelId: sm }),
-          };
-          console.log(
-            "[auto-rename] summaryProvider:",
-            sp || "(not set)",
-            "summaryModel:",
-            sm || "(not set)",
-          );
-          return generateSubChatNameMutation.mutateAsync(payload);
-        },
-        renameSubChat: async (input) => {
-          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
-          await renameSubChatMutation.mutateAsync({
-            ...input,
-            skipManuallyRenamed: true,
-          });
-        },
-        renameChat: async (input) => {
-          // Pass skipManuallyRenamed to prevent setting the flag for auto-rename
-          await renameChatMutation.mutateAsync({
-            ...input,
-            skipManuallyRenamed: true,
-          });
-        },
-        updateSubChatName: (subChatIdToUpdate, name) => {
-          // Update local store
-          useAgentSubChatStore
-            .getState()
-            .updateSubChatName(subChatIdToUpdate, name);
-          // Also update query cache so init effect doesn't overwrite
-          utils.agents.getAgentChat.setData({ chatId }, (old) => {
-            if (!old) return old;
-            const existsInCache = old.subChats.some(
-              (sc: { id: string }) => sc.id === subChatIdToUpdate,
-            );
-            if (!existsInCache) {
-              // Sub-chat not in cache yet (DB save still in flight) - add it
-              return {
-                ...old,
-                subChats: [
-                  ...old.subChats,
-                  {
-                    id: subChatIdToUpdate,
-                    name,
-                    created_at: new Date(),
-                    updated_at: new Date(),
-                    messages: [],
-                    mode: "agent",
-                    stream_id: null,
-                    chat_id: chatId,
-                  },
-                ],
-              };
-            }
-            return {
-              ...old,
-              subChats: old.subChats.map((sc: { id: string; name: string }) =>
-                sc.id === subChatIdToUpdate ? { ...sc, name } : sc,
-              ),
-            };
-          });
-        },
-        updateChatName: (chatIdToUpdate, name) => {
-          // Optimistic update for sidebar (list query)
-          // On desktop, selectedTeamId is always null, so we update unconditionally
-          utils.agents.getAgentChats.setData(
-            { teamId: selectedTeamId },
-            (old: { id: string; name: string | null }[] | undefined) => {
-              if (!old) return old;
-              return old.map((c) =>
-                c.id === chatIdToUpdate ? { ...c, name } : c,
-              );
-            },
-          );
-          // Optimistic update for header (single chat query)
-          utils.agents.getAgentChat.setData(
-            { chatId: chatIdToUpdate },
-            (old) => {
-              if (!old) return old;
-              return { ...old, name };
-            },
-          );
-        },
-        // Name confirmation callbacks
-        onNameUnconfirmed: () => {
-          console.log(
-            "[auto-rename] Marking name as unconfirmed (shimmer) for subChatId:",
-            subChatId,
-          );
-          markNameUnconfirmed(setUnconfirmedNameSubChats, subChatId);
-        },
-        onNameConfirmed: () => {
-          // Fallback: called by timeout if IPC never arrives
-          console.log(
-            "[auto-rename] Fallback: confirming name for subChatId:",
-            subChatId,
-          );
-          confirmName(setUnconfirmedNameSubChats, subChatId);
-        },
-      });
-    },
-    [
-      chatId,
-      agentSubChats,
-      generateSubChatNameMutation,
-      renameSubChatMutation,
-      renameChatMutation,
-      selectedTeamId,
-      selectedOllamaModel,
-      utils.agents.getAgentChats,
-      utils.agents.getAgentChat,
-      chatProject?.id,
-      setUnconfirmedNameSubChats,
-    ],
-  );
+  // Auto-rename for sub-chat and parent chat (extracted to hook)
+  const { handleAutoRename, unconfirmedNameSubChats, setUnconfirmedNameSubChats } = useAutoRename({
+    chatId,
+    subChats: agentSubChats as Array<{ id: string; name: string | null; manually_renamed?: boolean; created_at?: string | Date | null; updated_at?: string | Date | null }>,
+    projectId: chatProject?.id,
+    selectedTeamId,
+  });
 
   // Determine if chat header should be hidden
   const shouldHideChatHeader =
@@ -4136,7 +3708,7 @@ export function ChatView({
       worktreePath,
       sandboxId: sandboxId ?? null,
       projectPath: chatProject?.path ?? selectedProject?.path ?? null,
-      agentChat: agentChat as AgentChat | null,
+      agentChat: agentChat as unknown as AgentChat | null,
       agentSubChats: agentSubChats as any[],
       isLoading: isLocalChatLoading,
       isRemoteChat: chatSourceMode === "sandbox",
@@ -4146,7 +3718,7 @@ export function ChatView({
       isArchived,
       invalidateChat: async () => {
         const queryClient = getQueryClient();
-        await queryClient.invalidateQueries({
+        await queryClient?.invalidateQueries({
           queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
         });
       },
@@ -4155,7 +3727,7 @@ export function ChatView({
         try {
           await trpcClient.changes.fetchRemote.mutate({ worktreePath });
           const queryClient = getQueryClient();
-          await queryClient.invalidateQueries({
+          await queryClient?.invalidateQueries({
             queryKey: [["agents", "getAgentChat"], { input: { chatId } }],
           });
         } catch (error) {
