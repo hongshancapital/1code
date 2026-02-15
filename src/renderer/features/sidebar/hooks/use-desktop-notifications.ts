@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
-import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom } from "../../../lib/atoms"
+import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom, notificationVolumeAtom } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 
 // Track pending notifications count for badge
@@ -33,21 +33,36 @@ const notificationConfig: Record<NotificationType, { title: string; getBody: (na
 }
 
 /**
+ * Resolve sound identifier to a playable audio source URL.
+ *   null             → "./sound.mp3"          (default)
+ *   "builtin:name"   → "./sounds/name.wav"    (built-in)
+ *   "/abs/path/..."  → "local-file://..."     (custom file)
+ */
+export function resolveNotificationSoundSrc(soundId: string | null): string {
+  if (!soundId) return "./sound.mp3"
+  if (soundId.startsWith("builtin:")) {
+    const name = soundId.slice("builtin:".length)
+    return `./sounds/${name}.wav`
+  }
+  const normalizedPath = soundId.startsWith("/") ? soundId : `/${soundId}`
+  return `local-file://localhost${normalizedPath}`
+}
+
+/**
  * Play notification sound if enabled in settings
- * Supports custom sound file path from settings
+ * Supports built-in sounds, custom file path, and volume control
  */
 function playNotificationSound() {
   const isSoundEnabled = appStore.get(soundNotificationsEnabledAtom)
   if (!isSoundEnabled) return
 
-  const customSoundPath = appStore.get(customNotificationSoundAtom)
-  const soundSrc = customSoundPath
-    ? `local-file://${customSoundPath}`
-    : "./sound.mp3"
+  const soundId = appStore.get(customNotificationSoundAtom)
+  const volume = appStore.get(notificationVolumeAtom)
+  const soundSrc = resolveNotificationSoundSrc(soundId)
 
   try {
     const audio = new Audio(soundSrc)
-    audio.volume = 1.0
+    audio.volume = Math.max(0, Math.min(1, volume))
     audio.play().catch((err) => {
       console.error("Failed to play notification sound:", err)
     })

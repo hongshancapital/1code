@@ -103,6 +103,7 @@ import { PreviewSidebarPanel } from "../components/preview-sidebar-panel";
 import { ChatViewLoadingPlaceholder } from "../components/chat-view-loading-placeholder";
 import {
   detailsSidebarOpenAtom,
+  detailsStickyAtom,
   unifiedSidebarEnabledAtom,
   expandedWidgetAtomFamily,
 } from "../../details-sidebar/atoms";
@@ -2457,10 +2458,14 @@ export function ChatView({
   // Browser sidebar state - IPC events bridge to new Panel System
   const {
     betaBrowserEnabled,
+    isBrowserSidebarOpen,
     setBrowserActive,
     setBrowserUrl,
     setBrowserPendingScreenshot,
   } = useBrowserSidebar({ chatId });
+
+  // Details sticky mode: persisted preference for bidirectional coexistence
+  const [detailsSticky, setDetailsSticky] = useAtom(detailsStickyAtom);
 
   const setIsDetailsSidebarOpen = useCallback(
     (open: boolean | ((prev: boolean) => boolean)) => {
@@ -2512,8 +2517,9 @@ export function ChatView({
   );
   const subChatsSidebarMode = useAtomValue(agentsSubChatsSidebarModeAtom);
 
-  // Mutual exclusion: Details sidebar vs Plan/Terminal/Diff(side-peek) sidebars
-  // Now includes Diff sidebar handling (previously separate useEffect below)
+  // Mutual exclusion: Details sidebar vs Plan/Terminal/Browser/Diff(side-peek) sidebars
+  // Sticky mode: once user manually opens Details while Plan/Terminal/Browser is showing,
+  // they coexist permanently (persisted to localStorage)
   useSidebarMutualExclusion(
     {
       isDetailsSidebarOpen,
@@ -2521,6 +2527,8 @@ export function ChatView({
       currentPlanPath,
       isTerminalSidebarOpen,
       terminalDisplayMode,
+      isBrowserSidebarOpen,
+      detailsSticky,
       isDiffSidebarOpen,
       diffDisplayMode,
     },
@@ -2528,6 +2536,7 @@ export function ChatView({
       setIsDetailsSidebarOpen,
       setIsPlanSidebarOpen,
       setIsTerminalSidebarOpen,
+      setDetailsSticky,
       setIsDiffSidebarOpen,
       setDiffDisplayMode,
     },

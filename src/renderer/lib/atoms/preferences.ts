@@ -53,10 +53,21 @@ export const alwaysShowNotificationsAtom = atomWithStorage<boolean>(
 )
 
 // Preferences - Custom Notification Sound
-// Path to custom notification sound file (null = use default sound.mp3)
+// Sound identifier:
+//   null → default sound.mp3
+//   "builtin:abstract-sound1" → built-in sound from /sounds/
+//   "/absolute/path/to/file.mp3" → custom file
 export const customNotificationSoundAtom = atomWithStorage<string | null>(
   "preferences:custom-notification-sound",
   null,
+  undefined,
+  { getOnInit: true },
+)
+
+// Preferences - Notification Volume (0.0 - 1.0)
+export const notificationVolumeAtom = atomWithStorage<number>(
+  "preferences:notification-volume",
+  0.8,
   undefined,
   { getOnInit: true },
 )

@@ -283,6 +283,15 @@ export const detailsSidebarOpenAtom = atomWithWindowStorage<boolean>(
   { getOnInit: true },
 )
 
+// Details "sticky" mode: 用户在 Plan/Terminal/Browser 打开时手动重新打开了 Details
+// 一旦设置，后续打开 Plan/Terminal/Browser 不再自动关闭 Details，两者共存
+export const detailsStickyAtom = atomWithStorage<boolean>(
+  "overview:detailsSticky",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
 // Section types for the overview sidebar
 export type OverviewSection = "info" | "plan" | "terminal" | "diff" | "artifacts" | "explorer"
 

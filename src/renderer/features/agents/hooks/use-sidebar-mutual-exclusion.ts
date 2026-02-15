@@ -3,9 +3,14 @@
  *
  * Extracted from active-chat.tsx to improve maintainability.
  * Handles the logic where certain sidebars conflict with each other:
- * - Details sidebar conflicts with Plan, Terminal (side-peek mode), and Diff (side-peek mode)
+ * - Details sidebar conflicts with Plan, Terminal (side-peek), Browser, and Diff (side-peek)
  * - When one opens, it closes conflicting sidebars and remembers for restoration
  * - Diff sidebar has special behavior: when opened while Details is open, it switches to center-peek mode
+ *
+ * Sticky mode:
+ * - When the user manually opens Details while Plan/Terminal/Browser is showing,
+ *   `detailsSticky` is set to true and persisted to localStorage.
+ * - In sticky mode, opening Plan/Terminal/Browser no longer auto-closes Details (bidirectional coexistence).
  */
 
 import { useEffect, useRef } from "react"
@@ -16,6 +21,8 @@ export interface SidebarMutualExclusionState {
   currentPlanPath: string | null
   isTerminalSidebarOpen: boolean
   terminalDisplayMode: "side-peek" | "bottom"
+  isBrowserSidebarOpen: boolean
+  detailsSticky: boolean
   // Diff sidebar state (optional - only needed if handling Diff)
   isDiffSidebarOpen?: boolean
   diffDisplayMode?: "side-peek" | "center-peek" | "full-page"
@@ -25,6 +32,7 @@ export interface SidebarMutualExclusionSetters {
   setIsDetailsSidebarOpen: (value: boolean) => void
   setIsPlanSidebarOpen: (value: boolean) => void
   setIsTerminalSidebarOpen: (value: boolean) => void
+  setDetailsSticky: (value: boolean) => void
   // Diff sidebar setters (optional)
   setIsDiffSidebarOpen?: (value: boolean) => void
   setDiffDisplayMode?: (value: "side-peek" | "center-peek" | "full-page") => void
@@ -32,7 +40,7 @@ export interface SidebarMutualExclusionSetters {
 
 interface AutoClosedState {
   // What closed Details
-  detailsClosedBy: "plan" | "terminal" | "diff" | null
+  detailsClosedBy: "plan" | "terminal" | "diff" | "browser" | null
   // What Details closed
   planClosedByDetails: boolean
   terminalClosedByDetails: boolean
@@ -44,6 +52,7 @@ interface PrevSidebarStates {
   planSidebarOpen: boolean
   planHasPath: boolean
   terminal: boolean
+  browser: boolean
   diff: boolean
   diffMode: string
 }
@@ -52,12 +61,13 @@ interface PrevSidebarStates {
  * Hook to manage mutual exclusion between sidebars
  *
  * Behavior:
- * - When Details opens: closes Plan, Terminal (side-peek), and Diff (side-peek), remembers for restoration
- * - When Details closes: restores Plan/Terminal/Diff if they were auto-closed
- * - When Plan opens: closes Details, remembers for restoration
- * - When Plan closes: restores Details if it was auto-closed
- * - When Terminal opens (side-peek): closes Details, remembers for restoration
- * - When Terminal closes: restores Details if it was auto-closed
+ * - When Details opens (non-sticky): closes Plan, Terminal (side-peek), Browser, and Diff (side-peek), remembers for restoration
+ * - When Details opens (sticky): enables bidirectional coexistence — no panels are closed
+ * - When Details opens while Plan/Terminal/Browser is showing (first time): sets sticky=true, doesn't close them
+ * - When Details closes: restores Plan/Terminal/Diff/Browser if they were auto-closed
+ * - When Plan/Terminal/Browser opens (non-sticky): closes Details, remembers for restoration
+ * - When Plan/Terminal/Browser opens (sticky): Details stays open (coexistence)
+ * - When Plan/Terminal/Browser closes (non-sticky): restores Details if it was auto-closed
  * - When Diff opens in side-peek while Details is open: switches to center-peek mode
  * - When user switches Diff to side-peek while Details is open: closes Details
  * - When Diff side-peek closes: restores Details if we closed it
@@ -74,6 +84,8 @@ export function useSidebarMutualExclusion(
     currentPlanPath,
     isTerminalSidebarOpen,
     terminalDisplayMode,
+    isBrowserSidebarOpen,
+    detailsSticky,
     isDiffSidebarOpen = false,
     diffDisplayMode = "center-peek",
   } = state
@@ -82,6 +94,7 @@ export function useSidebarMutualExclusion(
     setIsDetailsSidebarOpen,
     setIsPlanSidebarOpen,
     setIsTerminalSidebarOpen,
+    setDetailsSticky,
     setIsDiffSidebarOpen,
     setDiffDisplayMode,
   } = setters
@@ -105,6 +118,7 @@ export function useSidebarMutualExclusion(
     planSidebarOpen: isPlanSidebarOpen,
     planHasPath: !!currentPlanPath,
     terminal: isTerminalSidebarOpen,
+    browser: isBrowserSidebarOpen,
     diff: isDiffSidebarOpen,
     diffMode: diffDisplayMode,
   })
@@ -125,6 +139,8 @@ export function useSidebarMutualExclusion(
     const planJustClosed = !isPlanSidebarOpen && prev.planSidebarOpen
     const terminalJustOpened = isTerminalSidebarOpen && !prev.terminal
     const terminalJustClosed = !isTerminalSidebarOpen && prev.terminal
+    const browserJustOpened = isBrowserSidebarOpen && !prev.browser
+    const browserJustClosed = !isBrowserSidebarOpen && prev.browser
 
     // Diff state changes (only if Diff setters are provided)
     const isNowDiffSidePeek = isDiffSidebarOpen && diffDisplayMode === "side-peek"
@@ -134,20 +150,23 @@ export function useSidebarMutualExclusion(
     // Terminal in "bottom" mode doesn't conflict with Details sidebar
     const terminalConflictsWithDetails = terminalDisplayMode === "side-peek"
 
-    // Details opened → close conflicting sidebars and remember
+    // Whether any default-group panel (that conflicts with Details) is currently open
+    const hasConflictingPanelOpen =
+      isPlanOpen ||
+      (isTerminalSidebarOpen && terminalConflictsWithDetails) ||
+      isBrowserSidebarOpen ||
+      isNowDiffSidePeek
+
+    // Details opened
     if (detailsJustOpened) {
-      if (isPlanOpen) {
-        auto.planClosedByDetails = true
-        setIsPlanSidebarOpen(false)
-      }
-      if (isTerminalSidebarOpen && terminalConflictsWithDetails) {
-        auto.terminalClosedByDetails = true
-        setIsTerminalSidebarOpen(false)
-      }
-      // Close Diff side-peek if open
-      if (isNowDiffSidePeek && setIsDiffSidebarOpen) {
-        auto.diffClosedByDetails = true
-        setIsDiffSidebarOpen(false)
+      if (hasConflictingPanelOpen) {
+        // User opened Details while a conflicting panel is showing → enter sticky mode
+        if (!detailsSticky) {
+          setDetailsSticky(true)
+        }
+        // Sticky: don't close any conflicting panels — bidirectional coexistence
+      } else {
+        // No conflicting panels open — normal open, nothing to close
       }
     }
     // Details closed → restore what it closed
@@ -171,8 +190,8 @@ export function useSidebarMutualExclusion(
         })
       }
     }
-    // Plan opened → close Details and remember
-    else if (planJustOpened && isDetailsSidebarOpen) {
+    // Plan opened → close Details and remember (unless sticky)
+    else if (planJustOpened && isDetailsSidebarOpen && !detailsSticky) {
       auto.detailsClosedBy = "plan"
       // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
       // when it detects Details closing (which would cause a conflict)
@@ -184,11 +203,12 @@ export function useSidebarMutualExclusion(
       auto.detailsClosedBy = null
       setIsDetailsSidebarOpen(true)
     }
-    // Terminal opened → close Details and remember (only in side-peek mode)
+    // Terminal opened → close Details and remember (only in side-peek mode, unless sticky)
     else if (
       terminalJustOpened &&
       isDetailsSidebarOpen &&
-      terminalConflictsWithDetails
+      terminalConflictsWithDetails &&
+      !detailsSticky
     ) {
       auto.detailsClosedBy = "terminal"
       // Clear diffClosedByDetails to prevent the Diff effect from restoring Diff
@@ -198,6 +218,17 @@ export function useSidebarMutualExclusion(
     }
     // Terminal closed → restore Details if we closed it
     else if (terminalJustClosed && auto.detailsClosedBy === "terminal") {
+      auto.detailsClosedBy = null
+      setIsDetailsSidebarOpen(true)
+    }
+    // Browser opened → close Details and remember (unless sticky)
+    else if (browserJustOpened && isDetailsSidebarOpen && !detailsSticky) {
+      auto.detailsClosedBy = "browser"
+      auto.diffClosedByDetails = false
+      setIsDetailsSidebarOpen(false)
+    }
+    // Browser closed → restore Details if we closed it
+    else if (browserJustClosed && auto.detailsClosedBy === "browser") {
       auto.detailsClosedBy = null
       setIsDetailsSidebarOpen(true)
     }
@@ -229,6 +260,7 @@ export function useSidebarMutualExclusion(
       planSidebarOpen: isPlanSidebarOpen,
       planHasPath: !!currentPlanPath,
       terminal: isTerminalSidebarOpen,
+      browser: isBrowserSidebarOpen,
       diff: isDiffSidebarOpen,
       diffMode: diffDisplayMode,
     }
@@ -238,11 +270,14 @@ export function useSidebarMutualExclusion(
     currentPlanPath,
     isTerminalSidebarOpen,
     terminalDisplayMode,
+    isBrowserSidebarOpen,
+    detailsSticky,
     isDiffSidebarOpen,
     diffDisplayMode,
     setIsDetailsSidebarOpen,
     setIsPlanSidebarOpen,
     setIsTerminalSidebarOpen,
+    setDetailsSticky,
     setIsDiffSidebarOpen,
     setDiffDisplayMode,
   ])

@@ -1,14 +1,16 @@
 import { useAtom } from "jotai"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import {
   askUserQuestionTimeoutAtom,
   autoAdvanceTargetAtom,
   ctrlTabTargetAtom,
+  customNotificationSoundAtom,
   defaultAgentModeAtom,
   desktopNotificationsEnabledAtom,
   extendedThinkingEnabledAtom,
   languagePreferenceAtom,
+  notificationVolumeAtom,
   soundNotificationsEnabledAtom,
   preferredEditorAtom,
   type AgentMode,
@@ -121,8 +123,29 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ChevronRight, Play, Square, Upload, Volume2 } from "lucide-react"
+import { resolveNotificationSoundSrc } from "../../../features/sidebar/hooks/use-desktop-notifications"
 import { Switch } from "../../ui/switch"
+import { Button } from "../../ui/button"
+import { cn } from "../../../lib/utils"
+
+// Built-in sound definitions
+const BUILTIN_SOUNDS = [
+  { id: null, labelKey: "default" },
+  { id: "builtin:abstract-sound1", labelKey: "abstract1" },
+  { id: "builtin:abstract-sound2", labelKey: "abstract2" },
+  { id: "builtin:abstract-sound3", labelKey: "abstract3" },
+  { id: "builtin:abstract-sound4", labelKey: "abstract4" },
+  { id: "builtin:phone-vibration", labelKey: "phoneVibration" },
+  { id: "builtin:cow-mooing", labelKey: "cowMooing" },
+  { id: "builtin:rooster", labelKey: "rooster" },
+] as const
+
+type BuiltinSoundId = (typeof BUILTIN_SOUNDS)[number]["id"]
+
+function isCustomFile(soundId: string | null): boolean {
+  return soundId !== null && !soundId.startsWith("builtin:")
+}
 import { trpc } from "../../../lib/trpc"
 
 // Hook to detect narrow screen
@@ -149,6 +172,56 @@ export function AgentsPreferencesTab() {
   )
   const [soundEnabled, setSoundEnabled] = useAtom(soundNotificationsEnabledAtom)
   const [desktopNotificationsEnabled, setDesktopNotificationsEnabled] = useAtom(desktopNotificationsEnabledAtom)
+  const [selectedSound, setSelectedSound] = useAtom(customNotificationSoundAtom)
+  const [volume, setVolume] = useAtom(notificationVolumeAtom)
+
+  // Sound preview state
+  const [playingId, setPlayingId] = useState<string | null | undefined>(undefined)
+  const stopRef = useRef<(() => void) | null>(null)
+
+  const stopPreview = useCallback(() => {
+    stopRef.current?.()
+    stopRef.current = null
+    setPlayingId(undefined)
+  }, [])
+
+  const handlePreview = useCallback(
+    (soundId: string | null) => {
+      if (playingId === soundId) {
+        stopPreview()
+        return
+      }
+      stopRef.current?.()
+      const soundSrc = resolveNotificationSoundSrc(soundId)
+      try {
+        const audio = new Audio(soundSrc)
+        audio.volume = Math.max(0, Math.min(1, volume))
+        audio.play().catch(() => {})
+        stopRef.current = () => { audio.pause(); audio.currentTime = 0 }
+        setPlayingId(soundId)
+        setTimeout(() => {
+          setPlayingId((current) => (current === soundId ? undefined : current))
+        }, 3000)
+      } catch { /* ignore */ }
+    },
+    [playingId, volume, stopPreview],
+  )
+
+  const handleSelectCustomFile = useCallback(async () => {
+    const filePath = await window.desktopApi?.selectAudioFile?.()
+    if (filePath) setSelectedSound(filePath)
+  }, [setSelectedSound])
+
+  const hasCustomFile = isCustomFile(selectedSound)
+  const [soundPickerOpen, setSoundPickerOpen] = useState(false)
+
+  // Get display label for current sound
+  const currentSoundLabel = (() => {
+    if (!selectedSound) return t("preferences.notifications.sounds.default")
+    if (hasCustomFile) return selectedSound.split("/").pop() || t("preferences.notifications.sounds.custom")
+    const found = BUILTIN_SOUNDS.find((s) => s.id === selectedSound)
+    return found ? t(`preferences.notifications.sounds.${found.labelKey}`) : t("preferences.notifications.sounds.default")
+  })()
   const [ctrlTabTarget, setCtrlTabTarget] = useAtom(ctrlTabTargetAtom)
   const [autoAdvanceTarget, setAutoAdvanceTarget] = useAtom(autoAdvanceTargetAtom)
   const [defaultAgentMode, setDefaultAgentMode] = useAtom(defaultAgentModeAtom)
@@ -336,6 +409,153 @@ export function AgentsPreferencesTab() {
           </div>
           <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
         </div>
+
+        {/* Sound Picker — collapsible, only when sound is enabled */}
+        {soundEnabled && (
+          <>
+            {/* Current sound + expand toggle */}
+            <div
+              className="flex items-center justify-between p-4 border-t border-border cursor-pointer hover:bg-accent/30 transition-colors"
+              onClick={() => setSoundPickerOpen((o) => !o)}
+            >
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-sm font-medium text-foreground">
+                  {t("preferences.notifications.notificationSound")}
+                </span>
+                <span className="text-xs text-muted-foreground truncate">{currentSoundLabel}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handlePreview(selectedSound) }}
+                  className={cn(
+                    "w-6 h-6 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors",
+                    playingId === selectedSound && "text-primary",
+                  )}
+                >
+                  {playingId === selectedSound ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                </button>
+                <ChevronRight className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", soundPickerOpen && "rotate-90")} />
+              </div>
+            </div>
+
+            {/* Expanded sound list */}
+            {soundPickerOpen && (
+              <div className="border-t border-border">
+                {BUILTIN_SOUNDS.map((sound, index) => {
+                  const isSelected =
+                    sound.id === null
+                      ? !selectedSound || selectedSound === undefined
+                      : selectedSound === sound.id
+                  const isPlaying = playingId === sound.id
+
+                  return (
+                    <div
+                      key={sound.id ?? "default"}
+                      className={cn(
+                        "flex items-center gap-3 px-6 py-1.5 cursor-pointer transition-colors",
+                        "hover:bg-accent/50",
+                        isSelected && "bg-accent",
+                        index > 0 && "border-t border-border/50",
+                      )}
+                      onClick={() => { setSelectedSound(sound.id); setSoundPickerOpen(false) }}
+                    >
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center",
+                          isSelected ? "border-primary" : "border-muted-foreground/40",
+                        )}
+                      >
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                      </div>
+                      <span className="text-xs text-foreground flex-1">
+                        {t(`preferences.notifications.sounds.${sound.labelKey}`)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handlePreview(sound.id) }}
+                        className={cn(
+                          "w-5 h-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors",
+                          isPlaying && "text-primary",
+                        )}
+                      >
+                        {isPlaying ? <Square className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {/* Custom sound option */}
+                <div
+                  className={cn(
+                    "flex items-center gap-3 px-6 py-1.5 cursor-pointer transition-colors border-t border-border/50",
+                    "hover:bg-accent/50",
+                    hasCustomFile && "bg-accent",
+                  )}
+                  onClick={() => { if (!hasCustomFile) handleSelectCustomFile() }}
+                >
+                  <div
+                    className={cn(
+                      "w-3 h-3 rounded-full border-2 flex-shrink-0 flex items-center justify-center",
+                      hasCustomFile ? "border-primary" : "border-muted-foreground/40",
+                    )}
+                  >
+                    {hasCustomFile && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-xs text-foreground">
+                      {t("preferences.notifications.sounds.custom")}
+                    </span>
+                    {hasCustomFile && selectedSound && (
+                      <span className="text-[10px] text-muted-foreground truncate" title={selectedSound}>
+                        {selectedSound.split("/").pop()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {hasCustomFile && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handlePreview(selectedSound) }}
+                        className={cn(
+                          "w-5 h-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors",
+                          playingId === selectedSound && "text-primary",
+                        )}
+                      >
+                        {playingId === selectedSound ? <Square className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                      </button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleSelectCustomFile() }}
+                      className="h-5 text-[10px] px-1.5"
+                    >
+                      <Upload className="w-2.5 h-2.5 mr-0.5" />
+                      {t("preferences.notifications.choose")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Volume slider */}
+            <div className="flex items-center gap-3 px-4 py-3 border-t border-border">
+              <Volume2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={Math.round(volume * 100)}
+                onChange={(e) => setVolume(Number(e.target.value) / 100)}
+                className="flex-1 h-1 bg-muted rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-sm"
+              />
+              <span className="text-[10px] text-muted-foreground tabular-nums w-7 text-right">
+                {Math.round(volume * 100)}%
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Navigation */}
