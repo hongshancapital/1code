@@ -115,32 +115,55 @@ generate_image(prompt="A serene mountain landscape at sunset with a lake reflect
           const { prompt, size, quality, n } = args
 
           try {
-            const response = await fetch(`${baseUrl}/images/generations`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiConfig.apiKey}`,
-              },
-              body: JSON.stringify({
-                model: apiConfig.model,
-                prompt,
-                size,
-                quality,
-                n,
-                response_format: "b64_json",
-              }),
-              signal: AbortSignal.timeout(120000), // 2 min timeout for image gen
-            })
+            // Build request body: start with required params only, add optional params conditionally
+            const reqBody: Record<string, unknown> = {
+              model: apiConfig.model,
+              prompt,
+              response_format: "b64_json",
+            }
+            // Only include optional params when explicitly set to non-default values
+            if (size && size !== "1024x1024") reqBody.size = size
+            if (quality && quality !== "auto") reqBody.quality = quality
+            if (n && n > 1) reqBody.n = n
 
+            const doFetch = (body: Record<string, unknown>) =>
+              fetch(`${baseUrl}/images/generations`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${apiConfig.apiKey}`,
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(120000),
+              })
+
+            let response = await doFetch(reqBody)
+
+            // If failed due to unsupported params, retry with only model + prompt
             if (!response.ok) {
-              const errorText = await response.text().catch(() => "Unknown error")
-              return {
-                content: [
-                  {
-                    type: "text",
-                    text: `Image generation failed: ${response.status} ${response.statusText}\n${errorText}`,
-                  },
-                ],
+              const errorText = await response.text().catch(() => "")
+              const isUnsupportedParams = errorText.includes("UnsupportedParamsError")
+              if (isUnsupportedParams) {
+                console.log("[Image Gen MCP] Retrying with minimal params (model + prompt only)...")
+                response = await doFetch({ model: apiConfig.model, prompt })
+              }
+              if (!response.ok) {
+                const retryErrorText = isUnsupportedParams
+                  ? await response.text().catch(() => "")
+                  : errorText
+                // Parse which params are unsupported to hint AI
+                const unsupportedMatch = retryErrorText.match(/Setting `(\w+)` is not supported/)
+                const hint = unsupportedMatch
+                  ? `\n\nHint: The parameter "${unsupportedMatch[1]}" is not supported by the current image model (${apiConfig.model}). Please do NOT pass this parameter in future calls.`
+                  : ""
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: `Image generation failed: ${response.status} ${response.statusText}\n${retryErrorText}${hint}`,
+                    },
+                  ],
+                }
               }
             }
 
