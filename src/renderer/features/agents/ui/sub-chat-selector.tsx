@@ -52,7 +52,7 @@ import { api } from "../../../lib/mock-api"
 import { toast } from "sonner"
 import { SearchCombobox } from "../../../components/ui/search-combobox"
 import { SubChatContextMenu } from "./sub-chat-context-menu"
-import { formatTimeAgo } from "../utils/format-time-ago"
+import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 import { SubChatHoverPreview } from "./sub-chat-hover-preview"
 import { TypewriterText } from "../../../components/ui/typewriter-text"
 

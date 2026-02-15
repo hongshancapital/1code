@@ -13,7 +13,7 @@ import {
 } from "../atoms"
 import { IconSpinner, PlanIcon, AgentIcon } from "../../../components/ui/icons"
 import type { SubChatMeta } from "../stores/sub-chat-store"
-import { formatTimeAgo } from "../utils/format-time-ago"
+import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 
 interface SubChatsQuickSwitchDialogProps {
   isOpen: boolean

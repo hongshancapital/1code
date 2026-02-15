@@ -26,7 +26,7 @@ import {
 import { IconSpinner } from "../../../components/ui/icons"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
-import { formatTimeAgo } from "../utils/format-time-ago"
+import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 
 interface CreateBranchDialogProps {
   open: boolean

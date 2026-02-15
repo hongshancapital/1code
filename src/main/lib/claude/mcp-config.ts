@@ -2,7 +2,7 @@
  * MCP 配置管理
  *
  * 从 claude.ts 提取的 MCP 服务器配置相关函数：
- * - decryptToken / getClaudeCodeToken — 凭证解密
+ * - getClaudeCodeToken — 凭证解密
  * - getServerStatusFromConfig — 服务器状态判断
  * - warmupMcpCache — 启动时 MCP 预热
  * - fetchToolsForServer — 单服务器工具拉取
@@ -10,7 +10,6 @@
  */
 
 import { eq } from "drizzle-orm";
-import { safeStorage } from "electron";
 import { readFileSync } from "fs";
 import * as os from "os";
 import path from "path";
@@ -51,23 +50,13 @@ import {
   getBuiltinMcpPlaceholder,
 } from "../builtin-mcp";
 import { getAuthManager } from "../../index";
+import { decryptToken } from "../crypto";
 
 /** SDK stream message type (for warmup) */
 interface SdkStreamMessage {
   type: string;
   subtype?: string;
   mcp_servers?: unknown;
-}
-
-/**
- * Decrypt token using Electron's safeStorage
- */
-export function decryptToken(encrypted: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(encrypted, "base64").toString("utf-8");
-  }
-  const buffer = Buffer.from(encrypted, "base64");
-  return safeStorage.decryptString(buffer);
 }
 
 /**

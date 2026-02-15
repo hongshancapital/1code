@@ -35,11 +35,14 @@ function getXtermCore(xterm: XTerm): XTermInternal["_core"] | undefined {
 }
 
 /**
- * Check if xterm's render service is ready.
+ * Check if xterm's render service is fully ready (including dimensions).
+ * The _renderService may exist before dimensions is initialized,
+ * causing "Cannot read properties of undefined (reading 'dimensions')"
+ * in Viewport._innerRefresh when fit() or resize triggers a refresh.
  */
 function hasRenderService(xterm: XTerm): boolean {
   const core = getXtermCore(xterm)
-  return !!core?._renderService
+  return !!core?._renderService?.dimensions
 }
 
 /**
@@ -382,10 +385,11 @@ export function setupResizeHandlers(
 ): () => void {
   const debouncedHandleResize = debounce(() => {
     try {
+      if (!hasRenderService(xterm)) return
       fitAddon.fit()
       onResize(xterm.cols, xterm.rows)
     } catch {
-      // Ignore resize errors
+      // Ignore resize errors (e.g. during dispose)
     }
   }, RESIZE_DEBOUNCE_MS)
 

@@ -1,383 +1,193 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## What is this?
 
-**Hong** - A local-first Electron desktop app for AI-powered code assistance. Users create chat sessions linked to local project folders, interact with Claude in Plan or Agent mode, and see real-time tool execution (bash, file edits, web search, etc.).
+**Hong** — Local-first Electron desktop app for AI-powered code assistance. Chat sessions link to local project folders, interact with Claude in Plan or Agent mode, and execute tools in real-time.
 
-The app has two UI modes:
-- **Agents Mode**: Full-featured mode with onboarding, authentication, Git/Diff panels
-- **Cowork Mode** (default): Simplified layout focused on chat + right panel (tasks, artifacts, file tree)
+Default UI mode is **Cowork Mode** (chat + right panel). Alternative **Agents Mode** adds onboarding, auth, Git/Diff panels.
 
 ## Commands
 
 ```bash
-# Development
-bun run dev              # Start Electron with hot reload
-
-# Build
-bun run build            # Compile app
-bun run package          # Package for current platform (dir)
-bun run package:mac      # Build macOS (DMG + ZIP)
-bun run package:win      # Build Windows (NSIS + portable)
-bun run package:linux    # Build Linux (AppImage + DEB)
-
-# Database (Drizzle + SQLite)
-bun run db:generate      # Generate migrations from schema
+bun run dev              # Electron with hot reload
+bun run build            # Compile (verify before commit)
+bun run package:mac      # macOS DMG + ZIP
+bun run db:generate      # Generate Drizzle migrations
 bun run db:push          # Push schema directly (dev only)
 ```
 
 ## Architecture
 
+### Main Process (`src/main/`)
+
 ```
-src/
-├── main/                    # Electron main process
-│   ├── index.ts             # App entry, protocol handlers, OAuth flows
-│   ├── auth-manager.ts      # OAuth flow, token refresh
-│   ├── auth-store.ts        # Encrypted credential storage (safeStorage)
-│   ├── windows/main.ts      # Window creation, IPC handlers
-│   └── lib/
-│       ├── db/              # Drizzle + SQLite
-│       │   ├── index.ts     # DB init, auto-migrate on startup
-│       │   ├── schema/      # Drizzle table definitions
-│       │   └── utils.ts     # ID generation
-│       ├── git/             # Git operations
-│       │   ├── index.ts     # createGitRouter() factory
-│       │   ├── git-factory.ts  # simple-git instance with lock
-│       │   ├── watcher/     # File change watcher (chokidar)
-│       │   ├── github/      # GitHub PR integration
-│       │   └── security/    # Path validation, command sanitization
-│       ├── lsp/             # Language Server Protocol
-│       │   ├── manager.ts   # LSP session management (tsserver, tsgo)
-│       │   └── types.ts     # LSP type definitions
-│       ├── automation/      # Cron-based automations
-│       │   └── engine.ts    # Singleton scheduler + executor
-│       ├── mcp/             # MCP servers
-│       │   └── artifact-server.ts  # Artifact tracking MCP
-│       ├── plugins/         # Plugin discovery
-│       │   └── index.ts     # ~/.claude/plugins/ scanner
-│       └── trpc/routers/    # tRPC routers
+src/main/
+├── index.ts                 # App entry, Extension registration, OAuth
+├── windows/main.ts          # Window creation, IPC handlers
 │
-├── preload/                 # IPC bridge (context isolation)
-│   └── index.ts             # Exposes desktopApi + tRPC bridge
+├── feature/                 # Extension modules (pluginized features)
+│   ├── lite/                # Auth + WSS + HTTP (heavy, 13 files)
+│   ├── memory/              # Memory system Extension
+│   ├── browser-mcp/         # Browser MCP Extension
+│   ├── image-mcp/           # Image MCP Extension
+│   ├── usage-tracking/      # Token usage tracking Extension
+│   ├── plugin-system/       # Plugin/marketplace/skills/commands (multi-router)
+│   ├── automation/          # Automation Extension (router wrapper)
+│   ├── insights/            # Insights Extension (router wrapper)
+│   ├── terminal/            # Terminal Extension (router wrapper)
+│   ├── runner/              # Runner Extension (router wrapper)
+│   ├── lsp/                 # LSP Extension (router wrapper)
+│   ├── ollama/              # Ollama Extension (router wrapper)
+│   └── voice/               # Voice Extension (router wrapper)
 │
-└── renderer/                # React 19 UI
-    ├── App.tsx              # Root with providers, onboarding flow
-    ├── features/
-    │   ├── agents/          # Main chat interface
-    │   │   ├── main/        # active-chat.tsx, new-chat-form.tsx
-    │   │   ├── ui/          # Tool renderers, sub-chat components
-    │   │   ├── commands/    # Slash commands (/plan, /agent, /clear)
-    │   │   ├── atoms.ts     # Core agent state atoms
-    │   │   └── stores/      # Zustand store for sub-chats
-    │   ├── cowork/          # Cowork mode layout
-    │   │   ├── cowork-layout.tsx   # Main layout (sidebar + chat + right panel)
-    │   │   ├── file-tree-panel.tsx # Project file browser with lazy loading
-    │   │   ├── file-preview/       # Multi-format preview with Monaco
-    │   │   └── atoms.ts            # Cowork state
-    │   ├── automations/     # Automation UI
-    │   │   └── _components/ # Automation cards, templates
-    │   ├── comments/        # Code review comments
-    │   ├── runner/          # Script runner integration
-    │   ├── terminal/        # Integrated PTY terminal
-    │   ├── changes/         # Git changes panel
-    │   ├── sidebar/         # Chat list, archive, navigation
-    │   ├── layout/          # Layout components (agents/cowork modes)
-    │   ├── onboarding/      # Onboarding pages
-    │   └── settings/        # Settings panels
-    ├── components/ui/       # Radix UI wrappers
-    └── lib/
-        ├── atoms/           # Global Jotai atoms
-        ├── lsp/             # LSP client hook
-        ├── stores/          # Global Zustand stores
-        └── trpc.ts          # tRPC client
+└── lib/
+    ├── extension/           # Extension framework
+    │   ├── types.ts         # ExtensionModule interface
+    │   ├── extension-manager.ts  # Lifecycle + router merging
+    │   ├── hook-registry.ts # HookRegistry (emit/collect/waterfall)
+    │   ├── feature-bus.ts   # FeatureBus (cross-extension events)
+    │   └── hooks/chat-lifecycle.ts  # 12 chat hooks
+    │
+    ├── claude/              # Claude engine modules
+    │   ├── engine.ts        # Main stream processing
+    │   ├── transform.ts     # Tool call → UI message transform
+    │   ├── config-loader.ts # .claude.json parsing + cache
+    │   ├── prompt-builder.ts # System prompt composition
+    │   ├── sdk-query-builder.ts # SDK options construction
+    │   ├── mcp-config.ts    # MCP server config aggregation
+    │   ├── mentions.ts      # @mention parsing + artifact tracking
+    │   ├── prompt-utils.ts  # Ollama context / image prompt / merge
+    │   ├── env.ts           # Environment variable building
+    │   └── policies/        # Tool permission rules
+    │
+    ├── trpc/routers/        # tRPC routers (hardcoded + Extension)
+    │   ├── index.ts         # createAppRouter (merges Extension routers)
+    │   ├── claude.ts        # Core: SDK streaming + chat subscription
+    │   ├── chats-new.ts     # Chat lifecycle CRUD
+    │   ├── summary-ai.ts    # Lightweight AI calls (naming, commit msgs)
+    │   └── ...              # 20+ domain routers
+    │
+    ├── db/                  # Drizzle + SQLite
+    │   └── schema/index.ts  # All table definitions (source of truth)
+    ├── git/                 # Git operations + security layer
+    ├── mcp/                 # MCP servers (artifact, image)
+    ├── plugins/             # Plugin discovery (~/.claude/plugins/)
+    ├── memory/              # Vector search + embeddings
+    ├── browser/             # Headless browser automation
+    ├── terminal/            # PTY management
+    ├── runtime/             # Script runtime detection
+    └── lsp/                 # LSP manager (tsserver/tsgo)
 ```
 
-## Database (Drizzle ORM)
+### Renderer (`src/renderer/`)
 
-**Location:** `{userData}/data/agents.db` (SQLite)
-
-**Schema:** `src/main/lib/db/schema/index.ts`
-
-```typescript
-// Core tables:
-projects              → id, name, path, mode, featureConfig, iconPath, isPlayground, git info
-chats                 → id, name, projectId, worktreePath, branch, baseBranch, prUrl, prNumber, tagId
-sub_chats             → id, name, chatId, sessionId, streamId, mode, messages (JSON), statsJson
-model_usage           → Token usage tracking per API call
-
-// Multi-account support:
-anthropicAccounts     → id, email, displayName, oauthToken (encrypted), lastUsedAt
-anthropicSettings     → singleton row, activeAccountId
-
-// Automations:
-automations           → id, name, triggers (JSON cron), agentPrompt, actions, modelId
-automationExecutions  → id, automationId, status, triggeredBy, result, token usage
-
-// Workspace tags (macOS-style):
-workspaceTags         → id, name, color (#hex), icon (Lucide name), sortOrder
-chatTags              → M:N relation (chatId, tagId)
-subChatTags           → M:N relation (subChatId, tagId)
-
-// Insights (Usage Reports):
-insights              → id, reportType, reportDate, statsJson, summary, status
-
-// Memory System:
-memorySessions        → id, project/chat/subChat, status, summary (learned/nextSteps)
-observations          → id, sessionId, type, narrative, facts (JSON), filesRead/Modified
-userPrompts           → id, sessionId, promptText
-
-// Model Providers (Custom/Local):
-modelProviders        → id, type, category, name, baseUrl, apiKey (encrypted)
-cachedModels          → id, providerId, modelId, name, category, metadata
-
-// Legacy (deprecated):
-claude_code_credentials → Use anthropicAccounts instead
+```
+src/renderer/
+├── features/
+│   ├── agents/              # Chat interface (active-chat, tool renderers)
+│   ├── cowork/              # Cowork layout (file tree, preview, artifacts)
+│   ├── panel-system/        # Unified panel registration + rendering
+│   ├── sidebar/             # Chat list, navigation
+│   ├── terminal/            # Terminal UI
+│   ├── changes/             # Git changes panel
+│   ├── comments/            # Code review comments
+│   ├── settings/            # Settings panels
+│   └── ...
+├── components/ui/           # Radix UI wrappers
+└── lib/
+    ├── atoms/               # Global Jotai atoms (modularized)
+    ├── stores/              # Zustand stores
+    └── trpc.ts              # tRPC client
 ```
 
-**Auto-migration:** On app start, `initDatabase()` runs migrations from `drizzle/` folder (dev) or `resources/migrations` (packaged).
+## Extension System
 
-## tRPC Routers
+Features are pluginized via `ExtensionModule` interface. Each Extension can provide:
+- **router/routers** — tRPC routers (auto-merged into AppRouter)
+- **hooks** — Subscribe to chat lifecycle hooks
+- **tools** — Internal tool definitions (discoverable via `internalTools.list`)
+- **init/cleanup** — Lifecycle management
 
-All backend calls go through tRPC routers (`src/main/lib/trpc/routers/`):
+```
+                    ┌─────────────────┐
+                    │ ExtensionManager │
+                    │  .register()    │
+                    │  .initAll()     │
+                    │  .getRouters()  │
+                    └────────┬────────┘
+                             │
+          ┌──────────────────┼──────────────────┐
+          ▼                  ▼                  ▼
+    HookRegistry       FeatureBus        Router merging
+    (12 chat hooks)   (cross-ext events)  (into AppRouter)
+```
 
-| Router | Purpose |
-|--------|---------|
-| `projects` | CRUD for local project folders |
-| `chats` | Chat/sub-chat management |
-| `claude` | Claude SDK integration (streaming, session resume) |
-| `claudeCode` | Claude Code SDK binary integration |
-| `claudeSettings` | Claude model/agent configuration |
-| `anthropicAccounts` | Multi-account OAuth management |
-| `files` | File operations (read, write, search, listDirectory) |
-| `changes` | Git operations via `createGitRouter()` |
-| `lsp` | Language Server Protocol (completions, hover, diagnostics) |
-| `runner` | Runtime detection, script execution |
-| `terminal` | PTY terminal management |
-| `ollama` | Local Ollama model support |
-| `litellm` | LiteLLM proxy for multiple LLM providers |
-| `providers` | Unified model provider management |
-| `voice` | Voice input processing |
-| `automations` | Cron-triggered AI workflows |
-| `tags` | Workspace tags CRUD and associations |
-| `skills` | Claude SDK skill discovery and sync |
-| `plugins` | Plugin discovery and MCP server configuration |
-| `marketplace` | Plugin marketplace management |
-| `agents` | Agent model configuration |
-| `editor` | Monaco editor integration |
-| `worktreeConfig` | Git worktree isolation settings |
-| `sandboxImport` | Sandbox project import |
-| `commands` | Custom command system |
-| `usage` | Token usage queries |
-| `external` | External service integrations |
-| `insights` | Usage reports and analytics |
-| `memory` | Long-term memory and session tracking |
-| `browser` | Browser automation for agents |
-| `debug` | Debug info (dev only) |
+**13 Extensions registered** in `src/main/index.ts`. Router wrappers (terminal, runner, lsp, etc.) provide uniform init/cleanup while keeping implementation in `lib/`.
 
 ## Key Patterns
 
-### State Management
-- **Jotai**: UI state (selected chat, sidebar open, preview settings)
-  - `atomFamily` for per-entity state (artifacts per subChatId, comments per chatId)
-  - `atomWithStorage` for localStorage persistence
-- **Zustand**: Sub-chat tabs and pinned state
-- **React Query**: Server state via tRPC (auto-caching, refetch)
+**State**: Jotai (UI atoms) + Zustand (complex stores) + React Query (server state via tRPC)
 
-### Claude Integration
-- Dynamic import of `@anthropic-ai/claude-code` SDK
-- Two modes: "plan" (read-only) and "agent" (full permissions)
-- Session resume via `sessionId` stored in SubChat
-- Message streaming via tRPC subscription (`claude.onMessage`)
-- Multi-account support via `anthropicAccounts` table
+**Claude SDK**: `@anthropic-ai/claude-agent-sdk` streaming via tRPC subscription. Two modes: plan/agent. Session resume via `sessionId`. Multi-account OAuth.
 
-### Automations Engine
-- Located in `src/main/lib/automation/engine.ts` (singleton pattern)
-- Cron-based triggers using `node-cron`
-- AI processing with configurable model and prompt
-- Actions: currently supports "inbox" (creates message in Inbox Chat)
-- Execution tracking with token usage statistics
+**Chat Hooks**: `claude.ts` emits lifecycle hooks → Extensions react. 10 emit + 1 collect (`collectMcpServers`) + 1 waterfall (`enhancePrompt`).
 
-### Memory System
-- Stores semantic memories (`observations`) and user prompts
-- `memorySessions` track full conversation context
-- Used for learning from mistakes and context recall across sessions
-- Backed by SQLite tables (`memory_sessions`, `observations`)
+**MCP Config**: Aggregated from global + project + agent + plugin + builtin sources. Cache in `workingMcpServers` Map. Warmup on app start.
 
-### MCP & Plugin System
-- Plugin discovery from `~/.claude/plugins/marketplaces/`
-- MCP server configuration merges: built-in + plugins + Claude API defaults
-- Artifact MCP Server (`src/main/lib/mcp/artifact-server.ts`) tracks file/URL contexts
-- 30-second cache for plugin metadata to reduce FS access
+**Auth**: Anthropic OAuth (PKCE) / Okta SAML / API Key. Tokens encrypted via `safeStorage`. Deep links: `hong://` (prod) / `hong-dev://` (dev).
 
-### LSP Integration
-- **Manager** (`src/main/lib/lsp/manager.ts`): Manages tsserver/tsgo processes
-- **Client Hook** (`src/renderer/lib/lsp/use-lsp-client.ts`): Connects Monaco to LSP
-- Features: Completions, hover, diagnostics, go-to-definition, find references
-- Supports TypeScript/JavaScript with tsserver (tsgo experimental)
+**Git Security**: Path validation + command sanitization + secure FS. `simple-git` with lock mechanism.
 
-### Code Review Comments
-- Comments stored per chatId in localStorage via `atomFamily`
-- Types: `ReviewComment`, `LineRange` (supports single/multi-line, diff sides)
-- Sources: "diff-view" | "file-preview" | "github-pr" (future)
-- Persisted until submitted to AI
+## Database
 
-### File Preview with Monaco Editor
-- Two modes: "view" (read-only) and "edit" (Monaco with LSP)
-- Cmd+S to save, dirty state tracking
-- Worker setup for syntax highlighting in Electron environment
-- Language detection from file extension (50+ languages)
+**Location:** `{userData}/data/agents.db` (SQLite via Drizzle ORM)
 
-### Artifacts Tracking
-- `useArtifactsListener` hook listens for `file-changed` IPC events
-- Each artifact tracks contexts: files read (Read/Glob/Grep) and URLs visited
-- Stored per subChatId via Artifact MCP Server (`{userData}/artifacts/{subChatId}.json`)
+**Schema:** `src/main/lib/db/schema/index.ts` — source of truth for all tables.
 
-### Authentication Flow
-- Multiple auth methods: Anthropic OAuth (default), Okta SAML (enterprise), API Key
-- PKCE protection with state parameter for CSRF prevention
-- Tokens encrypted with Electron `safeStorage` and stored in SQLite
-- Deep links: `hong://` (production), `hong-dev://` (development)
-
-### Git Security Layer
-- Path validation (`src/main/lib/git/security/path-validation.ts`) prevents directory traversal
-- Command validation (`git-commands.ts`) sanitizes inputs
-- Secure FS operations (`secure-fs.ts`) for file operations
-- Git factory (`git-factory.ts`) creates `simple-git` instances with lock mechanism
+Auto-migration on app start via `initDatabase()`.
 
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
-| Desktop | Electron 33.4.5, electron-vite, electron-builder |
-| UI | React 19, TypeScript 5.4.5, Tailwind CSS |
-| Components | Radix UI, Lucide icons, Motion, Sonner |
+| Desktop | Electron, electron-vite, electron-builder |
+| UI | React 19, TypeScript, Tailwind CSS |
+| Components | Radix UI, Lucide icons, Motion |
 | State | Jotai, Zustand, React Query |
-| Backend | tRPC + superjson, Drizzle ORM, better-sqlite3 |
-| Editor | Monaco Editor 0.55.1 with LSP |
-| Terminal | xterm.js with addons (canvas, fit, search) |
+| Backend | tRPC, Drizzle ORM, better-sqlite3 |
+| Editor | Monaco Editor with LSP |
+| Terminal | xterm.js |
 | AI | @anthropic-ai/claude-code, @anthropic-ai/claude-agent-sdk |
-| Scheduling | node-cron (for automations) |
-| i18n | i18next |
-| Package Manager | bun |
+| Package | bun |
 
 ## File Naming
 
-- Components: PascalCase (`ActiveChat.tsx`, `AgentsSidebar.tsx`)
-- Utilities/hooks: camelCase (`useFileUpload.ts`, `formatters.ts`)
-- Stores: kebab-case (`sub-chat-store.ts`, `agent-chat-store.ts`)
-- Atoms: camelCase with `Atom` suffix (`selectedAgentChatIdAtom`)
+- Components: `PascalCase.tsx`
+- Utilities/hooks: `camelCase.ts`
+- Stores: `kebab-case.ts`
+- Atoms: `camelCaseAtom` suffix
 
-## Important Files
+## Deprecated
 
-- `electron.vite.config.ts` - Build config (main/preload/renderer entries)
-- `src/main/lib/db/schema/index.ts` - Drizzle schema (source of truth)
-- `src/main/lib/lsp/manager.ts` - LSP session management
-- `src/main/lib/automation/engine.ts` - Automation execution engine
-- `src/main/lib/plugins/index.ts` - Plugin discovery and MCP configuration
-- `src/renderer/features/agents/main/active-chat.tsx` - Main chat component
-- `src/renderer/features/agents/atoms.ts` - Core agent state atoms
-- `src/renderer/features/cowork/atoms.ts` - Cowork state (artifacts, editor, search)
-- `src/renderer/features/comments/atoms.ts` - Code review comment state
-- `src/renderer/lib/lsp/use-lsp-client.ts` - Monaco LSP integration
-- `src/main/lib/trpc/routers/index.ts` - All tRPC routers (30+ routers)
-- `src/main/lib/trpc/routers/chats-new.ts` - Current implementation of `chats` router
+- `claude_code_credentials` table → use `anthropicAccounts`
 
-## Deprecated / Unused
-
-- `src/main/lib/trpc/routers/summary-ai.ts` - Unused/Abandoned router
-- `claude_code_credentials` table - Deprecated, use `anthropicAccounts` instead
-
-## Debugging First Install Issues
+## Release
 
 ```bash
-# 1. Clear all app data (auth, database, settings)
-rm -rf ~/Library/Application\ Support/Agents\ Dev/
-
-# 2. Reset macOS protocol handler registration (if testing deep links)
-/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -kill -r -domain local -domain system -domain user
-
-# 3. Clear app preferences
-defaults delete dev.hong.agents.dev  # Dev mode
-defaults delete dev.hong.agents      # Production
-
-# 4. Run in dev mode with clean state
-bun run dev
+npm version patch --no-git-tag-version
+bun run release          # Build, sign, notarize, upload
 ```
 
-**Dev vs Production App:**
-- Dev mode uses `twentyfirst-agents-dev://` protocol
-- Dev mode uses separate userData path (`~/Library/Application Support/Agents Dev/`)
+Auto-update checks `https://cowork.hongshan.com/releases/desktop/latest-mac.yml` on startup.
 
-## Releasing a New Version
+See `RELEASE.md` for full notarization + stapling + CDN workflow.
 
-### Prerequisites for Notarization
-- Keychain profile: `hong-notarize`
-- Create with: `xcrun notarytool store-credentials "hong-notarize" --apple-id YOUR_APPLE_ID --team-id YOUR_TEAM_ID`
-
-### Release Commands
+## Debugging
 
 ```bash
-# Bump version first
-npm version patch --no-git-tag-version  # 0.0.27 → 0.0.28
-
-# Full release (build, sign, submit notarization, upload to CDN)
-bun run release
-
-# Or step by step:
-bun run build              # Compile TypeScript
-bun run package:mac        # Build & sign macOS app
-bun run dist:manifest      # Generate latest-mac.yml manifests
-./scripts/upload-release-wrangler.sh  # Submit notarization & upload to R2 CDN
+rm -rf ~/Library/Application\ Support/Agents\ Dev/   # Clear all app data
+defaults delete dev.hong.agents.dev                    # Clear preferences (dev)
+bun run dev                                            # Fresh start
 ```
 
-### After Release Script Completes
-
-1. Wait for notarization (2-5 min): `xcrun notarytool history --keychain-profile "hong-notarize"`
-2. Staple DMGs: `cd release && xcrun stapler staple *.dmg`
-3. Re-upload stapled DMGs to R2 and GitHub (see RELEASE.md)
-4. Update changelog: `gh release edit v0.0.X --notes "..."`
-5. Upload manifests (triggers auto-updates!)
-6. Sync to public: `./scripts/sync-to-public.sh`
-
-### Auto-Update Flow
-
-1. App checks `https://cowork.hongshan.com/releases/desktop/latest-mac.yml` on startup and focus
-2. If version in manifest > current version, shows "Update Available" banner
-3. User clicks Download → downloads ZIP in background
-4. User clicks "Restart Now" → installs update and restarts
-
-## Current Status
-
-**Done:**
-- Drizzle ORM with auto-migration
-- tRPC routers (30+ routers covering all features)
-- Cowork mode with simplified UI (default)
-- File tree panel with lazy loading
-- Artifacts tracking with context (via Artifact MCP Server)
-- Multi-format file preview (text, image, PDF, video, audio, Office)
-- Task progress panel
-- Monaco code editor with LSP integration (TS/JS)
-- Code review comment system (Diff View + File Preview)
-- Script runner integration with runtime detection
-- Git operations (status, diff, staging, stash, worktree)
-- Model usage tracking
-- Multi-account Anthropic OAuth support
-- Workspace tags (macOS Finder-style colored tags)
-- Automations framework (cron triggers + AI processing + Inbox executor)
-- Plugin and MCP server system
-- LiteLLM and Ollama integration for local/alternative models
-- Unified model provider management
-- Memory system (Long-term session tracking & observations)
-- Insights (AI-generated usage reports)
-- Browser automation (Headless/GUI browser control)
-- Voice input support
-- i18n support (Chinese/English)
-
-**In Progress:**
-- GitHub PR integration for comments
-- tsgo experimental backend support
-
-**Planned:**
-- Full feature parity with web app
+Dev mode uses separate userData path and `hong-dev://` protocol.

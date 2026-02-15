@@ -1,20 +1,8 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm"
-import { safeStorage } from "electron"
 import { z } from "zod"
 import { getDatabase, modelUsage, projects, chats, subChats, anthropicAccounts, anthropicSettings } from "../../db"
+import { decryptToken } from "../../crypto"
 import { publicProcedure, router } from "../index"
-
-/**
- * Decrypt token using Electron's safeStorage
- * (Mirrors the logic in anthropic-accounts.ts)
- */
-function decryptToken(encrypted: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return Buffer.from(encrypted, "base64").toString("utf-8")
-  }
-  const buffer = Buffer.from(encrypted, "base64")
-  return safeStorage.decryptString(buffer)
-}
 
 // Date range schema for filtering
 const dateRangeSchema = z.object({

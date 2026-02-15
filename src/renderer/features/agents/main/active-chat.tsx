@@ -241,7 +241,7 @@ import { SubChatStatusCard } from "../ui/sub-chat-status-card"
 import { TextSelectionPopover } from "../ui/text-selection-popover"
 import { autoRenameAgentChat } from "../utils/auto-rename"
 import { ChatInputArea } from "./chat-input-area"
-import { CHAT_LAYOUT, PLAYBACK_SPEEDS, type PlaybackSpeed } from "./constants"
+import { CHAT_LAYOUT } from "./constants"
 import { IsolatedMessagesSection } from "./isolated-messages-section"
 import { ExplorerPanel } from "../../details-sidebar/sections/explorer-panel"
 import { explorerPanelOpenAtomFamily } from "../atoms"
@@ -249,6 +249,7 @@ import type { ProjectMode } from "../../../../shared/feature-config"
 import type { AgentChat, ChatProject } from "../types"
 import { isRemoteChat, getSandboxId, getProjectPath, getRemoteStats } from "../types"
 import { ChatInstanceValueProvider, type ChatInstanceContextValue } from "../context/chat-instance-context"
+import { ChatCapabilitiesProvider } from "../context/chat-capabilities-context"
 const clearSubChatSelectionAtom = atom(null, () => {})
 const isSubChatMultiSelectModeAtom = atom(false)
 const selectedSubChatIdsAtom = atom(new Set<string>())
@@ -355,17 +356,6 @@ const ChatViewInner = memo(function ChatViewInner({
       setPendingMention(null)
     }
   }, [pendingMention, setPendingMention, isActive])
-
-  // TTS playback rate state (persists across messages and sessions via localStorage)
-  const [_ttsPlaybackRate, _setTtsPlaybackRate] = useState<PlaybackSpeed>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("tts-playback-rate")
-      if (saved && PLAYBACK_SPEEDS.includes(Number(saved) as PlaybackSpeed)) {
-        return Number(saved) as PlaybackSpeed
-      }
-    }
-    return 1
-  })
 
   // PR creation loading state - from atom to allow resetting after message sent
   const setIsCreatingPr = useSetAtom(isCreatingPrAtom)
@@ -610,10 +600,6 @@ const ChatViewInner = memo(function ChatViewInner({
   const removeFromQueue = useMessageQueueStore((s) => s.removeFromQueue)
   const popItemFromQueue = useMessageQueueStore((s) => s.popItem)
 
-  // Plan approval pending state (for tool approval loading)
-  const [_planApprovalPending, _setPlanApprovalPending] = useState<
-    Record<string, boolean>
-  >({})
 
   // Track chat changes for rename trigger reset
   const chatRef = useRef<Chat<any> | null>(null)
@@ -3918,6 +3904,7 @@ export function ChatView({
 
   return (
     <ChatInstanceValueProvider value={chatInstanceValue}>
+    <ChatCapabilitiesProvider hideGitFeaturesOverride={hideGitFeatures}>
     <FileOpenProvider onOpenFile={setFileViewerPath}>
     <TextSelectionProvider>
     {/* Global TextSelectionPopover for diff sidebar (outside ChatViewInner) */}
@@ -4046,6 +4033,7 @@ export function ChatView({
     </PanelsProvider>
     </TextSelectionProvider>
     </FileOpenProvider>
+    </ChatCapabilitiesProvider>
     </ChatInstanceValueProvider>
   )
 }

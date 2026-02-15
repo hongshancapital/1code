@@ -7,7 +7,7 @@ import {
   CheckIcon,
 } from "../../../components/ui/icons"
 import { cn } from "../../../lib/utils"
-import { useHaptic } from "../hooks/use-haptic"
+import { useHaptic } from "../../../lib/hooks/use-haptic"
 
 interface MobileCopyLinkButtonProps {
   url: string

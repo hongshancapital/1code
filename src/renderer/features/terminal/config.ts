@@ -108,9 +108,6 @@ export const TERMINAL_THEME_LIGHT: ITheme = {
   brightWhite: "#fafafa",    // zinc-50
 }
 
-/** @deprecated Use TERMINAL_THEME_DARK instead */
-export const TERMINAL_THEME = TERMINAL_THEME_DARK
-
 /**
  * Get terminal theme based on current app theme
  */

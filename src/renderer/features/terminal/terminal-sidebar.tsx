@@ -398,7 +398,7 @@ export function TerminalSidebar({
   // Mobile fullscreen layout
   if (isMobileFullscreen) {
     return (
-      <div className="flex flex-col h-full w-full bg-background">
+      <div className="flex flex-col h-full w-full" style={{ backgroundColor: terminalBg }}>
         {/* Mobile header with back button and tabs */}
         <div
           className="flex items-center gap-1.5 px-2 py-2 shrink-0 border-b"
@@ -498,8 +498,8 @@ export function TerminalSidebar({
       initialWidth={0}
       exitWidth={0}
       showResizeTooltip={true}
-      className="bg-background border-l"
-      style={{ borderLeftWidth: "0.5px", overflow: "hidden" }}
+      className="border-l"
+      style={{ borderLeftWidth: "0.5px", overflow: "hidden", backgroundColor: terminalBg }}
     >
       <div className="flex flex-col h-full min-w-0 overflow-hidden">
         {/* Header with tabs */}
@@ -751,7 +751,7 @@ export function TerminalBottomPanelContent({
   }, [terminals.length, createTerminal])
 
   return (
-    <div className="flex flex-col h-full min-w-0 overflow-hidden">
+    <div className="flex flex-col h-full min-w-0 overflow-hidden" style={{ backgroundColor: terminalBg }}>
       {/* Header with tabs */}
       <div
         className="flex items-center gap-1 pl-1 pr-2 py-1.5 shrink-0 border-t"

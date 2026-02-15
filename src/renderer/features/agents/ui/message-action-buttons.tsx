@@ -11,7 +11,7 @@ import {
 } from "../../../components/ui/icons"
 import { cn } from "../../../lib/utils"
 import { apiFetch } from "../../../lib/api-fetch"
-import { useHaptic } from "../hooks/use-haptic"
+import { useHaptic } from "../../../lib/hooks/use-haptic"
 import { trackClickCopy } from "../../../lib/sensors-analytics"
 import {
   ttsPlaybackRateAtom,

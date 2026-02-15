@@ -2025,9 +2025,9 @@ export const claudeRouter = router({
                     chatId: input.chatId,
                     projectId: projectId || "",
                     metadata,
-                    error: resolvedError instanceof Error
-                      ? resolvedError
-                      : new Error(String(resolvedError)),
+                    error: err instanceof Error
+                      ? err
+                      : new Error(String(err)),
                     mode: input.mode,
                     finalModel: finalCustomConfig?.model,
                     durationMs: metadata.durationMs,

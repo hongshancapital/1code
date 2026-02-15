@@ -20,7 +20,7 @@ import {
 } from "../stores/sub-chat-store"
 import { PopoverTrigger } from "../../../components/ui/popover"
 import { SearchCombobox } from "../../../components/ui/search-combobox"
-import { formatTimeAgo } from "../utils/format-time-ago"
+import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 
 interface DiffStats {
   fileCount: number

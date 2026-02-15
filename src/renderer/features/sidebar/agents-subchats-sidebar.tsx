@@ -92,7 +92,7 @@ import { AgentsRenameSubChatDialog } from "../agents/components/agents-rename-su
 import { SearchCombobox } from "../../components/ui/search-combobox"
 import { SubChatContextMenu } from "../agents/ui/sub-chat-context-menu"
 import { SubChatHoverPreview } from "../agents/ui/sub-chat-hover-preview"
-import { formatTimeAgo } from "../agents/utils/format-time-ago"
+import { formatTimeAgo } from "../../lib/utils/format-time-ago"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useSubChatDraftsCache, getSubChatDraftKey } from "../agents/lib/drafts"
 import { Checkbox } from "../../components/ui/checkbox"

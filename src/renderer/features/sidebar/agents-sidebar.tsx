@@ -174,7 +174,7 @@ import {
 } from "../agents/components/traffic-light-spacer"
 import { useHotkeys } from "react-hotkeys-hook"
 import { Checkbox } from "../../components/ui/checkbox"
-import { useHaptic } from "./hooks/use-haptic"
+import { useHaptic } from "../../lib/hooks/use-haptic"
 import { TypewriterText } from "../../components/ui/typewriter-text"
 import { exportChat, copyChat } from "../agents/lib/export-chat"
 // Grouping components

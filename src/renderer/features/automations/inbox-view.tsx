@@ -15,7 +15,7 @@ import { Archive as ArchiveIcon, ListFilter, MoreHorizontal, Clock, Check, Align
 import { Logo } from "../../components/ui/logo"
 import { cn } from "../../lib/utils"
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { formatTimeAgo } from "../agents/utils/format-time-ago"
+import { formatTimeAgo } from "../../lib/utils/format-time-ago"
 import { GitHubIcon } from "../../icons"
 import { ResizableSidebar } from "../../components/ui/resizable-sidebar"
 import { useIsMobile } from "../../lib/hooks/use-mobile"
