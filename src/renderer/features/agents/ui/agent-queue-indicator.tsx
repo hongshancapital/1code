@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, useState, useCallback, useEffect } from "react"
-import { ChevronDown, ArrowUp, ArrowDown, X } from "lucide-react"
+import { ChevronDown, ArrowUp, Undo2, X } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
 import {
   Tooltip,
@@ -95,7 +95,7 @@ const QueueItemRow = memo(function QueueItemRow({
                 onClick={handleRestore}
                 className="shrink-0 p-1 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-all"
               >
-                <ArrowDown className="w-3.5 h-3.5" />
+                <Undo2 className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">Restore to input</TooltipContent>
