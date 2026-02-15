@@ -13,7 +13,7 @@ import {
   IconCenterPeek,
   IconFullPage,
 } from "@/components/ui/icons"
-import type { DiffViewDisplayMode } from "@/features/agents/atoms"
+import type { DiffViewDisplayMode } from "@/lib/atoms"
 
 interface DiffViewModeSwitcherProps {
   mode: DiffViewDisplayMode

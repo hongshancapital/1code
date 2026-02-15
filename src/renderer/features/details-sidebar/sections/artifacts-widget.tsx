@@ -8,7 +8,7 @@ import { Package, ChevronRight, FileEdit, FilePlus, FileX, FolderOpen, Globe } f
 import { ExpandIcon, CollapseIcon } from "@/components/ui/icons"
 import { getFileIconByExtension } from "@/features/agents/mentions/agents-file-mention"
 import { useAgentSubChatStore } from "@/features/agents/stores/sub-chat-store"
-import { artifactsAtomFamily, filePreviewPathAtom, type Artifact, type ArtifactContext } from "@/features/cowork/atoms"
+import { artifactsAtomFamily, filePreviewPathAtom, type Artifact, type ArtifactContext } from "@/lib/atoms"
 import { ResizableWidgetCard } from "../components/resizable-widget-card"
 
 // ============================================================================

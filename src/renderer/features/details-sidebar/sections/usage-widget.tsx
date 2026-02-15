@@ -5,7 +5,7 @@ import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
 import { Activity, RefreshCw } from "lucide-react"
 import { trpc } from "@/lib/trpc"
-import { loadingSubChatsAtom } from "@/features/agents/atoms"
+import { loadingSubChatsAtom } from "@/lib/atoms"
 import {
   Tooltip,
   TooltipContent,

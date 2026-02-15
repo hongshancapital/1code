@@ -22,7 +22,7 @@ import {
   terminalsAtom,
   activeTerminalIdAtom,
   terminalCwdAtom,
-} from "@/features/terminal/atoms"
+} from "@/lib/atoms"
 import { trpc } from "@/lib/trpc"
 import type { TerminalInstance } from "@/features/terminal/types"
 import { cn } from "@/lib/utils"

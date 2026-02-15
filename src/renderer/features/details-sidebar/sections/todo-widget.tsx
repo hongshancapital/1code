@@ -5,7 +5,7 @@ import { useAtomValue } from "jotai"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { PlanIcon, CheckIcon, IconArrowRight, ExpandIcon, CollapseIcon } from "@/components/ui/icons"
-import { currentTodosAtomFamily, currentTaskToolsAtomFamily } from "@/features/agents/atoms"
+import { currentTodosAtomFamily, currentTaskToolsAtomFamily } from "@/lib/atoms"
 
 interface TodoItem {
   content: string

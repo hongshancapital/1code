@@ -9,7 +9,7 @@ import {
   desktopViewAtom,
   selectedProjectAtom,
   showNewChatFormAtom,
-} from "../../features/agents/atoms"
+} from "../atoms"
 import { chatSourceModeAtom } from "../atoms"
 
 // Module-level tracker for the last project ID set via navigation.

@@ -13,14 +13,14 @@ import {
 } from "@/components/ui/tooltip"
 import {
   backgroundTasksAtomFamily,
-} from "@/features/agents/atoms/background-tasks"
+} from "@/lib/atoms"
 import type { BackgroundTask, BackgroundTaskStatus } from "@/features/agents/types/background-task"
 import { trpc } from "@/lib/trpc"
 import {
   terminalsAtom,
   activeTerminalIdAtom,
   terminalSidebarOpenAtomFamily,
-} from "@/features/terminal/atoms"
+} from "@/lib/atoms"
 import type { TerminalInstance } from "@/features/terminal/types"
 
 interface BackgroundTasksWidgetProps {

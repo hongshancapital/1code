@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip"
 import { FileTreePanel } from "@/features/cowork/file-tree-panel"
 import { FilePreviewDialog } from "@/features/cowork/file-preview/file-preview-dialog"
-import { filePreviewPathAtom } from "@/features/cowork/atoms"
+import { filePreviewPathAtom } from "@/lib/atoms"
 import { ResizableWidgetCard } from "../components/resizable-widget-card"
 
 // ============================================================================

@@ -15,7 +15,7 @@ import { Label } from "../../ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip"
-import { selectedProjectAtom, settingsMcpSidebarWidthAtom } from "../../../features/agents/atoms"
+import { selectedProjectAtom, settingsMcpSidebarWidthAtom } from "../../../lib/atoms"
 import { agentsSettingsDialogActiveTabAtom, disabledMcpServersAtom, sessionInfoAtom, type MCPServer, type MCPServerStatus } from "../../../lib/atoms"
 import {
   AddMcpServerDialog,

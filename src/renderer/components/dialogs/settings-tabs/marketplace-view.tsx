@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { useListKeyboardNav } from "./use-list-keyboard-nav"
-import { settingsPluginsSidebarWidthAtom } from "../../../features/agents/atoms"
+import { settingsPluginsSidebarWidthAtom } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { cn } from "../../../lib/utils"
 import {

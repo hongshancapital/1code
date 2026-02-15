@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { trpc } from "../../../lib/trpc"
 import { toast } from "sonner"
 import { Copy, FolderOpen, RefreshCw, Terminal, Check, Scan, WifiOff, FileJson, Database, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Brain, ChevronDown, ChevronRight, ChevronLeft, Trash2 } from "lucide-react"
-import { showMessageJsonAtom } from "../../../features/agents/atoms"
+import { showMessageJsonAtom } from "../../../lib/atoms"
 import { runtimeSimulatedModeAtom, runtimeInitBannerDismissedAtom } from "../../../lib/atoms"
 import { Progress } from "../../ui/progress"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"

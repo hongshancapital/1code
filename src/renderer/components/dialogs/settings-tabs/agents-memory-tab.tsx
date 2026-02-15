@@ -58,7 +58,7 @@ import {
   AlertDialogTrigger,
 } from "../../ui/alert-dialog"
 import { useAtom, useAtomValue } from "jotai"
-import { selectedProjectAtom } from "../../../features/agents/atoms"
+import { selectedProjectAtom } from "../../../lib/atoms"
 import { memoryEnabledAtom, memoryRecordingEnabledAtom } from "../../../lib/atoms"
 import { Switch } from "../../ui/switch"
 

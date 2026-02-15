@@ -21,7 +21,7 @@ import {
   DialogContent,
 } from "../ui/dialog"
 import { trpc } from "../../lib/trpc"
-import { selectedProjectAtom } from "../../features/agents/atoms"
+import { selectedProjectAtom } from "../../lib/atoms"
 import { betaMemoryEnabledAtom } from "../../lib/atoms"
 import { useNavigate } from "../../lib/router"
 import { toast } from "sonner"

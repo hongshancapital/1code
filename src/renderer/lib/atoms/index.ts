@@ -1,6 +1,5 @@
 import { atom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
-import { desktopViewAtom as _desktopViewAtom } from "../../features/agents/atoms"
 
 // ============================================
 // RE-EXPORT FROM FEATURES/AGENTS/ATOMS (source of truth)
@@ -9,6 +8,12 @@ import { desktopViewAtom as _desktopViewAtom } from "../../features/agents/atoms
 export {
   // Chat atoms
   selectedAgentChatIdAtom,
+  selectedChatIsRemoteAtom,
+  previousAgentChatIdAtom,
+  selectedDraftIdAtom,
+  showNewChatFormAtom,
+  suppressInputFocusAtom,
+  pendingMentionAtom,
   subChatModeAtomFamily,
   lastSelectedModelIdAtom,
   lastSelectedAgentIdAtom,
@@ -21,6 +26,11 @@ export {
   clearLoading,
   MODEL_ID_MAP,
   lastChatModesAtom,
+  unconfirmedNameSubChatsAtom,
+  markNameUnconfirmed,
+  confirmName,
+  compactingSubChatsAtom,
+  justCreatedIdsAtom,
 
   // Sidebar atoms
   agentsSidebarOpenAtom,
@@ -39,10 +49,20 @@ export {
   // Diff atoms
   agentsDiffSidebarWidthAtom,
   agentsChangesPanelWidthAtom,
+  agentsChangesPanelCollapsedAtom,
   agentsDiffSidebarOpenAtom,
   agentsFocusedDiffFileAtom,
   filteredDiffFilesAtom,
-  subChatFilesAtom,
+  selectedDiffFilePathAtom,
+  isCreatingPrAtom,
+  filteredSubChatIdAtom,
+  selectedCommitAtom,
+  diffActiveTabAtom,
+  diffFilesCollapsedAtomFamily,
+  diffSidebarOpenAtomFamily,
+  diffViewDisplayModeAtom,
+  diffHasPendingChangesAtomFamily,
+
   // Chat area full width mode
   agentsChatFullWidthAtom,
 
@@ -59,12 +79,115 @@ export {
 
   // Debug mode
   agentsDebugModeAtom,
+  showMessageJsonAtom,
 
   // Todos
   currentTodosAtomFamily,
 
+  // Task tools
+  currentTaskToolsAtomFamily,
+
   // AskUserQuestion
   pendingUserQuestionsAtom,
+  expiredUserQuestionsAtom,
+  askUserQuestionResultsAtom,
+  QUESTIONS_SKIPPED_MESSAGE,
+  QUESTIONS_TIMED_OUT_MESSAGE,
+
+  // Pending messages
+  pendingPrMessageAtom,
+  pendingReviewMessageAtom,
+  pendingConflictResolutionMessageAtom,
+  pendingBranchRenameMessageAtom,
+  pendingAuthRetryMessageAtom,
+  pendingBuildPlanSubChatIdAtom,
+  pendingPlanApprovalsAtom,
+
+  // Work mode
+  lastSelectedWorkModeAtom,
+  lastSelectedBranchesAtom,
+
+  // Undo stack
+  undoStackAtom,
+
+  // SubChat status
+  subChatStatusStorageAtom,
+  unseenSubChatIdsAtom,
+  committedSubChatIdsAtom,
+  markSubChatUnseen,
+  clearSubChatUnseen,
+  markSubChatCommitted,
+
+  // SubChat files
+  subChatFilesAtom,
+  subChatToChatMapAtom,
+
+  // Viewed files
+  viewedFilesAtomFamily,
+
+  // File viewer
+  fileViewerOpenAtomFamily,
+  fileViewerSidebarWidthAtom,
+  fileViewerDisplayModeAtom,
+  fileViewerWordWrapAtom,
+  fileViewerMinimapAtom,
+  fileViewerLineNumbersAtom,
+  fileViewerStickyScrollAtom,
+  fileViewerWhitespaceAtom,
+  fileViewerBracketPairsAtom,
+  fileSearchDialogOpenAtom,
+  recentlyOpenedFilesAtom,
+  openLocallyChatIdAtom,
+
+  // Plan sidebar
+  agentsPlanSidebarWidthAtom,
+  planSidebarOpenAtomFamily,
+  currentPlanPathAtomFamily,
+  planEditRefetchTriggerAtomFamily,
+
+  // Explorer panel
+  explorerDisplayModeAtom,
+  explorerSidebarWidthAtom,
+  explorerPanelOpenAtomFamily,
+
+  // Terminal panel height
+  codingTerminalPanelHeightAtom,
+
+  // Desktop view navigation
+  desktopViewAtom,
+  activeSidebarNavAtom,
+  automationsSidebarWidthAtom,
+  selectedAutomationIdAtom,
+  automationDetailIdAtom,
+  automationTemplateParamsAtom,
+  inboxSelectedChatIdAtom,
+  agentsInboxSidebarWidthAtom,
+  inboxMobileViewModeAtom,
+
+  // Settings sidebar widths
+  settingsMcpSidebarWidthAtom,
+  settingsToolsSidebarWidthAtom,
+  settingsSkillsSidebarWidthAtom,
+  settingsCommandsSidebarWidthAtom,
+  settingsAgentsSidebarWidthAtom,
+  settingsPluginsSidebarWidthAtom,
+  settingsKeyboardSidebarWidthAtom,
+  settingsProjectsSidebarWidthAtom,
+
+  // Context comments
+  contextCommentsAtom,
+  contextCommentClickedAtom,
+
+  // Project mode
+  currentProjectModeAtom,
+  enabledWidgetsAtom,
+
+  // Diff data cache
+  workspaceDiffCacheAtomFamily,
+
+  // Mode utilities
+  AGENT_MODES,
+  getNextMode,
 
   // Types
   type SavedRepo,
@@ -73,22 +196,96 @@ export {
   type AgentsDebugMode,
   type SubChatFileChange,
   type AgentMode,
-
-  // Mode utilities
-  AGENT_MODES,
-  getNextMode,
-
-  // Desktop view navigation (Automations / Inbox)
-  desktopViewAtom,
-  automationDetailIdAtom,
-  automationTemplateParamsAtom,
-  inboxSelectedChatIdAtom,
-  agentsInboxSidebarWidthAtom,
-  inboxMobileViewModeAtom,
   type DesktopView,
   type AutomationTemplateParams,
   type InboxMobileViewMode,
+  type SidebarNavItem,
+  type DiffViewDisplayMode,
+  type ProjectMode,
+  type WorkMode,
+  type SelectedCommit,
+  type SubChatStatus,
+  type ViewedFileState,
+  type CachedParsedDiffFile,
+  type DiffStatsCache,
+  type WorkspaceDiffCache,
+  type ExplorerDisplayMode,
+  type FileViewerDisplayMode,
+  type FileViewerWhitespace,
+  type PendingUserQuestion,
+  type PendingAuthRetryMessage,
+  type UndoItem,
+  type ContextCommentItem,
+  type TaskToolItem,
 } from "../../features/agents/atoms"
+
+// ============================================
+// RE-EXPORT FROM FEATURES/AGENTS/ATOMS/BACKGROUND-TASKS
+// ============================================
+
+export {
+  backgroundTasksAtomFamily,
+  runningTasksCountAtomFamily,
+  allRunningTasksAtom,
+  createBackgroundTask,
+  updateTaskStatus,
+} from "../../features/agents/atoms/background-tasks"
+
+export type { BackgroundTask, BackgroundTaskStatus } from "../../features/agents/types/background-task"
+
+// ============================================
+// RE-EXPORT FROM FEATURES/AGENTS/ATOMS/REVIEW-ATOMS
+// ============================================
+
+export {
+  reviewCommentsAtomFamily,
+  reviewPanelOpenAtomFamily,
+} from "../../features/agents/atoms/review-atoms"
+
+// ============================================
+// RE-EXPORT FROM FEATURES/COWORK/ATOMS
+// ============================================
+
+export {
+  filePreviewPathAtom,
+  filePreviewLineAtom,
+  filePreviewHighlightAtom,
+  filePreviewOpenAtom,
+  filePreviewDisplayModeAtom,
+  artifactsAtomFamily,
+  isCoworkModeAtom,
+  coworkRightPanelWidthAtom,
+  coworkRightPanelOpenAtom,
+  coworkRightPanelUserClosedAtom,
+  editorModeAtom,
+  editorDirtyAtom,
+  editorOriginalContentAtom,
+  editorContentAtom,
+  resetEditorStateAtom,
+  pendingFileReferenceAtom,
+  type Artifact,
+  type ArtifactContext,
+  type FilePreviewDisplayMode,
+  type EditorMode,
+  type PendingFileReference,
+} from "../../features/cowork/atoms"
+
+// ============================================
+// RE-EXPORT FROM FEATURES/TERMINAL/ATOMS
+// ============================================
+
+export {
+  terminalsAtom,
+  activeTerminalIdAtom,
+  terminalSidebarOpenAtomFamily,
+  terminalSidebarOpenAtom,
+  terminalSidebarWidthAtom,
+  terminalCwdAtom,
+  terminalDisplayModeAtom,
+  terminalBottomHeightAtom,
+  terminalSearchOpenAtom,
+  type TerminalDisplayMode,
+} from "../../features/terminal/atoms"
 
 // ============================================
 // TEAM ATOMS (unique to lib/atoms)
@@ -182,10 +379,11 @@ export const clearSubChatSelectionAtom = atom(null, (_get, set) => {
 })
 
 // ============================================
-// DIALOG ATOMS (unique to lib/atoms)
+// SETTINGS DIALOG (derived from desktopViewAtom)
 // ============================================
 
-// Settings dialog
+import { desktopViewAtom as _desktopViewAtom } from "../../features/agents/atoms"
+
 export type SettingsTab =
   | "profile"
   | "appearance"
@@ -206,9 +404,8 @@ export type SettingsTab =
   | "beta"
   | "keyboard"
   | "memory"
-  | `project-${string}` // Dynamic project tabs
+  | `project-${string}`
 export const agentsSettingsDialogActiveTabAtom = atom<SettingsTab>("preferences")
-// Derived atom: maps settings open/close to desktopView navigation
 export const agentsSettingsDialogOpenAtom = atom(
   (get) => get(_desktopViewAtom) === "settings",
   (_get, set, open: boolean) => {
@@ -216,928 +413,31 @@ export const agentsSettingsDialogOpenAtom = atom(
   }
 )
 
-export type CustomClaudeConfig = {
-  model: string
-  token: string
-  baseUrl: string
-}
-
-// Model profile system - support multiple configs
-export type ModelProfile = {
-  id: string
-  name: string
-  config: CustomClaudeConfig
-  isOffline?: boolean // Mark as offline/Ollama profile
-}
-
-// Selected Ollama model for offline mode
-export const selectedOllamaModelAtom = atomWithStorage<string | null>(
-  "agents:selected-ollama-model",
-  null, // null = use recommended model
-  undefined,
-  { getOnInit: true },
-)
-
-// Helper to get offline profile with selected model
-export const getOfflineProfile = (modelName?: string | null): ModelProfile => ({
-  id: 'offline-ollama',
-  name: 'Offline (Ollama)',
-  isOffline: true,
-  config: {
-    model: modelName || 'qwen2.5-coder:7b',
-    token: 'ollama',
-    baseUrl: 'http://localhost:11434',
-  },
-})
-
-// Predefined offline profile for Ollama (legacy, uses default model)
-export const OFFLINE_PROFILE: ModelProfile = {
-  id: 'offline-ollama',
-  name: 'Offline (Ollama)',
-  isOffline: true,
-  config: {
-    model: 'qwen2.5-coder:7b',
-    token: 'ollama',
-    baseUrl: 'http://localhost:11434',
-  },
-}
-
 // ============================================
-// DEPRECATED MODEL ATOMS - Use model-config.ts instead
-// These atoms are kept for backwards compatibility during migration
-// They will be removed in a future version
+// UI STATE ATOMS (unique to lib/atoms)
 // ============================================
 
-/**
- * @deprecated Use activeLlmProviderIdAtom from model-config.ts instead
- * Override model mode: "litellm" uses env-configured LiteLLM proxy, "custom" uses manual config
- */
-export type OverrideModelMode = "litellm" | "custom" | null
-export const overrideModelModeAtom = atomWithStorage<OverrideModelMode>(
-  "agents:override-model-mode",
-  null,
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * @deprecated Use activeLlmModelIdAtom from model-config.ts instead
- * LiteLLM selected model (when using internal LiteLLM proxy from env)
- */
-export const litellmSelectedModelAtom = atomWithStorage<string>(
-  "agents:litellm-selected-model",
-  "",
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * @deprecated Use providers.addCustom() tRPC mutation instead
- * Legacy single config for custom API endpoints
- */
-export const customClaudeConfigAtom = atomWithStorage<CustomClaudeConfig>(
-  "agents:claude-custom-config",
-  {
-    model: "",
-    token: "",
-    baseUrl: "",
-  },
-  undefined,
-  { getOnInit: true },
-)
-
-// OpenAI API key for voice transcription (for users without paid subscription)
-export const openaiApiKeyAtom = atomWithStorage<string>(
-  "agents:openai-api-key",
-  "",
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * @deprecated Use providers system instead
- * Model profiles storage
- */
-export const modelProfilesAtom = atomWithStorage<ModelProfile[]>(
-  "agents:model-profiles",
-  [OFFLINE_PROFILE],
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * @deprecated Use activeLlmProviderIdAtom from model-config.ts instead
- * Active profile ID (null = use Claude Code default)
- */
-export const activeProfileIdAtom = atomWithStorage<string | null>(
-  "agents:active-profile-id",
-  null,
-  undefined,
-  { getOnInit: true },
-)
-
-// Auto-fallback to offline mode when internet is unavailable
-export const autoOfflineModeAtom = atomWithStorage<boolean>(
-  "agents:auto-offline-mode",
-  true, // Enabled by default
-  undefined,
-  { getOnInit: true },
-)
-
-// Simulate offline mode for testing (debug feature)
-export const simulateOfflineAtom = atomWithStorage<boolean>(
-  "agents:simulate-offline",
-  false, // Disabled by default
-  undefined,
-  { getOnInit: true },
-)
-
-// Show offline mode UI (debug feature - enables offline functionality visibility)
-export const showOfflineModeFeaturesAtom = atomWithStorage<boolean>(
-  "agents:show-offline-mode-features",
-  false, // Hidden by default
-  undefined,
-  { getOnInit: true },
-)
-
-// Network status (updated from main process)
-export const networkOnlineAtom = atom<boolean>(true)
-
-export function normalizeCustomClaudeConfig(
-  config: CustomClaudeConfig,
-): CustomClaudeConfig | undefined {
-  const model = config.model.trim()
-  const token = config.token.trim()
-  const baseUrl = config.baseUrl.trim()
-
-  if (!model || !token || !baseUrl) return undefined
-
-  return { model, token, baseUrl }
-}
-
-// Get active config (considering network status and auto-fallback)
-export const activeConfigAtom = atom((get) => {
-  const activeProfileId = get(activeProfileIdAtom)
-  const profiles = get(modelProfilesAtom)
-  const legacyConfig = get(customClaudeConfigAtom)
-  const networkOnline = get(networkOnlineAtom)
-  const autoOffline = get(autoOfflineModeAtom)
-
-  // If auto-offline enabled and no internet, use offline profile
-  if (!networkOnline && autoOffline) {
-    const offlineProfile = profiles.find(p => p.isOffline)
-    if (offlineProfile) {
-      return offlineProfile.config
-    }
-  }
-
-  // If specific profile is selected, use it
-  if (activeProfileId) {
-    const profile = profiles.find(p => p.id === activeProfileId)
-    if (profile) {
-      return profile.config
-    }
-  }
-
-  // Fallback to legacy config if set
-  const normalized = normalizeCustomClaudeConfig(legacyConfig)
-  if (normalized) {
-    return normalized
-  }
-
-  // No custom config
-  return undefined
-})
-
-// Preferences - Extended Thinking
-// When enabled, Claude will use extended thinking for deeper reasoning (128K tokens)
-// Note: Extended thinking disables response streaming
-export const extendedThinkingEnabledAtom = atomWithStorage<boolean>(
-  "preferences:extended-thinking-enabled",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - AskUserQuestion Timeout
-// Timeout in seconds for AI questions (0 = no timeout, default = 60)
-// When AI asks a question and user doesn't respond within this time, it will timeout
-export type AskUserQuestionTimeout = 0 | 30 | 60 | 120 | 300
-export const askUserQuestionTimeoutAtom = atomWithStorage<AskUserQuestionTimeout>(
-  "preferences:ask-user-question-timeout",
-  60,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - History (Rollback)
-// When enabled, allow rollback to previous assistant messages
-export const historyEnabledAtom = atomWithStorage<boolean>(
-  "preferences:history-enabled",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Sound Notifications
-// When enabled, play a sound when agent completes work (if not viewing the chat)
-export const soundNotificationsEnabledAtom = atomWithStorage<boolean>(
-  "preferences:sound-notifications-enabled",
-  true,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Always Show Notifications
-// When enabled, show system notifications even when the app window is focused
-// Default: false (only show notifications when window is not focused)
-export const alwaysShowNotificationsAtom = atomWithStorage<boolean>(
-  "preferences:always-show-notifications",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Custom Notification Sound
-// Path to custom notification sound file (null = use default sound.mp3)
-export const customNotificationSoundAtom = atomWithStorage<string | null>(
-  "preferences:custom-notification-sound",
-  null,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Desktop Notifications (Windows)
-// When enabled, show Windows desktop notification when agent completes work
-export const desktopNotificationsEnabledAtom = atomWithStorage<boolean>(
-  "preferences:desktop-notifications-enabled",
-  true,
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Windows Window Frame Style
-// When true, uses native frame (standard Windows title bar)
-// When false, uses frameless window (dark custom title bar)
-// Only applies on Windows, requires app restart to take effect
-export const useNativeFrameAtom = atomWithStorage<boolean>(
-  "preferences:windows-use-native-frame",
-  false, // Default: frameless (dark title bar)
-  undefined,
-  { getOnInit: true },
-)
-
-// Beta: Enable git features in diff sidebar (commit, staging, file selection)
-// When enabled, shows checkboxes for file selection and commit UI in diff sidebar
-// When disabled, shows simple file list with "Create PR" button
-export const betaGitFeaturesEnabledAtom = atomWithStorage<boolean>(
-  "preferences:beta-git-features-enabled",
-  false, // Default OFF
-  undefined,
-  { getOnInit: true },
-)
-
-// Beta: Enable Automations & Inbox
-// When enabled, shows Automations and Inbox navigation in sidebar
-// Note: This feature is dev-only - in production, it's always disabled regardless of storage value
-import { isFeatureAvailable } from "../feature-flags"
-
-// Internal storage atom
-const _betaAutomationsEnabledStorageAtom = atomWithStorage<boolean>(
-  "preferences:beta-automations-enabled",
-  false, // Default OFF
-  undefined,
-  { getOnInit: true },
-)
-
-// Public atom - enforces dev-only restriction
-export const betaAutomationsEnabledAtom = atom(
-  (get) => isFeatureAvailable("automations") ? get(_betaAutomationsEnabledStorageAtom) : false,
-  (_get, set, value: boolean) => set(_betaAutomationsEnabledStorageAtom, value)
-)
-
-// Beta: Enable Tasks functionality in Claude Code SDK
-// When enabled (default), the SDK exposes task-related tools (TodoWrite, Task agents)
-export const enableTasksAtom = atomWithStorage<boolean>(
-  "preferences:enable-tasks",
-  true, // Default ON
-  undefined,
-  { getOnInit: true },
-)
-
-// Beta: Skill Awareness (Prompt Injection)
-// When enabled (default), injects a prompt reminder for AI to consider available skills before planning/executing
-export const skillAwarenessEnabledAtom = atomWithStorage<boolean>(
-  "preferences:skill-awareness-enabled",
-  true, // Default ON
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Ctrl+Tab Quick Switch Target
-// When "workspaces" (default), Ctrl+Tab switches between workspaces, and Opt+Ctrl+Tab switches between agents
-// When "agents", Ctrl+Tab switches between agents, and Opt+Ctrl+Tab switches between workspaces
-export type CtrlTabTarget = "workspaces" | "agents"
-export const ctrlTabTargetAtom = atomWithStorage<CtrlTabTarget>(
-  "preferences:ctrl-tab-target",
-  "workspaces", // Default: Ctrl+Tab switches workspaces, Opt+Ctrl+Tab switches agents
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Auto-advance after archive
-// Controls where to navigate after archiving a workspace
-export type AutoAdvanceTarget = "next" | "previous" | "close"
-export const autoAdvanceTargetAtom = atomWithStorage<AutoAdvanceTarget>(
-  "preferences:auto-advance-target",
-  "next", // Default: go to next workspace
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - Default Agent Mode
-// Controls what mode new chats/sub-chats start in (Plan = read-only, Agent = can edit)
-// Re-using AgentMode type from features/agents/atoms
-import { type AgentMode as AgentModeType } from "../../features/agents/atoms"
-
-// Migration: convert old isPlanMode boolean to new defaultAgentMode string
-// This runs once when the module loads
-if (typeof window !== "undefined") {
-  const oldKey = "agents:isPlanMode"
-  const newKey = "preferences:default-agent-mode"
-  const oldValue = localStorage.getItem(oldKey)
-  if (oldValue !== null && localStorage.getItem(newKey) === null) {
-    // Old value was JSON boolean, new value is JSON string
-    const wasInPlanMode = oldValue === "true"
-    localStorage.setItem(newKey, JSON.stringify(wasInPlanMode ? "plan" : "agent"))
-    localStorage.removeItem(oldKey)
-    console.log("[atoms] Migrated isPlanMode to defaultAgentMode:", wasInPlanMode ? "plan" : "agent")
-  }
-}
-
-export const defaultAgentModeAtom = atomWithStorage<AgentModeType>(
-  "preferences:default-agent-mode",
-  "agent", // Default to agent mode
-  undefined,
-  { getOnInit: true },
-)
-
-// Preferences - VS Code Code Themes
-// Selected themes for code syntax highlighting (separate for light/dark UI themes)
-export const vscodeCodeThemeLightAtom = atomWithStorage<string>(
-  "preferences:vscode-code-theme-light",
-  "github-light",
-  undefined,
-  { getOnInit: true },
-)
-
-export const vscodeCodeThemeDarkAtom = atomWithStorage<string>(
-  "preferences:vscode-code-theme-dark",
-  "github-dark",
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// FULL VS CODE THEME ATOMS
-// ============================================
-
-/**
- * Full VS Code theme data type
- * Contains colors for UI, terminal, and tokenColors for syntax highlighting
- */
-export type VSCodeFullTheme = {
-  id: string
-  name: string
-  type: "light" | "dark"
-  colors: Record<string, string> // UI and terminal colors
-  tokenColors?: any[] // Syntax highlighting rules
-  semanticHighlighting?: boolean // Enable semantic highlighting
-  semanticTokenColors?: Record<string, any> // Semantic token color overrides
-  source: "builtin" | "imported" | "discovered"
-  path?: string // File path for imported/discovered themes
-}
-
-/**
- * Selected full theme ID
- * When null, uses system light/dark mode with the themes specified in systemLightThemeIdAtom/systemDarkThemeIdAtom
- */
-export const selectedFullThemeIdAtom = atomWithStorage<string | null>(
-  "preferences:selected-full-theme-id",
-  null, // null means use system default
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Theme to use when system is in light mode (only used when selectedFullThemeIdAtom is null)
- */
-export const systemLightThemeIdAtom = atomWithStorage<string>(
-  "preferences:system-light-theme-id",
-  "hs-light", // Default light theme (HS)
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Theme to use when system is in dark mode (only used when selectedFullThemeIdAtom is null)
- */
-export const systemDarkThemeIdAtom = atomWithStorage<string>(
-  "preferences:system-dark-theme-id",
-  "hs-dark", // Default dark theme (HS)
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Show workspace icon in sidebar
- * When disabled, hides the project icon and moves loader/status indicators to the right of the name
- */
-export const showWorkspaceIconAtom = atomWithStorage<boolean>(
-  "preferences:show-workspace-icon",
-  false, // Hidden by default
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Always expand to-do list
- * When enabled, to-do lists are always shown expanded (full list view)
- * When disabled (default), to-do lists start collapsed and can be expanded manually
- */
-export const alwaysExpandTodoListAtom = atomWithStorage<boolean>(
-  "preferences:always-expand-todo-list",
-  false, // Collapsed by default
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Cached full theme data for the selected theme
- * This is populated when a theme is selected and used for applying CSS variables
- */
-export const fullThemeDataAtom = atom<VSCodeFullTheme | null>(null)
-
-/**
- * Imported themes from VS Code extensions
- * Persisted in localStorage, loaded on app start
- */
-export const importedThemesAtom = atomWithStorage<VSCodeFullTheme[]>(
-  "preferences:imported-themes",
-  [],
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * All available full themes (built-in + imported + discovered)
- * This is a derived atom that combines all theme sources
- */
-export const allFullThemesAtom = atom<VSCodeFullTheme[]>((_get) => {
-  // This will be populated by the theme provider
-  // For now, return empty - will be set imperatively
-  return []
-})
-
-// ============================================
-// CUSTOM HOTKEYS CONFIGURATION
-// ============================================
-
-import type { CustomHotkeysConfig } from "../hotkeys/types"
-export type { CustomHotkeysConfig }
-
-/**
- * Custom hotkey overrides storage
- * Maps action IDs to custom hotkey strings (or null for default)
- */
-export const customHotkeysAtom = atomWithStorage<CustomHotkeysConfig>(
-  "preferences:custom-hotkeys",
-  { version: 1, bindings: {} },
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Currently recording hotkey for action (UI state)
- * null when not recording
- */
-export const recordingHotkeyForActionAtom = atom<string | null>(null)
-
-// Login modal (shown when Claude Code auth fails)
 export const agentsLoginModalOpenAtom = atom<boolean>(false)
-
-// Help popover
 export const agentsHelpPopoverOpenAtom = atom<boolean>(false)
-
-// Quick switch dialog - Agents
 export const agentsQuickSwitchOpenAtom = atom<boolean>(false)
 export const agentsQuickSwitchSelectedIndexAtom = atom<number>(0)
-
-// Quick switch dialog - Sub-chats
 export const subChatsQuickSwitchOpenAtom = atom<boolean>(false)
 export const subChatsQuickSwitchSelectedIndexAtom = atom<number>(0)
-
-// ============================================
-// DESKTOP/FULLSCREEN STATE ATOMS
-// ============================================
-
-// Whether app is running in Electron desktop environment
 export const isDesktopAtom = atom<boolean>(false)
-
-// Fullscreen state - null means not initialized yet
-// null = not yet loaded, false = not fullscreen, true = fullscreen
 export const isFullscreenAtom = atom<boolean | null>(null)
 
 // ============================================
-// ONBOARDING ATOMS
+// RE-EXPORT THEMATIC MODULES
 // ============================================
 
-// Billing method selected during onboarding
-// "claude-subscription" = use Claude Pro/Max via OAuth
-// "api-key" = use Anthropic API key directly
-// "custom-model" = use custom base URL and model (e.g. for proxies or alternative providers)
-// "litellm" = use LiteLLM proxy with model selection from /models endpoint
-// null = not yet selected (show billing method selection screen)
-export type BillingMethod = "claude-subscription" | "api-key" | "custom-model" | "litellm" | null
-
-// LiteLLM configuration
-export type LiteLLMConfig = {
-  baseUrl: string
-  apiKey: string
-  selectedModel: string
-}
-
-export const litellmConfigAtom = atomWithStorage<LiteLLMConfig>(
-  "agents:litellm-config",
-  {
-    baseUrl: "",
-    apiKey: "",
-    selectedModel: "",
-  },
-  undefined,
-  { getOnInit: true },
-)
-
-// LiteLLM onboarding completed flag
-export const litellmOnboardingCompletedAtom = atomWithStorage<boolean>(
-  "onboarding:litellm-completed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-export const billingMethodAtom = atomWithStorage<BillingMethod>(
-  "onboarding:billing-method",
-  null,
-  undefined,
-  { getOnInit: true },
-)
-
-// Whether user has completed Anthropic OAuth during onboarding
-// This is used to show the onboarding screen after sign-in
-// Reset on logout
-export const anthropicOnboardingCompletedAtom = atomWithStorage<boolean>(
-  "onboarding:anthropic-completed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Whether user has completed API key configuration during onboarding
-// Only relevant when billingMethod is "api-key"
-export const apiKeyOnboardingCompletedAtom = atomWithStorage<boolean>(
-  "onboarding:api-key-completed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Whether auth was skipped (user chose "Skip for now" on login page)
-// This is synced from main process on app load
-export const authSkippedAtom = atom<boolean>(false)
-
-// Whether user has completed or skipped the welcome name input
-// This is shown on first app launch during the loading scene
-export const welcomeNameInputCompletedAtom = atomWithStorage<boolean>(
-  "onboarding:welcome-name-completed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// SESSION INFO ATOMS (MCP, Plugins, Tools)
-// ============================================
-
-export type MCPServerStatus = "connected" | "failed" | "pending" | "needs-auth"
-
-export type MCPServerIcon = {
-  src: string
-  mimeType?: string
-  sizes?: string[]
-  theme?: "light" | "dark"
-}
-
-export type MCPServer = {
-  name: string
-  status: MCPServerStatus
-  serverInfo?: {
-    name: string
-    version: string
-    icons?: MCPServerIcon[]
-  }
-  error?: string
-}
-
-export type SessionInfo = {
-  tools: string[]
-  mcpServers: MCPServer[]
-  plugins: { name: string; path: string }[]
-  skills: string[]
-}
-
-// Session info from SDK init message
-// Contains MCP servers, plugins, available tools, and skills
-// Persisted to localStorage so MCP tools are visible after page refresh
-// Updated when a new chat session starts
-export const sessionInfoAtom = atomWithStorage<SessionInfo | null>(
-  "hong-session-info",
-  null,
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// CHAT SOURCE MODE (Local vs Sandbox)
-// ============================================
-
-// Chat source toggle: "local" = worktree chats (SQLite), "sandbox" = remote sandbox chats
-export type ChatSourceMode = "local" | "sandbox"
-
-export const chatSourceModeAtom = atomWithStorage<ChatSourceMode>(
-  "agents:chat-source-mode",
-  "local",
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// DEV TOOLS UNLOCK (Hidden feature)
-// ============================================
-
-// DevTools unlock state (hidden feature - click Beta tab 5 times to enable)
-// Persisted per-session only (not in localStorage for security)
-export const devToolsUnlockedAtom = atom<boolean>(false)
-
-// Disabled MCP servers per project path (persisted to localStorage)
-// Key: project path, Value: array of disabled server names
-export const disabledMcpServersAtom = atomWithStorage<Record<string, string[]>>(
-  "hong:disabled-mcp-servers",
-  {},
-)
-
-// ============================================
-// PREFERRED EDITOR
-// ============================================
-
-import type { ExternalApp } from "../../../shared/external-apps"
-
-export const preferredEditorAtom = atomWithStorage<ExternalApp>(
-  "preferences:preferred-editor",
-  "cursor",
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// MCP APPROVAL DIALOG ATOMS
-// ============================================
-
-export type PendingMcpApproval = {
-  pluginSource: string
-  serverName: string
-  identifier: string
-  config: Record<string, unknown>
-}
-
-// Whether the MCP approval dialog is open
-export const mcpApprovalDialogOpenAtom = atom<boolean>(false)
-
-// Pending MCP approvals to show in the dialog
-export const pendingMcpApprovalsAtom = atom<PendingMcpApproval[]>([])
-
-// ============================================
-// LANGUAGE SETTINGS
-// ============================================
-
-export type LanguagePreference = "system" | "en" | "zh"
-
-export const languagePreferenceAtom = atomWithStorage<LanguagePreference>(
-  "preferences:language",
-  "system",
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// RUNTIME INIT BANNER ATOMS
-// ============================================
-
-// Whether the runtime init banner has been dismissed
-// Once dismissed, it won't show again until cleared
-export const runtimeInitBannerDismissedAtom = atomWithStorage<boolean>(
-  "onboarding:runtime-init-banner-dismissed",
-  false,
-  undefined,
-  { getOnInit: true },
-)
-
-// Simulated installation mode - when true, RuntimeInitBanner shows simulated state
-export const runtimeSimulatedModeAtom = atom<boolean>(false)
-
-// ============================================
-// GROUPING ATOMS (for workspace/subchat grouping)
-// ============================================
-
-export {
-  // Types
-  type WorkspaceGroupMode,
-  type SubChatGroupMode,
-  // View toggle atoms
-  workspaceGroupedViewAtom,
-  subChatGroupedViewAtom,
-  // Mode atoms
-  workspaceGroupModeAtom,
-  subChatGroupModeAtom,
-  // Collapsed groups
-  workspaceCollapsedGroupsAtom,
-  subChatCollapsedGroupsAtom,
-  // Dialog state
-  manageTagsDialogOpenAtom,
-} from "./grouping"
-
-// ============================================
-// USER PERSONALIZATION ATOMS
-// ============================================
-
-/**
- * User personalization settings for AI to recognize the user
- * Injected into system prompt when sending messages
- */
-export interface UserPersonalization {
-  /** Claude's preferred name for the user (max 50 chars) */
-  preferredName: string
-  /** Personal preferences for AI responses (max 1000 chars) */
-  personalPreferences: string
-}
-
-export const userPersonalizationAtom = atomWithStorage<UserPersonalization>(
-  "profile:user-personalization",
-  { preferredName: "", personalPreferences: "" },
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// MEMORY SETTINGS ATOMS
-// ============================================
-
-/**
- * Beta: Enable Memory & Search feature
- * When disabled (default), all memory functionality is off:
- * - No recording, no context injection, no search
- * - Memory tab hidden from settings sidebar
- */
-export const betaMemoryEnabledAtom = atomWithStorage<boolean>(
-  "preferences:beta-memory-enabled",
-  false, // Default OFF - beta feature
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Memory recording toggle
- * When enabled (default), memory observations are automatically captured
- * When disabled, no memory data is recorded
- */
-export const memoryRecordingEnabledAtom = atomWithStorage<boolean>(
-  "preferences:memory-recording-enabled",
-  true, // Default ON - memory is recorded
-  undefined,
-  { getOnInit: true },
-)
-
-/**
- * Memory context injection toggle
- * When enabled (default), memory context is injected into AI conversations
- * When disabled, memory is still recorded but not used in conversations
- */
-export const memoryEnabledAtom = atomWithStorage<boolean>(
-  "preferences:memory-enabled",
-  true, // Default ON - memory is injected into context
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// BROWSER SETTINGS ATOMS
-// ============================================
-
-/**
- * Beta: Enable Browser feature
- * When disabled (default), all browser functionality is hidden:
- * - Browser sidebar/panel hidden
- * - Browser toggle button hidden
- * Note: This feature is dev-only - in production, it's always disabled regardless of storage value
- */
-// Internal storage atom
-const _betaBrowserEnabledStorageAtom = atomWithStorage<boolean>(
-  "preferences:beta-browser-enabled",
-  false, // Default OFF - beta feature
-  undefined,
-  { getOnInit: true },
-)
-
-// Public atom - enforces dev-only restriction
-export const betaBrowserEnabledAtom = atom(
-  (get) => isFeatureAvailable("browser") ? get(_betaBrowserEnabledStorageAtom) : false,
-  (_get, set, value: boolean) => set(_betaBrowserEnabledStorageAtom, value)
-)
-
-// ============================================
-// VOICE INPUT SETTINGS ATOMS
-// ============================================
-
-/**
- * Beta: Enable Voice Input feature
- * When disabled (default), all voice input functionality is off:
- * - Voice input button hidden
- * - Voice keyboard shortcuts disabled
- * - Voice settings hidden from settings
- * Note: Voice is a beta feature - users must opt-in
- */
-export const betaVoiceInputEnabledAtom = atomWithStorage<boolean>(
-  "preferences:beta-voice-input-enabled",
-  false, // Default OFF - beta feature
-  undefined,
-  { getOnInit: true },
-)
-
-// ============================================
-// UNIFIED MODEL CONFIG (New Provider + Model system)
-// ============================================
-
-export {
-  // Types
-  type ProviderType,
-  type ProviderInfo,
-  type ModelInfo,
-  type ModelSelection,
-  // Provider atoms (unified, no category separation)
-  activeProviderIdAtom,
-  activeModelIdAtom,
-  // Multi-provider enable/disable
-  enabledProviderIdsAtom,
-  isProviderEnabledFamily,
-  toggleProviderEnabledAtom,
-  // Legacy aliases
-  activeLlmProviderIdAtom,
-  activeLlmModelIdAtom,
-  // Per-chat model persistence
-  chatModelSelectionsAtom,
-  // Per-subChat model persistence
-  subChatModelSelectionsAtom,
-  // Session override for chat-time switching
-  sessionModelOverrideAtom,
-  effectiveLlmSelectionAtom,
-  // Models cache
-  providerModelsAtom,
-  providerModelsFamily,
-  updateProviderModelsAtom,
-  // Per-provider enabled models (multi-select)
-  enabledModelsPerProviderAtom,
-  toggleModelEnabledAtom,
-  // Image model
-  imageProviderIdAtom,
-  imageModelIdAtom,
-  // Summary model (name generation, commit messages)
-  summaryProviderIdAtom,
-  summaryModelIdAtom,
-  // Task-specific model assignments
-  agentModeProviderIdAtom,
-  agentModeModelIdAtom,
-  planModeProviderIdAtom,
-  planModeModelIdAtom,
-  researchModeProviderIdAtom,
-  researchModeModelIdAtom,
-  // Derived
-  availableModelsAtom,
-  // Auto-populate recommended models
-  autoPopulateRecommendedModelsAtom,
-  autoSelectTaskModelsAtom,
-  // Migration
-  migrateOldModelConfig,
-  isMigrationDone,
-  getPendingCustomMigration,
-  clearPendingCustomMigration,
-} from "./model-config"
+export * from "./preferences"
+export * from "./themes"
+export * from "./onboarding"
+export * from "./session-info"
+export * from "./beta-features"
+export * from "./model-profiles"
+export * from "./grouping"
+export * from "./model-config"
+export * from "./editor"
+export * from "./runner"
+export * from "./traffic-light"

@@ -22,7 +22,7 @@ import {
   activeTerminalIdAtom,
   terminalCwdAtom,
 } from "./atoms"
-import { codingTerminalPanelHeightAtom } from "@/features/agents/atoms"
+import { codingTerminalPanelHeightAtom } from "@/lib/atoms"
 import { trpc } from "@/lib/trpc"
 import type { TerminalInstance } from "./types"
 

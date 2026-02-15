@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { settingsToolsSidebarWidthAtom } from "../../../features/agents/atoms"
+import { settingsToolsSidebarWidthAtom } from "../../../lib/atoms"
 import { cn } from "../../../lib/utils"
 import { trpc } from "../../../lib/trpc"
 import { ToolsIcon } from "../../ui/icons"

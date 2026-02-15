@@ -8,7 +8,7 @@ import { RotateCcw, Settings2 } from "lucide-react"
 import { cn } from "../../../lib/utils"
 import { CmdIcon, OptionIcon, ShiftIcon, ControlIcon } from "../../ui/icons"
 import { ResizableSidebar } from "../../ui/resizable-sidebar"
-import { settingsKeyboardSidebarWidthAtom } from "../../../features/agents/atoms"
+import { settingsKeyboardSidebarWidthAtom } from "../../../lib/atoms"
 import {
   betaVoiceInputEnabledAtom,
   customHotkeysAtom,

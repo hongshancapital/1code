@@ -3,7 +3,7 @@
 import { useAtom, useSetAtom } from "jotai"
 import { Copy, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { pendingAuthRetryMessageAtom } from "../../features/agents/atoms"
+import { pendingAuthRetryMessageAtom } from "../../lib/atoms"
 import {
   agentsLoginModalOpenAtom,
   agentsSettingsDialogActiveTabAtom,

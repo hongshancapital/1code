@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from "react"
 import { useAtomValue } from "jotai"
-import { allRunningTasksAtom } from "../../features/agents/atoms/background-tasks"
+import { allRunningTasksAtom } from "../atoms"
 import { useStreamingStatusStore } from "../../features/agents/stores/streaming-status-store"
 
 export function useTasksIdleNotifier() {
