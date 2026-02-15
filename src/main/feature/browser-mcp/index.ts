@@ -13,10 +13,13 @@ import type {
 } from "../../lib/extension/types"
 import { createBrowserMcpServer, browserManager } from "../../lib/browser"
 import { getBrowserToolDefinitions } from "../../lib/browser/mcp-server"
+import { browserRouter } from "../../lib/trpc/routers/browser"
 
 class BrowserMcpExtension implements ExtensionModule {
   name = "browser-mcp" as const
   description = "Browser MCP server injection and context enhancement"
+  router = browserRouter
+  routerKey = "browser"
 
   private cleanupFns: Array<() => void> = []
 

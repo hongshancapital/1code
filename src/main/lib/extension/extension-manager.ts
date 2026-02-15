@@ -113,6 +113,11 @@ export class ExtensionManager {
         const key = ext.routerKey ?? ext.name
         routers[key] = ext.router
       }
+      if (ext.routers) {
+        for (const [key, r] of Object.entries(ext.routers)) {
+          routers[key] = r
+        }
+      }
     }
     return routers
   }

@@ -230,9 +230,12 @@ export interface ToolDefinition {
 export interface ExtensionModule {
   name: string
   description?: string
+  /** 单个 router（与 routerKey 配合使用） */
   router?: AnyRouter
   /** router 在 AppRouter 中的 key，默认用 name */
   routerKey?: string
+  /** 多个 router（key → router 映射，适用于聚合多个子系统的 Extension） */
+  routers?: Record<string, AnyRouter>
   /** 声明此 Extension 提供的内部 Tools（供 internal-tools 发现） */
   listTools?(): Promise<{ category: string; tools: ToolDefinition[] }[]>
   initialize?(ctx: ExtensionContext): void | Promise<void>

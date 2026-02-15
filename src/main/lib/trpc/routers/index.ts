@@ -9,27 +9,18 @@ import { claudeRouter } from "./claude"
 import { claudeCodeRouter } from "./claude-code"
 import { claudeSettingsRouter } from "./claude-settings"
 import { anthropicAccountsRouter } from "./anthropic-accounts"
-import { ollamaRouter } from "./ollama"
 import { litellmRouter } from "./litellm"
 import { providersRouter } from "./providers"
-import { terminalRouter } from "./terminal"
 import { externalRouter } from "./external"
 import { filesRouter } from "./files"
 import { debugRouter } from "./debug"
-import { skillsRouter } from "./skills"
 import { agentsRouter } from "./agents"
 import { worktreeConfigRouter } from "./worktree-config"
 import { sandboxImportRouter } from "./sandbox-import"
-import { commandsRouter } from "./commands"
 import { usageRouter } from "./usage"
-import { runnerRouter } from "./runner"
-import { lspRouter } from "./lsp"
 import { editorRouter } from "./editor"
-import { pluginsRouter } from "./plugins"
-import { marketplaceRouter } from "./marketplace"
 import { createGitRouter } from "../../git"
 import { tagsRouter } from "./tags"
-import { browserRouter } from "./browser"
 import { internalToolsRouter } from "./internal-tools"
 import { BrowserWindow } from "electron"
 import { getExtensionManager } from "../../extension"
@@ -53,32 +44,21 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     claudeCode: claudeCodeRouter,
     claudeSettings: claudeSettingsRouter,
     anthropicAccounts: anthropicAccountsRouter,
-    ollama: ollamaRouter,
     litellm: litellmRouter,
     // Unified model provider management (replaces litellm for new code)
     providers: providersRouter,
-    terminal: terminalRouter,
     external: externalRouter,
     files: filesRouter,
     debug: debugRouter,
-    skills: skillsRouter,
     agents: agentsRouter,
     worktreeConfig: worktreeConfigRouter,
     sandboxImport: sandboxImportRouter,
-    commands: commandsRouter,
     usage: usageRouter,
-    runner: runnerRouter,
-    lsp: lspRouter,
     editor: editorRouter,
-    plugins: pluginsRouter,
-    // Plugin marketplace management
-    marketplace: marketplaceRouter,
     // Git operations - named "changes" to match Superset API
     changes: createGitRouter(),
     // Workspace tags (macOS-style grouping)
     tags: tagsRouter,
-    // Browser automation for AI agents
-    browser: browserRouter,
     // Internal tools discovery
     internalTools: internalToolsRouter,
     // Extension routers (dynamically merged)
