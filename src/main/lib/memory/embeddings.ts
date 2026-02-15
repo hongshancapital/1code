@@ -26,6 +26,9 @@ export const EMBEDDING_DIMENSION = 384
 let embeddingPipeline: FeatureExtractionPipeline | null = null
 let initPromise: Promise<FeatureExtractionPipeline> | null = null
 
+// 模型下载/加载超时：2 分钟
+const PIPELINE_INIT_TIMEOUT_MS = 120_000
+
 /**
  * Initialize the embedding pipeline (singleton)
  * Downloads the model on first use (~90MB quantized)
@@ -44,10 +47,19 @@ export async function getEmbeddingPipeline(): Promise<FeatureExtractionPipeline>
     const startTime = Date.now()
 
     try {
-      const pipe = await pipeline("feature-extraction", EMBEDDING_MODEL, {
-        // Use quantized model for faster inference
+      const pipelinePromise = pipeline("feature-extraction", EMBEDDING_MODEL, {
         quantized: true,
       })
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error(`[Embeddings] Pipeline init timed out after ${PIPELINE_INIT_TIMEOUT_MS}ms`))
+        }, PIPELINE_INIT_TIMEOUT_MS)
+        // 避免 timer 阻止进程退出
+        if (timer.unref) timer.unref()
+      })
+
+      const pipe = await Promise.race([pipelinePromise, timeoutPromise])
       embeddingPipeline = pipe as FeatureExtractionPipeline
 
       const duration = Date.now() - startTime

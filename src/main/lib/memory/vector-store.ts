@@ -12,6 +12,7 @@ import { generateEmbedding, EMBEDDING_DIMENSION, EMBEDDING_MODEL } from "./embed
 // LanceDB connection and table
 let db: lancedb.Connection | null = null
 let observationsTable: lancedb.Table | null = null
+let initPromise: Promise<void> | null = null
 
 // Queue for async embedding generation
 interface EmbeddingQueueItem {
@@ -20,7 +21,10 @@ interface EmbeddingQueueItem {
   projectId: string | null
   type: string
   createdAtEpoch: number
+  retryCount?: number
 }
+
+const MAX_RETRY_COUNT = 2
 
 const embeddingQueue: EmbeddingQueueItem[] = []
 let isProcessingQueue = false
@@ -59,49 +63,59 @@ function checkModelMigration(dbPath: string): boolean {
 
 export async function initVectorStore(): Promise<void> {
   if (db) return
+  if (initPromise) return initPromise
 
-  const dbPath = getDbPath()
-  console.log(`[VectorStore] Initializing at: ${dbPath}`)
+  initPromise = (async () => {
+    if (db) return // 双重检查，防止 Promise 等待期间另一个调用已完成
 
-  const modelChanged = checkModelMigration(dbPath)
+    const dbPath = getDbPath()
+    console.log(`[VectorStore] Initializing at: ${dbPath}`)
 
-  try {
-    db = await lancedb.connect(dbPath)
+    const modelChanged = checkModelMigration(dbPath)
 
-    // Check if table exists
-    const tableNames = await db.tableNames()
+    try {
+      db = await lancedb.connect(dbPath)
 
-    if (modelChanged && tableNames.includes("observations")) {
-      // Embedding model changed — old vectors are incompatible, drop table
-      console.log(`[VectorStore] Embedding model changed to ${EMBEDDING_MODEL}, dropping old vectors`)
-      await db.dropTable("observations")
+      // Check if table exists
+      const tableNames = await db.tableNames()
+
+      if (modelChanged && tableNames.includes("observations")) {
+        // Embedding model changed — old vectors are incompatible, drop table
+        console.log(`[VectorStore] Embedding model changed to ${EMBEDDING_MODEL}, dropping old vectors`)
+        await db.dropTable("observations")
+      }
+
+      if (!modelChanged && tableNames.includes("observations")) {
+        observationsTable = await db.openTable("observations")
+        console.log("[VectorStore] Opened existing observations table")
+      } else {
+        // Create table with initial empty data (LanceDB requires data to create table)
+        console.log("[VectorStore] Creating new observations table")
+        observationsTable = await db.createTable("observations", [
+          {
+            id: "__placeholder__",
+            vector: Array.from({ length: EMBEDDING_DIMENSION }, () => 0),
+            projectId: "", // Use empty string, not null (LanceDB can't infer null type)
+            type: "placeholder",
+            createdAtEpoch: 0,
+          },
+        ])
+        // Delete the placeholder
+        await observationsTable.delete('id = "__placeholder__"')
+      }
+
+      console.log("[VectorStore] Initialized successfully")
+    } catch (error) {
+      // 初始化失败时重置状态，允许下次重试
+      db = null
+      observationsTable = null
+      initPromise = null
+      console.error("[VectorStore] Initialization failed:", error)
+      throw error
     }
+  })()
 
-    if (!modelChanged && tableNames.includes("observations")) {
-      observationsTable = await db.openTable("observations")
-      console.log("[VectorStore] Opened existing observations table")
-    } else {
-      // Create table with initial empty data (LanceDB requires data to create table)
-      // Note: Use empty string instead of null for projectId to avoid type inference issues
-      console.log("[VectorStore] Creating new observations table")
-      observationsTable = await db.createTable("observations", [
-        {
-          id: "__placeholder__",
-          vector: Array.from({ length: EMBEDDING_DIMENSION }, () => 0),
-          projectId: "", // Use empty string, not null (LanceDB can't infer null type)
-          type: "placeholder",
-          createdAtEpoch: 0,
-        },
-      ])
-      // Delete the placeholder
-      await observationsTable.delete('id = "__placeholder__"')
-    }
-
-    console.log("[VectorStore] Initialized successfully")
-  } catch (error) {
-    console.error("[VectorStore] Initialization failed:", error)
-    throw error
-  }
+  return initPromise
 }
 
 /**
@@ -179,11 +193,19 @@ async function processQueue(): Promise<void> {
           item.createdAtEpoch,
         )
       } catch (error) {
-        console.error(
-          `[VectorStore] Failed to process queued item ${item.id}:`,
-          error,
-        )
-        // Don't re-queue to avoid infinite loops
+        const retries = item.retryCount ?? 0
+        if (retries < MAX_RETRY_COUNT) {
+          console.warn(
+            `[VectorStore] Failed to process item ${item.id} (retry ${retries + 1}/${MAX_RETRY_COUNT}):`,
+            error,
+          )
+          embeddingQueue.push({ ...item, retryCount: retries + 1 })
+        } else {
+          console.error(
+            `[VectorStore] Permanently failed to process item ${item.id} after ${MAX_RETRY_COUNT} retries:`,
+            error,
+          )
+        }
       }
     }
   } finally {

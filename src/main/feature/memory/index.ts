@@ -12,6 +12,7 @@
 import type {
   ExtensionModule,
   ExtensionContext,
+  CleanupFn,
 } from "../../lib/extension/types"
 import { memoryHooks } from "../../lib/memory/hooks"
 import { setSummaryModelConfig } from "../../lib/memory/summarizer"
@@ -25,145 +26,153 @@ class MemoryExtension implements ExtensionModule {
   router = memoryRouter
 
   private sessionMap = new Map<string, string>() // subChatId → memorySessionId
-  private cleanupFns: Array<() => void> = []
 
-  async initialize(ctx: ExtensionContext): Promise<void> {
+  initialize(ctx: ExtensionContext): CleanupFn {
+    const sessionMap = this.sessionMap
+
     // chat:sessionStart — 创建 memory session + 记录 user prompt
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:sessionStart",
-        async (payload) => {
-          if (!payload.projectId || payload.memoryRecordingEnabled === false)
-            return
+    const offSessionStart = ctx.hooks.on(
+      "chat:sessionStart",
+      async (payload) => {
+        if (!payload.projectId || payload.memoryRecordingEnabled === false)
+          return
 
-          // 配置 summary model
-          try {
-            if (payload.summaryProviderId && payload.summaryModelId) {
-              setSummaryModelConfig({
-                providerId: payload.summaryProviderId,
-                modelId: payload.summaryModelId,
-              })
-            } else {
-              setSummaryModelConfig(null)
-            }
-          } catch {
-            // Summarizer not available, continue with rule-based
-          }
-
-          try {
-            const sessionId = await memoryHooks.onSessionStart({
-              subChatId: payload.subChatId,
-              projectId: payload.projectId,
-              chatId: payload.chatId,
+        // 配置 summary model
+        try {
+          if (payload.summaryProviderId && payload.summaryModelId) {
+            setSummaryModelConfig({
+              providerId: payload.summaryProviderId,
+              modelId: payload.summaryModelId,
             })
-            if (sessionId) {
-              this.sessionMap.set(payload.subChatId, sessionId)
-              await memoryHooks.onUserPrompt({
-                sessionId,
-                prompt: payload.prompt,
-                promptNumber: payload.promptNumber,
-              })
-            }
-          } catch (err) {
-            ctx.error(
-              "[Memory] Hook error (onSessionStart/onUserPrompt):",
-              err,
-            )
+          } else {
+            setSummaryModelConfig(null)
           }
-        },
-        { source: this.name },
-      ),
+        } catch {
+          // Summarizer not available, continue with rule-based
+        }
+
+        try {
+          // 防止并发竞态：如果已有进行中的 session，先结束它
+          const existingSessionId = sessionMap.get(payload.subChatId)
+          if (existingSessionId) {
+            try {
+              await memoryHooks.onSessionEnd({
+                sessionId: existingSessionId,
+                subChatId: payload.subChatId,
+              })
+            } catch {
+              // 旧 session 清理失败不阻塞新 session 创建
+            }
+            sessionMap.delete(payload.subChatId)
+          }
+
+          const sessionId = await memoryHooks.onSessionStart({
+            subChatId: payload.subChatId,
+            projectId: payload.projectId,
+            chatId: payload.chatId,
+          })
+          if (sessionId) {
+            sessionMap.set(payload.subChatId, sessionId)
+            await memoryHooks.onUserPrompt({
+              sessionId,
+              prompt: payload.prompt,
+              promptNumber: payload.promptNumber,
+            })
+          }
+        } catch (err) {
+          ctx.error(
+            "[Memory] Hook error (onSessionStart/onUserPrompt):",
+            err,
+          )
+        }
+      },
+      { source: this.name },
     )
 
     // chat:toolOutput — 记录工具输出
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:toolOutput",
-        async (payload) => {
-          const sessionId = this.sessionMap.get(payload.subChatId)
-          if (!sessionId || !payload.projectId) return
+    const offToolOutput = ctx.hooks.on(
+      "chat:toolOutput",
+      async (payload) => {
+        const sessionId = sessionMap.get(payload.subChatId)
+        if (!sessionId || !payload.projectId) return
 
-          await memoryHooks.onToolOutput({
-            sessionId,
-            projectId: payload.projectId,
-            toolName: payload.toolName,
-            toolInput: payload.toolInput,
-            toolOutput: payload.toolOutput,
-            toolCallId: payload.toolCallId,
-            promptNumber: payload.promptNumber,
-          })
-        },
-        { source: this.name },
-      ),
+        await memoryHooks.onToolOutput({
+          sessionId,
+          projectId: payload.projectId,
+          toolName: payload.toolName,
+          toolInput: payload.toolInput,
+          toolOutput: payload.toolOutput,
+          toolCallId: payload.toolCallId,
+          promptNumber: payload.promptNumber,
+        })
+      },
+      { source: this.name },
     )
 
     // chat:assistantMessage — 记录 AI 回复
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:assistantMessage",
-        async (payload) => {
-          const sessionId = this.sessionMap.get(payload.subChatId)
-          if (!sessionId || !payload.projectId) return
+    const offAssistantMessage = ctx.hooks.on(
+      "chat:assistantMessage",
+      async (payload) => {
+        const sessionId = sessionMap.get(payload.subChatId)
+        if (!sessionId || !payload.projectId) return
 
-          await memoryHooks.onAssistantMessage({
-            sessionId,
-            projectId: payload.projectId,
-            text: payload.text,
-            messageId: payload.messageId,
-            promptNumber: payload.promptNumber,
-          })
-        },
-        { source: this.name },
-      ),
+        await memoryHooks.onAssistantMessage({
+          sessionId,
+          projectId: payload.projectId,
+          text: payload.text,
+          messageId: payload.messageId,
+          promptNumber: payload.promptNumber,
+        })
+      },
+      { source: this.name },
     )
 
     // chat:sessionEnd — 结束 session
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:sessionEnd",
-        async (payload) => {
-          const sessionId = this.sessionMap.get(payload.subChatId)
-          if (!sessionId) return
+    const offSessionEnd = ctx.hooks.on(
+      "chat:sessionEnd",
+      async (payload) => {
+        const sessionId = sessionMap.get(payload.subChatId)
+        if (!sessionId) return
 
-          await memoryHooks.onSessionEnd({
-            sessionId,
-            subChatId: payload.subChatId,
-          })
-          this.sessionMap.delete(payload.subChatId)
-        },
-        { source: this.name },
-      ),
+        await memoryHooks.onSessionEnd({
+          sessionId,
+          subChatId: payload.subChatId,
+        })
+        sessionMap.delete(payload.subChatId)
+      },
+      { source: this.name },
     )
 
     // chat:enhancePrompt — Memory Context 注入（priority=50，在 Browser 之前）
-    this.cleanupFns.push(
-      ctx.hooks.on(
-        "chat:enhancePrompt",
-        async (payload) => {
-          if (payload.memoryEnabled === false || !payload.projectId)
-            return payload
-
-          const memorySection = await buildMemoryContext(
-            payload.projectId,
-            payload.prompt,
-          )
-          if (memorySection) {
-            return {
-              ...payload,
-              appendSections: [...payload.appendSections, memorySection],
-            }
-          }
+    const offEnhancePrompt = ctx.hooks.on(
+      "chat:enhancePrompt",
+      async (payload) => {
+        if (payload.memoryEnabled === false || !payload.projectId)
           return payload
-        },
-        { source: this.name, priority: 50 },
-      ),
-    )
-  }
 
-  async cleanup(): Promise<void> {
-    for (const fn of this.cleanupFns) fn()
-    this.cleanupFns = []
-    this.sessionMap.clear()
+        const memorySection = await buildMemoryContext(
+          payload.projectId,
+          payload.prompt,
+        )
+        if (memorySection) {
+          return {
+            ...payload,
+            appendSections: [...payload.appendSections, memorySection],
+          }
+        }
+        return payload
+      },
+      { source: this.name, priority: 50 },
+    )
+
+    return () => {
+      offSessionStart()
+      offToolOutput()
+      offAssistantMessage()
+      offSessionEnd()
+      offEnhancePrompt()
+      sessionMap.clear()
+    }
   }
 }
 
@@ -198,12 +207,24 @@ async function buildMemoryContext(
     if (userPrompt && userPrompt.length > 5) {
       try {
         const { hybridSearch } = await import("../../lib/memory/hybrid-search")
-        const searchResults = await hybridSearch({
+
+        // 给 hybridSearch 加超时保护，防止 vector store 初始化阻塞
+        const SEARCH_TIMEOUT_MS = 10_000
+        const searchPromise = hybridSearch({
           query: userPrompt,
           projectId,
           type: "observations",
           limit: 15,
         })
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error("Hybrid search timed out")),
+            SEARCH_TIMEOUT_MS,
+          )
+          if (timer.unref) timer.unref()
+        })
+
+        const searchResults = await Promise.race([searchPromise, timeoutPromise])
         relevantObs = searchResults
           .filter((r) => r.type === "observation" && r.score > 0.005)
           .map((r) => ({
@@ -219,7 +240,7 @@ async function buildMemoryContext(
       }
     }
 
-    // Fallback: recent observations
+    // Fallback: recent observations（优先非对话类，不够则补充对话类）
     if (relevantObs.length === 0) {
       const recentObs = db
         .select()
@@ -228,14 +249,22 @@ async function buildMemoryContext(
         .orderBy(desc(observations.createdAtEpoch))
         .limit(30)
         .all()
-      relevantObs = recentObs
-        .filter((o) => o.type !== "conversation" && o.type !== "response")
-        .slice(0, 15)
-        .map((o) => ({
-          type: o.type,
-          title: o.title,
-          narrative: o.narrative,
-        }))
+
+      // 优先取有价值的非对话类 observation
+      const valuable = recentObs.filter(
+        (o) => o.type !== "conversation" && o.type !== "response",
+      )
+      // 如果非对话类不足 5 条，补充对话类
+      const fallbackObs =
+        valuable.length >= 5
+          ? valuable.slice(0, 15)
+          : [...valuable, ...recentObs.filter((o) => !valuable.includes(o))].slice(0, 15)
+
+      relevantObs = fallbackObs.map((o) => ({
+        type: o.type,
+        title: o.title,
+        narrative: o.narrative,
+      }))
     }
 
     // Build context markdown
