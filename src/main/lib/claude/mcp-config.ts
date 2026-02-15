@@ -108,17 +108,20 @@ export function getServerStatusFromConfig(serverConfig: McpServerConfig): string
   return "connected";
 }
 
-const MCP_FETCH_TIMEOUT_MS = 10_000;
+const MCP_FETCH_TIMEOUT_HTTP_MS = 10_000;
+// stdio servers (esp. npx) need longer: download + install + spawn + listTools
+const MCP_FETCH_TIMEOUT_STDIO_MS = 30_000;
 
 /**
  * Fetch tools from an MCP server (HTTP or stdio transport)
- * Times out after 10 seconds to prevent slow MCPs from blocking the cache update
  */
 export async function fetchToolsForServer(
   serverConfig: McpServerConfig,
 ): Promise<McpToolInfo[]> {
+  const isStdio = !!serverConfig.command;
+  const timeoutMs = isStdio ? MCP_FETCH_TIMEOUT_STDIO_MS : MCP_FETCH_TIMEOUT_HTTP_MS;
   const timeoutPromise = new Promise<McpToolInfo[]>((_, reject) =>
-    setTimeout(() => reject(new Error("Timeout")), MCP_FETCH_TIMEOUT_MS),
+    setTimeout(() => reject(new Error("Timeout")), timeoutMs),
   );
 
   const fetchPromise = (async () => {
