@@ -266,25 +266,21 @@ ${content}`
       }
     }
 
-    // Runtime info
-    if (mergedStrategy.includeRuntimeInfo) {
-      const runtimeSection = await this.buildRuntimeSection()
-      if (runtimeSection) {
-        sections.runtime = runtimeSection
-      }
+    // Runtime info + AGENTS.md — 并行加载（互不依赖）
+    const [runtimeSection, agentsMdSection] = await Promise.all([
+      mergedStrategy.includeRuntimeInfo ? this.buildRuntimeSection() : Promise.resolve(""),
+      mergedStrategy.includeAgentsMd && cwd ? this.buildAgentsMdSection(cwd) : Promise.resolve(""),
+    ])
+    if (runtimeSection) {
+      sections.runtime = runtimeSection
+    }
+    if (agentsMdSection) {
+      sections.agentsMd = agentsMdSection
     }
 
     // Skill awareness
     if (mergedStrategy.includeSkillAwareness) {
       sections.skillAwareness = this.buildSkillAwarenessSection()
-    }
-
-    // AGENTS.md
-    if (mergedStrategy.includeAgentsMd && cwd) {
-      const agentsMdSection = await this.buildAgentsMdSection(cwd)
-      if (agentsMdSection) {
-        sections.agentsMd = agentsMdSection
-      }
     }
 
     // Apply replacements
