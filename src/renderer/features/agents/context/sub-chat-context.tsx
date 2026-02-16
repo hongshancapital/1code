@@ -53,7 +53,7 @@ export interface SubChatContextValue {
   // Actions
   setActiveSubChat: (subChatId: string) => void
   addToOpenSubChats: (subChatId: string) => void
-  removeFromOpenSubChats: (subChatId: string) => void
+  removeFromOpenSubChats: (subChatId: string, visualOrderedIds?: string[]) => void
   togglePinSubChat: (subChatId: string) => void
 }
 

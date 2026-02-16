@@ -15,7 +15,7 @@ import {
   widgetVisibilityAtomFamily,
   unifiedSidebarEnabledAtom,
 } from "../../details-sidebar/atoms"
-import { chatSourceModeAtom } from "../../../lib/atoms"
+import { chatSourceModeAtom, manageTagsDialogOpenAtom } from "../../../lib/atoms"
 import { trpc } from "../../../lib/trpc"
 import { X, Plus, AlignJustify, Play, TerminalSquare } from "lucide-react"
 import {
@@ -55,6 +55,7 @@ import { SubChatContextMenu } from "./sub-chat-context-menu"
 import { formatTimeAgo } from "../../../lib/utils/format-time-ago"
 import { SubChatHoverPreview } from "./sub-chat-hover-preview"
 import { TypewriterText } from "../../../components/ui/typewriter-text"
+import { CustomTagIcon } from "../../sidebar/components/tag-selector-submenu"
 
 interface DiffStats {
   fileCount: number
@@ -256,6 +257,48 @@ export function SubChatSelector({
     return set
   }, [pendingPlanApprovalsData])
 
+  const utils = trpc.useUtils()
+
+  // Fetch tags for open sub-chats
+  const { data: subChatTagsData } = trpc.tags.getSubChatTagsBatch.useQuery(
+    { subChatIds: openSubChatIds },
+    {
+      enabled: openSubChatIds.length > 0,
+      staleTime: 10000,
+      refetchOnWindowFocus: false,
+    }
+  )
+  const subChatTagMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string | null; color: string | null; icon: string | null }>()
+    if (subChatTagsData) {
+      for (const [subChatId, tags] of Object.entries(subChatTagsData)) {
+        if (tags.length > 0) {
+          map.set(subChatId, tags[0])
+        }
+      }
+    }
+    return map
+  }, [subChatTagsData])
+
+  // Tag mutations
+  const addTagToSubChatMutation = trpc.tags.addTagToSubChat.useMutation({
+    onSuccess: () => utils.tags.getSubChatTagsBatch.invalidate(),
+  })
+  const removeTagFromSubChatMutation = trpc.tags.removeTagFromSubChat.useMutation({
+    onSuccess: () => utils.tags.getSubChatTagsBatch.invalidate(),
+  })
+  const handleSubChatTagChange = useCallback((subChatId: string, tagId: string | null) => {
+    const currentTag = subChatTagMap.get(subChatId)
+    if (currentTag) {
+      removeTagFromSubChatMutation.mutate({ subChatId, tagId: currentTag.id })
+    }
+    if (tagId) {
+      const realTagId = tagId.startsWith("custom_") ? tagId.slice(7) : tagId
+      addTagToSubChatMutation.mutate({ subChatId, tagId: realTagId })
+    }
+  }, [subChatTagMap, addTagToSubChatMutation, removeTagFromSubChatMutation])
+  const setManageTagsDialogOpen = useSetAtom(manageTagsDialogOpenAtom)
+
   const tabsContainerRef = useRef<HTMLDivElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const textRefs = useRef<Map<string, HTMLSpanElement>>(new Map())
@@ -337,11 +380,13 @@ export function SubChatSelector({
 
   const onCloseTab = useCallback((subChatId: string) => {
     // Remove from open tabs immediately (optimistic update)
-    useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId)
+    // Pass visual order so the adjacent tab (next or previous) is activated
+    const visualIds = openSubChats.map((sc) => sc.id)
+    useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId, visualIds)
 
     // Archive in database (fire-and-forget)
     archiveMutation.mutate({ id: subChatId })
-  }, [archiveMutation])
+  }, [archiveMutation, openSubChats])
 
   const onCloseOtherTabs = useCallback((subChatId: string) => {
     const state = useAgentSubChatStore.getState()
@@ -715,6 +760,7 @@ export function SubChatSelector({
                 const hasPendingQuestion = pendingQuestionsMap.has(subChat.id)
                 // Check if this chat has a pending plan approval
                 const hasPendingPlan = pendingPlanApprovals.has(subChat.id)
+                const tag = subChatTagMap.get(subChat.id)
 
                 return (
                   <SubChatHoverPreview
@@ -783,24 +829,24 @@ export function SubChatSelector({
                             : "hover:bg-muted/80 max-w-[150px]",
                         )}
                       >
-                        {/* Icon: question icon (priority) OR loading spinner OR mode icon with badge (hide when editing) */}
+                        {/* Icon: question icon (priority) OR loading spinner OR tag/mode icon with badge (hide when editing) */}
                         {editingSubChatId !== subChat.id && (
                           <div className="shrink-0 w-3.5 h-3.5 flex items-center justify-center relative">
                             {hasPendingQuestion ? (
-                              // Waiting for user answer: show question icon (highest priority)
                               <QuestionIcon className="w-3.5 h-3.5 text-blue-500" />
                             ) : isLoading ? (
-                              // Loading: show spinner
                               <IconSpinner className="w-3.5 h-3.5 text-muted-foreground" />
                             ) : (
                               <>
-                                {/* Main mode icon */}
-                                {mode === "plan" ? (
+                                {/* Main icon: tag > mode */}
+                                {tag ? (
+                                  <CustomTagIcon icon={tag.icon} color={tag.color} size="xs" />
+                                ) : mode === "plan" ? (
                                   <PlanIcon className="w-3.5 h-3.5 text-muted-foreground" />
                                 ) : (
                                   <AgentIcon className="w-3.5 h-3.5 text-muted-foreground" />
                                 )}
-                                {/* Badge in bottom-right corner: amber dot (plan) > unseen dot > pin icon */}
+                                {/* Badge: status > pin */}
                                 {(hasPendingPlan || hasUnseen || isPinned) && (
                                   <div
                                     className={cn(
@@ -915,6 +961,9 @@ export function SubChatSelector({
                       hasTabsToRight={hasTabsToRight}
                       canCloseOtherTabs={openSubChats.length > 2}
                       chatId={parentChatId}
+                      currentTagId={tag ? `custom_${tag.id}` : null}
+                      onTagChange={handleSubChatTagChange}
+                      onManageTags={() => setManageTagsDialogOpen(true)}
                     />
                   </ContextMenu>
                   </SubChatHoverPreview>

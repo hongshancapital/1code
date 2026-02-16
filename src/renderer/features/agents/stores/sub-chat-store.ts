@@ -33,7 +33,7 @@ interface AgentSubChatStore {
   setActiveSubChat: (subChatId: string) => void
   setOpenSubChats: (subChatIds: string[]) => void
   addToOpenSubChats: (subChatId: string) => void
-  removeFromOpenSubChats: (subChatId: string) => void
+  removeFromOpenSubChats: (subChatId: string, visualOrderedIds?: string[]) => void
   togglePinSubChat: (subChatId: string) => void
   setAllSubChats: (subChats: SubChatMeta[]) => void
   addToAllSubChats: (subChat: SubChatMeta) => void
@@ -186,14 +186,28 @@ export const useAgentSubChatStore = create<AgentSubChatStore>((set, get) => ({
     if (chatId) saveToLS(chatId, "open", newIds)
   },
 
-  removeFromOpenSubChats: (subChatId) => {
+  removeFromOpenSubChats: (subChatId, visualOrderedIds) => {
     const { openSubChatIds, activeSubChatId, chatId } = get()
     const newIds = openSubChatIds.filter((id) => id !== subChatId)
 
-    // If closing active tab, switch to last remaining tab
+    // If closing active tab, pick the adjacent tab in visual order
     let newActive = activeSubChatId
     if (activeSubChatId === subChatId) {
-      newActive = newIds[newIds.length - 1] || null
+      // Use visual order if provided, otherwise fall back to openSubChatIds order
+      const orderedIds = visualOrderedIds ?? openSubChatIds
+      const idx = orderedIds.indexOf(subChatId)
+      const remainingOrdered = orderedIds.filter((id) => id !== subChatId)
+
+      if (idx >= 0 && remainingOrdered.length > 0) {
+        // Prefer the next item (same index = visually below/right),
+        // if out of range fall back to the previous (visually above/left)
+        const nextIdx = Math.min(idx, remainingOrdered.length - 1)
+        const candidate = remainingOrdered[nextIdx]
+        // Ensure candidate is actually still open
+        newActive = newIds.includes(candidate) ? candidate : (newIds[newIds.length - 1] || null)
+      } else {
+        newActive = newIds[newIds.length - 1] || null
+      }
     }
 
     set({ openSubChatIds: newIds, activeSubChatId: newActive })

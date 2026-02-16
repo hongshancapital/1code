@@ -39,6 +39,7 @@ import {
   isFullscreenAtom,
   chatSourceModeAtom,
   defaultAgentModeAtom,
+  manageTagsDialogOpenAtom,
 } from "../../lib/atoms"
 import { trpc } from "../../lib/trpc"
 import { appStore } from "../../lib/jotai-store"
@@ -98,6 +99,7 @@ import { useSubChatDraftsCache, getSubChatDraftKey } from "../agents/lib/drafts"
 import { Checkbox } from "../../components/ui/checkbox"
 import { TypewriterText } from "../../components/ui/typewriter-text"
 import { useNavigate } from "../../lib/router"
+import { CustomTagIcon } from "./components/tag-selector-submenu"
 
 // Isolated Search History Popover for sidebar - prevents parent re-renders when popover opens/closes
 interface SidebarSearchHistoryPopoverProps {
@@ -258,6 +260,29 @@ export function AgentsSubChatsSidebar({
     }
     return map
   }, [subChatStatsData])
+
+  // Fetch tags for all sub-chats (batch query)
+  const { data: subChatTagsData } = trpc.tags.getSubChatTagsBatch.useQuery(
+    { subChatIds: allSubChatIds },
+    {
+      enabled: allSubChatIds.length > 0,
+      staleTime: 10000,
+      refetchOnWindowFocus: false,
+    }
+  )
+
+  // Tag map: subChatId -> first tag (for icon display)
+  const subChatTagMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string | null; color: string | null; icon: string | null }>()
+    if (subChatTagsData) {
+      for (const [subChatId, tags] of Object.entries(subChatTagsData)) {
+        if (tags.length > 0) {
+          map.set(subChatId, tags[0])
+        }
+      }
+    }
+    return map
+  }, [subChatTagsData])
   const [selectedChatId, setSelectedChatId] = useAtom(selectedAgentChatIdAtom)
   const previousChatId = useAtomValue(previousAgentChatIdAtom)
   const { navigateToChat } = useNavigate()
@@ -269,6 +294,27 @@ export function AgentsSubChatsSidebar({
   )
 
   const utils = trpc.useUtils()
+
+  // Tag mutations for subchat tag management
+  const addTagToSubChatMutation = trpc.tags.addTagToSubChat.useMutation({
+    onSuccess: () => utils.tags.getSubChatTagsBatch.invalidate(),
+  })
+  const removeTagFromSubChatMutation = trpc.tags.removeTagFromSubChat.useMutation({
+    onSuccess: () => utils.tags.getSubChatTagsBatch.invalidate(),
+  })
+
+  const handleSubChatTagChange = useCallback((subChatId: string, tagId: string | null) => {
+    const currentTag = subChatTagMap.get(subChatId)
+    if (currentTag) {
+      removeTagFromSubChatMutation.mutate({ subChatId, tagId: currentTag.id })
+    }
+    if (tagId) {
+      const realTagId = tagId.startsWith("custom_") ? tagId.slice(7) : tagId
+      addTagToSubChatMutation.mutate({ subChatId, tagId: realTagId })
+    }
+  }, [subChatTagMap, addTagToSubChatMutation, removeTagFromSubChatMutation])
+
+  const setManageTagsDialogOpen = useSetAtom(manageTagsDialogOpenAtom)
 
   // SubChat name tooltip - using refs instead of state to avoid re-renders on hover
   // Declared here so they can be used in archive mutation's onSuccess
@@ -536,7 +582,9 @@ export function AgentsSubChatsSidebar({
         return
       }
       // Archive = remove from open tabs + persist to database
-      useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId)
+      // Pass visual order (filteredSubChats) so the adjacent tab is activated
+      const visualIds = filteredSubChats.map((sc) => sc.id)
+      useAgentSubChatStore.getState().removeFromOpenSubChats(subChatId, visualIds)
       trpcClient.subChats.archiveSubChat.mutate({ id: subChatId }).catch(console.error)
 
       // Add to unified undo stack for Cmd+Z
@@ -555,7 +603,7 @@ export function AgentsSubChatsSidebar({
         }])
       }
     },
-    [openSubChats.length, allSubChats, parentChatId, setUndoStack],
+    [openSubChats.length, allSubChats, parentChatId, setUndoStack, filteredSubChats],
   )
 
   const handleConfirmArchiveAgent = useCallback(() => {
@@ -1333,6 +1381,7 @@ export function AgentsSubChatsSidebar({
                                   { fileCount: 0, additions: 0, deletions: 0 },
                                 )
                               : dbSubChatStats.get(subChat.id) || null
+                          const tag = subChatTagMap.get(subChat.id)
 
                           return (
                             <SubChatHoverPreview
@@ -1429,7 +1478,7 @@ export function AgentsSubChatsSidebar({
                                           tabIndex={isMultiSelectMode ? 0 : -1}
                                         />
                                       </div>
-                                      {/* Mode icon or Question icon - hidden in multi-select mode */}
+                                      {/* Icon: tag (priority) > question > mode */}
                                       <div
                                         className={cn(
                                           "transition-[opacity,transform] duration-150 ease-out",
@@ -1440,35 +1489,56 @@ export function AgentsSubChatsSidebar({
                                       >
                                         {hasPendingQuestion ? (
                                           <QuestionIcon className="w-4 h-4 text-blue-500" />
+                                        ) : tag ? (
+                                          <CustomTagIcon icon={tag.icon} color={tag.color} size="sidebar" />
                                         ) : mode === "plan" ? (
                                           <PlanIcon className="w-4 h-4 text-muted-foreground" />
                                         ) : (
                                           <AgentIcon className="w-4 h-4 text-muted-foreground" />
                                         )}
                                       </div>
-                                      {/* Badge in bottom-right corner - hidden in multi-select mode and when pending question */}
-                                      {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) &&
-                                        !isMultiSelectMode && !hasPendingQuestion && (
-                                          <div
-                                            className={cn(
-                                              "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
-                                              isActive
-                                                ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
-                                                : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
-                                            )}
-                                          >
-                                            {/* Priority: loader > amber (pending plan) > green (committed) > blue (unseen) */}
-                                            {isSubChatLoading ? (
-                                              <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
-                                            ) : hasPendingPlan ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            ) : isCommitted ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                            ) : hasUnseen ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
-                                            ) : null}
-                                          </div>
-                                        )}
+                                      {/* Badge in bottom-right corner */}
+                                      {!isMultiSelectMode && !hasPendingQuestion && (
+                                        <>
+                                          {/* Status badge: loading > pendingPlan > committed > unseen */}
+                                          {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) ? (
+                                            <div
+                                              className={cn(
+                                                "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
+                                                isActive
+                                                  ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
+                                                  : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
+                                              )}
+                                            >
+                                              {isSubChatLoading ? (
+                                                <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
+                                              ) : hasPendingPlan ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                              ) : isCommitted ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                              ) : hasUnseen ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
+                                              ) : null}
+                                            </div>
+                                          ) : tag ? (
+                                            /* Mode badge when tag is shown and no status badge */
+                                            <div
+                                              className={cn(
+                                                "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
+                                                isActive
+                                                  ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
+                                                  : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
+                                              )}
+                                            >
+                                              {mode === "plan" ? (
+                                                <PlanIcon className="w-2 h-2 text-muted-foreground" />
+                                              ) : (
+                                                <AgentIcon className="w-2 h-2 text-muted-foreground" />
+                                              )}
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      )}
                                     </div>
                                     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                                       <div className="flex items-center gap-1">
@@ -1578,6 +1648,9 @@ export function AgentsSubChatsSidebar({
                                   currentIndex={globalIndex}
                                   totalCount={filteredSubChats.length}
                                   chatId={parentChatId}
+                                  currentTagId={tag ? `custom_${tag.id}` : null}
+                                  onTagChange={handleSubChatTagChange}
+                                  onManageTags={() => setManageTagsDialogOpen(true)}
                                 />
                               )}
                             </ContextMenu>
@@ -1638,6 +1711,7 @@ export function AgentsSubChatsSidebar({
                                   { fileCount: 0, additions: 0, deletions: 0 },
                                 )
                               : dbSubChatStats.get(subChat.id) || null
+                          const tag = subChatTagMap.get(subChat.id)
 
                           return (
                             <SubChatHoverPreview
@@ -1734,7 +1808,7 @@ export function AgentsSubChatsSidebar({
                                           tabIndex={isMultiSelectMode ? 0 : -1}
                                         />
                                       </div>
-                                      {/* Mode icon or Question icon - hidden in multi-select mode */}
+                                      {/* Icon: tag (priority) > question > mode */}
                                       <div
                                         className={cn(
                                           "transition-[opacity,transform] duration-150 ease-out",
@@ -1745,35 +1819,56 @@ export function AgentsSubChatsSidebar({
                                       >
                                         {hasPendingQuestion ? (
                                           <QuestionIcon className="w-4 h-4 text-blue-500" />
+                                        ) : tag ? (
+                                          <CustomTagIcon icon={tag.icon} color={tag.color} size="sidebar" />
                                         ) : mode === "plan" ? (
                                           <PlanIcon className="w-4 h-4 text-muted-foreground" />
                                         ) : (
                                           <AgentIcon className="w-4 h-4 text-muted-foreground" />
                                         )}
                                       </div>
-                                      {/* Badge - hidden in multi-select mode and when pending question */}
-                                      {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) &&
-                                        !isMultiSelectMode && !hasPendingQuestion && (
-                                          <div
-                                            className={cn(
-                                              "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
-                                              isActive
-                                                ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
-                                                : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
-                                            )}
-                                          >
-                                            {/* Priority: loader > amber (pending plan) > green (committed) > blue (unseen) */}
-                                            {isSubChatLoading ? (
-                                              <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
-                                            ) : hasPendingPlan ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            ) : isCommitted ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                            ) : hasUnseen ? (
-                                              <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
-                                            ) : null}
-                                          </div>
-                                        )}
+                                      {/* Badge in bottom-right corner */}
+                                      {!isMultiSelectMode && !hasPendingQuestion && (
+                                        <>
+                                          {/* Status badge: loading > pendingPlan > committed > unseen */}
+                                          {(isSubChatLoading || hasUnseen || hasPendingPlan || isCommitted) ? (
+                                            <div
+                                              className={cn(
+                                                "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
+                                                isActive
+                                                  ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
+                                                  : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
+                                              )}
+                                            >
+                                              {isSubChatLoading ? (
+                                                <LoadingDot isLoading={true} className="w-2.5 h-2.5 text-muted-foreground" />
+                                              ) : hasPendingPlan ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                              ) : isCommitted ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                              ) : hasUnseen ? (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-[#307BD0]" />
+                                              ) : null}
+                                            </div>
+                                          ) : tag ? (
+                                            /* Mode badge when tag is shown and no status badge */
+                                            <div
+                                              className={cn(
+                                                "absolute -bottom-1 -right-1 w-3 h-3 rounded-full flex items-center justify-center",
+                                                isActive
+                                                  ? "bg-[#E8E8E8] dark:bg-[#1B1B1B]"
+                                                  : "bg-[#F4F4F4] group-hover:bg-[#E8E8E8] dark:bg-[#101010] dark:group-hover:bg-[#1B1B1B]",
+                                              )}
+                                            >
+                                              {mode === "plan" ? (
+                                                <PlanIcon className="w-2 h-2 text-muted-foreground" />
+                                              ) : (
+                                                <AgentIcon className="w-2 h-2 text-muted-foreground" />
+                                              )}
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      )}
                                     </div>
                                     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                                       <div className="flex items-center gap-1">
@@ -1883,6 +1978,9 @@ export function AgentsSubChatsSidebar({
                                   currentIndex={globalIndex}
                                   totalCount={filteredSubChats.length}
                                   chatId={parentChatId}
+                                  currentTagId={tag ? `custom_${tag.id}` : null}
+                                  onTagChange={handleSubChatTagChange}
+                                  onManageTags={() => setManageTagsDialogOpen(true)}
                                 />
                               )}
                             </ContextMenu>
