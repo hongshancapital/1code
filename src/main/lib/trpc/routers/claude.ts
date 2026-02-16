@@ -83,6 +83,7 @@ import {
   buildImagePrompt,
   buildOllamaContext,
 } from "../../claude/prompt-utils";
+import { sanitizeMcpServerNames } from "../../claude/sdk-query-builder";
 import { getMessages, appendMessage, replaceAllMessages } from "../../db/messages";
 import { createLogger } from "../../logger"
 
@@ -1147,9 +1148,10 @@ export const claudeRouter = router({
                     agents: agentsOption as Record<string, { description: string; prompt: string; model?: string; tools?: string[] }>,
                   }),
                 // Pass filtered MCP servers (only working/unknown ones, skip failed/needs-auth)
+                // Sanitize server name keys (hyphens → underscores) for OpenAI function name compatibility
                 ...(mcpServersFiltered &&
                   Object.keys(mcpServersFiltered).length > 0 && {
-                    mcpServers: mcpServersFiltered as Record<string, SdkMcpServerConfig>,
+                    mcpServers: sanitizeMcpServerNames(mcpServersFiltered) as Record<string, SdkMcpServerConfig>,
                   }),
                 env: finalEnv,
                 permissionMode:
@@ -2170,7 +2172,7 @@ export const claudeRouter = router({
                 await replaceAllMessages(input.subChatId, finalMessages);
                 // 仍然需要更新 stats 和 sessionId
                 const stats = computePreviewStatsFromMessages(
-                  JSON.stringify(finalMessages),
+                  finalMessages,
                   input.mode,
                 );
                 const statsJson = await jsonStringifyAsync(stats);
@@ -2272,7 +2274,7 @@ export const claudeRouter = router({
               await replaceAllMessages(input.subChatId, finalMessages);
               // 仍然需要更新 stats 和 sessionId
               const stats = computePreviewStatsFromMessages(
-                JSON.stringify(finalMessages),
+                finalMessages,
                 input.mode,
               );
               const statsJson = await jsonStringifyAsync(stats);
@@ -3025,18 +3027,17 @@ export const claudeRouter = router({
       data: any
     }>((emit) => {
       let cleanupFn: (() => void) | null = null
+      let disposed = false
 
       // 动态导入,避免循环依赖
       import("../../claude/mcp-warmup-manager")
         .then(({ getMcpWarmupManager }) => {
           const warmupManager = getMcpWarmupManager()
 
-          // 监听服务器状态变化
           const onServerStatus = (data: any) => {
             emit.next({ type: "serverStatus", data })
           }
 
-          // 监听预热状态变化
           const onWarmupState = (state: string) => {
             emit.next({ type: "warmupState", data: { state } })
           }
@@ -3048,13 +3049,16 @@ export const claudeRouter = router({
             warmupManager.off("serverStatusChange", onServerStatus)
             warmupManager.off("stateChange", onWarmupState)
           }
+
+          // 如果在 import 完成前已被取消订阅,立即清理
+          if (disposed) cleanupFn()
         })
         .catch((error) => {
           claudeLog.error("[MCP Status] Failed to load warmup manager:", error)
         })
 
-      // 返回清理函数
       return () => {
+        disposed = true
         cleanupFn?.()
       }
     })
