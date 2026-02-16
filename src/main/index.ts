@@ -822,22 +822,23 @@ if (gotTheLock) {
     // Create main window
     createMainWindow()
 
-    // 异步预加载 shell 环境 → 然后启动 MCP 预热
+    // 异步预加载 shell 环境 + MCP 预热 — 并行执行，互不依赖
     // 整体不 await，不阻塞窗口显示和后续逻辑
-    ;(async () => {
-      // 先异步加载 shell 环境到缓存，避免 warmup 中 execSync 阻塞主线程
-      const { preloadShellEnvironment } = await import("./lib/claude/env")
-      await preloadShellEnvironment()
+    import("./lib/claude/env").then(({ preloadShellEnvironment }) =>
+      preloadShellEnvironment()
+    ).catch((error) => {
+      log.error("Shell env preload failed:", error)
+    })
 
-      // MCP 预热(返回 Promise 供首次 query 等待)
-      const { getMcpWarmupManager } = await import("./lib/claude/mcp-warmup-manager")
+    // MCP 预热(返回 Promise 供首次 query 等待)
+    import("./lib/claude/mcp-warmup-manager").then(({ getMcpWarmupManager }) => {
       const warmupManager = getMcpWarmupManager()
       warmupManager.startWarmup().catch((error) => {
         log.error("MCP warmup failed:", error)
       })
       log.info("MCP warmup started immediately after app ready")
-    })().catch((error) => {
-      log.error("Shell env preload / MCP warmup init failed:", error)
+    }).catch((error) => {
+      log.error("MCP warmup init failed:", error)
     })
 
     // Handle directory argument from CLI (e.g., `hong /path/to/project`)

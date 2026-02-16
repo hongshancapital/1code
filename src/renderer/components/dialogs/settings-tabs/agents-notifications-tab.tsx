@@ -1,15 +1,21 @@
 import { useAtom } from "jotai"
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Play, Square, Upload, Bell, Volume2 } from "lucide-react"
+import { Play, Square, Upload, Bell, Volume2, ChevronDown } from "lucide-react"
 import {
   alwaysShowNotificationsAtom,
   customNotificationSoundAtom,
   soundNotificationsEnabledAtom,
   notificationVolumeAtom,
+  perTypeSoundEnabledAtom,
+  completeSoundAtom,
+  errorSoundAtom,
+  userInputSoundAtom,
 } from "../../../lib/atoms"
 import { resolveNotificationSoundSrc } from "../../../features/sidebar/hooks/use-desktop-notifications"
 import { Switch } from "../../ui/switch"
 import { Button } from "../../ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
 import { appStore } from "../../../lib/jotai-store"
 import { cn } from "../../../lib/utils"
 import { createLogger } from "../../../lib/logger"
@@ -30,6 +36,13 @@ const BUILTIN_SOUNDS = [
 ] as const
 
 type BuiltinSoundId = (typeof BUILTIN_SOUNDS)[number]["id"]
+
+// Per-type sound configuration
+const PER_TYPE_CONFIGS = [
+  { label: "Task Complete", atom: completeSoundAtom, key: "complete" },
+  { label: "Error", atom: errorSoundAtom, key: "error" },
+  { label: "Input Required", atom: userInputSoundAtom, key: "input" },
+] as const
 
 function useIsNarrowScreen(): boolean {
   const [isNarrow, setIsNarrow] = useState(false)
@@ -83,6 +96,108 @@ function getCustomFileName(path: string): string {
   return path.split("/").pop() || path
 }
 
+/**
+ * Get display label for a sound id
+ */
+function getSoundLabel(soundId: string | null): string {
+  if (soundId === null) return "Default"
+  const builtin = BUILTIN_SOUNDS.find((s) => s.id === soundId)
+  if (builtin) return builtin.label
+  if (isCustomFile(soundId)) return getCustomFileName(soundId)
+  return "Default"
+}
+
+/**
+ * Compact sound selector for per-type overrides.
+ * Shows a Select dropdown + preview button in a single row.
+ */
+function PerTypeSoundSelector({
+  label,
+  soundId,
+  onSoundChange,
+  disabled,
+  volume,
+}: {
+  label: string
+  soundId: string | null
+  onSoundChange: (id: string | null) => void
+  disabled: boolean
+  volume: number
+}) {
+  const [playing, setPlaying] = useState(false)
+  const stopRef = useRef<(() => void) | null>(null)
+
+  const handlePreview = useCallback(() => {
+    if (playing) {
+      stopRef.current?.()
+      stopRef.current = null
+      setPlaying(false)
+      return
+    }
+    const globalSound = appStore.get(customNotificationSoundAtom)
+    const effectiveSound = soundId ?? globalSound
+    const stop = previewSound(effectiveSound, volume)
+    stopRef.current = stop
+    setPlaying(true)
+    setTimeout(() => setPlaying(false), 3000)
+  }, [playing, soundId, volume])
+
+  // Use "__inherit__" as sentinel for null (inherit from global)
+  const selectValue = soundId === null ? "__inherit__" : soundId
+
+  const handleValueChange = useCallback((value: string) => {
+    onSoundChange(value === "__inherit__" ? null : value)
+  }, [onSoundChange])
+
+  const handleSelectCustomFile = useCallback(async () => {
+    if (!window.desktopApi?.selectAudioFile) return
+    const filePath = await window.desktopApi.selectAudioFile()
+    if (filePath) onSoundChange(filePath)
+  }, [onSoundChange])
+
+  const displayLabel = soundId === null ? "Same as global" : getSoundLabel(soundId)
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground w-[90px] flex-shrink-0">{label}</span>
+      <Select value={selectValue} onValueChange={handleValueChange} disabled={disabled}>
+        <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
+          <SelectValue>{displayLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__inherit__">Same as global</SelectItem>
+          {BUILTIN_SOUNDS.filter((s) => s.id !== null).map((sound) => (
+            <SelectItem key={sound.id!} value={sound.id!}>
+              {sound.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <button
+        type="button"
+        onClick={handlePreview}
+        disabled={disabled}
+        className={cn(
+          "w-6 h-6 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0",
+          playing && "text-primary",
+        )}
+      >
+        {playing ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+      </button>
+      {isCustomFile(soundId) && (
+        <button
+          type="button"
+          onClick={handleSelectCustomFile}
+          disabled={disabled}
+          className="w-6 h-6 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+        >
+          <Upload className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function AgentsNotificationsTab() {
   const [soundEnabled, setSoundEnabled] = useAtom(soundNotificationsEnabledAtom)
   const [alwaysShowNotifications, setAlwaysShowNotifications] = useAtom(
@@ -90,6 +205,10 @@ export function AgentsNotificationsTab() {
   )
   const [selectedSound, setSelectedSound] = useAtom(customNotificationSoundAtom)
   const [volume, setVolume] = useAtom(notificationVolumeAtom)
+  const [perTypeEnabled, setPerTypeEnabled] = useAtom(perTypeSoundEnabledAtom)
+  const [completeSound, setCompleteSound] = useAtom(completeSoundAtom)
+  const [errorSound, setErrorSound] = useAtom(errorSoundAtom)
+  const [userInputSound, setUserInputSound] = useAtom(userInputSoundAtom)
   const isNarrowScreen = useIsNarrowScreen()
 
   // Track which sound is currently playing for preview
@@ -163,6 +282,10 @@ export function AgentsNotificationsTab() {
 
   // Check if current selection is a custom file
   const hasCustomFile = isCustomFile(selectedSound)
+
+  // Per-type sound setters
+  const perTypeSetters = [setCompleteSound, setErrorSound, setUserInputSound] as const
+  const perTypeValues = [completeSound, errorSound, userInputSound] as const
 
   return (
     <div className="p-6 flex flex-col gap-6">
@@ -344,6 +467,40 @@ export function AgentsNotificationsTab() {
                 </div>
               </div>
             </div>
+
+            {/* Per-type sound overrides */}
+            <Collapsible open={perTypeEnabled} onOpenChange={setPerTypeEnabled}>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  disabled={!soundEnabled}
+                  className={cn(
+                    "flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full",
+                    !soundEnabled && "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  <ChevronDown className={cn(
+                    "w-3 h-3 transition-transform duration-200",
+                    perTypeEnabled && "rotate-180",
+                  )} />
+                  <span>Customize sound per event type</span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-col gap-2 mt-3 pl-5">
+                  {PER_TYPE_CONFIGS.map((config, i) => (
+                    <PerTypeSoundSelector
+                      key={config.key}
+                      label={config.label}
+                      soundId={perTypeValues[i]}
+                      onSoundChange={perTypeSetters[i]}
+                      disabled={!soundEnabled}
+                      volume={volume}
+                    />
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Volume Slider */}
             <div className="flex flex-col gap-2">

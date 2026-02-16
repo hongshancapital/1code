@@ -519,13 +519,10 @@ export function AgentsDebugTab() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              if (confirm(t('debug.dataManagement.confirmResetOnboarding'))) {
-                handleResetOnboarding()
-              }
-            }}
+            onClick={() => handleResetOnboarding()}
           >
-            {t('debug.dataManagement.resetOnboarding')}
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            {t('debug.dataManagement.testOnboarding')}
           </Button>
           <Button
             variant="destructive"
@@ -593,6 +590,15 @@ function MemorySyncSection() {
     },
   })
 
+  const clearModelCacheMutation = trpc.memory.clearModelCache.useMutation({
+    onSuccess: () => {
+      toast.success(t("debug.memory.modelCacheCleared"))
+    },
+    onError: (error) => {
+      toast.error(`Failed: ${error.message}`)
+    },
+  })
+
   return (
     <div className="flex flex-col gap-3">
       <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
@@ -643,6 +649,29 @@ function MemorySyncSection() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Clear Embedding Model Cache */}
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex-1">
+            <p className="text-sm">{t("debug.memory.clearModelCache")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("debug.memory.clearModelCacheDesc")}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (confirm(t("debug.memory.confirmClearModelCache"))) {
+                clearModelCacheMutation.mutate()
+              }
+            }}
+            disabled={clearModelCacheMutation.isPending}
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            {clearModelCacheMutation.isPending ? "..." : t("debug.memory.clearButton")}
+          </Button>
         </div>
       </div>
     </div>

@@ -336,6 +336,7 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
     onSuccess: () => {
       utils.tags.listTags.invalidate()
       utils.tags.getChatTagsBatch.invalidate()
+      utils.tags.getSubChatTagsBatch.invalidate()
       // Reset selection after create
       setSelectedColor(null)
       setSelectedIcon("tag")
@@ -350,6 +351,7 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
     onSuccess: () => {
       utils.tags.listTags.invalidate()
       utils.tags.getChatTagsBatch.invalidate()
+      utils.tags.getSubChatTagsBatch.invalidate()
       utils.chats.list.invalidate() // Refresh chat list to show updated tags
       // Reset selection after update
       setSelectedColor(null)
@@ -366,6 +368,7 @@ export const ManageTagsDialog = memo(function ManageTagsDialog() {
     onSuccess: () => {
       utils.tags.listTags.invalidate()
       utils.tags.getChatTagsBatch.invalidate()
+      utils.tags.getSubChatTagsBatch.invalidate()
       toast.success(t("tagManager.tagDeleted"))
     },
     onError: (error) => {

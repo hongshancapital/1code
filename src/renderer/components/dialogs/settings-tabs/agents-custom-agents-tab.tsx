@@ -354,10 +354,11 @@ export function AgentsCustomAgentsTab() {
 
   const userAgents = filteredAgents.filter((a) => a.source === "user")
   const projectAgents = filteredAgents.filter((a) => a.source === "project")
+  const pluginAgents = filteredAgents.filter((a) => a.source === "plugin")
 
   const allAgentNames = useMemo(
-    () => [...userAgents, ...projectAgents].map((a) => a.name),
-    [userAgents, projectAgents]
+    () => [...userAgents, ...projectAgents, ...pluginAgents].map((a) => a.name),
+    [userAgents, projectAgents, pluginAgents]
   )
 
   const { containerRef: listRef, onKeyDown: listKeyDown } = useListKeyboardNav({
@@ -534,6 +535,49 @@ export function AgentsCustomAgentsTab() {
                               {agent.model && agent.model !== "inherit" && (
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {agent.model}
+                                </span>
+                              )}
+                            </div>
+                            {agent.description && (
+                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                {agent.description}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Plugin Agents */}
+                {pluginAgents.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider px-2 mb-1">
+                      {t("customAgents.sections.plugin")}
+                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      {pluginAgents.map((agent) => {
+                        const isSelected = selectedAgentName === agent.name
+                        return (
+                          <button
+                            key={agent.name}
+                            data-item-id={agent.name}
+                            onClick={() => setSelectedAgentName(agent.name)}
+                            className={cn(
+                              "w-full text-left py-1.5 px-2 rounded-md transition-colors duration-150 cursor-pointer outline-hidden focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-ring/70 focus-visible:-outline-offset-2",
+                              isSelected
+                                ? "bg-foreground/5 text-foreground"
+                                : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm truncate flex-1">
+                                {agent.name}
+                              </span>
+                              {agent.pluginName && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {agent.pluginName}
                                 </span>
                               )}
                             </div>

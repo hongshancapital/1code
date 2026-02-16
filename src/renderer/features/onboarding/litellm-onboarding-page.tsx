@@ -1,8 +1,8 @@
 "use client"
 
-import { useAtom, useSetAtom } from "jotai"
-import { useState, useEffect } from "react"
-import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X } from "lucide-react"
+import { useSetAtom, useAtom } from "jotai"
+import { useState, useEffect, useCallback } from "react"
+import { ArrowLeft, Loader2, RefreshCw, AlertCircle, X, Info } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "../../components/ui/button"
@@ -13,97 +13,161 @@ import {
   litellmConfigAtom,
   litellmOnboardingCompletedAtom,
   customClaudeConfigAtom,
+  overrideModelModeAtom,
+  litellmSelectedModelAtom,
+  activeProviderIdAtom,
+  activeModelIdAtom,
+  enabledProviderIdsAtom,
+  autoPopulateRecommendedModelsAtom,
+  autoSelectTaskModelsAtom,
 } from "../../lib/atoms"
 import { cn } from "../../lib/utils"
+import { trpc } from "../../lib/trpc"
 import { createLogger } from "../../lib/logger"
 
-const liteLLMLog = createLogger("LiteLLM")
-
-
-type LiteLLMModel = {
-  id: string
-  object: string
-  created: number
-  owned_by: string
-}
+const liteLLMLog = createLogger("LiteLLM-Onboarding")
 
 export function LiteLLMOnboardingPage() {
   const { t } = useTranslation('onboarding')
-  const setBillingMethod = useSetAtom(billingMethodAtom)
-  const [litellmConfig, setLitellmConfig] = useAtom(litellmConfigAtom)
-  const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
-  const setCustomClaudeConfig = useSetAtom(customClaudeConfigAtom)
+  const trpcUtils = trpc.useUtils()
 
-  const [baseUrl, setBaseUrl] = useState(litellmConfig.baseUrl || "http://localhost:4000")
-  const [apiKey, setApiKey] = useState(litellmConfig.apiKey || "")
-  const [selectedModel, setSelectedModel] = useState(litellmConfig.selectedModel || "")
+  // --- tRPC: env-based LiteLLM config ---
+  const { data: envConfig } = trpc.litellm.getConfig.useQuery()
 
-  const [models, setModels] = useState<LiteLLMModel[]>([])
-  const [isLoadingModels, setIsLoadingModels] = useState(false)
-  const [modelsError, setModelsError] = useState<string | null>(null)
-  const [hasLoadedModels, setHasLoadedModels] = useState(false)
+  // --- Local form state ---
+  const [baseUrl, setBaseUrl] = useState("")
+  const [apiKey, setApiKey] = useState("")
+  const [selectedModel, setSelectedModel] = useState("")
+  const [envInitialized, setEnvInitialized] = useState(false)
 
-  // Normalize base URL (remove trailing slash)
-  const normalizeUrl = (url: string) => url.replace(/\/+$/, "")
-
-  // Fetch models from LiteLLM /models endpoint
-  const fetchModels = async () => {
-    const normalizedUrl = normalizeUrl(baseUrl)
-    if (!normalizedUrl) {
-      setModelsError(t('litellm.missingUrl'))
-      return
+  // Pre-fill from env config on first load
+  useEffect(() => {
+    if (envConfig && !envInitialized) {
+      if (envConfig.baseUrl) {
+        setBaseUrl(envConfig.baseUrl)
+      }
+      setEnvInitialized(true)
     }
+  }, [envConfig, envInitialized])
 
-    setIsLoadingModels(true)
-    setModelsError(null)
+  // Determine if the user-entered URL matches the env-configured URL
+  const isUsingEnvUrl = envConfig?.baseUrl
+    ? normalizeUrl(baseUrl) === normalizeUrl(envConfig.baseUrl)
+    : false
+
+  // --- tRPC: fetch models via unified provider system (only works with env URL) ---
+  const {
+    data: providerModels,
+    isLoading: isLoadingProviderModels,
+    error: providerModelsError,
+  } = trpc.providers.getModels.useQuery(
+    { providerId: "litellm", forceRefresh: false },
+    { enabled: isUsingEnvUrl && envInitialized },
+  )
+
+  // --- tRPC: get recommended models ---
+  const { data: recommended } = trpc.providers.getRecommendedModels.useQuery(
+    { providerId: "litellm" },
+    { enabled: isUsingEnvUrl && envInitialized },
+  )
+
+  // --- Manual fetch for custom URLs (non-env) ---
+  const [manualModels, setManualModels] = useState<Array<{ id: string }>>([])
+  const [isLoadingManual, setIsLoadingManual] = useState(false)
+  const [manualError, setManualError] = useState<string | null>(null)
+  const [manualLoaded, setManualLoaded] = useState(false)
+
+  const fetchModelsManually = useCallback(async () => {
+    const normalizedUrl = normalizeUrl(baseUrl)
+    if (!normalizedUrl) return
+
+    setIsLoadingManual(true)
+    setManualError(null)
 
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      }
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`
-      }
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
 
       const response = await fetch(`${normalizedUrl}/models`, {
         method: "GET",
         headers,
+        signal: AbortSignal.timeout(10000),
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`)
+        throw new Error(`${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
+      const modelList: Array<{ id: string }> = data.data || data.models || []
+      setManualModels(modelList)
+      setManualLoaded(true)
 
-      // LiteLLM returns { data: [...models], object: "list" }
-      const modelList = data.data || data.models || []
-      setModels(modelList)
-      setHasLoadedModels(true)
-
-      // Auto-select first model if none selected
       if (modelList.length > 0 && !selectedModel) {
         setSelectedModel(modelList[0].id)
       }
     } catch (error) {
-      liteLLMLog.error("Failed to fetch models:", error)
-      setModelsError(error instanceof Error ? error.message : t('litellm.connectionFailed'))
-      setModels([])
+      liteLLMLog.error("Failed to fetch models manually:", error)
+      setManualError(error instanceof Error ? error.message : t('litellm.connectionFailed'))
+      setManualModels([])
     } finally {
-      setIsLoadingModels(false)
+      setIsLoadingManual(false)
     }
-  }
+  }, [baseUrl, apiKey, selectedModel, t])
 
-  // Auto-fetch models when base URL or API key changes (with debounce)
+  // Auto-fetch when using custom URL (debounced)
   useEffect(() => {
-    if (!baseUrl) return
+    if (isUsingEnvUrl || !baseUrl || !envInitialized) return
 
     const timer = setTimeout(() => {
-      fetchModels()
-    }, 500)
+      fetchModelsManually()
+    }, 600)
 
     return () => clearTimeout(timer)
-  }, [baseUrl, apiKey])
+  }, [baseUrl, apiKey, isUsingEnvUrl, envInitialized, fetchModelsManually])
+
+  // --- Derive display data based on mode ---
+  const models = isUsingEnvUrl
+    ? (providerModels?.models ?? [])
+    : manualModels
+  const isLoading = isUsingEnvUrl ? isLoadingProviderModels : isLoadingManual
+  const modelsError = isUsingEnvUrl
+    ? (providerModelsError?.message ?? null)
+    : manualError
+  const hasLoadedModels = isUsingEnvUrl
+    ? (providerModels !== undefined)
+    : manualLoaded
+
+  // Auto-select recommended default model
+  useEffect(() => {
+    if (recommended?.chatModelId && !selectedModel && isUsingEnvUrl) {
+      setSelectedModel(recommended.chatModelId)
+    }
+  }, [recommended?.chatModelId, selectedModel, isUsingEnvUrl])
+
+  // Auto-select first model when manual models loaded
+  useEffect(() => {
+    if (!isUsingEnvUrl && manualModels.length > 0 && !selectedModel) {
+      setSelectedModel(manualModels[0].id)
+    }
+  }, [isUsingEnvUrl, manualModels, selectedModel])
+
+  // --- Atom setters ---
+  const setBillingMethod = useSetAtom(billingMethodAtom)
+  const setLitellmOnboardingCompleted = useSetAtom(litellmOnboardingCompletedAtom)
+
+  // Unified provider system
+  const setActiveProviderId = useSetAtom(activeProviderIdAtom)
+  const setActiveModelId = useSetAtom(activeModelIdAtom)
+  const [enabledProviderIds, setEnabledProviderIds] = useAtom(enabledProviderIdsAtom)
+  const autoPopulate = useSetAtom(autoPopulateRecommendedModelsAtom)
+  const autoSelectTasks = useSetAtom(autoSelectTaskModelsAtom)
+
+  // Backward compat atoms (TODO: remove after consumers migrate to unified provider system)
+  const setLitellmConfig = useSetAtom(litellmConfigAtom)
+  const setCustomClaudeConfig = useSetAtom(customClaudeConfigAtom)
+  const setOverrideModelMode = useSetAtom(overrideModelModeAtom)
+  const setLitellmSelectedModel = useSetAtom(litellmSelectedModelAtom)
 
   const handleBack = () => {
     setBillingMethod(null)
@@ -113,23 +177,46 @@ export function LiteLLMOnboardingPage() {
     window.desktopApi?.windowClose()
   }
 
+  const handleRefresh = () => {
+    if (isUsingEnvUrl) {
+      trpcUtils.providers.getModels.invalidate({ providerId: "litellm" })
+      trpcUtils.providers.getRecommendedModels.invalidate({ providerId: "litellm" })
+    } else {
+      fetchModelsManually()
+    }
+  }
+
   const handleContinue = () => {
     const normalizedUrl = normalizeUrl(baseUrl)
 
-    // Save LiteLLM config
-    setLitellmConfig({
-      baseUrl: normalizedUrl,
-      apiKey,
-      selectedModel,
+    // Write to unified provider system
+    setActiveProviderId("litellm")
+    setActiveModelId(selectedModel)
+    if (!enabledProviderIds.includes("litellm")) {
+      setEnabledProviderIds([...enabledProviderIds, "litellm"])
+    }
+
+    // Auto-populate recommended models for out-of-box experience
+    if (recommended?.recommendedChatIds) {
+      autoPopulate({ providerId: "litellm", recommendedIds: recommended.recommendedChatIds })
+    }
+    autoSelectTasks({
+      providerId: "litellm",
+      imageModelId: recommended?.imageModelId ?? null,
+      summaryModelId: recommended?.summaryModelId ?? null,
     })
 
-    // Also save to customClaudeConfig for compatibility with existing code
+    // Backward compat writes (TODO: remove after consumers migrate to unified provider system)
+    setLitellmConfig({ baseUrl: normalizedUrl, apiKey, selectedModel })
     setCustomClaudeConfig({
       baseUrl: normalizedUrl,
-      token: apiKey || "litellm", // Use "litellm" as placeholder if no API key
+      token: apiKey || "litellm",
       model: selectedModel,
     })
+    setOverrideModelMode("litellm")
+    setLitellmSelectedModel(selectedModel)
 
+    liteLLMLog.info("Onboarding complete:", { model: selectedModel, usingEnvUrl: isUsingEnvUrl })
     setLitellmOnboardingCompleted(true)
   }
 
@@ -143,7 +230,7 @@ export function LiteLLMOnboardingPage() {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
-      {/* Quit button - fixed in top right corner */}
+      {/* Quit button */}
       <button
         onClick={handleQuit}
         className="fixed top-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors"
@@ -188,6 +275,12 @@ export function LiteLLMOnboardingPage() {
               onChange={(e) => setBaseUrl(e.target.value)}
               className="h-10"
             />
+            {envConfig?.baseUrl && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Info className="w-3 h-3 shrink-0" />
+                <span>{t('litellm.envPreFilled')}</span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               {t('litellm.baseUrlHint')}
             </p>
@@ -206,6 +299,12 @@ export function LiteLLMOnboardingPage() {
               onChange={(e) => setApiKey(e.target.value)}
               className="h-10"
             />
+            {envConfig?.hasApiKey && isUsingEnvUrl && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Info className="w-3 h-3 shrink-0" />
+                <span>{t('litellm.envApiKeyConfigured')}</span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               {t('litellm.apiKeyHint')}
             </p>
@@ -218,11 +317,11 @@ export function LiteLLMOnboardingPage() {
                 {t('litellm.modelLabel')}
               </Label>
               <button
-                onClick={fetchModels}
-                disabled={isLoadingModels || !baseUrl}
+                onClick={handleRefresh}
+                disabled={isLoading || !baseUrl}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={cn("w-3 h-3", isLoadingModels && "animate-spin")} />
+                <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")} />
                 {t('litellm.refresh')}
               </button>
             </div>
@@ -232,7 +331,7 @@ export function LiteLLMOnboardingPage() {
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{modelsError}</span>
               </div>
-            ) : isLoadingModels ? (
+            ) : isLoading ? (
               <div className="flex items-center justify-center p-4">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
@@ -278,4 +377,8 @@ export function LiteLLMOnboardingPage() {
       </div>
     </div>
   )
+}
+
+function normalizeUrl(url: string) {
+  return url.replace(/\/+$/, "")
 }

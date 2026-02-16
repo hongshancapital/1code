@@ -13,6 +13,10 @@ import {
   notificationVolumeAtom,
   soundNotificationsEnabledAtom,
   preferredEditorAtom,
+  perTypeSoundEnabledAtom,
+  completeSoundAtom,
+  errorSoundAtom,
+  userInputSoundAtom,
   type AgentMode,
   type AskUserQuestionTimeout,
   type AutoAdvanceTarget,
@@ -127,7 +131,9 @@ import { ChevronDown, ChevronRight, Play, Square, Upload, Volume2 } from "lucide
 import { resolveNotificationSoundSrc } from "../../../features/sidebar/hooks/use-desktop-notifications"
 import { Switch } from "../../ui/switch"
 import { Button } from "../../ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/collapsible"
 import { cn } from "../../../lib/utils"
+import { appStore } from "../../../lib/jotai-store"
 
 // Built-in sound definitions
 const BUILTIN_SOUNDS = [
@@ -214,6 +220,12 @@ export function AgentsPreferencesTab() {
 
   const hasCustomFile = isCustomFile(selectedSound)
   const [soundPickerOpen, setSoundPickerOpen] = useState(false)
+
+  // Per-type sound state
+  const [perTypeEnabled, setPerTypeEnabled] = useAtom(perTypeSoundEnabledAtom)
+  const [completeSound, setCompleteSound] = useAtom(completeSoundAtom)
+  const [errorSound, setErrorSound] = useAtom(errorSoundAtom)
+  const [userInputSound, setUserInputSound] = useAtom(userInputSoundAtom)
 
   // Get display label for current sound
   const currentSoundLabel = (() => {
@@ -538,6 +550,79 @@ export function AgentsPreferencesTab() {
                 </div>
               </div>
             )}
+
+            {/* Per-type sound overrides */}
+            <Collapsible open={perTypeEnabled} onOpenChange={setPerTypeEnabled}>
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border cursor-pointer hover:bg-accent/30 transition-colors">
+                  <ChevronRight className={cn(
+                    "w-3 h-3 text-muted-foreground transition-transform duration-200",
+                    perTypeEnabled && "rotate-90",
+                  )} />
+                  <span className="text-xs text-muted-foreground">
+                    {t("preferences.notifications.perType.toggle")}
+                  </span>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-col border-t border-border/50">
+                  {([
+                    { labelKey: "complete" as const, soundId: completeSound, setSoundId: setCompleteSound },
+                    { labelKey: "error" as const, soundId: errorSound, setSoundId: setErrorSound },
+                    { labelKey: "inputRequired" as const, soundId: userInputSound, setSoundId: setUserInputSound },
+                  ]).map(({ labelKey, soundId, setSoundId }, i) => (
+                    <div key={labelKey} className={cn("flex items-center gap-2 px-6 py-1.5", i > 0 && "border-t border-border/30")}>
+                      <span className="text-xs text-muted-foreground w-[72px] flex-shrink-0">
+                        {t(`preferences.notifications.perType.${labelKey}`)}
+                      </span>
+                      <Select
+                        value={soundId ?? "__inherit__"}
+                        onValueChange={(value: string) => setSoundId(value === "__inherit__" ? null : value)}
+                      >
+                        <SelectTrigger className="h-6 text-[11px] flex-1 min-w-0 px-2 border-border/50">
+                          <span className="truncate">
+                            {soundId === null
+                              ? t("preferences.notifications.perType.inherit")
+                              : (() => {
+                                  const found = BUILTIN_SOUNDS.find((s) => s.id === soundId)
+                                  return found
+                                    ? t(`preferences.notifications.sounds.${found.labelKey}`)
+                                    : isCustomFile(soundId) ? (soundId.split("/").pop() || soundId) : t("preferences.notifications.sounds.default")
+                                })()}
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__inherit__">
+                            {t("preferences.notifications.perType.inherit")}
+                          </SelectItem>
+                          {BUILTIN_SOUNDS.filter((s) => s.id !== null).map((sound) => (
+                            <SelectItem key={sound.id!} value={sound.id!}>
+                              {t(`preferences.notifications.sounds.${sound.labelKey}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const globalSound = appStore.get(customNotificationSoundAtom)
+                          const effectiveSound = soundId ?? globalSound
+                          handlePreview(effectiveSound)
+                        }}
+                        className={cn(
+                          "w-5 h-5 flex items-center justify-center rounded hover:bg-accent-foreground/10 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0",
+                          playingId === (soundId ?? selectedSound) && "text-primary",
+                        )}
+                      >
+                        {playingId === (soundId ?? selectedSound)
+                          ? <Square className="w-2.5 h-2.5" />
+                          : <Play className="w-2.5 h-2.5" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Volume slider */}
             <div className="flex items-center gap-3 px-4 py-3 border-t border-border">

@@ -47,6 +47,7 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
   const prevIndexRef = useRef(currentQuestionIndex)
   const prevToolUseIdRef = useRef(toolUseId)
   const customInputRef = useRef<HTMLInputElement>(null)
+  const isComposingRef = useRef(false)
 
   // Expose getAnswers method to parent via ref
   useImperativeHandle(ref, () => ({
@@ -264,6 +265,11 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isSubmitting) return
 
+      // Skip Enter handling during IME composition (e.g. Chinese input method confirming candidates)
+      if (e.key === "Enter" && (isComposingRef.current || e.isComposing)) {
+        return
+      }
+
       const activeEl = document.activeElement
       // Allow typing in input - don't handle keyboard shortcuts when input is focused
       if (
@@ -271,10 +277,10 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
         activeEl instanceof HTMLTextAreaElement ||
         activeEl?.getAttribute("contenteditable") === "true"
       ) {
-        // Block all Enter in input, only Cmd/Ctrl+Enter submits
         if (e.key === "Enter") {
           e.preventDefault()
-          if ((e.metaKey || e.ctrlKey) && activeEl === customInputRef.current && allQuestionsAnswered) {
+          // Enter in custom input: advance to next question or submit
+          if (activeEl === customInputRef.current && currentQuestionHasAnswer) {
             handleContinue()
           }
         }
@@ -466,6 +472,8 @@ export const AgentUserQuestion = memo(forwardRef<AgentUserQuestionHandle, AgentU
             placeholder="Or type your custom answer..."
             value={currentCustomAnswer}
             onChange={(e) => handleCustomAnswerChange(currentQuestion.question, e.target.value)}
+            onCompositionStart={() => { isComposingRef.current = true }}
+            onCompositionEnd={() => { isComposingRef.current = false }}
             disabled={isSubmitting}
             className={cn(
               "w-full px-3 py-2 text-[13px] border border-border rounded-md bg-background",

@@ -14,6 +14,7 @@ import { isDesktopApp } from "../../../lib/utils/platform"
 import type { SubChatMeta } from "../stores/sub-chat-store"
 import { useResolvedHotkeyDisplay } from "../../../lib/hotkeys"
 import { exportChat, copyChat, type ExportFormat } from "../lib/export-chat"
+import { TagSelectorSubmenu } from "../../sidebar/components/tag-selector-submenu"
 
 const openInNewWindow = (chatId: string, subChatId: string) => {
   window.desktopApi?.newWindow({ chatId, subChatId })
@@ -49,6 +50,12 @@ interface SubChatContextMenuProps {
   canCloseOtherTabs?: boolean
   /** Parent chat ID for export functionality */
   chatId?: string | null
+  /** Current tag ID for this subchat (custom_xxx format or null) */
+  currentTagId?: string | null
+  /** Callback when tag is changed */
+  onTagChange?: (subChatId: string, tagId: string | null) => void
+  /** Callback to open manage tags dialog */
+  onManageTags?: () => void
 }
 
 export function SubChatContextMenu({
@@ -70,6 +77,9 @@ export function SubChatContextMenu({
   hasTabsToRight = false,
   canCloseOtherTabs = false,
   chatId,
+  currentTagId,
+  onTagChange,
+  onManageTags,
 }: SubChatContextMenuProps) {
   const { t } = useTranslation("sidebar")
   const closeTabShortcut = useCloseTabShortcut()
@@ -122,6 +132,14 @@ export function SubChatContextMenu({
         <ContextMenuItem onClick={() => openInNewWindow(chatId, subChat.id)}>
           {t('chats.openNewWindow')}
         </ContextMenuItem>
+      )}
+      {onTagChange && (
+        <TagSelectorSubmenu
+          currentTagId={currentTagId ?? null}
+          onTagSelect={(tagId) => onTagChange(subChat.id, tagId)}
+          onManageTags={onManageTags}
+          hidePresetTags={true}
+        />
       )}
       <ContextMenuSeparator />
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { useAtom } from "jotai"
 import { atomWithStorage } from "jotai/utils"
 import { isDesktopApp } from "../../../lib/utils/platform"
-import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom, notificationVolumeAtom } from "../../../lib/atoms"
+import { alwaysShowNotificationsAtom, customNotificationSoundAtom, soundNotificationsEnabledAtom, notificationVolumeAtom, perTypeSoundEnabledAtom, completeSoundAtom, errorSoundAtom, userInputSoundAtom } from "../../../lib/atoms"
 import { appStore } from "../../../lib/jotai-store"
 import { createLogger } from "../../../lib/logger"
 
@@ -53,14 +53,33 @@ export function resolveNotificationSoundSrc(soundId: string | null): string {
 }
 
 /**
- * Play notification sound if enabled in settings
- * Supports built-in sounds, custom file path, and volume control
+ * Resolve which sound to use for a given notification type.
+ * If per-type sounds are enabled and the type has an override, use that.
+ * Otherwise fall back to the global sound setting.
  */
-function playNotificationSound() {
+function resolveSoundIdForType(type?: NotificationType): string | null {
+  const perTypeEnabled = appStore.get(perTypeSoundEnabledAtom)
+  if (perTypeEnabled && type) {
+    const typeAtomMap: Record<NotificationType, typeof completeSoundAtom> = {
+      complete: completeSoundAtom,
+      error: errorSoundAtom,
+      "user-input-required": userInputSoundAtom,
+    }
+    const typeSoundId = appStore.get(typeAtomMap[type])
+    if (typeSoundId !== null) return typeSoundId
+  }
+  return appStore.get(customNotificationSoundAtom)
+}
+
+/**
+ * Play notification sound if enabled in settings
+ * Supports built-in sounds, custom file path, volume control, and per-type overrides
+ */
+function playNotificationSound(type?: NotificationType) {
   const isSoundEnabled = appStore.get(soundNotificationsEnabledAtom)
   if (!isSoundEnabled) return
 
-  const soundId = appStore.get(customNotificationSoundAtom)
+  const soundId = resolveSoundIdForType(type)
   const volume = appStore.get(notificationVolumeAtom)
   const soundSrc = resolveNotificationSoundSrc(soundId)
 
@@ -192,7 +211,7 @@ export function useDesktopNotifications() {
    * Sound behavior:
    * - user-input-required: always plays sound (needs immediate attention)
    * - error: always plays sound (important to know about failures)
-   * - complete: caller controls via playSound parameter (to avoid double-playing)
+   * - complete: always plays sound (task completion deserves attention)
    */
   const notify = useCallback(
     (agentName: string, type: NotificationType = "complete", playSound: boolean = false) => {
@@ -204,7 +223,7 @@ export function useDesktopNotifications() {
       // complete: caller controls via playSound parameter
       const shouldPlaySound = type === "user-input-required" || type === "error" || playSound
       if (shouldPlaySound) {
-        playNotificationSound()
+        playNotificationSound(type)
       }
 
       // Check if we should show notification based on settings and focus state
@@ -227,12 +246,12 @@ export function useDesktopNotifications() {
 
   /**
    * Show a notification for agent completion
-   * Sound is NOT played by this function - caller should handle sound separately
+   * Always plays sound (task completion deserves attention)
    * Only shows notification if window is not focused (in desktop app)
    */
   const notifyAgentComplete = useCallback(
     (agentName: string) => {
-      notify(agentName, "complete", false)
+      notify(agentName, "complete", true)
     },
     [notify],
   )
@@ -287,9 +306,9 @@ export function useDesktopNotifications() {
  * Sound behavior:
  * - user-input-required: always plays sound (needs immediate attention)
  * - error: always plays sound (important to know about failures)
- * - complete: only plays sound if playSound=true
+ * - complete: always plays sound (task completion deserves attention)
  */
-export function showAgentNotification(agentName: string, type: NotificationType = "complete", playSound: boolean = false) {
+export function showAgentNotification(agentName: string, type: NotificationType = "complete", playSound: boolean = true) {
   if (!isDesktopApp() || typeof window === "undefined") return
 
   const config = notificationConfig[type]
@@ -299,7 +318,7 @@ export function showAgentNotification(agentName: string, type: NotificationType 
   // complete: caller controls via playSound parameter
   const shouldPlaySound = type === "user-input-required" || type === "error" || playSound
   if (shouldPlaySound) {
-    playNotificationSound()
+    playNotificationSound(type)
   }
 
   // Check if we should show notification based on settings and focus state

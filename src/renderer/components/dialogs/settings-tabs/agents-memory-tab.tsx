@@ -4,7 +4,7 @@
  * Borrowed from claude-mem architecture
  */
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "../../ui/button"
 import { trpc } from "../../../lib/trpc"
@@ -31,6 +31,7 @@ import {
   BookOpen,
   PenLine,
   BarChart3,
+  Download,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -367,6 +368,59 @@ export function AgentsMemoryTab() {
     },
   })
 
+  // Reset vector store mutation
+  const resetVectorStore = trpc.memory.resetVectorStore.useMutation()
+
+  // Download embedding model mutation
+  const downloadModel = trpc.memory.downloadModel.useMutation()
+
+  // Polling timer refs for cleanup on unmount
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 自动 polling：进行中状态时快速刷新，not_downloaded 时延时复查（等后台启动下载）
+  const recheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const needsFastPolling =
+      stats?.embeddingModelStatus === "downloading" ||
+      stats?.vectorStoreStatus === "initializing"
+
+    if (needsFastPolling && !pollIntervalRef.current) {
+      pollIntervalRef.current = setInterval(() => refetchStats(), 2000)
+      pollTimeoutRef.current = setTimeout(() => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }, 300_000)
+    } else if (!needsFastPolling && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current)
+        pollTimeoutRef.current = null
+      }
+    }
+
+    // not_downloaded 时延迟复查：后端启动时 5s 后才开始下载，前端需等一等再查
+    if (stats?.embeddingModelStatus === "not_downloaded" && !recheckTimerRef.current) {
+      recheckTimerRef.current = setTimeout(() => {
+        recheckTimerRef.current = null
+        refetchStats()
+      }, 6_000)
+    } else if (stats?.embeddingModelStatus !== "not_downloaded" && recheckTimerRef.current) {
+      clearTimeout(recheckTimerRef.current)
+      recheckTimerRef.current = null
+    }
+  }, [stats?.embeddingModelStatus, stats?.vectorStoreStatus, refetchStats])
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current)
+      if (recheckTimerRef.current) clearTimeout(recheckTimerRef.current)
+    }
+  }, [])
+
   const handleClear = () => {
     setIsClearing(true)
     clearAllMutation.mutate()
@@ -423,6 +477,95 @@ export function AgentsMemoryTab() {
             {t("memory.refresh")}
           </Button>
         </div>
+      </div>
+
+      {/* Infrastructure Status Bar */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0 flex-wrap">
+        {/* Embedding Model */}
+        {stats?.embeddingModelStatus === "ready" ? (
+          <>
+            <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+            <span className="text-green-600 dark:text-green-400">{t("memory.modelStatus.ready")}</span>
+          </>
+        ) : stats?.embeddingModelStatus === "downloading" ? (
+          <>
+            <Download className="h-3.5 w-3.5 text-blue-500 animate-pulse" />
+            <span className="text-blue-600 dark:text-blue-400">{t("memory.modelStatus.downloading")}</span>
+            <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${stats?.embeddingModelProgress ?? 0}%` }}
+              />
+            </div>
+            <span>{stats?.embeddingModelProgress ?? 0}%</span>
+          </>
+        ) : stats?.embeddingModelStatus === "error" ? (
+          <>
+            <XCircle className="h-3.5 w-3.5 text-red-500" />
+            <span className="text-red-600 dark:text-red-400">{t("memory.modelStatus.error")}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-xs"
+              onClick={() => { downloadModel.mutate(); toast(t("memory.modelStatus.retrying")) }}
+              disabled={downloadModel.isPending}
+            >
+              <RefreshCw className={`h-3 w-3 mr-0.5 ${downloadModel.isPending ? "animate-spin" : ""}`} />
+              {t("memory.modelStatus.retry")}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Download className="h-3.5 w-3.5" />
+            <span>{t("memory.modelStatus.notDownloaded")}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-xs"
+              onClick={() => { downloadModel.mutate(); toast(t("memory.modelStatus.startingDownload")) }}
+              disabled={downloadModel.isPending}
+            >
+              <Download className="h-3 w-3 mr-0.5" />
+              {t("memory.modelStatus.download")}
+            </Button>
+          </>
+        )}
+
+        <span className="text-muted-foreground/40">·</span>
+
+        {/* Vector Store */}
+        {stats?.vectorStoreStatus === "ready" ? (
+          <>
+            <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+            <span className="text-green-600 dark:text-green-400">{t("memory.vectorStatus.enabled")}</span>
+          </>
+        ) : stats?.vectorStoreStatus === "failed" ? (
+          <>
+            <XCircle className="h-3.5 w-3.5 text-red-500" />
+            <span className="text-red-600 dark:text-red-400">{t("memory.vectorStatus.failed")}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-xs"
+              onClick={async () => {
+                try {
+                  await resetVectorStore.mutateAsync()
+                  toast.success(t("memory.vectorStatus.resetSuccess"))
+                  refetchStats()
+                } catch { toast.error(t("memory.vectorStatus.resetFailed")) }
+              }}
+              disabled={resetVectorStore.isPending}
+            >
+              <RefreshCw className={`h-3 w-3 mr-0.5 ${resetVectorStore.isPending ? "animate-spin" : ""}`} />
+              {t("memory.vectorStatus.reset")}
+            </Button>
+          </>
+        ) : (
+          <>
+            <RefreshCw className="h-3.5 w-3.5 text-yellow-500 animate-spin" />
+            <span className="text-yellow-600 dark:text-yellow-400">{t("memory.vectorStatus.initializing")}</span>
+          </>
+        )}
       </div>
 
       {/* Memory Recording Toggle */}
@@ -497,25 +640,6 @@ export function AgentsMemoryTab() {
           icon={<Database className="h-5 w-5 text-primary" />}
           isLoading={statsLoading}
         />
-      </div>
-
-      {/* Vector Store Status */}
-      <div className="flex items-center gap-2 text-sm shrink-0">
-        {stats?.vectorStoreReady ? (
-          <>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-            <span className="text-green-600 dark:text-green-400">
-              {t("memory.vectorStatus.enabled")}
-            </span>
-          </>
-        ) : (
-          <>
-            <XCircle className="h-4 w-4 text-yellow-500" />
-            <span className="text-yellow-600 dark:text-yellow-400">
-              {t("memory.vectorStatus.initializing")}
-            </span>
-          </>
-        )}
       </div>
 
       {/* Timeline */}

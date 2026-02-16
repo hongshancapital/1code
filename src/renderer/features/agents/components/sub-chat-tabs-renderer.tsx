@@ -41,7 +41,6 @@ export interface ChatViewInnerProps {
   isArchived?: boolean
   onRestoreWorkspace?: () => void
   existingPrUrl?: string | null
-  isActive?: boolean
 }
 
 /**
@@ -209,7 +208,6 @@ export const SubChatTabsRenderer = memo(function SubChatTabsRenderer({
               isArchived={isArchived}
               onRestoreWorkspace={handleRestoreWorkspace}
               existingPrUrl={existingPrUrl}
-              isActive={isActive}
             />
           </TabWrapper>
         )

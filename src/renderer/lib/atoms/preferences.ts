@@ -64,6 +64,38 @@ export const customNotificationSoundAtom = atomWithStorage<string | null>(
   { getOnInit: true },
 )
 
+// Preferences - Per-type Notification Sound
+// When enabled, each notification type (complete/error/user-input) uses its own sound
+export const perTypeSoundEnabledAtom = atomWithStorage<boolean>(
+  "preferences:per-type-sound-enabled",
+  false,
+  undefined,
+  { getOnInit: true },
+)
+
+// Per-type sound overrides (same format as customNotificationSoundAtom)
+// null means "inherit from main sound setting"
+export const completeSoundAtom = atomWithStorage<string | null>(
+  "preferences:complete-sound",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+export const errorSoundAtom = atomWithStorage<string | null>(
+  "preferences:error-sound",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
+export const userInputSoundAtom = atomWithStorage<string | null>(
+  "preferences:user-input-sound",
+  null,
+  undefined,
+  { getOnInit: true },
+)
+
 // Preferences - Notification Volume (0.0 - 1.0)
 export const notificationVolumeAtom = atomWithStorage<number>(
   "preferences:notification-volume",
