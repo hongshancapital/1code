@@ -277,8 +277,9 @@ export class SdkQueryBuilder {
 
     // MCP servers
     // McpServerWithMeta → McpServerConfig: extra metadata fields are ignored by SDK at runtime
+    // Sanitize server name keys for cross-provider compatibility (hyphens → underscores)
     if (this._mcpServers && Object.keys(this._mcpServers).length > 0) {
-      options.mcpServers = this._mcpServers as Record<string, McpServerConfig>
+      options.mcpServers = sanitizeMcpServerNames(this._mcpServers) as Record<string, McpServerConfig>
     }
 
     // Environment
@@ -378,4 +379,30 @@ export class SdkQueryBuilder {
  */
 export function createQueryBuilder(): SdkQueryBuilder {
   return new SdkQueryBuilder()
+}
+
+// ============================================================================
+// MCP Server Name Sanitization
+// ============================================================================
+
+/**
+ * Sanitize MCP server names for cross-provider compatibility.
+ *
+ * SDK internally prefixes tool names as `mcp__<serverName>__<toolName>`.
+ * OpenAI function name pattern only allows `^[a-zA-Z0-9_\\.-]+$`,
+ * which means hyphens in server names (e.g. "hong-internal", "time-mcp")
+ * will cause 400 errors when requests go through LiteLLM to OpenAI models.
+ *
+ * This function replaces hyphens with underscores in server name keys
+ * so the resulting tool names are compatible with all providers.
+ */
+export function sanitizeMcpServerNames<T>(
+  servers: Record<string, T>,
+): Record<string, T> {
+  const result: Record<string, T> = {}
+  for (const [name, config] of Object.entries(servers)) {
+    const sanitized = name.replace(/-/g, "_")
+    result[sanitized] = config
+  }
+  return result
 }
