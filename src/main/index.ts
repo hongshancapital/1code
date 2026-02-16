@@ -822,10 +822,19 @@ if (gotTheLock) {
     // Create main window
     createMainWindow()
 
-    // 异步预加载 shell 环境 + MCP 预热 — 并行执行，互不依赖
+    // 异步预加载 shell 环境 → runtime 工具检测 — 串行依赖链
+    // shell env 完成后立即预热 runtime 缓存，让首次 buildSystemPrompt 命中缓存
     // 整体不 await，不阻塞窗口显示和后续逻辑
     import("./lib/claude/env").then(({ preloadShellEnvironment }) =>
       preloadShellEnvironment()
+    ).then(() =>
+      import("./feature/runner/router").then(({ getCachedRuntimeEnvironment }) => {
+        getCachedRuntimeEnvironment().then(() => {
+          log.info("Runtime environment cache warmed up")
+        }).catch((error) => {
+          log.warn("Runtime environment warmup failed:", error)
+        })
+      })
     ).catch((error) => {
       log.error("Shell env preload failed:", error)
     })
