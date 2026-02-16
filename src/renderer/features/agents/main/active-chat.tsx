@@ -48,7 +48,6 @@ import {
   isSubChatMultiSelectModeAtom,
   selectedSubChatIdsAtom,
   selectedTeamIdAtom,
-  soundNotificationsEnabledAtom,
 } from "../../../lib/atoms";
 import {
   sessionModelOverrideAtom,
@@ -131,7 +130,6 @@ import {
   agentsSubChatUnseenChangesAtom,
   agentsUnseenChangesAtom,
   subChatStatusStorageAtom,
-  markSubChatUnseen,
   clearSubChatUnseen,
   fileSearchDialogOpenAtom,
   fileViewerDisplayModeAtom,
@@ -213,6 +211,7 @@ import {
   ChatSearchBar,
   SearchHighlightProvider,
 } from "../search";
+import { createChatCallbacks } from "../lib/create-chat-callbacks";
 import { chatRegistry } from "../stores/chat-registry";
 import {
   EMPTY_QUEUE,
@@ -222,17 +221,12 @@ import {
   clearSubChatCaches,
   isRollingBackAtom,
   rollbackHandlerAtom,
-  currentSubChatIdAtom,
   messageIdsAtom,
   type MessagePart,
   type Message,
   type MessageMetadata,
 } from "../stores/message-store";
-import { useStreamingStatusStore } from "../stores/streaming-status-store";
-import {
-  useAgentSubChatStore,
-  type SubChatMeta,
-} from "../stores/sub-chat-store";
+import { useAgentSubChatStore } from "../stores/sub-chat-store";
 import {
   AgentDiffView,
   diffViewModeAtom,
@@ -257,6 +251,8 @@ import { ReviewButton } from "../ui/review-button";
 import { SubChatStatusCard } from "../ui/sub-chat-status-card";
 import { TextSelectionPopover } from "../ui/text-selection-popover";
 import { useAutoRename } from "../hooks/use-auto-rename";
+import { useInitializeSubChatStore } from "../hooks/use-initialize-subchat-store";
+import { usePendingQuestionsSync } from "../hooks/use-pending-questions-sync";
 import { useQuestionHandlers } from "../hooks/use-question-handlers";
 import { useMessageSending } from "../hooks/use-message-sending";
 import { ChatInputArea } from "./chat-input-area";
@@ -801,120 +797,13 @@ const ChatViewInner = memo(function ChatViewInner({
     };
   }, [messages]);
 
-  // Track previous streaming state to detect stream stop
-  const prevIsStreamingRef = useRef(isStreaming);
-  // Track if we recently stopped streaming (to prevent sync effect from restoring)
-  const recentlyStoppedStreamRef = useRef(false);
-
-  // Clear pending questions when streaming is aborted
-  // This effect runs when isStreaming transitions from true to false
-  useEffect(() => {
-    const wasStreaming = prevIsStreamingRef.current;
-    prevIsStreamingRef.current = isStreaming;
-
-    // Detect streaming stop transition
-    if (wasStreaming && !isStreaming) {
-      // Mark that we recently stopped streaming
-      recentlyStoppedStreamRef.current = true;
-      // Clear the flag after a delay
-      const flagTimeout = setTimeout(() => {
-        recentlyStoppedStreamRef.current = false;
-      }, 500);
-
-      // Streaming just stopped - if there's a pending question for this chat,
-      // clear it after a brief delay (backend already handled the abort)
-      if (pendingQuestions) {
-        const timeout = setTimeout(() => {
-          // Re-check if still showing the same question (might have been cleared by other means)
-          setPendingQuestionsMap((current) => {
-            if (current.has(subChatId)) {
-              const newMap = new Map(current);
-              newMap.delete(subChatId);
-              return newMap;
-            }
-            return current;
-          });
-        }, 150); // Small delay to allow for race conditions with transport chunks
-        return () => {
-          clearTimeout(timeout);
-          clearTimeout(flagTimeout);
-        };
-      }
-      return () => clearTimeout(flagTimeout);
-    }
-  }, [isStreaming, subChatId, pendingQuestions, setPendingQuestionsMap]);
-
-  // Sync pending questions with messages state
-  // This handles: 1) restoring on chat switch, 2) clearing when question is answered/timed out
-  useEffect(() => {
-    // Check if there's a pending AskUserQuestion in the last assistant message
-    const pendingQuestionPart = lastAssistantMessage?.parts?.find(
-      (part: MessagePart) =>
-        part.type === "tool-AskUserQuestion" &&
-        part.state !== "output-available" &&
-        part.state !== "output-error" &&
-        part.state !== "result" &&
-        part.input?.questions,
-    ) as MessagePart | undefined;
-
-    // Helper to clear pending question for this subChat
-    const clearPendingQuestion = () => {
-      setPendingQuestionsMap((current) => {
-        if (current.has(subChatId)) {
-          const newMap = new Map(current);
-          newMap.delete(subChatId);
-          return newMap;
-        }
-        return current;
-      });
-    };
-
-    // If streaming and we already have a pending question for this chat, keep it
-    // (transport will manage it via chunks)
-    if (isStreaming && pendingQuestions) {
-      // But if the question in messages is already answered, clear the atom
-      if (!pendingQuestionPart) {
-        // Check if the specific toolUseId is now answered
-        const answeredPart = lastAssistantMessage?.parts?.find(
-          (part: any) =>
-            part.type === "tool-AskUserQuestion" &&
-            part.toolCallId === pendingQuestions.toolUseId &&
-            (part.state === "output-available" ||
-              part.state === "output-error" ||
-              part.state === "result"),
-        );
-        if (answeredPart) {
-          clearPendingQuestion();
-        }
-      }
-      return;
-    }
-
-    // Not streaming - DON'T restore pending questions from messages
-    // If stream is not active, the question is either:
-    // 1. Already answered (state would be "output-available")
-    // 2. Interrupted/aborted (should not show dialog)
-    // 3. Timed out (should not show dialog)
-    // We only show the question dialog during active streaming when
-    // the backend is waiting for user response.
-    if (pendingQuestionPart) {
-      // Don't restore - if there's an existing pending question for this chat, clear it
-      if (pendingQuestions) {
-        clearPendingQuestion();
-      }
-    } else {
-      // No pending question - clear if belongs to this sub-chat
-      if (pendingQuestions) {
-        clearPendingQuestion();
-      }
-    }
-  }, [
+  usePendingQuestionsSync({
     subChatId,
-    lastAssistantMessage,
     isStreaming,
     pendingQuestions,
     setPendingQuestionsMap,
-  ]);
+    lastAssistantMessage,
+  });
 
   // Question handling (answer, skip, submit with custom text)
   const {
@@ -2388,124 +2277,7 @@ export function ChatView({
   });
 
   // Track if we've initialized mode for this chatId to avoid overwriting user's mode changes
-  const initializedChatIdRef = useRef<string | null>(null);
-
-  // Initialize store when chat data loads
-  useEffect(() => {
-    if (!agentChat) return;
-
-    const store = useAgentSubChatStore.getState();
-    const isNewChat = store.chatId !== chatId;
-
-    // Only initialize if chatId changed
-    if (isNewChat) {
-      // 清除旧 workspace 的 Chat 缓存，防止旧的空 Chat 对象被复用
-      // 这修复了切换 workspace 后消息不显示的问题
-      const oldOpenIds = store.openSubChatIds;
-      for (const oldId of oldOpenIds) {
-        chatRegistry.unregister(oldId);
-      }
-
-      store.setChatId(chatId);
-      // 重置全局消息状态，防止旧的 currentSubChatIdAtom 导致 IsolatedMessagesSection 跳过渲染
-      appStore.set(currentSubChatIdAtom, "default");
-      // 不再清空 messageIdsAtom — syncMessagesWithStatusAtom 的 isFullReset 路径
-      // 会在新消息到达时正确处理全量替换，currentSubChatIdAtom="default" 的 guard
-      // 保证过渡期不会写入脏数据（message-store.ts:745）
-    }
-
-    // Re-get fresh state after setChatId may have loaded from localStorage
-    const freshState = useAgentSubChatStore.getState();
-
-    // Get sub-chats from DB (like Canvas - no isPersistedInDb flag)
-    // Build a map of existing local sub-chats to preserve their created_at if DB doesn't have it
-    const existingSubChatsMap = new Map(
-      freshState.allSubChats.map((sc) => [sc.id, sc]),
-    );
-
-    const dbSubChats: SubChatMeta[] = agentSubChats.map((sc) => {
-      const existingLocal = existingSubChatsMap.get(sc.id);
-      const createdAt =
-        typeof sc.created_at === "string"
-          ? sc.created_at
-          : sc.created_at?.toISOString();
-      const updatedAt =
-        typeof sc.updated_at === "string"
-          ? sc.updated_at
-          : sc.updated_at?.toISOString();
-      return {
-        id: sc.id,
-        name: sc.name || "New Chat",
-        // Prefer DB timestamp, fall back to local timestamp, then current time
-        created_at:
-          createdAt ?? existingLocal?.created_at ?? new Date().toISOString(),
-        updated_at: updatedAt ?? existingLocal?.updated_at,
-        mode:
-          (sc.mode as "plan" | "agent" | undefined) ||
-          existingLocal?.mode ||
-          "agent",
-      };
-    });
-    const dbSubChatIds = new Set(dbSubChats.map((sc) => sc.id));
-
-    // DB is the source of truth — archived sub-chats are already filtered out.
-    // New sub-chats are added to the store directly via addToAllSubChats + React Query setData
-    // at creation time, so no placeholder logic is needed here.
-    freshState.setAllSubChats(dbSubChats);
-
-    // Initialize atomFamily mode for each sub-chat from database
-    // IMPORTANT: Only do this when chatId changes (new chat loaded), not on every agentChat update
-    // This prevents overwriting user's mode changes when agentChat is invalidated/refetched
-    if (initializedChatIdRef.current !== chatId) {
-      initializedChatIdRef.current = chatId;
-      for (const sc of dbSubChats) {
-        if (sc.mode) {
-          appStore.set(subChatModeAtomFamily(sc.id), sc.mode);
-        }
-      }
-
-      // Initialize openSubChatIds from DB.
-      // DB already filters out archived sub-chats (via archived_at),
-      // so we trust DB as source of truth.
-      if (dbSubChats.length > 0) {
-        freshState.setOpenSubChats(dbSubChats.map((sc) => sc.id));
-      }
-    }
-
-    // Validate openSubChatIds — remove any IDs that no longer exist in DB
-    // (e.g. sub-chat was archived or deleted since last session)
-    const currentOpenIds = freshState.openSubChatIds;
-    const validOpenIds = currentOpenIds.filter((id) => dbSubChatIds.has(id));
-    if (validOpenIds.length !== currentOpenIds.length) {
-      freshState.setOpenSubChats(validOpenIds);
-    }
-
-    // Validate activeSubChatId
-    const currentActive = freshState.activeSubChatId;
-    if (!currentActive || !dbSubChatIds.has(currentActive)) {
-      // Pick the most recently updated sub-chat from open tabs, or from all DB sub-chats
-      const candidates =
-        validOpenIds.length > 0
-          ? (validOpenIds
-              .map((id) => dbSubChats.find((sc) => sc.id === id))
-              .filter(Boolean) as SubChatMeta[])
-          : dbSubChats;
-      if (candidates.length > 0) {
-        const latest = candidates.reduce((a, b) => {
-          const aTime = a.updated_at || a.created_at || "";
-          const bTime = b.updated_at || b.created_at || "";
-          return bTime > aTime ? b : a;
-        });
-        freshState.setActiveSubChat(latest.id);
-        // If no open tabs, also open this one
-        if (validOpenIds.length === 0) {
-          freshState.setOpenSubChats([latest.id]);
-        }
-      } else {
-        freshState.setActiveSubChat(null as unknown as string);
-      }
-    }
-  }, [agentChat, chatId]);
+  useInitializeSubChatStore(agentChat, chatId, agentSubChats);
 
   // Create or get Chat instance for a sub-chat
   const getOrCreateChat = useCallback(
@@ -2691,73 +2463,19 @@ export function ChatView({
         id: subChatId,
         messages,
         transport,
-        onError: () => {
-          // Clear loading state on error (matches onFinish behavior)
-          clearLoading(setLoadingSubChats, subChatId);
-
-          // Sync status to global store on error (allows queue to continue)
-          useStreamingStatusStore.getState().setStatus(subChatId, "ready");
-
-          // Show error notification with sound
-          notifyAgentError(agentChat?.name || "Agent");
-        },
-        // Clear loading when streaming completes (works even if component unmounted)
-        onFinish: () => {
-          clearLoading(setLoadingSubChats, subChatId);
-
-          // Sync status to global store for queue processing (even when component unmounted)
-          useStreamingStatusStore.getState().setStatus(subChatId, "ready");
-
-          // Check if this was a manual abort (ESC/Ctrl+C) - skip sound if so
-          const wasManuallyAborted = chatRegistry.wasManuallyAborted(subChatId);
-          chatRegistry.clearManuallyAborted(subChatId);
-
-          // Get CURRENT values at runtime (not stale closure values)
-          const currentActiveSubChatId =
-            useAgentSubChatStore.getState().activeSubChatId;
-          const currentSelectedChatId = appStore.get(selectedAgentChatIdAtom);
-
-          const isViewingThisSubChat = currentActiveSubChatId === subChatId;
-          const isViewingThisChat = currentSelectedChatId === chatId;
-
-          if (!isViewingThisSubChat) {
-            // Mark as unseen in both old atom and new persisted storage
-            setSubChatUnseenChanges((prev: Set<string>) => {
-              const next = new Set(prev);
-              next.add(subChatId);
-              return next;
-            });
-            markSubChatUnseen(setSubChatStatus, subChatId);
-          }
-
-          // Also mark parent chat as unseen if user is not viewing it
-          if (!isViewingThisChat) {
-            setUnseenChanges((prev: Set<string>) => {
-              const next = new Set(prev);
-              next.add(chatId);
-              return next;
-            });
-
-            // Play completion sound only if NOT manually aborted and sound is enabled
-            if (!wasManuallyAborted) {
-              const isSoundEnabled = appStore.get(
-                soundNotificationsEnabledAtom,
-              );
-              if (isSoundEnabled) {
-                playCompletionSound();
-              }
-
-              // Show native notification (desktop app, when window not focused)
-              notifyAgentComplete(agentChat?.name || "Agent");
-            }
-          }
-
-          // Refresh diff stats after agent finishes making changes
-          fetchDiffStatsRef.current();
-
-          // Note: sidebar timestamp update is handled via optimistic update in handleSend
-          // No need to refetch here as it would overwrite the optimistic update with stale data
-        },
+        ...createChatCallbacks({
+          subChatId,
+          chatId,
+          agentName: agentChat?.name || "Agent",
+          setLoadingSubChats,
+          setSubChatUnseenChanges,
+          setSubChatStatus,
+          setUnseenChanges,
+          notifyAgentComplete,
+          notifyAgentError,
+          fetchDiffStatsRef,
+          playCompletionSound,
+        }),
       });
 
       chatRegistry.register(
@@ -2911,70 +2629,19 @@ export function ChatView({
         id: newId,
         messages: [],
         transport,
-        onError: () => {
-          // Sync status to global store on error (allows queue to continue)
-          useStreamingStatusStore.getState().setStatus(newId, "ready");
-
-          // Show error notification with sound
-          notifyAgentError(agentChat?.name || "Agent");
-        },
-        // Clear loading when streaming completes
-        onFinish: () => {
-          clearLoading(setLoadingSubChats, newId);
-
-          // Sync status to global store for queue processing (even when component unmounted)
-          useStreamingStatusStore.getState().setStatus(newId, "ready");
-
-          // Check if this was a manual abort (ESC/Ctrl+C) - skip sound if so
-          const wasManuallyAborted = chatRegistry.wasManuallyAborted(newId);
-          chatRegistry.clearManuallyAborted(newId);
-
-          // Get CURRENT values at runtime (not stale closure values)
-          const currentActiveSubChatId =
-            useAgentSubChatStore.getState().activeSubChatId;
-          const currentSelectedChatId = appStore.get(selectedAgentChatIdAtom);
-
-          const isViewingThisSubChat = currentActiveSubChatId === newId;
-          const isViewingThisChat = currentSelectedChatId === chatId;
-
-          if (!isViewingThisSubChat) {
-            // Mark as unseen in both old atom and new persisted storage
-            setSubChatUnseenChanges((prev: Set<string>) => {
-              const next = new Set(prev);
-              next.add(newId);
-              return next;
-            });
-            markSubChatUnseen(setSubChatStatus, newId);
-          }
-
-          // Also mark parent chat as unseen if user is not viewing it
-          if (!isViewingThisChat) {
-            setUnseenChanges((prev: Set<string>) => {
-              const next = new Set(prev);
-              next.add(chatId);
-              return next;
-            });
-
-            // Play completion sound only if NOT manually aborted and sound is enabled
-            if (!wasManuallyAborted) {
-              const isSoundEnabled = appStore.get(
-                soundNotificationsEnabledAtom,
-              );
-              if (isSoundEnabled) {
-                playCompletionSound();
-              }
-
-              // Show native notification (desktop app, when window not focused)
-              notifyAgentComplete(agentChat?.name || "Agent");
-            }
-          }
-
-          // Refresh diff stats after agent finishes making changes
-          fetchDiffStatsRef.current();
-
-          // Note: sidebar timestamp update is handled via optimistic update in handleSend
-          // No need to refetch here as it would overwrite the optimistic update with stale data
-        },
+        ...createChatCallbacks({
+          subChatId: newId,
+          chatId,
+          agentName: agentChat?.name || "Agent",
+          setLoadingSubChats,
+          setSubChatUnseenChanges,
+          setSubChatStatus,
+          setUnseenChanges,
+          notifyAgentComplete,
+          notifyAgentError,
+          fetchDiffStatsRef,
+          playCompletionSound,
+        }),
       });
       chatRegistry.register(
         newId,
