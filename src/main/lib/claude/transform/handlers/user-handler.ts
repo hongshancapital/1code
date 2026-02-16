@@ -26,8 +26,7 @@ export class UserHandler {
       return;
     }
 
-    // DEBUG: 记录消息结构
-    log.info("[Transform DEBUG] User message:", {
+    log.debug("[transform] User message:", {
       tool_use_result: msg.tool_use_result,
       tool_use_result_type: typeof msg.tool_use_result,
       content_length: msg.message.content.length,
@@ -74,7 +73,7 @@ export class UserHandler {
       }
       output = output || block.content;
 
-      log.info("[Transform DEBUG] Tool output:", {
+      log.debug("[transform] Tool output:", {
         tool_use_id: block.tool_use_id,
         compositeId,
         output_type: typeof output,

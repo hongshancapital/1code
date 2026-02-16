@@ -37,14 +37,14 @@ export class StreamEventHandler {
 
     // 日志输出
     if (this.isUsingOllama) {
-      log.info(
+      log.debug(
         "[Ollama Transform] STREAM_EVENT:",
         event.type,
         "content_block:",
         event.content_block?.type,
       );
     } else {
-      log.info(
+      log.debug(
         "[transform] stream_event:",
         event.type,
         "delta:",
@@ -56,7 +56,7 @@ export class StreamEventHandler {
 
     // 警告：content_block_start 但无 type
     if (event.type === "content_block_start" && !event.content_block?.type) {
-      log.info(
+      log.warn(
         "[transform] WARNING: content_block_start with no type, full event:",
         JSON.stringify(event),
       );
@@ -69,10 +69,10 @@ export class StreamEventHandler {
 
       // 捕获 per-API-call input tokens
       const msgUsage = event.message?.usage;
-      transformLog.info("message_start usage:", JSON.stringify(msgUsage));
+      transformLog.debug("message_start usage:", JSON.stringify(msgUsage));
       if (msgUsage?.input_tokens) {
         this.stateManager.setLastApiCallInputTokens(msgUsage.input_tokens);
-        transformLog.info(
+        transformLog.debug(
           "Updated lastApiCallInputTokens:",
           msgUsage.input_tokens,
         );
@@ -82,7 +82,7 @@ export class StreamEventHandler {
     // ===== message_delta: 捕获 output tokens =====
     if (event.type === "message_delta" && event.usage?.output_tokens) {
       this.stateManager.setLastApiCallOutputTokens(event.usage.output_tokens);
-      transformLog.info(
+      transformLog.debug(
         "Updated lastApiCallOutputTokens:",
         event.usage.output_tokens,
       );
@@ -94,11 +94,11 @@ export class StreamEventHandler {
       event.content_block?.type === "text"
     ) {
       if (this.isUsingOllama) {
-        log.info(
+        log.debug(
           "[Ollama Transform] ✓ TEXT BLOCK START - Model is generating text!",
         );
       } else {
-        transformLog.info("TEXT BLOCK START");
+        transformLog.debug("TEXT BLOCK START");
       }
 
       // 结束工具流
@@ -114,12 +114,12 @@ export class StreamEventHandler {
       }
 
       if (this.isUsingOllama) {
-        log.info(
+        log.debug(
           "[Ollama Transform] textStarted set to TRUE, textId:",
           this.textTracker.getCurrentTextId(),
         );
       } else {
-        transformLog.info(
+        transformLog.debug(
           "textStarted set to TRUE, textId:",
           this.textTracker.getCurrentTextId(),
         );
@@ -131,14 +131,14 @@ export class StreamEventHandler {
       event.delta?.type === "text_delta"
     ) {
       if (this.isUsingOllama) {
-        log.info(
+        log.debug(
           "[Ollama Transform] ✓ TEXT DELTA received, length:",
           event.delta.text?.length,
           "preview:",
           event.delta.text?.slice(0, 50),
         );
       } else {
-        log.info(
+        log.debug(
           "[transform] TEXT DELTA, textStarted:",
           this.textTracker.getState().textStarted,
           "delta:",
@@ -224,12 +224,12 @@ export class StreamEventHandler {
     // ===== content_block_stop: 结束当前流 =====
     if (event.type === "content_block_stop") {
       if (this.isUsingOllama) {
-        log.info(
+        log.debug(
           "[Ollama Transform] CONTENT BLOCK STOP, textStarted:",
           this.textTracker.getState().textStarted,
         );
       } else {
-        log.info(
+        log.debug(
           "[transform] CONTENT BLOCK STOP, textStarted:",
           this.textTracker.getState().textStarted,
         );
@@ -246,7 +246,7 @@ export class StreamEventHandler {
       }
 
       if (this.isUsingOllama) {
-        log.info(
+        log.debug(
           "[Ollama Transform] after endTextBlock, textStarted:",
           this.textTracker.getState().textStarted,
         );

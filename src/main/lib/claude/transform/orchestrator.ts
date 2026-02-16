@@ -33,20 +33,20 @@ export class TransformOrchestrator {
   *process(msg: any): Generator<UIMessageChunk> {
     // DEBUG: 日志记录
     if (this.options.isUsingOllama) {
-      log.info(
+      log.debug(
         "[Ollama Transform] MSG:",
         msg.type,
         msg.subtype || "",
         msg.event?.type || "",
       );
       if (msg.type === "system") {
-        log.info(
+        log.debug(
           "[Ollama Transform] SYSTEM message full:",
           JSON.stringify(msg, null, 2),
         );
       }
       if (msg.type === "stream_event") {
-        log.info(
+        log.debug(
           "[Ollama Transform] STREAM_EVENT:",
           msg.event?.type,
           "content_block:",
@@ -54,13 +54,13 @@ export class TransformOrchestrator {
         );
       }
       if (msg.type === "assistant") {
-        log.info(
+        log.debug(
           "[Ollama Transform] ASSISTANT message, content blocks:",
           msg.message?.content?.length || 0,
         );
       }
     } else {
-      log.info(
+      log.debug(
         "[transform] MSG:",
         msg.type,
         msg.subtype || "",
@@ -110,8 +110,8 @@ export class TransformOrchestrator {
   private *handleResult(msg: any): Generator<UIMessageChunk> {
     // DEBUG: 日志 token 数据
     const transformLog = createLogger("TransformDetail");
-    transformLog.info("RESULT msg.usage:", JSON.stringify(msg.usage));
-    log.info("[transform] RESULT msg.modelUsage:", JSON.stringify(msg.modelUsage));
+    transformLog.debug("RESULT msg.usage:", JSON.stringify(msg.usage));
+    log.debug("[transform] RESULT msg.modelUsage:", JSON.stringify(msg.modelUsage));
 
     const inputTokens = msg.usage?.input_tokens;
     const outputTokens = msg.usage?.output_tokens;
@@ -135,7 +135,7 @@ export class TransformOrchestrator {
     const lastCallInputTokens = this.stateManager.getLastApiCallInputTokens();
     const lastCallOutputTokens = this.stateManager.getLastApiCallOutputTokens();
 
-    transformLog.info("Building metadata with lastCall tokens:", {
+    transformLog.debug("Building metadata with lastCall tokens:", {
       lastCallInputTokens,
       lastCallOutputTokens,
       inputTokens,
@@ -161,7 +161,7 @@ export class TransformOrchestrator {
       lastCallOutputTokens: lastCallOutputTokens || undefined,
     };
 
-    transformLog.info("Emitting message-metadata:", JSON.stringify(metadata));
+    transformLog.debug("Emitting message-metadata:", JSON.stringify(metadata));
 
     yield { type: "message-metadata", messageMetadata: metadata };
     yield { type: "finish-step" };

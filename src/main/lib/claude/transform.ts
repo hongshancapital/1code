@@ -134,20 +134,20 @@ export function createTransformer(options?: {
   return function* transform(msg: any): Generator<UIMessageChunk> {
     // Debug: log ALL message types to understand what SDK sends
     if (isUsingOllama) {
-      log.info(
+      log.debug(
         "[Ollama Transform] MSG:",
         msg.type,
         msg.subtype || "",
         msg.event?.type || "",
       );
       if (msg.type === "system") {
-        log.info(
+        log.debug(
           "[Ollama Transform] SYSTEM message full:",
           JSON.stringify(msg, null, 2),
         );
       }
       if (msg.type === "stream_event") {
-        log.info(
+        log.debug(
           "[Ollama Transform] STREAM_EVENT:",
           msg.event?.type,
           "content_block:",
@@ -155,20 +155,20 @@ export function createTransformer(options?: {
         );
       }
       if (msg.type === "assistant") {
-        log.info(
+        log.debug(
           "[Ollama Transform] ASSISTANT message, content blocks:",
           msg.message?.content?.length || 0,
         );
       }
     } else {
-      log.info(
+      log.debug(
         "[transform] MSG:",
         msg.type,
         msg.subtype || "",
         msg.event?.type || "",
       );
       if (msg.type === "system") {
-        transformLog.info("SYSTEM message:", msg.subtype, msg);
+        transformLog.debug("SYSTEM message:", msg.subtype, msg);
       }
     }
 
@@ -196,17 +196,17 @@ export function createTransformer(options?: {
       // for that specific API call (= current context window size).
       // The LAST one reflects the final context size.
       const msgUsage = msg.event?.message?.usage;
-      transformLog.info("message_start usage:", JSON.stringify(msgUsage));
+      transformLog.debug("message_start usage:", JSON.stringify(msgUsage));
       if (msgUsage?.input_tokens) {
         lastApiCallInputTokens = msgUsage.input_tokens;
-        transformLog.info("Updated lastApiCallInputTokens:", lastApiCallInputTokens);
+        transformLog.debug("Updated lastApiCallInputTokens:", lastApiCallInputTokens);
       }
     }
 
     // ===== STREAMING EVENTS (token-by-token) =====
     if (msg.type === "stream_event") {
       const event = msg.event;
-      log.info(
+      log.debug(
         "[transform] stream_event:",
         event?.type,
         "delta:",
@@ -219,8 +219,8 @@ export function createTransformer(options?: {
         event?.type === "content_block_start" &&
         !event?.content_block?.type
       ) {
-        log.info(
-          "[transform] WARNING: content_block_start with no type, full event:",
+        log.warn(
+          "[transform] content_block_start with no type, full event:",
           JSON.stringify(event),
         );
       }
@@ -232,11 +232,11 @@ export function createTransformer(options?: {
         event.content_block?.type === "text"
       ) {
         if (isUsingOllama) {
-          log.info(
+          log.debug(
             "[Ollama Transform] ✓ TEXT BLOCK START - Model is generating text!",
           );
         } else {
-          transformLog.info("TEXT BLOCK START");
+          transformLog.debug("TEXT BLOCK START");
         }
         yield* endTextBlock();
         yield* endToolInput();
@@ -244,12 +244,12 @@ export function createTransformer(options?: {
         yield { type: "text-start", id: textId };
         textStarted = true;
         if (isUsingOllama) {
-          log.info(
+          log.debug(
             "[Ollama Transform] textStarted set to TRUE, textId:",
             textId,
           );
         } else {
-          transformLog.info("textStarted set to TRUE, textId:", textId);
+          transformLog.debug("textStarted set to TRUE, textId:", textId);
         }
       }
 
@@ -259,14 +259,14 @@ export function createTransformer(options?: {
         event.delta?.type === "text_delta"
       ) {
         if (isUsingOllama) {
-          log.info(
+          log.debug(
             "[Ollama Transform] ✓ TEXT DELTA received, length:",
             event.delta.text?.length,
             "preview:",
             event.delta.text?.slice(0, 50),
           );
         } else {
-          log.info(
+          log.debug(
             "[transform] TEXT DELTA, textStarted:",
             textStarted,
             "delta:",
@@ -289,12 +289,12 @@ export function createTransformer(options?: {
       // Content block stop
       if (event.type === "content_block_stop") {
         if (isUsingOllama) {
-          log.info(
+          log.debug(
             "[Ollama Transform] CONTENT BLOCK STOP, textStarted:",
             textStarted,
           );
         } else {
-          log.info(
+          log.debug(
             "[transform] CONTENT BLOCK STOP, textStarted:",
             textStarted,
           );
@@ -302,12 +302,12 @@ export function createTransformer(options?: {
         if (textStarted) {
           yield* endTextBlock();
           if (isUsingOllama) {
-            log.info(
+            log.debug(
               "[Ollama Transform] Text block ended, textStarted now:",
               textStarted,
             );
           } else {
-            log.info(
+            log.debug(
               "[transform] after endTextBlock, textStarted:",
               textStarted,
             );
@@ -407,7 +407,7 @@ export function createTransformer(options?: {
       // Anthropic API sends output_tokens in message_delta at the end of each response.
       if (event.type === "message_delta" && event.usage?.output_tokens) {
         lastApiCallOutputTokens = event.usage.output_tokens;
-        transformLog.info("Updated lastApiCallOutputTokens:", lastApiCallOutputTokens);
+        transformLog.debug("Updated lastApiCallOutputTokens:", lastApiCallOutputTokens);
       }
     }
 
@@ -444,7 +444,7 @@ export function createTransformer(options?: {
         }
 
         if (block.type === "text") {
-          log.info(
+          log.debug(
             "[transform] ASSISTANT TEXT block, textStarted:",
             textStarted,
             "text length:",
@@ -455,7 +455,7 @@ export function createTransformer(options?: {
           // Only emit text if we're NOT already streaming (textStarted = false)
           // When includePartialMessages is true, text comes via stream_event
           if (!textStarted) {
-            log.info(
+            log.debug(
               "[transform] EMITTING assistant text (textStarted was false)",
             );
             textId = genId();
@@ -466,7 +466,7 @@ export function createTransformer(options?: {
             lastTextId = textId;
             textId = null;
           } else {
-            log.info(
+            log.debug(
               "[transform] SKIPPING assistant text (textStarted is true)",
             );
           }
@@ -479,7 +479,7 @@ export function createTransformer(options?: {
 
           // Skip if already emitted via streaming
           if (emittedToolIds.has(block.id)) {
-            log.info(
+            log.debug(
               "[transform] SKIPPING duplicate tool_use (already emitted via streaming):",
               block.id,
             );
@@ -515,7 +515,7 @@ export function createTransformer(options?: {
       Array.isArray(msg.message.content)
     ) {
       // DEBUG: Log the message structure to understand tool_use_result
-      log.info("[Transform DEBUG] User message:", {
+      log.debug("[Transform DEBUG] User message:", {
         tool_use_result: msg.tool_use_result,
         tool_use_result_type: typeof msg.tool_use_result,
         content_length: msg.message.content.length,
@@ -557,7 +557,7 @@ export function createTransformer(options?: {
             }
             output = output || block.content;
 
-            log.info("[Transform DEBUG] Tool output:", {
+            log.debug("[Transform DEBUG] Tool output:", {
               tool_use_id: block.tool_use_id,
               compositeId,
               output_type: typeof output,
@@ -623,7 +623,7 @@ export function createTransformer(options?: {
                   }
                 }
               }
-              log.info(
+              log.debug(
                 "[Transform] Background task outputFile extraction:",
                 {
                   contentType: typeof block.content,
@@ -660,7 +660,7 @@ export function createTransformer(options?: {
     // ===== SYSTEM STATUS (compacting, etc.) =====
     if (msg.type === "system") {
       // Debug: log all system message subtypes
-      log.info(
+      log.debug(
         "[transform] SYSTEM subtype:",
         msg.subtype,
         "full msg:",
@@ -669,7 +669,7 @@ export function createTransformer(options?: {
 
       // Session init - extract MCP servers, plugins, tools
       if (msg.subtype === "init") {
-        log.info("[MCP Transform] Received SDK init message:", {
+        log.debug("[MCP Transform] Received SDK init message:", {
           tools: msg.tools?.length,
           mcp_servers: msg.mcp_servers,
           plugins: msg.plugins,
@@ -726,7 +726,7 @@ export function createTransformer(options?: {
       // Task notification - background task status update (completed/failed/stopped)
       // Note: SDKTaskNotificationMessage doesn't have shell_id, use task_id as shellId
       if (msg.subtype === "task_notification") {
-        transformLog.info("Task notification received:", {
+        transformLog.debug("Task notification received:", {
           task_id: msg.task_id,
           status: msg.status,
           output_file: msg.output_file,
@@ -749,8 +749,8 @@ export function createTransformer(options?: {
       yield* endToolInput();
 
       // Debug: log the raw result message to understand token data structure
-      transformLog.info("RESULT msg.usage:", JSON.stringify(msg.usage));
-      log.info(
+      transformLog.debug("RESULT msg.usage:", JSON.stringify(msg.usage));
+      log.debug(
         "[transform] RESULT msg.modelUsage:",
         JSON.stringify(msg.modelUsage),
       );
@@ -776,7 +776,7 @@ export function createTransformer(options?: {
           )
         : undefined;
 
-      transformLog.info("Building metadata with lastCall tokens:", {
+      transformLog.debug("Building metadata with lastCall tokens:", {
         lastApiCallInputTokens,
         lastApiCallOutputTokens,
         inputTokens,
@@ -800,7 +800,7 @@ export function createTransformer(options?: {
         lastCallInputTokens: lastApiCallInputTokens || undefined,
         lastCallOutputTokens: lastApiCallOutputTokens || undefined,
       };
-      transformLog.info("Emitting message-metadata:", JSON.stringify(metadata));
+      transformLog.debug("Emitting message-metadata:", JSON.stringify(metadata));
       yield { type: "message-metadata", messageMetadata: metadata };
       yield { type: "finish-step" };
       yield { type: "finish", messageMetadata: metadata };

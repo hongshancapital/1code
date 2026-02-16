@@ -18,7 +18,7 @@ export class SystemHandler {
 
   *handle(msg: any): Generator<UIMessageChunk> {
     // DEBUG: 记录所有 system 消息
-    log.info(
+    log.debug(
       "[transform] SYSTEM subtype:",
       msg.subtype,
       "full msg:",
@@ -27,7 +27,7 @@ export class SystemHandler {
 
     // ===== SESSION INIT =====
     if (msg.subtype === "init") {
-      log.info("[MCP Transform] Received SDK init message:", {
+      log.debug("[MCP Transform] Received SDK init message:", {
         tools: msg.tools?.length,
         mcp_servers: msg.mcp_servers,
         plugins: msg.plugins,
@@ -96,7 +96,7 @@ export class SystemHandler {
 
     // ===== TASK NOTIFICATION =====
     if (msg.subtype === "task_notification") {
-      transformLog.info("Task notification received:", {
+      transformLog.debug("Task notification received:", {
         task_id: msg.task_id,
         status: msg.status,
         output_file: msg.output_file,

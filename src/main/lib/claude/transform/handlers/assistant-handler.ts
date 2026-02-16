@@ -50,7 +50,7 @@ export class AssistantHandler {
 
       // ===== TEXT BLOCK =====
       if (block.type === "text") {
-        log.info(
+        log.debug(
           "[transform] ASSISTANT TEXT block, textStarted:",
           this.textTracker.getState().textStarted,
           "text length:",
@@ -66,7 +66,7 @@ export class AssistantHandler {
         // 只在未流式发射时才发射文本
         // (当 includePartialMessages=true 时，text 已通过 stream_event 发射)
         if (!this.textTracker.getState().textStarted) {
-          log.info("[transform] EMITTING assistant text (textStarted was false)");
+          log.debug("[transform] EMITTING assistant text (textStarted was false)");
 
           const textId = genId();
           yield { type: "text-start", id: textId };
@@ -76,7 +76,7 @@ export class AssistantHandler {
           // 更新 lastTextId
           this.stateManager.setLastTextId(textId);
         } else {
-          log.info("[transform] SKIPPING assistant text (textStarted is true)");
+          log.debug("[transform] SKIPPING assistant text (textStarted is true)");
         }
       }
 
@@ -94,7 +94,7 @@ export class AssistantHandler {
 
         // 跳过已流式发射的工具
         if (this.idManager.isEmitted(block.id)) {
-          log.info(
+          log.debug(
             "[transform] SKIPPING duplicate tool_use (already emitted via streaming):",
             block.id,
           );

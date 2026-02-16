@@ -81,6 +81,7 @@ function pushToRingBuffer(entry: LogEntry): void {
  */
 export function initializeLogger(): void {
   // -- File transport (daily log files) --
+  log.transports.file.level = "info" // debug 级别不写入文件
   log.transports.file.maxSize = 5 * 1024 * 1024 // 5MB per file
   log.transports.file.format =
     "[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}]{scope} {text}"
@@ -113,6 +114,19 @@ export function initializeLogger(): void {
   // -- Console transport --
   log.transports.console.format =
     "[{h}:{i}:{s}.{ms}] [{level}]{scope} {text}"
+
+  // Guard against EIO errors when stdout/stderr pipe is broken.
+  // Without this, a write failure triggers uncaughtException → log.error → writeFn → EIO → infinite loop.
+  const originalWriteFn = log.transports.console.writeFn
+  let consoleWriteSuppressed = false
+  log.transports.console.writeFn = (msg: any) => {
+    if (consoleWriteSuppressed) return
+    try {
+      originalWriteFn(msg)
+    } catch {
+      consoleWriteSuppressed = true
+    }
+  }
 
   // -- Sentry transport (custom) --
   const sentryTransport = (message: log.LogMessage) => {

@@ -80,7 +80,7 @@ export class BashEnhancer implements ToolEnhancer {
         }
       }
 
-      log.info("Background task outputFile extraction:", {
+      log.debug("Background task outputFile extraction:", {
         contentType: typeof context.rawContent,
         isArray: Array.isArray(context.rawContent),
         extractedPath: outputFile,
