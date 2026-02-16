@@ -1,48 +1,48 @@
-# 为 src/main 增加标准 lint 约束
+# Bug 修复：新建 subchat 显示旧消息
 
-## 现状分析
+## 问题
 
-项目使用 **oxlint** (v1.43.0) 作为 linter，当前配置 `oxlintrc.json` 只有 3 条 React 规则，
-对 `src/main`（218 个 TS 文件，Electron 主进程代码）完全无效。
+在 subchat sidebar 中点击"+"创建新 subchat 时，新 tab 的消息区域显示了上一个 subchat 的消息内容，而不是空白。
 
-现有 64 个 warning（全是 `no-unused-vars`），0 error。
+## 根因
 
-## 方案
+文件：`src/renderer/features/agents/main/active-chat.tsx`
 
-### 配置更新 — `oxlintrc.json`
+`getOrCreateChat` 函数（第 2582-2583 行）在为**新创建的 subchat** 创建 Chat 对象时，使用了 `subChatMessagesData?.parsedMessages` 作为初始消息。
 
-为 `src/main` 增加以下约束级别：
+问题在于 React Query 配置了 `placeholderData: (prev) => prev`（第 2006 行）。当 `activeSubChatId` 切换到新 subchat 时，React Query 发起新查询（`{ id: newSubChatId }`），但在新查询返回前，`subChatMessagesData` **仍然是旧 subchat 的消息数据**（占位数据）。
 
-**启用分类（deny = error）：**
-- `correctness` — 已默认开启，保持
-- `suspicious` — 可疑代码检测（如 `preserve-caught-error` 等 20 处）
-- `perf` — 性能问题（主要是 `no-await-in-loop` 150 处，需要逐一评估）
+`getOrCreateChat` 的条件检查 `subChatMessagesData?.parsedMessages && subChatId === activeSubChatId` 在此时为 true（两者都是新 ID），所以**旧消息被错误地用于初始化新 Chat 对象**。
 
-**启用规则（挑选 style 中有价值的）：**
-- `prefer-const` — warn
-- `no-duplicate-imports` — error
-- `no-template-curly-in-string` — warn
+触发路径：`agents-subchats-sidebar.tsx` 的 `handleCreateNew` 不主动创建 Chat 对象，依赖 `getOrCreateChat` 延迟创建 → `getOrCreateChat` 用 placeholderData 中的旧消息创建了 Chat。
 
-**TypeScript 特化规则（typescript plugin 默认开启）：**
-- `@typescript-eslint/no-explicit-any` — error（配合之前的类型强化）
-- `@typescript-eslint/no-non-null-assertion` — warn
-- `@typescript-eslint/consistent-type-imports` — warn
+## 修复方案
 
-**抑制不适合的规则：**
-- `no-await-in-loop` — warn（大量 streaming/for-await 场景属合理使用，降为 warn）
+从 `useQuery` 解构 `isPlaceholderData`，在 `getOrCreateChat` 使用 `subChatMessagesData` 之前增加 `!isPlaceholderData` 检查。
 
-### 新增 lint scripts
+### 改动点
 
-- `lint:main` — 专门 lint src/main（带 TypeScript 插件 + import 插件）
-- `lint:main:fix` — 自动修复
+**文件：`src/renderer/features/agents/main/active-chat.tsx`**
 
-### 修复工作
+1. **第 1999 行**：从 `useQuery` 结果中解构 `isPlaceholderData`
+   ```typescript
+   // 改前
+   const { data: subChatMessagesData, isLoading: isLoadingMessages } =
+   // 改后
+   const { data: subChatMessagesData, isLoading: isLoadingMessages, isPlaceholderData } =
+   ```
 
-先修复所有 error 级别问题：
-- 63 个 `no-unused-vars`（删除死代码/未使用导入）
-- 20 个 `preserve-caught-error`（catch 块空变量 → 使用或命名为 _）
-- 1 个 `no-useless-escape`
-- 7 个 `no-duplicate-imports`
-- 7 个 `prefer-const`
+2. **第 2549 行和第 2583 行**：在条件中增加 `!isPlaceholderData` 检查
+   ```typescript
+   // 改前 (第 2549 行)
+   const hasNewMessages = subChatMessagesData?.parsedMessages && subChatId === activeSubChatId;
+   // 改后
+   const hasNewMessages = subChatMessagesData?.parsedMessages && subChatId === activeSubChatId && !isPlaceholderData;
 
-总计约 98 处需修复。
+   // 改前 (第 2583 行)
+   if (subChatMessagesData?.parsedMessages && subChatId === activeSubChatId) {
+   // 改后
+   if (subChatMessagesData?.parsedMessages && subChatId === activeSubChatId && !isPlaceholderData) {
+   ```
+
+3. **`getOrCreateChat` 依赖列表**：增加 `isPlaceholderData`
