@@ -40,8 +40,13 @@ export {
   generateEmbeddings,
   preloadEmbeddingModel,
   isEmbeddingReady,
+  isModelDownloaded,
+  getModelStatus,
+  ensureModelDownloaded,
+  clearModelCache,
   EMBEDDING_MODEL,
   EMBEDDING_DIMENSION,
+  type EmbeddingModelStatus,
 } from "./embeddings"
 
 // Hybrid search

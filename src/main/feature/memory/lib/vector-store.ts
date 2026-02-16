@@ -7,7 +7,7 @@ import * as lancedb from "@lancedb/lancedb"
 import { app } from "electron"
 import path from "path"
 import fs from "fs"
-import { generateEmbedding, EMBEDDING_DIMENSION, EMBEDDING_MODEL } from "./embeddings"
+import { generateEmbedding, getEmbeddingPipeline, EMBEDDING_DIMENSION, EMBEDDING_MODEL } from "./embeddings"
 import { createLogger } from "../../../lib/logger"
 
 const vectorStoreLog = createLogger("VectorStore")
@@ -17,6 +17,9 @@ const vectorStoreLog = createLogger("VectorStore")
 let db: lancedb.Connection | null = null
 let observationsTable: lancedb.Table | null = null
 let initPromise: Promise<void> | null = null
+let lastInitError: string | null = null
+let consecutiveFailures = 0
+let retryTimer: ReturnType<typeof setTimeout> | null = null
 
 // Queue for async embedding generation
 interface EmbeddingQueueItem {
@@ -32,12 +35,35 @@ const MAX_RETRY_COUNT = 2
 
 const embeddingQueue: EmbeddingQueueItem[] = []
 let isProcessingQueue = false
+let queueRetryTimer: ReturnType<typeof setTimeout> | null = null
+const QUEUE_RETRY_DELAY_MS = 15_000
+
+/**
+ * Schedule a delayed retry for processQueue when infrastructure is not ready.
+ */
+function scheduleQueueRetry(): void {
+  if (queueRetryTimer || embeddingQueue.length === 0) return
+  vectorStoreLog.info(`Scheduling queue retry in ${QUEUE_RETRY_DELAY_MS / 1000}s`)
+  queueRetryTimer = setTimeout(() => {
+    queueRetryTimer = null
+    processQueue().catch(() => {})
+  }, QUEUE_RETRY_DELAY_MS)
+  if (queueRetryTimer.unref) queueRetryTimer.unref()
+}
 
 /**
  * Get the LanceDB database path
  */
 function getDbPath(): string {
   return path.join(app.getPath("userData"), "data", "memory-vectors")
+}
+
+/**
+ * Check if vector store is ready (already initialized)
+ * Returns true if db and table are ready, false otherwise
+ */
+export function isVectorStoreReady(): boolean {
+  return db !== null && observationsTable !== null
 }
 
 /**
@@ -109,12 +135,36 @@ export async function initVectorStore(): Promise<void> {
       }
 
       vectorStoreLog.info("Initialized successfully")
+      consecutiveFailures = 0
     } catch (error) {
       // 初始化失败时重置状态，允许下次重试
       db = null
       observationsTable = null
       initPromise = null
-      vectorStoreLog.error("Initialization failed:", error)
+      consecutiveFailures++
+      lastInitError = error instanceof Error ? error.message : String(error)
+      vectorStoreLog.error(`Initialization failed (attempt ${consecutiveFailures}):`, error)
+
+      // 指数退避自动重试：5s → 10s → 20s → 40s → 60s(封顶)
+      const delayMs = Math.min(5_000 * Math.pow(2, consecutiveFailures - 1), 60_000)
+      vectorStoreLog.info(`Scheduling auto-retry in ${delayMs / 1000}s`)
+      if (retryTimer) clearTimeout(retryTimer)
+      retryTimer = setTimeout(() => {
+        retryTimer = null
+        initVectorStore()
+          .then(() => {
+            // 恢复成功，排空积压的 embedding 队列
+            if (embeddingQueue.length > 0) {
+              vectorStoreLog.info(`Recovery succeeded, draining ${embeddingQueue.length} queued items`)
+              processQueue().catch(() => {})
+            }
+          })
+          .catch(() => {
+            // 重试失败会再次进入此处，继续退避
+          })
+      }, delayMs)
+      if (retryTimer.unref) retryTimer.unref()
+
       throw error
     }
   })()
@@ -174,16 +224,32 @@ export function queueForEmbedding(
 }
 
 /**
- * Process the embedding queue
+ * Process the embedding queue.
+ * 两阶段：先确保基础设施就绪（vector store + embedding model），再逐条处理。
+ * 基础设施未就绪时保留队列等恢复，不消耗 item 重试次数。
  */
 async function processQueue(): Promise<void> {
   if (isProcessingQueue || embeddingQueue.length === 0) return
 
   isProcessingQueue = true
 
+  // Phase 1: 确保 vector store 和 embedding pipeline 都就绪
   try {
     await initVectorStore()
+    await getEmbeddingPipeline()
+  } catch (error) {
+    isProcessingQueue = false
+    vectorStoreLog.warn(
+      `Infrastructure not ready (${embeddingQueue.length} items queued):`,
+      error instanceof Error ? error.message : error,
+    )
+    // 安排延迟重试，等基础设施恢复后排空队列
+    scheduleQueueRetry()
+    return
+  }
 
+  // Phase 2: 基础设施就绪，处理队列（isProcessingQueue 保持 true，无竞态窗口）
+  try {
     while (embeddingQueue.length > 0) {
       const item = embeddingQueue.shift()
       if (!item) continue
@@ -200,13 +266,13 @@ async function processQueue(): Promise<void> {
         const retries = item.retryCount ?? 0
         if (retries < MAX_RETRY_COUNT) {
           vectorStoreLog.warn(
-            `[VectorStore] Failed to process item ${item.id} (retry ${retries + 1}/${MAX_RETRY_COUNT}):`,
+            `Failed to process item ${item.id} (retry ${retries + 1}/${MAX_RETRY_COUNT}):`,
             error,
           )
           embeddingQueue.push({ ...item, retryCount: retries + 1 })
         } else {
           vectorStoreLog.error(
-            `[VectorStore] Permanently failed to process item ${item.id} after ${MAX_RETRY_COUNT} retries:`,
+            `Permanently failed to process item ${item.id} after ${MAX_RETRY_COUNT} retries:`,
             error,
           )
         }
@@ -319,18 +385,22 @@ export async function deleteProjectObservations(
 export async function getStats(): Promise<{
   totalVectors: number
   isReady: boolean
+  status: "ready" | "initializing" | "failed"
+  error?: string
 }> {
   try {
     await initVectorStore()
     if (!observationsTable) {
-      return { totalVectors: 0, isReady: false }
+      return { totalVectors: 0, isReady: false, status: "failed", error: "Table not created" }
     }
 
     const count = await observationsTable.countRows()
-    return { totalVectors: count, isReady: true }
+    lastInitError = null
+    return { totalVectors: count, isReady: true, status: "ready" }
   } catch (error) {
     vectorStoreLog.error("getStats error:", error)
-    return { totalVectors: 0, isReady: false }
+    const errorMsg = lastInitError || (error instanceof Error ? error.message : String(error))
+    return { totalVectors: 0, isReady: false, status: "failed", error: errorMsg }
   }
 }
 
@@ -342,6 +412,34 @@ export async function rebuildIndex(projectId: string): Promise<void> {
   // This would require re-reading from SQLite and re-embedding
   // For now, just log - full implementation in Phase 3
   vectorStoreLog.info(`Rebuild index requested for project: ${projectId}`)
+}
+
+/**
+ * Reset module state and immediately retry initialization.
+ * Does NOT delete the database — data may be temporarily locked, not corrupted.
+ */
+export async function resetVectorStore(): Promise<void> {
+  vectorStoreLog.info("Resetting vector store state and retrying initialization")
+
+  // Cancel pending timers
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  if (queueRetryTimer) {
+    clearTimeout(queueRetryTimer)
+    queueRetryTimer = null
+  }
+
+  // Clear module state
+  db = null
+  observationsTable = null
+  initPromise = null
+  lastInitError = null
+  consecutiveFailures = 0
+
+  // Immediately retry
+  await initVectorStore()
 }
 
 /**

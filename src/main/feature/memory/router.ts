@@ -17,7 +17,8 @@ import {
 import { eq, desc, and, sql, count } from "drizzle-orm"
 import type { Observation } from "../../lib/db/schema"
 import { hybridSearch, findRelated } from "./lib/hybrid-search"
-import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding } from "./lib/vector-store"
+import { getStats as getVectorStats, deleteProjectObservations, queueForEmbedding, resetVectorStore as resetVectorStoreImpl } from "./lib/vector-store"
+import { getModelStatus, ensureModelDownloaded, isEmbeddingReady, clearModelCache } from "./lib/embeddings"
 import { parseToolToObservation, buildObservationText } from "./lib/observation-parser"
 import { createLogger } from "../../lib/logger"
 
@@ -420,12 +421,19 @@ export const memoryRouter = router({
       const promptCount = db.select({ count: count() }).from(userPrompts).get()
 
       // Get vector store stats
-      let vectorStats = { totalVectors: 0, isReady: false }
+      let vectorStats: { totalVectors: number; isReady: boolean; status: string; error?: string } = {
+        totalVectors: 0,
+        isReady: false,
+        status: "initializing",
+      }
       try {
         vectorStats = await getVectorStats()
       } catch {
-        // Vector store not initialized yet
+        vectorStats = { totalVectors: 0, isReady: false, status: "failed", error: "Unexpected error" }
       }
+
+      // Get embedding model status
+      const modelStatus = getModelStatus()
 
       return {
         observations: obsCount?.count || 0,
@@ -433,6 +441,12 @@ export const memoryRouter = router({
         prompts: promptCount?.count || 0,
         vectors: vectorStats.totalVectors,
         vectorStoreReady: vectorStats.isReady,
+        vectorStoreStatus: vectorStats.status as "ready" | "initializing" | "failed",
+        vectorStoreError: vectorStats.error,
+        embeddingModelStatus: modelStatus.status,
+        embeddingModelProgress: modelStatus.progress,
+        embeddingModelError: modelStatus.error,
+        embeddingModelName: modelStatus.modelName,
       }
     }),
 
@@ -492,6 +506,43 @@ export const memoryRouter = router({
     // Clear entire vector store
     const { clearAll } = await import("./lib/vector-store")
     await clearAll().catch(console.error)
+    return { success: true }
+  }),
+
+  /**
+   * Reset vector store (delete and reinitialize)
+   */
+  resetVectorStore: publicProcedure.mutation(async () => {
+    memoryLog.info("Resetting vector store...")
+    await resetVectorStoreImpl()
+    return { success: true }
+  }),
+
+  /**
+   * Trigger embedding model download (fire-and-forget).
+   * Poll getStats for progress via embeddingModelStatus/embeddingModelProgress.
+   */
+  downloadModel: publicProcedure.mutation(async () => {
+    // Guard: skip if already ready or in progress
+    const status = getModelStatus()
+    if (isEmbeddingReady() || status.status === "downloading") {
+      return { success: true, skipped: true }
+    }
+    memoryLog.info("Triggering embedding model download...")
+    // Don't await — let it download in background, caller polls getStats
+    ensureModelDownloaded().catch((err) => {
+      memoryLog.error("Model download failed:", err)
+    })
+    return { success: true }
+  }),
+
+  /**
+   * Clear embedding model cache (for debugging).
+   * Deletes downloaded model files and resets pipeline state.
+   */
+  clearModelCache: publicProcedure.mutation(() => {
+    memoryLog.info("Clearing embedding model cache...")
+    clearModelCache()
     return { success: true }
   }),
 

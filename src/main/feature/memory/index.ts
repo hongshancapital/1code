@@ -17,6 +17,7 @@ import type {
 import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { memoryHooks } from "./lib/hooks"
 import { setSummaryModelConfig } from "./lib/summarizer"
+import { isModelDownloaded, ensureModelDownloaded } from "./lib/embeddings"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
 import { eq, desc } from "drizzle-orm"
 import { memoryRouter } from "./router"
@@ -155,20 +156,48 @@ class MemoryExtension implements ExtensionModule {
         if (payload.memoryEnabled === false || !payload.projectId)
           return payload
 
-        const memorySection = await buildMemoryContext(
-          payload.projectId,
-          payload.prompt,
-        )
-        if (memorySection) {
-          return {
-            ...payload,
-            appendSections: [...payload.appendSections, memorySection],
+        try {
+          // 给整个 buildMemoryContext 加超时保护（15秒），防止卡死整个 chat 流程
+          const ENHANCE_TIMEOUT_MS = 15_000
+          const contextPromise = buildMemoryContext(
+            payload.projectId,
+            payload.prompt,
+          )
+          const timeoutPromise = new Promise<undefined>((_, reject) => {
+            const timer = setTimeout(
+              () => reject(new Error("Memory context build timed out")),
+              ENHANCE_TIMEOUT_MS,
+            )
+            if (timer.unref) timer.unref()
+          })
+
+          const memorySection = await Promise.race([contextPromise, timeoutPromise])
+          if (memorySection) {
+            return {
+              ...payload,
+              appendSections: [...payload.appendSections, memorySection],
+            }
           }
+        } catch (err) {
+          memoryLog.warn("[EnhancePrompt] Failed to build memory context, skipping:", err)
         }
+
         return payload
       },
       { source: this.name, priority: 50 },
     )
+
+    // 异步检查并预加载 embedding 模型（不阻塞启动）
+    setTimeout(() => {
+      if (!isModelDownloaded()) {
+        memoryLog.info("Embedding model not found, starting background download...")
+      } else {
+        memoryLog.info("Embedding model found, preloading pipeline...")
+      }
+      ensureModelDownloaded().catch((err) => {
+        memoryLog.warn("Background model preload failed (will retry on demand):", err)
+      })
+    }, 5_000) // 延迟 5 秒，等其他启动任务完成
 
     return () => {
       offSessionStart()
@@ -211,32 +240,43 @@ async function buildMemoryContext(
     const userPrompt = prompt?.trim()
     if (userPrompt && userPrompt.length > 5) {
       try {
-        const { hybridSearch } = await import("./lib/hybrid-search")
+        // 检查 vector store 是否就绪，避免首次初始化时阻塞
+        const { isVectorStoreReady } = await import("./lib/vector-store")
 
-        // 给 hybridSearch 加超时保护，防止 vector store 初始化阻塞
-        const SEARCH_TIMEOUT_MS = 10_000
-        const searchPromise = hybridSearch({
-          query: userPrompt,
-          projectId,
-          type: "observations",
-          limit: 15,
-        })
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          const timer = setTimeout(
-            () => reject(new Error("Hybrid search timed out")),
-            SEARCH_TIMEOUT_MS,
+        if (!isVectorStoreReady()) {
+          memoryLog.info("[Memory] Vector store not ready, skipping hybrid search (will use recent fallback)")
+        } else {
+          const { hybridSearch } = await import("./lib/hybrid-search")
+
+          // 给 hybridSearch 加超时保护，防止 vector store 初始化阻塞
+          const SEARCH_TIMEOUT_MS = 10_000
+          const searchPromise = hybridSearch({
+            query: userPrompt,
+            projectId,
+            type: "observations",
+            limit: 15,
+          })
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            const timer = setTimeout(
+              () => reject(new Error("Hybrid search timed out")),
+              SEARCH_TIMEOUT_MS,
+            )
+            if (timer.unref) timer.unref()
+          })
+
+          const searchResults = await Promise.race([searchPromise, timeoutPromise])
+          relevantObs = searchResults
+            .filter((r) => r.type === "observation" && r.score > 0.005)
+            .map((r) => ({
+              type: (r as any).observationType || r.type,
+              title: r.title,
+              narrative: r.excerpt,
+            }))
+
+          memoryLog.info(
+            `[Memory] Hybrid search completed - Found ${searchResults.length} results, filtered to ${relevantObs.length} relevant observations`,
           )
-          if (timer.unref) timer.unref()
-        })
-
-        const searchResults = await Promise.race([searchPromise, timeoutPromise])
-        relevantObs = searchResults
-          .filter((r) => r.type === "observation" && r.score > 0.005)
-          .map((r) => ({
-            type: (r as any).observationType || r.type,
-            title: r.title,
-            narrative: r.excerpt,
-          }))
+        }
       } catch (searchErr) {
         memoryLog.warn(
           "[Memory] Hybrid search failed, using recent:",
@@ -270,6 +310,10 @@ async function buildMemoryContext(
         title: o.title,
         narrative: o.narrative,
       }))
+
+      memoryLog.info(
+        `[Memory] Using recent fallback - Total: ${recentObs.length}, Valuable: ${valuable.length}, Selected: ${relevantObs.length}`,
+      )
     }
 
     // Build context markdown
@@ -301,8 +345,18 @@ async function buildMemoryContext(
 
     const content = lines.join("\n")
     if (content.trim()) {
-      return `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
+      const memorySection = `# Memory Context\nThe following is context from previous sessions with this project:\n\n${content}`
+
+      // 调试信息：输出 build 的内容
+      memoryLog.info(
+        `[Memory Context] Built successfully - Sessions: ${memorySess.length}, Observations: ${relevantObs.length}`,
+      )
+      memoryLog.debug("[Memory Context] Content:\n" + memorySection)
+
+      return memorySection
     }
+
+    memoryLog.info("[Memory Context] No content to inject (no sessions or observations found)")
   } catch (err) {
     memoryLog.error("Failed to generate context:", err)
   }

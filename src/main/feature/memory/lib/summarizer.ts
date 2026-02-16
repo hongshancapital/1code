@@ -23,6 +23,7 @@ export interface MemoryLLMUsage {
   inputTokens: number
   outputTokens: number
   model: string
+  costUsd?: number
   purpose: "observation_enhance" | "session_summary"
 }
 

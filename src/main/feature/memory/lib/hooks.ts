@@ -54,6 +54,7 @@ function recordMemoryUsage(
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         totalTokens,
+        costUsd: usage.costUsd?.toFixed(6),
         sessionId,
         mode: "agent",
         source: "memory",
