@@ -31,15 +31,12 @@ export function getFallbackName(userMessage: string): string {
 }
 
 /**
- * Compute preview stats from messages JSON without loading token usage from DB.
+ * Compute preview stats from messages array without loading token usage from DB.
  * Token usage will be filled in separately when needed.
  * This is used by updateSubChatMessages to pre-compute stats on save.
  */
 export function computePreviewStatsFromMessages(
-  messagesJson: string,
-  subChatMode: string
-): SubChatPreviewStats {
-  const messages = JSON.parse(messagesJson || "[]") as Array<{
+  messages: Array<{
     id: string
     role: string
     parts?: Array<{
@@ -47,7 +44,9 @@ export function computePreviewStatsFromMessages(
       text?: string
       input?: { file_path?: string; old_string?: string; new_string?: string; content?: string }
     }>
-  }>
+  }>,
+  subChatMode: string
+): SubChatPreviewStats {
 
   const inputs: SubChatPreviewInput[] = []
   let currentMode = subChatMode || "agent"
@@ -171,7 +170,8 @@ export function resolveSubChatStats(row: {
   // Slow path: compute from messages
   if (row.messages) {
     try {
-      const computed = computePreviewStatsFromMessages(row.messages, row.mode || "agent")
+      const messages = JSON.parse(row.messages)
+      const computed = computePreviewStatsFromMessages(messages, row.mode || "agent")
       return aggregateInputs(computed.inputs)
     } catch {
       // Ignore

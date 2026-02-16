@@ -481,6 +481,7 @@ export const chatStatsRouter = router({
 
       for (const subChat of chatSubChats) {
         try {
+          // 直接读取 messages JSON (统计功能暂时不迁移)
           const messages = JSON.parse(subChat.messages || "[]") as Array<{
             role: string
             parts?: Array<{ type: string; toolName?: string }>

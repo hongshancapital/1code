@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { BrowserWindow } from "electron"
 import { chats, getDatabase, memorySessions, modelUsage, projects, subChats } from "../../db"
+import { getMessages } from "../../db/messages"
 import { applyRollbackStash } from "../../git/stash"
 import { publicProcedure, router } from "../index"
 import {
@@ -59,16 +60,10 @@ export const subChatsRouter = router({
    */
   getSubChatMessages: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(({ input }) => {
-      const db = getDatabase()
-      const subChat = db
-        .select({ messages: subChats.messages })
-        .from(subChats)
-        .where(eq(subChats.id, input.id))
-        .get()
-
-      if (!subChat) return null
-      return { messages: subChat.messages || "[]" }
+    .query(async ({ input }) => {
+      // Use DAL - automatically handles migrated vs legacy
+      const messages = await getMessages(input.id)
+      return { messages: JSON.stringify(messages) }
     }),
 
   /**
@@ -599,6 +594,7 @@ async function generateNameWithAI(
               inputTokens: result.usage.inputTokens,
               outputTokens: result.usage.outputTokens,
               totalTokens,
+              costUsd: result.usage.costUsd?.toFixed(6),
               source: "auto-name",
               durationMs: Date.now() - startTime,
             }).run()

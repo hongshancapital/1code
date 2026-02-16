@@ -18,6 +18,42 @@ export interface SummaryAIUsage {
   inputTokens: number
   outputTokens: number
   model: string
+  costUsd?: number
+}
+
+/**
+ * Model pricing table: [inputPricePerMToken, outputPricePerMToken]
+ * Prices in USD per million tokens.
+ * Used to estimate cost for Summary AI calls (memory, auto-name, etc.)
+ */
+const MODEL_PRICING: Record<string, [number, number]> = {
+  // Anthropic
+  "claude-haiku-3-5-20241022": [1, 5],
+  "claude-3-5-haiku-20241022": [1, 5],
+  "claude-3-5-haiku-latest": [1, 5],
+  "claude-sonnet-4-20250514": [3, 15],
+  "claude-4-sonnet-20250514": [3, 15],
+  "claude-sonnet-4-latest": [3, 15],
+  "claude-opus-4-20250514": [15, 75],
+  "claude-4-opus-20250514": [15, 75],
+  "claude-opus-4-latest": [15, 75],
+  // OpenAI
+  "gpt-4o-mini": [0.15, 0.6],
+  "gpt-4o": [2.5, 10],
+  "gpt-4.1-mini": [0.4, 1.6],
+  "gpt-4.1-nano": [0.1, 0.4],
+  "gpt-4.1": [2, 8],
+  // DeepSeek
+  "deepseek-chat": [0.27, 1.1],
+  "deepseek-reasoner": [0.55, 2.19],
+}
+
+/** Default pricing fallback: $1/M input, $5/M output */
+const DEFAULT_PRICING: [number, number] = [1, 5]
+
+function estimateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+  const [inputPrice, outputPrice] = MODEL_PRICING[model] || DEFAULT_PRICING
+  return (inputTokens * inputPrice + outputTokens * outputPrice) / 1_000_000
 }
 
 /** Result with text content and optional usage data */
@@ -114,11 +150,14 @@ async function callAnthropicAPI(
   if (!text) return null
 
   // Anthropic usage: { input_tokens, output_tokens }
+  const inputTokens = data.usage?.input_tokens || 0
+  const outputTokens = data.usage?.output_tokens || 0
   const usage: SummaryAIUsage | null = data.usage
     ? {
-        inputTokens: data.usage.input_tokens || 0,
-        outputTokens: data.usage.output_tokens || 0,
+        inputTokens,
+        outputTokens,
         model: credentials.model,
+        costUsd: estimateCostUsd(credentials.model, inputTokens, outputTokens),
       }
     : null
 
@@ -162,11 +201,14 @@ async function callOpenAICompatibleAPI(
   if (!text) return null
 
   // OpenAI usage: { prompt_tokens, completion_tokens, total_tokens }
+  const inputTokens = data.usage?.prompt_tokens || 0
+  const outputTokens = data.usage?.completion_tokens || 0
   const usage: SummaryAIUsage | null = data.usage
     ? {
-        inputTokens: data.usage.prompt_tokens || 0,
-        outputTokens: data.usage.completion_tokens || 0,
+        inputTokens,
+        outputTokens,
         model: credentials.model,
+        costUsd: estimateCostUsd(credentials.model, inputTokens, outputTokens),
       }
     : null
 

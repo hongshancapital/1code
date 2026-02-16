@@ -10,6 +10,7 @@ import { app } from "electron"
 import { dirname, join } from "path"
 import { z } from "zod"
 import { chats, getDatabase, projects, subChats } from "../../db"
+import { getMessages } from "../../db/messages"
 import { createId } from "../../db/utils"
 import { PLAYGROUND_RELATIVE_PATH } from "../../../../shared/feature-config"
 import {

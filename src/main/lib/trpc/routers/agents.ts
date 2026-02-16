@@ -44,7 +44,7 @@ const listAgentsProcedure = publicProcedure
       const paths = getPluginComponentPaths(plugin)
       try {
         const agents = await scanAgentsDirectory(paths.agents, "plugin")
-        return agents.map((agent) => (Object.assign(agent, {pluginName:plugin.source})))
+        return agents.map((agent) => (Object.assign(agent, {pluginName:plugin.name})))
       } catch {
         return []
       }
@@ -128,7 +128,7 @@ export const agentsRouter = router({
           return {
             ...parsed,
             source: "plugin" as const,
-            pluginName: plugin.source,
+            pluginName: plugin.name,
             path: agentPath,
           }
         } catch {

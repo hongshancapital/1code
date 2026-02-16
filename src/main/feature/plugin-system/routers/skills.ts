@@ -358,7 +358,7 @@ const listSkillsProcedure = publicProcedure
       const paths = getPluginComponentPaths(plugin)
       try {
         const skills = await scanSkillsDirectory(paths.skills, "plugin")
-        return skills.map((skill) => (Object.assign(skill, {pluginName:plugin.source})))
+        return skills.map((skill) => (Object.assign(skill, {pluginName:plugin.name})))
       } catch {
         return []
       }
@@ -415,7 +415,7 @@ const listEnabledProcedure = publicProcedure
       const paths = getPluginComponentPaths(plugin)
       try {
         const skills = await scanSkillsDirectory(paths.skills, "plugin")
-        return skills.map((skill) => (Object.assign(skill, {pluginName:plugin.source})))
+        return skills.map((skill) => (Object.assign(skill, {pluginName:plugin.name})))
       } catch {
         return []
       }

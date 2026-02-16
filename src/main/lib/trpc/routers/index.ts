@@ -4,6 +4,7 @@ import { chatsRouter } from "./chats-new"
 import { subChatsRouter } from "./sub-chats"
 import { chatStatsRouter } from "./chat-stats"
 import { chatGitRouter } from "./chat-git"
+import { migrationRouter } from "./migration"
 import { chatExportRouter } from "./chat-export"
 import { claudeRouter } from "./claude"
 import { claudeCodeRouter } from "./claude-code"
@@ -64,6 +65,8 @@ export function createAppRouter(_getWindow: () => BrowserWindow | null) {
     internalTools: internalToolsRouter,
     // Unified logger (query + real-time subscription)
     logger: loggerRouter,
+    // Message data migration
+    migration: migrationRouter,
     // Extension routers (dynamically merged)
     ...extensionRouters,
   })

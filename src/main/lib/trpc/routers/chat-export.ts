@@ -6,6 +6,7 @@
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { chats, getDatabase, projects, subChats } from "../../db"
+import { getMessages } from "../../db/messages"
 import { publicProcedure, router } from "../index"
 
 export const chatExportRouter = router({
@@ -81,7 +82,8 @@ export const chatExportRouter = router({
 
       for (const subChat of chatSubChats) {
         try {
-          const messages = JSON.parse(subChat.messages || "[]")
+          // 使用 DAL 自动处理迁移
+          const messages = await getMessages(subChat.id)
           allMessages.push({
             subChatId: subChat.id,
             subChatName: subChat.name,
