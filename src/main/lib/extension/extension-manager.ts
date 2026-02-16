@@ -64,7 +64,7 @@ export class ExtensionManager {
   }
 
   /**
-   * 按注册顺序初始化所有 Extension
+   * 并行初始化所有 Extension
    * 单个失败不阻塞其他
    */
   async initializeAll(): Promise<void> {
@@ -74,20 +74,22 @@ export class ExtensionManager {
     }
     this.initialized = true
 
-    for (const ext of this.extensions) {
-      if (!ext.initialize) continue
-
-      const ctx = this._createContext(ext.name)
-      try {
-        const cleanup = await ext.initialize(ctx)
-        if (typeof cleanup === "function") {
-          this.cleanups.set(ext.name, cleanup)
-        }
-        createLogger(`ext:${ext.name}`).info("初始化完成")
-      } catch (err) {
-        createLogger(`ext:${ext.name}`).error("初始化失败:", err)
-      }
-    }
+    await Promise.all(
+      this.extensions
+        .filter((ext) => ext.initialize)
+        .map(async (ext) => {
+          const ctx = this._createContext(ext.name)
+          try {
+            const cleanup = await ext.initialize!(ctx)
+            if (typeof cleanup === "function") {
+              this.cleanups.set(ext.name, cleanup)
+            }
+            createLogger(`ext:${ext.name}`).info("初始化完成")
+          } catch (err) {
+            createLogger(`ext:${ext.name}`).error("初始化失败:", err)
+          }
+        }),
+    )
   }
 
   /**

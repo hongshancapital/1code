@@ -433,25 +433,23 @@ export const claudeRouter = router({
 
             const db = getDatabase();
 
-            // Get subChat record for sessionId
-            const existing = await dbGetAsync(
-              db
-                .select({ sessionId: subChats.sessionId })
-                .from(subChats)
-                .where(eq(subChats.id, input.subChatId))
-            );
+            // 并行查询 subChat、messages、chat 三条独立记录
+            const [existing, existingMessages, chatRecord] = await Promise.all([
+              dbGetAsync(
+                db
+                  .select({ sessionId: subChats.sessionId })
+                  .from(subChats)
+                  .where(eq(subChats.id, input.subChatId))
+              ),
+              getMessages(input.subChatId),
+              dbGetAsync(
+                db
+                  .select({ projectId: chats.projectId })
+                  .from(chats)
+                  .where(eq(chats.id, input.chatId))
+              ),
+            ]);
             const existingSessionId = existing?.sessionId || null;
-
-            // 1. Get existing messages from DB (使用 DAL 自动处理迁移)
-            const existingMessages = await getMessages(input.subChatId);
-
-            // Get projectId from chat record (needed for usage tracking)
-            const chatRecord = await dbGetAsync(
-              db
-                .select({ projectId: chats.projectId })
-                .from(chats)
-                .where(eq(chats.id, input.chatId))
-            );
             const projectId = chatRecord?.projectId;
             resolvedProjectId = projectId || "";
 
@@ -766,39 +764,23 @@ export const claudeRouter = router({
                 const agentsSource = path.join(homeClaudeDir, "agents");
                 const agentsTarget = path.join(isolatedConfigDir, "agents");
 
-                // Symlink skills directory if source exists and target doesn't
-                try {
-                  const skillsSourceExists = await fs
-                    .stat(skillsSource)
-                    .then(() => true)
-                    .catch(() => false);
-                  const skillsTargetExists = await fs
-                    .lstat(skillsTarget)
-                    .then(() => true)
-                    .catch(() => false);
-                  if (skillsSourceExists && !skillsTargetExists) {
-                    await fs.symlink(skillsSource, skillsTarget, "dir");
-                  }
-                } catch {
-                  // Ignore symlink errors (might already exist or permission issues)
-                }
+                // 并行检查所有目录状态
+                const [skillsSourceExists, skillsTargetExists, agentsSourceExists, agentsTargetExists] = await Promise.all([
+                  fs.stat(skillsSource).then(() => true).catch(() => false),
+                  fs.lstat(skillsTarget).then(() => true).catch(() => false),
+                  fs.stat(agentsSource).then(() => true).catch(() => false),
+                  fs.lstat(agentsTarget).then(() => true).catch(() => false),
+                ]);
 
-                // Symlink agents directory if source exists and target doesn't
-                try {
-                  const agentsSourceExists = await fs
-                    .stat(agentsSource)
-                    .then(() => true)
-                    .catch(() => false);
-                  const agentsTargetExists = await fs
-                    .lstat(agentsTarget)
-                    .then(() => true)
-                    .catch(() => false);
-                  if (agentsSourceExists && !agentsTargetExists) {
-                    await fs.symlink(agentsSource, agentsTarget, "dir");
-                  }
-                } catch {
-                  // Ignore symlink errors (might already exist or permission issues)
+                // 并行创建符号链接
+                const symlinkTasks: Promise<void>[] = [];
+                if (skillsSourceExists && !skillsTargetExists) {
+                  symlinkTasks.push(fs.symlink(skillsSource, skillsTarget, "dir").catch(() => {}));
                 }
+                if (agentsSourceExists && !agentsTargetExists) {
+                  symlinkTasks.push(fs.symlink(agentsSource, agentsTarget, "dir").catch(() => {}));
+                }
+                if (symlinkTasks.length > 0) await Promise.all(symlinkTasks);
 
                 symlinksCreated.add(cacheKey);
               }

@@ -809,11 +809,11 @@ if (gotTheLock) {
         getEnabledPlugins(),
         discoverInstalledPlugins(),
       ])
-      for (const plugin of allPlugins) {
-        if (enabledSources.includes(plugin.source)) {
-          await sm.syncPluginSkills(plugin.source, plugin.path)
-        }
-      }
+      await Promise.all(
+        allPlugins
+          .filter((plugin) => enabledSources.includes(plugin.source))
+          .map((plugin) => sm.syncPluginSkills(plugin.source, plugin.path)),
+      )
       log.info("Skills synced (builtin + enabled plugins)")
     } catch (error) {
       log.warn("Failed to sync skills:", error)
@@ -876,9 +876,8 @@ if (gotTheLock) {
     } catch {
       // extension cleanup 错误不阻塞退出
     }
-    await cleanupGitWatchers()
-    // App duration is now tracked in renderer via beacon (survives page unload)
-    await shutdownSensors()
+    // Git watcher 和 Sensors 并行清理，DB 最后关闭
+    await Promise.all([cleanupGitWatchers(), shutdownSensors()])
     await closeDatabase()
   })
 
