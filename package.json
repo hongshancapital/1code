@@ -103,6 +103,7 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "jotai": "^2.11.1",
     "jsonc-parser": "^3.3.1",
+    "langfuse": "^3.38.6",
     "lucide-react": "^0.563.0",
     "mermaid": "^11.12.2",
     "monaco-editor": "^0.55.1",

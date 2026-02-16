@@ -773,6 +773,7 @@ if (gotTheLock) {
       const { lspExtension } = await import("./feature/lsp")
       const { ollamaExtension } = await import("./feature/ollama")
       const { pluginSystemExtension } = await import("./feature/plugin-system")
+      const { langfuseExtension } = await import("./feature/langfuse")
       const em = getExtensionManager()
       em.register(liteExtension)
       em.register(memoryExtension)
@@ -788,6 +789,7 @@ if (gotTheLock) {
       em.register(lspExtension)
       em.register(ollamaExtension)
       em.register(pluginSystemExtension)
+      em.register(langfuseExtension)
       await em.initializeAll()
       log.info("ExtensionManager initialized")
     } catch (error) {
@@ -857,11 +859,9 @@ if (gotTheLock) {
     })
   })
 
-  // Quit when all windows are closed (except on macOS)
+  // Quit when all windows are closed
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      app.quit()
-    }
+    app.quit()
   })
 
   // Cleanup before quit

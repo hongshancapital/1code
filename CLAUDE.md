@@ -32,7 +32,9 @@ src/main/
 │   ├── memory/              # Memory system Extension
 │   ├── browser-mcp/         # Browser MCP Extension
 │   ├── image-mcp/           # Image MCP Extension
+│   ├── chat-title-mcp/      # Chat title awareness + rename tool
 │   ├── usage-tracking/      # Token usage tracking Extension
+│   ├── langfuse/            # Langfuse observability Extension
 │   ├── plugin-system/       # Plugin/marketplace/skills/commands (multi-router)
 │   ├── automation/          # Automation Extension (router wrapper)
 │   ├── insights/            # Insights Extension (router wrapper)
@@ -133,7 +135,7 @@ Features are pluginized via `ExtensionModule` interface. Each Extension can prov
     (12 chat hooks)   (cross-ext events)  (into AppRouter)
 ```
 
-**14 Extensions registered** in `src/main/index.ts`. Each Extension 的业务代码、router 均内聚在 `feature/<name>/` 下。
+**15 Extensions registered** in `src/main/index.ts`. Each Extension 的业务代码、router 均内聚在 `feature/<name>/` 下。
 
 **Chat Hooks** (`ChatHook` enum — `src/main/lib/extension/hooks/chat-lifecycle.ts`):
 
@@ -230,3 +232,42 @@ bun run dev                                            # Fresh start
 Dev mode uses separate userData path and `hong-dev://` protocol.
 
 **Log files:** `~/Library/Logs/Hong/main.log` (current) + date-archived `.log` files + `archive/*.log.gz` (monthly compressed, 90d retention). View in Settings → Debug → Log Viewer. Migration script: `bun scripts/migrate-console-to-logger.ts`.
+
+## Langfuse Extension
+
+**位置**: `src/main/feature/langfuse/`
+
+**功能**: 将 Claude 会话追踪到 Langfuse（LLM 可观测性平台），监控 token 使用、成本、工具调用等。
+
+**启用条件**: 必须配置环境变量 `LANGFUSE_PUBLIC_KEY` 和 `LANGFUSE_SECRET_KEY`。未配置时优雅降级（Extension 不生效）。
+
+**数据模型映射**:
+- Claude Session → Langfuse Trace（会话级容器）
+- AI 输出 → Generation（含 token 统计、成本）
+- 工具调用 → Span（含输入输出）
+
+**订阅的 Hooks**:
+- `SessionStart` — 创建 Trace，记录初始 prompt
+- `UserPrompt` — 累积用户输入（多轮对话）
+- `ToolOutput` — 创建 Span 记录工具调用
+- `AssistantMessage` — 累积 AI 输出文本
+- `StreamComplete` — 创建 Generation（含 token 统计和成本）
+- `StreamError` — 创建 Generation（标记为 ERROR）
+- `SessionEnd` — 完成 Trace
+- `Cleanup` — 清理内存中的 traceMap
+
+**关键特性**:
+- **非阻塞处理** — 所有 hook 采用「不 await + catch」模式，完全不影响主流程
+- **错误隔离** — SDK 初始化失败或网络故障时，Claude 对话仍正常工作
+- **数据截断** — 工具输出 >10KB 时自动截断，防止 payload 过大
+- **成本计算** — 基于 Anthropic 定价自动计算 token 成本（美元）
+- **批量上传** — Langfuse SDK 内置批量（15 条/批或 10 秒/次），减少网络开销
+
+**配置示例**:
+```bash
+export LANGFUSE_PUBLIC_KEY="pk-lf-xxx"
+export LANGFUSE_SECRET_KEY="sk-lf-xxx"
+export LANGFUSE_HOST="https://cloud.langfuse.com"  # 可选，默认为 cloud
+```
+
+**验证**: 启动应用后，执行包含工具调用的对话，然后登录 Langfuse Dashboard 查看 Trace/Generation/Span 数据。
