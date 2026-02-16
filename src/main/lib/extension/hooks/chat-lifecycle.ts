@@ -12,6 +12,43 @@ import type { HookDefinition } from "../types"
 import { registerHookMode } from "../hook-registry"
 
 // =============================================================================
+// Hook Key 枚举（Single Source of Truth）
+// =============================================================================
+
+/**
+ * Chat 生命周期 Hook 枚举
+ *
+ * 所有 hook key 的唯一定义来源。
+ * Extension 订阅（ctx.hooks.on）和 claude.ts 发射（getHooks().call）都应使用此 enum。
+ */
+export enum ChatHook {
+  /** 会话开始 — 新 session 创建时触发，记录初始 prompt 和元数据 */
+  SessionStart = "chat:sessionStart",
+  /** 用户输入 — 接收到用户 prompt 后异步触发 */
+  UserPrompt = "chat:userPrompt",
+  /** 工具输出 — 每个工具执行完成后异步触发 */
+  ToolOutput = "chat:toolOutput",
+  /** 文件变更 — 检测到文件创建/修改/删除时异步触发 */
+  FileChanged = "chat:fileChanged",
+  /** Git 提交 — 检测到 git commit 时异步触发 */
+  GitCommit = "chat:gitCommit",
+  /** AI 回复 — 助手文本回复后异步触发 */
+  AssistantMessage = "chat:assistantMessage",
+  /** 会话结束 — 流完成后异步触发，用于清理和 summary 生成 */
+  SessionEnd = "chat:sessionEnd",
+  /** 最终清理 — tRPC subscription 取消时触发，释放资源 */
+  Cleanup = "chat:cleanup",
+  /** 流完成 — SDK 流成功结束时触发，用于 token 计数 */
+  StreamComplete = "chat:streamComplete",
+  /** 流错误 — SDK 流出错时触发，用于 token 计数 */
+  StreamError = "chat:streamError",
+  /** MCP 收集 [collect] — 构建 SDK options 前触发，Extension 返回 MCP 服务器 */
+  CollectMcpServers = "chat:collectMcpServers",
+  /** Prompt 增强 [waterfall] — 系统提示构建前按优先级串行追加段落 */
+  EnhancePrompt = "chat:enhancePrompt",
+}
+
+// =============================================================================
 // Payload 类型
 // =============================================================================
 
@@ -150,34 +187,34 @@ export interface ChatStreamErrorPayload {
 declare module "../types" {
   interface HookMap {
     // emit: 通知型
-    "chat:sessionStart": HookDefinition<"emit", ChatSessionStartPayload, void>
-    "chat:userPrompt": HookDefinition<"emit", ChatUserPromptPayload, void>
-    "chat:toolOutput": HookDefinition<"emit", ChatToolOutputPayload, void>
-    "chat:fileChanged": HookDefinition<"emit", ChatFileChangedPayload, void>
-    "chat:gitCommit": HookDefinition<"emit", ChatGitCommitPayload, void>
-    "chat:assistantMessage": HookDefinition<
+    [ChatHook.SessionStart]: HookDefinition<"emit", ChatSessionStartPayload, void>
+    [ChatHook.UserPrompt]: HookDefinition<"emit", ChatUserPromptPayload, void>
+    [ChatHook.ToolOutput]: HookDefinition<"emit", ChatToolOutputPayload, void>
+    [ChatHook.FileChanged]: HookDefinition<"emit", ChatFileChangedPayload, void>
+    [ChatHook.GitCommit]: HookDefinition<"emit", ChatGitCommitPayload, void>
+    [ChatHook.AssistantMessage]: HookDefinition<
       "emit",
       ChatAssistantMessagePayload,
       void
     >
-    "chat:sessionEnd": HookDefinition<"emit", ChatSessionEndPayload, void>
-    "chat:cleanup": HookDefinition<"emit", ChatCleanupPayload, void>
-    "chat:streamComplete": HookDefinition<
+    [ChatHook.SessionEnd]: HookDefinition<"emit", ChatSessionEndPayload, void>
+    [ChatHook.Cleanup]: HookDefinition<"emit", ChatCleanupPayload, void>
+    [ChatHook.StreamComplete]: HookDefinition<
       "emit",
       ChatStreamCompletePayload,
       void
     >
-    "chat:streamError": HookDefinition<"emit", ChatStreamErrorPayload, void>
+    [ChatHook.StreamError]: HookDefinition<"emit", ChatStreamErrorPayload, void>
 
     // collect: 收集型
-    "chat:collectMcpServers": HookDefinition<
+    [ChatHook.CollectMcpServers]: HookDefinition<
       "collect",
       McpCollectPayload,
       McpServerEntry
     >
 
     // waterfall: 管道型
-    "chat:enhancePrompt": HookDefinition<
+    [ChatHook.EnhancePrompt]: HookDefinition<
       "waterfall",
       PromptEnhancePayload,
       void
@@ -189,15 +226,15 @@ declare module "../types" {
 // 运行时模式注册
 // =============================================================================
 
-registerHookMode("chat:sessionStart", "emit")
-registerHookMode("chat:userPrompt", "emit")
-registerHookMode("chat:toolOutput", "emit")
-registerHookMode("chat:fileChanged", "emit")
-registerHookMode("chat:gitCommit", "emit")
-registerHookMode("chat:assistantMessage", "emit")
-registerHookMode("chat:sessionEnd", "emit")
-registerHookMode("chat:cleanup", "emit")
-registerHookMode("chat:streamComplete", "emit")
-registerHookMode("chat:streamError", "emit")
-registerHookMode("chat:collectMcpServers", "collect")
-registerHookMode("chat:enhancePrompt", "waterfall")
+registerHookMode(ChatHook.SessionStart, "emit")
+registerHookMode(ChatHook.UserPrompt, "emit")
+registerHookMode(ChatHook.ToolOutput, "emit")
+registerHookMode(ChatHook.FileChanged, "emit")
+registerHookMode(ChatHook.GitCommit, "emit")
+registerHookMode(ChatHook.AssistantMessage, "emit")
+registerHookMode(ChatHook.SessionEnd, "emit")
+registerHookMode(ChatHook.Cleanup, "emit")
+registerHookMode(ChatHook.StreamComplete, "emit")
+registerHookMode(ChatHook.StreamError, "emit")
+registerHookMode(ChatHook.CollectMcpServers, "collect")
+registerHookMode(ChatHook.EnhancePrompt, "waterfall")

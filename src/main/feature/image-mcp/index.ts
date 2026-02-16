@@ -11,6 +11,7 @@ import type {
   ToolDefinition,
   CleanupFn,
 } from "../../lib/extension/types"
+import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { createImageGenMcpServer, getImageGenToolDefinitions } from "./lib/image-gen-server"
 import { createImageProcessMcpServer, getImageProcessToolDefinitions } from "./lib/image-process-server"
 import type { McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
@@ -22,7 +23,7 @@ class ImageMcpExtension implements ExtensionModule {
   initialize(ctx: ExtensionContext): CleanupFn {
     // chat:collectMcpServers — 注入 image MCP servers
     const off = ctx.hooks.on(
-      "chat:collectMcpServers",
+      ChatHook.CollectMcpServers,
       async (payload) => {
         if (payload.isOllama) return []
 

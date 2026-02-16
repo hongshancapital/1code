@@ -12,6 +12,7 @@ import type {
   ToolDefinition,
   CleanupFn,
 } from "../../lib/extension/types"
+import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { createBrowserMcpServer, browserManager } from "./lib"
 import { getBrowserToolDefinitions } from "./lib/mcp-server"
 import { browserRouter } from "./router"
@@ -25,7 +26,7 @@ class BrowserMcpExtension implements ExtensionModule {
   initialize(ctx: ExtensionContext): CleanupFn {
     // chat:collectMcpServers — 注入 browser MCP server
     const offCollect = ctx.hooks.on(
-      "chat:collectMcpServers",
+      ChatHook.CollectMcpServers,
       async (payload) => {
         if (payload.isOllama) return []
 
@@ -50,7 +51,7 @@ class BrowserMcpExtension implements ExtensionModule {
 
     // chat:enhancePrompt — Browser context 注入（priority=200，在 Memory 之后）
     const offEnhance = ctx.hooks.on(
-      "chat:enhancePrompt",
+      ChatHook.EnhancePrompt,
       (payload) => {
         if (
           browserManager.isReady &&

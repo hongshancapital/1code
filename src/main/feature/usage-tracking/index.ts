@@ -11,6 +11,7 @@ import type {
   ExtensionContext,
   CleanupFn,
 } from "../../lib/extension/types"
+import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import type {
   ChatStreamCompletePayload,
   ChatStreamErrorPayload,
@@ -151,7 +152,7 @@ class UsageTrackingExtension implements ExtensionModule {
   initialize(ctx: ExtensionContext): CleanupFn {
     // chat:streamComplete — 记录 token 使用（成功路径）
     const offComplete = ctx.hooks.on(
-      "chat:streamComplete",
+      ChatHook.StreamComplete,
       async (payload) => {
         recordUsage(payload)
       },
@@ -160,7 +161,7 @@ class UsageTrackingExtension implements ExtensionModule {
 
     // chat:streamError — 记录 token 使用（错误路径）
     const offError = ctx.hooks.on(
-      "chat:streamError",
+      ChatHook.StreamError,
       async (payload) => {
         recordUsage(payload)
       },

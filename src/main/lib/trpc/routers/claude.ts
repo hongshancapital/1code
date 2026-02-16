@@ -65,6 +65,7 @@ import {
 import { getAuthManager } from "../../../index";
 import { getCachedRuntimeEnvironment } from "../../../feature/runner/router";
 import { getHooks } from "../../extension";
+import { ChatHook } from "../../extension/hooks/chat-lifecycle";
 import { setLastUserMessageDebug } from "./debug";
 import {
   parseMentions,
@@ -82,6 +83,7 @@ import {
   buildImagePrompt,
   buildOllamaContext,
 } from "../../claude/prompt-utils";
+import { getMessages, appendMessage, replaceAllMessages } from "../../db/messages";
 import { createLogger } from "../../logger"
 
 const claudeLog = createLogger("claude")
@@ -430,15 +432,17 @@ export const claudeRouter = router({
 
             const db = getDatabase();
 
-            // 1. Get existing messages from DB (异步化避免阻塞主进程)
+            // Get subChat record for sessionId
             const existing = await dbGetAsync(
               db
-                .select()
+                .select({ sessionId: subChats.sessionId })
                 .from(subChats)
                 .where(eq(subChats.id, input.subChatId))
             );
-            const existingMessages = await jsonParseAsync(existing?.messages || "[]");
             const existingSessionId = existing?.sessionId || null;
+
+            // 1. Get existing messages from DB (使用 DAL 自动处理迁移)
+            const existingMessages = await getMessages(input.subChatId);
 
             // Get projectId from chat record (needed for usage tracking)
             const chatRecord = await dbGetAsync(
@@ -548,7 +552,7 @@ export const claudeRouter = router({
             // 2.4. Memory hooks: Start session and record user prompt (via Extension Hook)
             const promptNumber =
               existingMessages.filter((m: any) => m.role === "user").length + 1;
-            await getHooks().call("chat:sessionStart", {
+            await getHooks().call(ChatHook.SessionStart, {
               subChatId: input.subChatId,
               chatId: input.chatId,
               projectId: projectId || "",
@@ -566,7 +570,7 @@ export const claudeRouter = router({
 
             // 2.4b. Notify user prompt received (fire-and-forget)
             getHooks()
-              .call("chat:userPrompt", {
+              .call(ChatHook.UserPrompt, {
                 sessionId: input.sessionId || null,
                 subChatId: input.subChatId,
                 projectId: projectId || "",
@@ -1007,7 +1011,7 @@ export const claudeRouter = router({
               // Hook: collectMcpServers — Extensions inject their MCP servers
               perf("chat:collectMcpServers start");
               const collectedMcps = await getHooks().call(
-                "chat:collectMcpServers",
+                ChatHook.CollectMcpServers,
                 {
                   cwd: input.cwd,
                   subChatId: input.subChatId,
@@ -1095,7 +1099,7 @@ export const claudeRouter = router({
             // Build append sections via enhancePrompt waterfall hook
             // Memory context + Browser context are injected by their respective Extensions
             perf("chat:enhancePrompt start");
-            const enhanced = await getHooks().call("chat:enhancePrompt", {
+            const enhanced = await getHooks().call(ChatHook.EnhancePrompt, {
               appendSections: [],
               cwd: input.cwd,
               projectId: projectId || "",
@@ -1844,7 +1848,7 @@ export const claudeRouter = router({
                           // Hook: 通知文件变更 (fire-and-forget)
                           if (filePath) {
                             getHooks()
-                              .call("chat:fileChanged", {
+                              .call(ChatHook.FileChanged, {
                                 sessionId: currentSessionId,
                                 projectId: projectId || "",
                                 subChatId: input.subChatId,
@@ -1894,7 +1898,7 @@ export const claudeRouter = router({
                             const commitMsg =
                               output.match(/\[.+?\]\s+(.+)/)?.[1] || "";
                             getHooks()
-                              .call("chat:gitCommit", {
+                              .call(ChatHook.GitCommit, {
                                 sessionId: currentSessionId,
                                 projectId: projectId || "",
                                 subChatId: input.subChatId,
@@ -1933,7 +1937,7 @@ export const claudeRouter = router({
                           toolPart.type?.replace("tool-", "");
                         if (toolName) {
                           getHooks()
-                            .call("chat:toolOutput", {
+                            .call(ChatHook.ToolOutput, {
                               sessionId: null,
                               projectId: projectId || "",
                               subChatId: input.subChatId,
@@ -2162,18 +2166,17 @@ export const claudeRouter = router({
                   createdAt: new Date().toISOString(),
                 };
                 const finalMessages = [...messagesToSave, assistantMessage];
-                // 异步化 JSON 序列化,避免大消息阻塞主进程
-                const finalMessagesJson = await jsonStringifyAsync(finalMessages);
+                // 使用 DAL 写入消息 (自动处理迁移)
+                await replaceAllMessages(input.subChatId, finalMessages);
+                // 仍然需要更新 stats 和 sessionId
                 const stats = computePreviewStatsFromMessages(
-                  finalMessagesJson,
+                  JSON.stringify(finalMessages),
                   input.mode,
                 );
                 const statsJson = await jsonStringifyAsync(stats);
-                // 异步化数据库写入
                 await dbRunAsync(
                   db.update(subChats)
                     .set({
-                      messages: finalMessagesJson,
                       statsJson,
                       sessionId: metadata.sessionId,
                       streamId: null,
@@ -2194,7 +2197,7 @@ export const claudeRouter = router({
 
                 // Hook: Record usage statistics (even on error)
                 getHooks()
-                  .call("chat:streamError", {
+                  .call(ChatHook.StreamError, {
                     subChatId: input.subChatId,
                     chatId: input.chatId,
                     projectId: projectId || "",
@@ -2265,19 +2268,18 @@ export const claudeRouter = router({
               });
 
               const finalMessages = [...messagesToSave, assistantMessage];
-              // 异步化 JSON 序列化,避免大消息阻塞主进程
-              const finalMessagesJson = await jsonStringifyAsync(finalMessages);
+              // 使用 DAL 写入消息 (自动处理迁移)
+              await replaceAllMessages(input.subChatId, finalMessages);
+              // 仍然需要更新 stats 和 sessionId
               const stats = computePreviewStatsFromMessages(
-                finalMessagesJson,
+                JSON.stringify(finalMessages),
                 input.mode,
               );
               const statsJson = await jsonStringifyAsync(stats);
 
-              // 异步化数据库写入
               await dbRunAsync(
                 db.update(subChats)
                   .set({
-                    messages: finalMessagesJson,
                     statsJson,
                     sessionId: savedSessionId,
                     streamId: null,
@@ -2323,7 +2325,7 @@ export const claudeRouter = router({
             );
             // Hook: Record usage statistics (success path)
             getHooks()
-              .call("chat:streamComplete", {
+              .call(ChatHook.StreamComplete, {
                 subChatId: input.subChatId,
                 chatId: input.chatId,
                 projectId: projectId || "",
@@ -2345,7 +2347,7 @@ export const claudeRouter = router({
             // Hook: Record AI response text (fire-and-forget)
             if (projectId && currentText.trim()) {
               getHooks()
-                .call("chat:assistantMessage", {
+                .call(ChatHook.AssistantMessage, {
                   sessionId: null,
                   projectId,
                   subChatId: input.subChatId,
@@ -2360,7 +2362,7 @@ export const claudeRouter = router({
 
             // Hook: End session (fire-and-forget)
             getHooks()
-              .call("chat:sessionEnd", {
+              .call(ChatHook.SessionEnd, {
                 sessionId: null,
                 subChatId: input.subChatId,
                 projectId: projectId || "",
@@ -2399,7 +2401,7 @@ export const claudeRouter = router({
 
           // Hook: 会话清理通知 (fire-and-forget)
           getHooks()
-            .call("chat:cleanup", {
+            .call(ChatHook.Cleanup, {
               subChatId: input.subChatId,
               projectId: resolvedProjectId,
             })
@@ -3022,6 +3024,8 @@ export const claudeRouter = router({
       type: "serverStatus" | "warmupState"
       data: any
     }>((emit) => {
+      let cleanupFn: (() => void) | null = null
+
       // 动态导入,避免循环依赖
       import("../../claude/mcp-warmup-manager")
         .then(({ getMcpWarmupManager }) => {
@@ -3040,15 +3044,19 @@ export const claudeRouter = router({
           warmupManager.on("serverStatusChange", onServerStatus)
           warmupManager.on("stateChange", onWarmupState)
 
-          // 清理函数
-          emit.cleanup(() => {
+          cleanupFn = () => {
             warmupManager.off("serverStatusChange", onServerStatus)
             warmupManager.off("stateChange", onWarmupState)
-          })
+          }
         })
         .catch((error) => {
           claudeLog.error("[MCP Status] Failed to load warmup manager:", error)
         })
+
+      // 返回清理函数
+      return () => {
+        cleanupFn?.()
+      }
     })
   }),
 

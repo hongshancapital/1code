@@ -14,6 +14,7 @@ import type {
   ExtensionContext,
   CleanupFn,
 } from "../../lib/extension/types"
+import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { memoryHooks } from "./lib/hooks"
 import { setSummaryModelConfig } from "./lib/summarizer"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
@@ -36,7 +37,7 @@ class MemoryExtension implements ExtensionModule {
 
     // chat:sessionStart — 创建 memory session + 记录 user prompt
     const offSessionStart = ctx.hooks.on(
-      "chat:sessionStart",
+      ChatHook.SessionStart,
       async (payload) => {
         if (!payload.projectId || payload.memoryRecordingEnabled === false)
           return
@@ -95,7 +96,7 @@ class MemoryExtension implements ExtensionModule {
 
     // chat:toolOutput — 记录工具输出
     const offToolOutput = ctx.hooks.on(
-      "chat:toolOutput",
+      ChatHook.ToolOutput,
       async (payload) => {
         const sessionId = sessionMap.get(payload.subChatId)
         if (!sessionId || !payload.projectId) return
@@ -115,7 +116,7 @@ class MemoryExtension implements ExtensionModule {
 
     // chat:assistantMessage — 记录 AI 回复
     const offAssistantMessage = ctx.hooks.on(
-      "chat:assistantMessage",
+      ChatHook.AssistantMessage,
       async (payload) => {
         const sessionId = sessionMap.get(payload.subChatId)
         if (!sessionId || !payload.projectId) return
@@ -133,7 +134,7 @@ class MemoryExtension implements ExtensionModule {
 
     // chat:sessionEnd — 结束 session
     const offSessionEnd = ctx.hooks.on(
-      "chat:sessionEnd",
+      ChatHook.SessionEnd,
       async (payload) => {
         const sessionId = sessionMap.get(payload.subChatId)
         if (!sessionId) return
@@ -149,7 +150,7 @@ class MemoryExtension implements ExtensionModule {
 
     // chat:enhancePrompt — Memory Context 注入（priority=50，在 Browser 之前）
     const offEnhancePrompt = ctx.hooks.on(
-      "chat:enhancePrompt",
+      ChatHook.EnhancePrompt,
       async (payload) => {
         if (payload.memoryEnabled === false || !payload.projectId)
           return payload

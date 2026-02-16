@@ -5,6 +5,7 @@
  */
 
 import type { ExtensionModule, ExtensionContext, CleanupFn } from "../../lib/extension/types"
+import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { LiteService } from "./service"
 import { getAuthManager } from "./auth/manager"
 import { getEffectiveAuthProvider } from "./auth/providers"
@@ -25,7 +26,7 @@ class LiteExtension implements ExtensionModule {
 
     offs.push(
       ctx.hooks.on(
-        "chat:collectMcpServers",
+        ChatHook.CollectMcpServers,
         async (_payload) => {
           // lite 可以贡献自己的 MCP server（按需扩展）
           return []
@@ -36,7 +37,7 @@ class LiteExtension implements ExtensionModule {
 
     offs.push(
       ctx.hooks.on(
-        "chat:enhancePrompt",
+        ChatHook.EnhancePrompt,
         (payload) => {
           // lite 可以往 appendSections 注入上下文（按需扩展）
           return payload
@@ -47,7 +48,7 @@ class LiteExtension implements ExtensionModule {
 
     offs.push(
       ctx.hooks.on(
-        "chat:sessionStart",
+        ChatHook.SessionStart,
         async (_payload) => {
           // 通知 lite 后端会话开始（按需扩展）
         },

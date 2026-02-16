@@ -12,7 +12,7 @@ import type {
   ExtensionContext,
   CleanupFn,
 } from "../../lib/extension/types"
-import type { McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
+import { ChatHook, type McpServerEntry } from "../../lib/extension/hooks/chat-lifecycle"
 import { createChatTitleMcpServer } from "./lib/chat-title-server"
 import { getDatabase, subChats } from "../../lib/db"
 import { eq } from "drizzle-orm"
@@ -24,7 +24,7 @@ class ChatTitleMcpExtension implements ExtensionModule {
   initialize(ctx: ExtensionContext): CleanupFn {
     // chat:collectMcpServers — conditionally inject rename_chat MCP tool
     const offCollect = ctx.hooks.on(
-      "chat:collectMcpServers",
+      ChatHook.CollectMcpServers,
       async (payload) => {
         if (payload.isOllama) return []
 
@@ -59,7 +59,7 @@ class ChatTitleMcpExtension implements ExtensionModule {
 
     // chat:enhancePrompt — inject current title into system prompt
     const offEnhance = ctx.hooks.on(
-      "chat:enhancePrompt",
+      ChatHook.EnhancePrompt,
       (payload) => {
         try {
           const db = getDatabase()
