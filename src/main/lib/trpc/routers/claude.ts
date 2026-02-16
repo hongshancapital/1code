@@ -8,7 +8,6 @@ import { z } from "zod";
 import {
   query as claudeQuery,
   type SDKUserMessage,
-  type PermissionResult,
   type McpServerConfig as SdkMcpServerConfig,
   type SettingSource,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -24,8 +23,6 @@ import {
   initializePromptBuilder,
   logClaudeEnv,
   logRawClaudeMessage,
-  PLAN_MODE_BLOCKED_TOOLS,
-  CHAT_MODE_BLOCKED_TOOLS,
   type UIMessageChunk,
 } from "../../claude";
 import { getEnv } from "../../env";
@@ -40,7 +37,6 @@ import {
 } from "../../mcp-auth";
 import { publicProcedure, router } from "../index";
 import { buildAgentsOption } from "./agent-utils";
-import { fixOllamaToolParameters } from "./claude-ollama-fix";
 import { computePreviewStatsFromMessages } from "./chat-helpers";
 import { getAuthManager } from "../../../index";
 import { getCachedRuntimeEnvironment } from "../../../feature/runner/router";
@@ -74,76 +70,12 @@ const dbLog = createLogger("DB")
 
 
 
-/**
- * Type for Claude SDK streaming messages
- * These are the raw messages from the SDK query iterator
- */
-interface SdkStreamMessage {
-  type?: string;
-  subtype?: string;
-  uuid?: string;
-  mcp_servers?: unknown;
-  error?: string | { message?: string };
-  session_id?: string;
-  cwd?: string;
-  tools?: unknown;
-  plugins?: unknown;
-  permissionMode?: string;
-  event?: {
-    type?: string;
-    delta?: { type?: string };
-    content_block?: { type?: string };
-  };
-  message?: {
-    id?: string;
-    content?: Array<{ type?: string; text?: string }>;
-  };
-  [key: string]: unknown;
-}
-
-/**
- * Per-model usage breakdown for accurate token attribution
- */
-interface ModelUsageEntry {
-  inputTokens: number;
-  outputTokens: number;
-  costUSD?: number;
-}
-
-/**
- * Metadata accumulated during SDK streaming
- */
-interface StreamMetadata {
-  sessionId?: string;
-  sdkMessageUuid?: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  totalTokens?: number;
-  totalCostUsd?: number;
-  modelUsage?: Record<string, ModelUsageEntry>;
-  durationMs?: number;
-}
-
-/**
- * Input type for AskUserQuestion tool
- */
-interface AskUserQuestionInput {
-  questions?: unknown[];
-  [key: string]: unknown;
-}
-
-/**
- * Response type for tool permission callback
- */
-interface ToolPermissionResponse {
-  behavior: "allow" | "deny";
-  updatedInput?: Record<string, unknown> & {
-    answers?: Record<string, unknown>;
-  };
-  message?: string;
-}
+import type {
+  SdkStreamMessage,
+  ModelUsageEntry,
+  StreamMetadata,
+} from "./claude-stream-types"
+import { createCanUseTool } from "./claude-tool-permissions"
 
 
 // Active sessions for cancellation (onAbort handles stash + abort + restore)
@@ -183,8 +115,6 @@ function ensurePromptBuilderInitialized() {
     promptBuilderInitialized = true;
   }
 }
-
-// PLAN_MODE_BLOCKED_TOOLS and CHAT_MODE_BLOCKED_TOOLS are imported from policies (single source of truth)
 
 // Check if a cwd is the playground directory (for chat mode)
 function isPlaygroundPath(cwd: string): boolean {
@@ -1080,141 +1010,16 @@ const _coreRouter = router({
                 ...(!isUsingOllama && {
                   settingSources: ["project", "user"] as SettingSource[],
                 }),
-                canUseTool: async (
-                  toolName: string,
-                  toolInput: Record<string, unknown>,
-                  options: { toolUseID: string },
-                ): Promise<PermissionResult> => {
-                  // Fix common parameter mistakes from Ollama models
-                  if (isUsingOllama) {
-                    fixOllamaToolParameters(toolName, toolInput);
-                  }
-
-                  // Chat mode (playground): block file tools, user should convert to cowork/coding mode
-                  if (isPlaygroundPath(input.cwd)) {
-                    if (CHAT_MODE_BLOCKED_TOOLS.has(toolName)) {
-                      return {
-                        behavior: "deny" as const,
-                        message: `Tool "${toolName}" is not available in chat mode. To work with files, please convert this chat to a workspace (Cowork or Coding mode).`,
-                      };
-                    }
-                  }
-
-                  if (input.mode === "plan") {
-                    if (toolName === "Edit" || toolName === "Write") {
-                      const filePath =
-                        typeof toolInput.file_path === "string"
-                          ? toolInput.file_path
-                          : "";
-                      if (!/\.md$/i.test(filePath)) {
-                        return {
-                          behavior: "deny" as const,
-                          message:
-                            'Only ".md" files can be modified in plan mode.',
-                        };
-                      }
-                    } else if (PLAN_MODE_BLOCKED_TOOLS.has(toolName)) {
-                      return {
-                        behavior: "deny" as const,
-                        message: `Tool "${toolName}" blocked in plan mode.`,
-                      };
-                    }
-                  }
-                  if (toolName === "AskUserQuestion") {
-                    const { toolUseID } = options;
-                    const askInput = toolInput as AskUserQuestionInput;
-                    // Emit to UI (safely in case observer is closed)
-                    // Frontend will read the latest timeout setting from its store
-                    safeEmit({
-                      type: "ask-user-question",
-                      toolUseId: toolUseID,
-                      questions: askInput.questions,
-                    } as UIMessageChunk);
-
-                    // Backend uses a long safety timeout (10 minutes) as a fallback
-                    // Frontend controls the actual timeout behavior based on user settings
-                    const SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-
-                    // Wait for response (safety timeout protects against hung sessions)
-                    const response = await new Promise<{
-                      approved: boolean;
-                      message?: string;
-                      updatedInput?: unknown;
-                    }>((resolve) => {
-                      // Safety timeout - frontend handles actual user-configured timeout
-                      const timeoutId = setTimeout(() => {
-                        pendingToolApprovals.delete(toolUseID);
-                        // Emit chunk to notify UI that the question has timed out
-                        // This ensures the pending question dialog is cleared
-                        safeEmit({
-                          type: "ask-user-question-timeout",
-                          toolUseId: toolUseID,
-                        } as UIMessageChunk);
-                        resolve({ approved: false, message: "Timed out" });
-                      }, SAFETY_TIMEOUT_MS);
-
-                      pendingToolApprovals.set(toolUseID, {
-                        subChatId: input.subChatId,
-                        resolve: (d) => {
-                          if (timeoutId) clearTimeout(timeoutId);
-                          resolve(d);
-                        },
-                      });
-                    });
-
-                    // Find the tool part in accumulated parts
-                    const askToolPart = parts.find(
-                      (p) =>
-                        p.toolCallId === toolUseID &&
-                        p.type === "tool-AskUserQuestion",
-                    );
-
-                    if (!response.approved) {
-                      // Update the tool part with error result for skipped/denied
-                      const errorMessage = response.message || "Skipped";
-                      if (askToolPart) {
-                        askToolPart.result = errorMessage;
-                        askToolPart.state = "result";
-                      }
-                      // Emit result to frontend so it updates in real-time
-                      safeEmit({
-                        type: "ask-user-question-result",
-                        toolUseId: toolUseID,
-                        result: errorMessage,
-                      } as unknown as UIMessageChunk);
-                      return {
-                        behavior: "deny" as const,
-                        message: errorMessage,
-                      };
-                    }
-
-                    // Update the tool part with answers result for approved
-                    const answers = (
-                      response.updatedInput as ToolPermissionResponse["updatedInput"]
-                    )?.answers;
-                    const answerResult = { answers };
-                    if (askToolPart) {
-                      askToolPart.result = answerResult;
-                      askToolPart.state = "result";
-                    }
-                    // Emit result to frontend so it updates in real-time
-                    safeEmit({
-                      type: "ask-user-question-result",
-                      toolUseId: toolUseID,
-                      result: answerResult,
-                    } as unknown as UIMessageChunk);
-                    return {
-                      behavior: "allow" as const,
-                      updatedInput: response.updatedInput as
-                        | Record<string, unknown>
-                        | undefined,
-                    };
-                  }
-                  return {
-                    behavior: "allow" as const,
-                    updatedInput: toolInput,
-                  };
-                },
+                canUseTool: createCanUseTool({
+                  isUsingOllama,
+                  mode: input.mode,
+                  cwd: input.cwd,
+                  subChatId: input.subChatId,
+                  isPlaygroundPath,
+                  safeEmit,
+                  pendingToolApprovals,
+                  parts,
+                }),
                 stderr: (data: string) => {
                   stderrLines.push(data);
                   if (isUsingOllama) {
