@@ -65,6 +65,8 @@ export const chats = sqliteTable("chats", {
   tagId: text("tag_id"),
 }, (table) => [
   index("chats_worktree_path_idx").on(table.worktreePath),
+  index("chats_project_id_idx").on(table.projectId),
+  index("chats_project_archived_updated_idx").on(table.projectId, table.archivedAt, table.updatedAt),
 ])
 
 export const chatsRelations = relations(chats, ({ one, many }) => ({
@@ -107,6 +109,7 @@ export const subChats = sqliteTable("sub_chats", {
   archivedAt: integer("archived_at", { mode: "timestamp" }),
 }, (table) => [
   index("sub_chats_chat_id_idx").on(table.chatId),
+  index("sub_chats_session_id_idx").on(table.sessionId),
 ])
 
 export const subChatsRelations = relations(subChats, ({ one, many }) => ({
@@ -198,7 +201,13 @@ export const modelUsage = sqliteTable("model_usage", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),
-})
+}, (table) => [
+  index("model_usage_created_at_idx").on(table.createdAt),
+  index("model_usage_sub_chat_id_idx").on(table.subChatId),
+  index("model_usage_chat_id_idx").on(table.chatId),
+  index("model_usage_project_id_idx").on(table.projectId),
+  index("model_usage_message_uuid_idx").on(table.messageUuid),
+])
 
 export const modelUsageRelations = relations(modelUsage, ({ one }) => ({
   subChat: one(subChats, {
@@ -278,7 +287,9 @@ export const automations = sqliteTable("automations", {
   totalExecutions: integer("total_executions").default(0),
   successfulExecutions: integer("successful_executions").default(0),
   failedExecutions: integer("failed_executions").default(0),
-})
+}, (table) => [
+  index("automations_is_enabled_idx").on(table.isEnabled),
+])
 
 export const automationExecutions = sqliteTable(
   "automation_executions",
@@ -313,6 +324,7 @@ export const automationExecutions = sqliteTable(
   (table) => [
     index("executions_automation_idx").on(table.automationId),
     index("executions_status_idx").on(table.status),
+    index("executions_started_at_idx").on(table.startedAt),
   ],
 )
 
@@ -415,6 +427,7 @@ export const insights = sqliteTable(
   (table) => [
     index("insights_type_date_idx").on(table.reportType, table.reportDate),
     index("insights_created_at_idx").on(table.createdAt),
+    index("insights_status_idx").on(table.status),
   ],
 )
 
@@ -454,6 +467,7 @@ export const memorySessions = sqliteTable(
   },
   (table) => [
     index("memory_sessions_project_idx").on(table.projectId),
+    index("memory_sessions_chat_id_idx").on(table.chatId),
     index("memory_sessions_sub_chat_idx").on(table.subChatId),
     index("memory_sessions_status_idx").on(table.status),
     index("memory_sessions_started_at_idx").on(table.startedAtEpoch),

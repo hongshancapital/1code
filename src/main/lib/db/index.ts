@@ -756,6 +756,45 @@ export function initDatabase() {
     dbLog.info("Automations tables check:", error.message)
   }
 
+  // ============ Performance indexes for frequently queried columns ============
+  // These indexes address missing coverage on high-frequency WHERE / ORDER BY / JOIN columns.
+  // All use IF NOT EXISTS so they are safe to run on every startup.
+  try {
+    // chats: projectId is the most common filter (list chats by project)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS chats_project_id_idx ON chats(project_id)`)
+    // chats: composite for the dominant query pattern: WHERE project_id = ? AND archived_at IS NULL ORDER BY updated_at DESC
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS chats_project_archived_updated_idx ON chats(project_id, archived_at, updated_at)`)
+
+    // model_usage: createdAt range queries (gte/lte) are the core of usage analytics
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_usage_created_at_idx ON model_usage(created_at)`)
+    // model_usage: foreign key columns used in WHERE + JOIN
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_usage_sub_chat_id_idx ON model_usage(sub_chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_usage_chat_id_idx ON model_usage(chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_usage_project_id_idx ON model_usage(project_id)`)
+    // model_usage: messageUuid for dedup check on every stream completion
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS model_usage_message_uuid_idx ON model_usage(message_uuid)`)
+
+    // sub_chats: sessionId for Claude SDK session resume lookup
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chats_session_id_idx ON sub_chats(session_id)`)
+
+    // automations: isEnabled filter on startup and scheduler tick
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS automations_is_enabled_idx ON automations(is_enabled)`)
+
+    // insights: status filter for pending/generating checks
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS insights_status_idx ON insights(status)`)
+
+    // memory_sessions: chatId foreign key (has projectId and subChatId indexes but missing chatId)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS memory_sessions_chat_id_idx ON memory_sessions(chat_id)`)
+
+    // automation_executions: startedAt for ORDER BY desc
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS executions_started_at_idx ON automation_executions(started_at)`)
+
+    dbLog.info("Performance indexes ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    dbLog.info("Performance indexes check:", error.message)
+  }
+
   return db
 }
 
