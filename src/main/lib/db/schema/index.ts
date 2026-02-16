@@ -87,7 +87,9 @@ export const subChats = sqliteTable("sub_chats", {
   sessionId: text("session_id"), // Claude SDK session ID for resume
   streamId: text("stream_id"), // Track in-progress streams
   mode: text("mode").notNull().default("agent"), // "plan" | "agent"
-  messages: text("messages").notNull().default("[]"), // JSON array
+  messages: text("messages").notNull().default("[]"), // JSON array (legacy, migrating to sub_chat_messages)
+  // Migration flag: true when messages have been migrated to sub_chat_messages table
+  messagesMigrated: integer("messages_migrated", { mode: "boolean" }).default(false),
   // Pre-computed stats for preview (avoids parsing large messages JSON)
   // Format: { inputs: Array<{ messageId, index, content, mode, fileCount, additions, deletions, totalTokens }> }
   statsJson: text("stats_json"),
@@ -107,10 +109,45 @@ export const subChats = sqliteTable("sub_chats", {
   index("sub_chats_chat_id_idx").on(table.chatId),
 ])
 
-export const subChatsRelations = relations(subChats, ({ one }) => ({
+export const subChatsRelations = relations(subChats, ({ one, many }) => ({
   chat: one(chats, {
     fields: [subChats.chatId],
     references: [chats.id],
+  }),
+  messages: many(subChatMessages),
+}))
+
+// ============ SUB-CHAT MESSAGES (Normalized message storage) ============
+// Each message in a sub-chat gets its own row
+// Parts and metadata are stored as JSON within each row
+export const subChatMessages = sqliteTable("sub_chat_messages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  subChatId: text("sub_chat_id")
+    .notNull()
+    .references(() => subChats.id, { onDelete: "cascade" }),
+  // Message role: "user" | "assistant" | "system"
+  role: text("role").notNull(),
+  // Message parts as JSON: Array<MessagePart>
+  parts: text("parts").notNull().default("[]"),
+  // Additional metadata as JSON: { sdkMessageUuid?, shouldResume?, sessionId?, tokens? }
+  metadata: text("metadata"),
+  // Sort order within the sub-chat (0-indexed)
+  index: integer("index").notNull(),
+  // Timestamp for sorting
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+}, (table) => [
+  index("sub_chat_messages_sub_chat_idx").on(table.subChatId),
+  index("sub_chat_messages_index_idx").on(table.subChatId, table.index),
+])
+
+export const subChatMessagesRelations = relations(subChatMessages, ({ one }) => ({
+  subChat: one(subChats, {
+    fields: [subChatMessages.subChatId],
+    references: [subChats.id],
   }),
 }))
 
@@ -605,6 +642,8 @@ export type Chat = typeof chats.$inferSelect
 export type NewChat = typeof chats.$inferInsert
 export type SubChat = typeof subChats.$inferSelect
 export type NewSubChat = typeof subChats.$inferInsert
+export type SubChatMessage = typeof subChatMessages.$inferSelect
+export type NewSubChatMessage = typeof subChatMessages.$inferInsert
 export type ClaudeCodeCredential = typeof claudeCodeCredentials.$inferSelect
 export type NewClaudeCodeCredential = typeof claudeCodeCredentials.$inferInsert
 export type ModelUsage = typeof modelUsage.$inferSelect

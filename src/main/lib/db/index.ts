@@ -303,6 +303,39 @@ export function initDatabase() {
     }
   }
 
+  // Ensure messagesMigrated column exists on sub_chats table (for message table split)
+  try {
+    sqlite.exec(`ALTER TABLE sub_chats ADD COLUMN messages_migrated INTEGER DEFAULT 0`)
+    dbLog.info("Added messages_migrated column to sub_chats")
+  } catch (e: unknown) {
+    const error = e as Error
+    if (!error.message?.includes("duplicate column")) {
+      dbLog.info("messages_migrated column check (sub_chats):", error.message)
+    }
+  }
+
+  // Create sub_chat_messages table (normalized message storage)
+  try {
+    sqlite.exec(`
+      CREATE TABLE IF NOT EXISTS sub_chat_messages (
+        id TEXT PRIMARY KEY NOT NULL,
+        sub_chat_id TEXT NOT NULL REFERENCES sub_chats(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        parts TEXT NOT NULL DEFAULT '[]',
+        metadata TEXT,
+        "index" INTEGER NOT NULL,
+        created_at INTEGER,
+        FOREIGN KEY (sub_chat_id) REFERENCES sub_chats(id) ON DELETE CASCADE
+      )
+    `)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_messages_sub_chat_idx ON sub_chat_messages(sub_chat_id)`)
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_messages_index_idx ON sub_chat_messages(sub_chat_id, "index")`)
+    dbLog.info("sub_chat_messages table ensured")
+  } catch (e: unknown) {
+    const error = e as Error
+    dbLog.info("sub_chat_messages table check:", error.message)
+  }
+
   try {
     sqlite.exec(`
       CREATE TABLE IF NOT EXISTS model_usage (
