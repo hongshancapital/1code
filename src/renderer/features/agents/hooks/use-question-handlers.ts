@@ -15,9 +15,7 @@ import { useCallback, useMemo, useRef } from "react"
 import type { MutableRefObject } from "react"
 import { trpcClient } from "../../../lib/trpc"
 import { chatRegistry } from "../stores/chat-registry"
-
-// Message shown when user skips questions
-const QUESTIONS_SKIPPED_MESSAGE = "User skipped the question(s)"
+import { QUESTIONS_SKIPPED_MESSAGE } from "../../../lib/atoms"
 
 export interface QuestionData {
   toolUseId: string
@@ -34,7 +32,7 @@ export interface QuestionComponentRef {
 }
 
 export interface EditorRef {
-  getValue: () => string | undefined
+  getValue: () => string
   clear: () => void
 }
 

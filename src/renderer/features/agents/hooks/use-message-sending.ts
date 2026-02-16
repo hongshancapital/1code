@@ -7,13 +7,8 @@
  * - handleForceSend: Force send (bypasses queue, Opt+Enter)
  * - handleRemoveFromQueue: Remove item from queue
  * - handleRestoreFromQueue: Restore queued item to input
- * - handleRetryMessage: Retry last failed message
- * - handleEditMessage: Edit last user message
  *
- * Key design principles:
- * - Instance isolation: Each ChatView instance has independent state
- * - Dependency injection: All external deps passed via options
- * - No side effects: Returns pure handler functions
+ * Note: handleRetryMessage / handleEditMessage are handled by useMessageEditing.
  */
 
 import { useCallback } from "react"
@@ -21,7 +16,7 @@ import type { MutableRefObject } from "react"
 import { trpcClient } from "../../../lib/trpc"
 import { getQueryClient } from "../../../contexts/TRPCProvider"
 import { useAgentSubChatStore } from "../stores/sub-chat-store"
-import { useMessageQueueStore, type AgentQueueItem } from "../stores/message-queue-store"
+import { useMessageQueueStore } from "../stores/message-queue-store"
 import {
   createQueueItem,
   generateQueueId,
@@ -29,11 +24,13 @@ import {
   toQueuedImage,
   toQueuedTextContext,
   toQueuedDiffTextContext,
-} from "../stores/message-queue-store"
-import { buildImagePart, buildFilePart, stripFileAttachmentText } from "../lib/message-utils"
+  type AgentQueueItem,
+} from "../lib/queue-utils"
+import { buildImagePart, buildFilePart } from "../lib/message-utils"
 import { utf8ToBase64, waitForStreamingReady } from "../main/chat-utils"
-import { BUILTIN_SLASH_COMMANDS, MENTION_PREFIXES } from "../commands"
-import { trackSendMessage, trackClickRegenerate } from "../../../lib/analytics"
+import { BUILTIN_SLASH_COMMANDS } from "../commands"
+import { MENTION_PREFIXES } from "../mentions"
+import { trackSendMessage } from "../../../lib/sensors-analytics"
 import { createLogger } from "../../../lib/logger"
 
 const handleSendFromQueueLog = createLogger("handleSendFromQueue")
@@ -89,7 +86,7 @@ export interface PastedTextFile {
 }
 
 export interface EditorRef {
-  getValue: () => string | undefined
+  getValue: () => string
   setValue: (value: string) => void
   clear: () => void
   focus: () => void
@@ -120,12 +117,6 @@ export interface MessageSendingOptions {
   hasTriggeredRenameRef: MutableRefObject<boolean>
   subChatModeRef: MutableRefObject<string>
   sendMessageRef: MutableRefObject<(message: { role: string; parts: any[] }) => Promise<void>>
-
-  // Messages state (for edit/retry)
-  messages: any[]
-  setMessages: (messages: any[]) => void
-  regenerate: () => void
-  isStreaming: boolean
 
   // Callbacks
   onAutoRename: (userMessage: string, subChatId: string) => void
@@ -166,8 +157,6 @@ export interface MessageSendingResult {
   handleForceSend: () => Promise<void>
   handleRemoveFromQueue: (itemId: string) => void
   handleRestoreFromQueue: (item: AgentQueueItem) => void
-  handleRetryMessage: () => void
-  handleEditMessage: () => void
 }
 
 // =============================================================================
@@ -195,10 +184,6 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
     hasTriggeredRenameRef,
     subChatModeRef,
     sendMessageRef,
-    messages,
-    setMessages,
-    regenerate,
-    isStreaming,
     onAutoRename,
     onRestoreWorkspace,
     handleStop,
@@ -701,63 +686,11 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
     scrollToBottom,
   ])
 
-  // ---------------------------------------------------------------------------
-  // Retry message
-  // ---------------------------------------------------------------------------
-  const handleRetryMessage = useCallback(() => {
-    if (isStreaming) return
-
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg) return
-
-    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
-    const hasAssistantResponse = messages
-      .slice(lastUserMsgIndex + 1)
-      .some((m) => m.role === "assistant")
-    if (hasAssistantResponse) return
-
-    trackClickRegenerate()
-    regenerate()
-  }, [messages, isStreaming, regenerate])
-
-  // ---------------------------------------------------------------------------
-  // Edit message
-  // ---------------------------------------------------------------------------
-  const handleEditMessage = useCallback(() => {
-    if (isStreaming) return
-
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")
-    if (!lastUserMsg) return
-
-    const lastUserMsgIndex = messages.indexOf(lastUserMsg)
-    const hasAssistantResponse = messages
-      .slice(lastUserMsgIndex + 1)
-      .some((m) => m.role === "assistant")
-    if (hasAssistantResponse) return
-
-    const textParts = lastUserMsg.parts?.filter((p: any) => p.type === "text") || []
-    const rawText = textParts.map((p: any) => p.text).join("\n")
-    const { cleanedText } = stripFileAttachmentText(rawText)
-
-    const truncatedMessages = messages.slice(0, lastUserMsgIndex)
-    setMessages(truncatedMessages)
-
-    trpcClient.chats.updateSubChatMessages.mutate({
-      id: subChatId,
-      messages: JSON.stringify(truncatedMessages),
-    })
-
-    editorRef.current?.setValue(cleanedText)
-    editorRef.current?.focus()
-  }, [messages, isStreaming, setMessages, subChatId])
-
   return {
     handleSend,
     handleSendFromQueue,
     handleForceSend,
     handleRemoveFromQueue,
     handleRestoreFromQueue,
-    handleRetryMessage,
-    handleEditMessage,
   }
 }

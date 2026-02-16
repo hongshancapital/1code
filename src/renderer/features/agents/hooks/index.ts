@@ -28,7 +28,7 @@ export {
   type UseAutoRenameResult,
 } from "./use-auto-rename"
 
-// @experimental — 已提取但尚未接入 ChatViewInner，与内联版存在导入路径漂移
+// Question handling (AskUserQuestion tool response)
 export {
   useQuestionHandlers,
   type QuestionHandlersOptions,
@@ -38,7 +38,7 @@ export {
   type EditorRef,
 } from "./use-question-handlers"
 
-// @experimental — 已提取但尚未接入 ChatViewInner，需以 active-chat.tsx 为准重新对齐
+// Message sending (send, queue, force send, restore)
 export {
   useMessageSending,
   type MessageSendingOptions,

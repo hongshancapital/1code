@@ -35,7 +35,6 @@ import { getWindowId } from "../../../contexts/WindowContext";
 import {
   trackClickNewChat,
   trackClickPlanApprove,
-  trackSendMessage,
 } from "../../../lib/sensors-analytics";
 import {
   chatSourceModeAtom,
@@ -87,8 +86,6 @@ import {
   useDiffState,
 } from "../ui/diff-sidebar";
 import {
-  utf8ToBase64,
-  waitForStreamingReady,
   computeTabsToRender,
   ScrollToBottomButton,
   MessageGroup,
@@ -151,7 +148,6 @@ import {
   MODEL_ID_MAP,
   pendingBuildPlanSubChatIdAtom,
   pendingUserQuestionsAtom,
-  QUESTIONS_SKIPPED_MESSAGE,
   selectedAgentChatIdAtom,
   selectedCommitAtom,
   diffActiveTabAtom,
@@ -173,7 +169,6 @@ import {
   type SelectedCommit,
   type CachedParsedDiffFile,
 } from "../atoms";
-import { BUILTIN_SLASH_COMMANDS } from "../commands";
 import { OpenLocallyDialog } from "../components/open-locally-dialog";
 import type { TextSelectionSource } from "../context/text-selection-context";
 import { TextSelectionProvider } from "../context/text-selection-context";
@@ -208,20 +203,9 @@ import { useSubChatNameSync } from "../hooks/use-subchat-name-sync";
 import { usePrGitOperations } from "../hooks/use-pr-git-operations";
 import { clearSubChatDraft } from "../lib/drafts";
 import { IPCChatTransport } from "../lib/ipc-chat-transport";
-import {
-  createQueueItem,
-  generateQueueId,
-  toQueuedDiffTextContext,
-  toQueuedFile,
-  toQueuedImage,
-  toQueuedTextContext,
-  type AgentQueueItem,
-} from "../lib/queue-utils";
-import { buildImagePart, buildFilePart } from "../lib/message-utils";
 import { RemoteChatTransport } from "../lib/remote-chat-transport";
 import {
   FileOpenProvider,
-  MENTION_PREFIXES,
   type AgentsMentionsEditorHandle,
 } from "../mentions";
 import {
@@ -272,6 +256,8 @@ import { ReviewButton } from "../ui/review-button";
 import { SubChatStatusCard } from "../ui/sub-chat-status-card";
 import { TextSelectionPopover } from "../ui/text-selection-popover";
 import { useAutoRename } from "../hooks/use-auto-rename";
+import { useQuestionHandlers } from "../hooks/use-question-handlers";
+import { useMessageSending } from "../hooks/use-message-sending";
 import { ChatInputArea } from "./chat-input-area";
 import { CHAT_LAYOUT } from "./constants";
 import { IsolatedMessagesSection } from "./isolated-messages-section";
@@ -294,7 +280,6 @@ import { ProjectModeProvider } from "../context/project-mode-context";
 import { createLogger } from "../../../lib/logger"
 
 const handleRollbackLog = createLogger("handleRollback")
-const handleForceSendLog = createLogger("handleForceSend")
 const getOrCreateChatLog = createLogger("getOrCreateChat")
 const createNewSubChatLog = createLogger("createNewSubChat")
 
@@ -341,7 +326,6 @@ const ChatViewInner = memo(function ChatViewInner({
   isArchived = false,
   onRestoreWorkspace,
   existingPrUrl,
-  isActive = true,
 }: {
   chat: Chat<any>;
   subChatId: string;
@@ -363,8 +347,11 @@ const ChatViewInner = memo(function ChatViewInner({
   isArchived?: boolean;
   onRestoreWorkspace?: () => void;
   existingPrUrl?: string | null;
-  isActive?: boolean;
 }) {
+  // [Perf] 从 store 读取 isActive，避免 prop 传入导致切 tab 时 memo 失效
+  // 每个 ChatViewInner 自行订阅 store，只有自己的 isActive 变化时才 re-render
+  const isActive = useAgentSubChatStore((s) => s.activeSubChatId === subChatId);
+
   const hasTriggeredRenameRef = useRef(false);
   const hasTriggeredAutoGenerateRef = useRef(false);
 
@@ -604,10 +591,6 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Message queue for sending messages while streaming
   const queue = useMessageQueueStore((s) => s.queues[subChatId] ?? EMPTY_QUEUE);
-  const addToQueue = useMessageQueueStore((s) => s.addToQueue);
-  const removeFromQueue = useMessageQueueStore((s) => s.removeFromQueue);
-  const popItemFromQueue = useMessageQueueStore((s) => s.popItem);
-
   // Track chat changes for rename trigger reset
   const chatRef = useRef<Chat<any> | null>(null);
 
@@ -938,188 +921,27 @@ const ChatViewInner = memo(function ChatViewInner({
     setPendingQuestionsMap,
   ]);
 
-  // Helper to clear pending and expired questions for this subChat (used in callbacks)
-  const clearPendingQuestionCallback = useCallback(() => {
-    setPendingQuestionsMap((current) => {
-      if (current.has(subChatId)) {
-        const newMap = new Map(current);
-        newMap.delete(subChatId);
-        return newMap;
-      }
-      return current;
-    });
-    setExpiredQuestionsMap((current) => {
-      if (current.has(subChatId)) {
-        const newMap = new Map(current);
-        newMap.delete(subChatId);
-        return newMap;
-      }
-      return current;
-    });
-  }, [subChatId, setPendingQuestionsMap, setExpiredQuestionsMap]);
-
-  // Shared helpers for question answer handlers
-  const formatAnswersAsText = useCallback(
-    (answers: Record<string, string>): string =>
-      Object.entries(answers)
-        .map(([question, answer]) => `${question}: ${answer}`)
-        .join("\n"),
-    [],
-  );
-
-  const clearInputAndDraft = useCallback(() => {
-    editorRef.current?.clear();
-    if (parentChatId) {
-      clearSubChatDraft(parentChatId, subChatId);
-    }
-  }, [parentChatId, subChatId]);
-
-  const sendUserMessage = useCallback(async (text: string) => {
-    shouldAutoScrollRef.current = true;
-    await sendMessageRef.current({
-      role: "user",
-      parts: [{ type: "text", text }],
-    });
-  }, []);
-
-  // Handle answering questions
-  const handleQuestionsAnswer = useCallback(
-    async (answers: Record<string, string>) => {
-      if (!displayQuestions) return;
-
-      if (isQuestionExpired) {
-        // Question timed out - send answers as a normal user message
-        clearPendingQuestionCallback();
-        await sendUserMessage(formatAnswersAsText(answers));
-      } else {
-        // Question is still live - use tool approval path
-        await trpcClient.claude.respondToolApproval.mutate({
-          toolUseId: displayQuestions.toolUseId,
-          approved: true,
-          updatedInput: { questions: displayQuestions.questions, answers },
-        });
-        clearPendingQuestionCallback();
-      }
-    },
-    [
-      displayQuestions,
-      isQuestionExpired,
-      clearPendingQuestionCallback,
-      sendUserMessage,
-      formatAnswersAsText,
-    ],
-  );
-
-  // Handle skipping questions
-  const handleQuestionsSkip = useCallback(async () => {
-    if (!displayQuestions) return;
-
-    if (isQuestionExpired) {
-      // Expired question - just clear the UI, no backend call needed
-      clearPendingQuestionCallback();
-      return;
-    }
-
-    const toolUseId = displayQuestions.toolUseId;
-
-    // Clear UI immediately - don't wait for backend
-    // This ensures dialog closes even if stream was already aborted
-    clearPendingQuestionCallback();
-
-    // Try to notify backend (may fail if already aborted - that's ok)
-    try {
-      await trpcClient.claude.respondToolApproval.mutate({
-        toolUseId,
-        approved: false,
-        message: QUESTIONS_SKIPPED_MESSAGE,
-      });
-    } catch {
-      // Stream likely already aborted - ignore
-    }
-  }, [displayQuestions, isQuestionExpired, clearPendingQuestionCallback]);
-
-  // Ref to prevent double submit of question answer
-  const isSubmittingQuestionAnswerRef = useRef(false);
-
-  // Handle answering questions with custom text from input (called on Enter in input)
-  const handleSubmitWithQuestionAnswer = useCallback(async () => {
-    if (!displayQuestions) return;
-    if (isSubmittingQuestionAnswerRef.current) return;
-    isSubmittingQuestionAnswerRef.current = true;
-
-    try {
-      // 1. Get custom text from input
-      const customText = editorRef.current?.getValue()?.trim() || "";
-      if (!customText) {
-        isSubmittingQuestionAnswerRef.current = false;
-        return;
-      }
-
-      // 2. Get already selected answers from question component
-      const selectedAnswers = questionRef.current?.getAnswers() || {};
-      const formattedAnswers: Record<string, string> = { ...selectedAnswers };
-
-      // 3. Add custom text to the last question as "Other"
-      const lastQuestion =
-        displayQuestions.questions[displayQuestions.questions.length - 1];
-      if (lastQuestion) {
-        const existingAnswer = formattedAnswers[lastQuestion.question];
-        if (existingAnswer) {
-          // Append to existing answer
-          formattedAnswers[lastQuestion.question] =
-            `${existingAnswer}, Other: ${customText}`;
-        } else {
-          formattedAnswers[lastQuestion.question] = `Other: ${customText}`;
-        }
-      }
-
-      if (isQuestionExpired) {
-        // Expired: send user's custom text as-is (don't format)
-        clearPendingQuestionCallback();
-        clearInputAndDraft();
-        // await sendUserMessage(formatAnswersAsText(formattedAnswers))
-        await sendUserMessage(customText);
-      } else {
-        // Live: use existing tool approval flow
-        await trpcClient.claude.respondToolApproval.mutate({
-          toolUseId: displayQuestions.toolUseId,
-          approved: true,
-          updatedInput: {
-            questions: displayQuestions.questions,
-            answers: formattedAnswers,
-          },
-        });
-        clearPendingQuestionCallback();
-
-        // Stop stream if currently streaming
-        if (isStreamingRef.current) {
-          chatRegistry.setManuallyAborted(subChatId, true);
-          await stopRef.current();
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        clearInputAndDraft();
-        await sendUserMessage(customText);
-      }
-    } finally {
-      isSubmittingQuestionAnswerRef.current = false;
-    }
-  }, [
+  // Question handling (answer, skip, submit with custom text)
+  const {
+    handleQuestionsAnswer,
+    handleQuestionsSkip,
+    submitWithQuestionAnswerCallback,
+    clearPendingQuestionCallback,
+  } = useQuestionHandlers({
+    subChatId,
+    parentChatId,
     displayQuestions,
     isQuestionExpired,
-    clearPendingQuestionCallback,
-    clearInputAndDraft,
-    sendUserMessage,
-    formatAnswersAsText,
-    subChatId,
-  ]);
-
-  // Memoize the callback to prevent ChatInputArea re-renders
-  // Only provide callback when there's a pending or expired question for this subChat
-  const submitWithQuestionAnswerCallback = useMemo(
-    () => (displayQuestions ? handleSubmitWithQuestionAnswer : undefined),
-    [displayQuestions, handleSubmitWithQuestionAnswer],
-  );
+    setPendingQuestionsMap,
+    setExpiredQuestionsMap,
+    editorRef,
+    questionRef,
+    isStreamingRef,
+    stopRef,
+    sendMessageRef,
+    shouldAutoScrollRef,
+    clearSubChatDraft,
+  });
 
   // Watch for pending auth retry message (after successful OAuth flow)
   useAuthRetryMessage({ subChatId, isStreaming, sendMessage });
@@ -1458,543 +1280,50 @@ const ChatViewInner = memo(function ChatViewInner({
   const filesRef = useRef(files);
   filesRef.current = files;
 
-  const handleSend = useCallback(async () => {
-    // Block sending while sandbox is still being set up
-    if (sandboxSetupStatus !== "ready") {
-      return;
-    }
-
-    // Clear any expired questions when user sends a new message
-    setExpiredQuestionsMap((current) => {
-      if (current.has(subChatId)) {
-        const newMap = new Map(current);
-        newMap.delete(subChatId);
-        return newMap;
-      }
-      return current;
-    });
-
-    // Get value from uncontrolled editor
-    const inputValue = editorRef.current?.getValue() || "";
-    const hasText = inputValue.trim().length > 0;
-    const currentImages = imagesRef.current;
-    const currentFiles = filesRef.current;
-    const currentTextContexts = textContextsRef.current;
-    const currentPastedTexts = pastedTextsRef.current;
-    const currentDiffTextContexts = diffTextContextsRef.current;
-    const hasImages =
-      currentImages.filter((img) => !img.isLoading && img.url).length > 0;
-    const hasTextContexts = currentTextContexts.length > 0;
-    const hasPastedTexts = currentPastedTexts.length > 0;
-    const hasDiffTextContexts = currentDiffTextContexts.length > 0;
-
-    if (
-      !hasText &&
-      !hasImages &&
-      !hasTextContexts &&
-      !hasPastedTexts &&
-      !hasDiffTextContexts
-    )
-      return;
-
-    // If streaming, add to queue instead of sending directly
-    if (isStreamingRef.current) {
-      const queuedImages = currentImages
-        .filter((img) => !img.isLoading && img.url)
-        .map(toQueuedImage);
-      const queuedFiles = currentFiles
-        .filter((f) => !f.isLoading && f.url)
-        .map(toQueuedFile);
-      const queuedTextContexts = currentTextContexts.map(toQueuedTextContext);
-      const queuedDiffTextContexts = currentDiffTextContexts.map(
-        toQueuedDiffTextContext,
-      );
-
-      const item = createQueueItem(
-        generateQueueId(),
-        inputValue.trim(),
-        queuedImages.length > 0 ? queuedImages : undefined,
-        queuedFiles.length > 0 ? queuedFiles : undefined,
-        queuedTextContexts.length > 0 ? queuedTextContexts : undefined,
-        queuedDiffTextContexts.length > 0 ? queuedDiffTextContexts : undefined,
-      );
-      addToQueue(subChatId, item);
-
-      // Clear input and attachments
-      editorRef.current?.clear();
-      if (parentChatId) {
-        clearSubChatDraft(parentChatId, subChatId);
-      }
-      clearAll();
-      clearTextContexts();
-      clearDiffTextContexts();
-      clearPastedTexts();
-      return;
-    }
-
-    // Auto-restore archived workspace when sending a message
-    if (isArchived && onRestoreWorkspace) {
-      onRestoreWorkspace();
-    }
-
-    const text = inputValue.trim();
-
-    // Expand custom slash commands with arguments (e.g. "/Apex my argument")
-    // This mirrors the logic in new-chat-form.tsx
-    let finalText = text;
-    const slashMatch = text.match(/^\/(\S+)\s*(.*)$/s);
-    if (slashMatch) {
-      const [, commandName, args] = slashMatch;
-      const builtinNames = new Set(
-        BUILTIN_SLASH_COMMANDS.map((cmd) => cmd.name),
-      );
-      if (!builtinNames.has(commandName)) {
-        try {
-          const commands = await (trpcClient as any).commands.list.query({
-            projectPath,
-          });
-          const cmd = commands.find(
-            (c: any) => c.name.toLowerCase() === commandName.toLowerCase(),
-          );
-          if (cmd) {
-            const { content } = await (trpcClient as any).commands.getContent.query({
-              path: cmd.path,
-            });
-            finalText = content.replace(/\$ARGUMENTS/g, args.trim());
-          }
-        } catch (error) {
-          handleRollbackLog.error("Failed to expand custom slash command:", error);
-        }
-      }
-    }
-
-    // Clear editor and draft from localStorage
-    editorRef.current?.clear();
-    if (parentChatId) {
-      clearSubChatDraft(parentChatId, subChatId);
-    }
-
-    // Trigger auto-rename on first message in a new sub-chat
-    if (messagesLengthRef.current === 0 && !hasTriggeredRenameRef.current) {
-      hasTriggeredRenameRef.current = true;
-      onAutoRename(finalText || "Image message", subChatId);
-    }
-
-    // Build message parts: images first, then files, then text
-    // Small images (< 5MB) are inlined as base64; large images use file path reference
-    // Claude API supports up to 8MB inline base64, 5MB leaves reasonable headroom
-    const parts: any[] = [
-      ...currentImages
-        .filter((img) => !img.isLoading && img.url)
-        .map(buildImagePart),
-      ...currentFiles.filter((f) => !f.isLoading && f.url).map(buildFilePart),
-    ];
-
-    // Add text contexts as mention tokens
-    let mentionPrefix = "";
-
-    if (
-      currentTextContexts.length > 0 ||
-      currentDiffTextContexts.length > 0 ||
-      currentPastedTexts.length > 0
-    ) {
-      const quoteMentions = currentTextContexts.map((tc) => {
-        const preview = tc.preview.replace(/[:[\]]/g, ""); // Sanitize preview
-        const encodedText = utf8ToBase64(tc.text); // Base64 encode full text
-        return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`;
-      });
-
-      const diffMentions = currentDiffTextContexts.map((dtc) => {
-        const preview = dtc.preview.replace(/[:[\]]/g, ""); // Sanitize preview
-        const encodedText = utf8ToBase64(dtc.text); // Base64 encode full text
-        const lineNum = dtc.lineNumber || 0;
-        // Include comment if present: encode it as base64 and append
-        const encodedComment = dtc.comment ? utf8ToBase64(dtc.comment) : "";
-        return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}:${encodedComment}]`;
-      });
-
-      // Add pasted text as pasted mentions (format: pasted:size:preview|filepath)
-      // Using | as separator since filepath can contain colons
-      const pastedTextMentions = currentPastedTexts.map((pt) => {
-        // Sanitize preview to remove special characters that break mention parsing
-        const sanitizedPreview = pt.preview.replace(/[:[\]|]/g, "");
-        return `@[${MENTION_PREFIXES.PASTED}${pt.size}:${sanitizedPreview}|${pt.filePath}]`;
-      });
-
-      mentionPrefix =
-        [...quoteMentions, ...diffMentions, ...pastedTextMentions].join(" ") +
-        " ";
-    }
-
-    if (finalText || mentionPrefix) {
-      parts.push({ type: "text", text: mentionPrefix + (finalText || "") });
-    }
-
-    // Add cached file contents as hidden parts (sent to agent but not displayed in UI)
-    // These are from dropped text files - content is embedded so agent sees it immediately
-    if (fileContentsRef.current.size > 0) {
-      for (const [mentionId, content] of fileContentsRef.current.entries()) {
-        // Extract file path from mentionId (file:local:path or file:external:path)
-        const filePath = mentionId.replace(/^file:(local|external):/, "");
-        parts.push({
-          type: "data-file-content" as const,
-          data: { filePath, content },
-        });
-      }
-    }
-
-    clearAll();
-    clearTextContexts();
-    clearDiffTextContexts();
-    clearPastedTexts();
-    clearFileContents();
-
-    // Optimistic update: immediately update chat's updated_at and resort array for instant sidebar resorting
-    if (teamId) {
-      const now = new Date();
-      utils.agents.getAgentChats.setData({ teamId }, (old: any) => {
-        if (!old) return old;
-        // Update the timestamp and sort by updated_at descending
-        const updated = old.map((c: any) =>
-          c.id === parentChatId ? { ...c, updated_at: now } : c,
-        );
-        return updated.sort(
-          (a: any, b: any) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-        );
-      });
-    }
-
-    // Desktop app: Optimistic update for chats.list to update sidebar immediately
-    const queryClient = getQueryClient();
-    if (queryClient) {
-      const now = new Date();
-      const queries = queryClient.getQueryCache().getAll();
-      const chatsListQuery = queries.find(
-        (q) =>
-          Array.isArray(q.queryKey) &&
-          Array.isArray(q.queryKey[0]) &&
-          q.queryKey[0][0] === "chats" &&
-          q.queryKey[0][1] === "list",
-      );
-      if (chatsListQuery) {
-        queryClient.setQueryData(
-          chatsListQuery.queryKey,
-          (old: any[] | undefined) => {
-            if (!old) return old;
-            // Update the timestamp and sort by updatedAt descending
-            const updated = old.map((c: any) =>
-              c.id === parentChatId ? { ...c, updatedAt: now } : c,
-            );
-            return updated.sort(
-              (a: any, b: any) =>
-                new Date(b.updatedAt).getTime() -
-                new Date(a.updatedAt).getTime(),
-            );
-          },
-        );
-      }
-    }
-
-    // Optimistically update sub-chat timestamp to move it to top
-    useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId);
-
-    // Enable auto-scroll and immediately scroll to bottom
-    shouldAutoScrollRef.current = true;
-    scrollToBottom();
-
-    // Track message sent
-    const hasAt = parts.some(
-      (p: any) => p.type === "text" && p.text?.includes("@"),
-    );
-    trackSendMessage(subChatModeRef.current, hasAt);
-
-    await sendMessageRef.current({ role: "user", parts });
-  }, [
+  // Message sending handlers (send, queue, force send, restore)
+  const {
+    handleSend,
+    handleSendFromQueue,
+    handleForceSend,
+    handleRemoveFromQueue,
+    handleRestoreFromQueue,
+  } = useMessageSending({
+    subChatId,
+    parentChatId,
+    teamId,
+    projectPath,
     sandboxSetupStatus,
     isArchived,
-    onRestoreWorkspace,
-    parentChatId,
-    subChatId,
+    editorRef,
+    imagesRef,
+    filesRef,
+    textContextsRef,
+    diffTextContextsRef,
+    pastedTextsRef,
+    fileContentsRef,
+    isStreamingRef,
+    shouldAutoScrollRef,
+    messagesLengthRef,
+    hasTriggeredRenameRef,
+    subChatModeRef,
+    sendMessageRef,
     onAutoRename,
+    onRestoreWorkspace,
+    handleStop,
+    scrollToBottom,
     clearAll,
     clearTextContexts,
+    clearDiffTextContexts,
     clearPastedTexts,
-    teamId,
-    addToQueue,
+    clearFileContents,
+    clearSubChatDraft,
+    setImagesFromDraft,
+    setFilesFromDraft,
+    setTextContextsFromDraft,
+    setDiffTextContextsFromDraft,
     setExpiredQuestionsMap,
-  ]);
-
-  // Queue handlers for sending queued messages
-  const handleSendFromQueue = useCallback(
-    async (itemId: string) => {
-      const item = popItemFromQueue(subChatId, itemId);
-      if (!item) return;
-
-      try {
-        // Stop current stream if streaming and wait for status to become ready.
-        // The server-side save block preserves sessionId on abort, so the next
-        // message can resume the session with full conversation context.
-        if (isStreamingRef.current) {
-          await handleStop();
-          await waitForStreamingReady(subChatId);
-        }
-
-        // Build message parts from queued item
-        const parts: any[] = [
-          ...(item.images || []).map(buildImagePart),
-          ...(item.files || []).map(buildFilePart),
-        ];
-
-        // Add text contexts as mention tokens
-        let mentionPrefix = "";
-        if (item.textContexts && item.textContexts.length > 0) {
-          const quoteMentions = item.textContexts.map((tc) => {
-            const preview = tc.text.slice(0, 50).replace(/[:[\]]/g, ""); // Create and sanitize preview
-            const encodedText = utf8ToBase64(tc.text); // Base64 encode full text
-            return `@[${MENTION_PREFIXES.QUOTE}${preview}:${encodedText}]`;
-          });
-          mentionPrefix = quoteMentions.join(" ") + " ";
-        }
-
-        // Add diff text contexts as mention tokens
-        if (item.diffTextContexts && item.diffTextContexts.length > 0) {
-          const diffMentions = item.diffTextContexts.map((dtc) => {
-            const preview = dtc.text.slice(0, 50).replace(/[:[\]]/g, ""); // Create and sanitize preview
-            const encodedText = utf8ToBase64(dtc.text); // Base64 encode full text
-            const lineNum = dtc.lineNumber || 0;
-            return `@[${MENTION_PREFIXES.DIFF}${dtc.filePath}:${lineNum}:${preview}:${encodedText}]`;
-          });
-          mentionPrefix += diffMentions.join(" ") + " ";
-        }
-
-        if (item.message || mentionPrefix) {
-          parts.push({
-            type: "text",
-            text: mentionPrefix + (item.message || ""),
-          });
-        }
-
-        // Update timestamps
-        useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId);
-
-        // Enable auto-scroll and immediately scroll to bottom
-        shouldAutoScrollRef.current = true;
-        scrollToBottom();
-
-        // Track message sent
-        const hasAt = parts.some(
-          (p: any) => p.type === "text" && p.text?.includes("@"),
-        );
-        trackSendMessage(subChatModeRef.current, hasAt);
-
-        await sendMessageRef.current({ role: "user", parts });
-      } catch (error) {
-        handleRollbackLog.error(
-          "[handleSendFromQueue] Error sending queued message:",
-          error,
-        );
-        // Requeue the item at the front so it isn't lost
-        useMessageQueueStore.getState().prependItem(subChatId, item);
-      }
-    },
-    [subChatId, popItemFromQueue, handleStop],
-  );
-
-  const handleRemoveFromQueue = useCallback(
-    (itemId: string) => {
-      removeFromQueue(subChatId, itemId);
-    },
-    [subChatId, removeFromQueue],
-  );
-
-  // Restore queue item back to input (undo queue)
-  const handleRestoreFromQueue = useCallback(
-    (item: AgentQueueItem) => {
-      // Remove from queue first
-      removeFromQueue(subChatId, item.id);
-
-      // Restore message text to editor
-      if (item.message) {
-        editorRef.current?.setValue(item.message);
-      }
-
-      // Restore images
-      if (item.images && item.images.length > 0) {
-        const restoredImages = item.images.map((img) => ({
-          id: img.id,
-          url: img.url,
-          mediaType: img.mediaType,
-          filename: img.filename || "image",
-          base64Data: img.base64Data,
-          isLoading: false,
-        }));
-        setImagesFromDraft(restoredImages);
-      }
-
-      // Restore files
-      if (item.files && item.files.length > 0) {
-        const restoredFiles = item.files.map((f) => ({
-          id: f.id,
-          url: f.url,
-          filename: f.filename,
-          type: f.mediaType || "application/octet-stream",
-          size: f.size || 0,
-          isLoading: false,
-        }));
-        setFilesFromDraft(restoredFiles);
-      }
-
-      // Restore text contexts
-      if (item.textContexts && item.textContexts.length > 0) {
-        const restoredTextContexts = item.textContexts.map((tc) => ({
-          id: tc.id,
-          text: tc.text,
-          sourceMessageId: tc.sourceMessageId,
-          preview: tc.text.slice(0, 50) + (tc.text.length > 50 ? "..." : ""),
-          createdAt: new Date(),
-        }));
-        setTextContextsFromDraft(restoredTextContexts);
-      }
-
-      // Restore diff text contexts
-      if (item.diffTextContexts && item.diffTextContexts.length > 0) {
-        const restoredDiffTextContexts = item.diffTextContexts.map((dtc) => ({
-          id: dtc.id,
-          text: dtc.text,
-          filePath: dtc.filePath,
-          lineNumber: dtc.lineNumber,
-          lineType: dtc.lineType,
-          preview: dtc.text.slice(0, 50) + (dtc.text.length > 50 ? "..." : ""),
-          createdAt: new Date(),
-          comment: dtc.comment,
-        }));
-        setDiffTextContextsFromDraft(restoredDiffTextContexts);
-      }
-
-      // Focus the editor
-      editorRef.current?.focus();
-    },
-    [
-      subChatId,
-      removeFromQueue,
-      setImagesFromDraft,
-      setFilesFromDraft,
-      setTextContextsFromDraft,
-      setDiffTextContextsFromDraft,
-    ],
-  );
-
-  // Force send - stop stream and send immediately, bypassing queue (Opt+Enter)
-  const handleForceSend = useCallback(async () => {
-    // Block sending while sandbox is still being set up
-    if (sandboxSetupStatus !== "ready") {
-      return;
-    }
-
-    // Get value from uncontrolled editor
-    const inputValue = editorRef.current?.getValue() || "";
-    const hasText = inputValue.trim().length > 0;
-    const currentImages = imagesRef.current;
-    const currentFiles = filesRef.current;
-    const hasImages =
-      currentImages.filter((img) => !img.isLoading && img.url).length > 0;
-
-    if (!hasText && !hasImages) return;
-
-    // Stop current stream if streaming and wait for status to become ready.
-    // The server-side save block sets sessionId=null on abort, so the next
-    // message starts fresh without needing an explicit cancel mutation.
-    if (isStreamingRef.current) {
-      await handleStop();
-      await waitForStreamingReady(subChatId);
-    }
-
-    // Auto-restore archived workspace when sending a message
-    if (isArchived && onRestoreWorkspace) {
-      onRestoreWorkspace();
-    }
-
-    const text = inputValue.trim();
-
-    // Expand custom slash commands with arguments (e.g. "/Apex my argument")
-    let finalText = text;
-    const slashMatch = text.match(/^\/(\S+)\s*(.*)$/s);
-    if (slashMatch) {
-      const [, commandName, args] = slashMatch;
-      const builtinNames = new Set(
-        BUILTIN_SLASH_COMMANDS.map((cmd) => cmd.name),
-      );
-      if (!builtinNames.has(commandName)) {
-        try {
-          const commands = await (trpcClient as any).commands.list.query({
-            projectPath,
-          });
-          const cmd = commands.find(
-            (c: any) => c.name.toLowerCase() === commandName.toLowerCase(),
-          );
-          if (cmd) {
-            const { content } = await (trpcClient as any).commands.getContent.query({
-              path: cmd.path,
-            });
-            finalText = content.replace(/\$ARGUMENTS/g, args.trim());
-          }
-        } catch (error) {
-          handleRollbackLog.error("Failed to expand custom slash command:", error);
-        }
-      }
-    }
-
-    // Clear editor and draft from localStorage
-    editorRef.current?.clear();
-    if (parentChatId) {
-      clearSubChatDraft(parentChatId, subChatId);
-    }
-
-    // Build message parts
-    const parts: any[] = [
-      ...currentImages
-        .filter((img) => !img.isLoading && img.url)
-        .map(buildImagePart),
-      ...currentFiles.filter((f) => !f.isLoading && f.url).map(buildFilePart),
-    ];
-
-    if (finalText) {
-      parts.push({ type: "text", text: finalText });
-    }
-
-    // Clear attachments
-    clearAll();
-
-    // Update timestamps
-    useAgentSubChatStore.getState().updateSubChatTimestamp(subChatId);
-
-    // Force scroll to bottom
-    shouldAutoScrollRef.current = true;
-    scrollToBottom();
-
-    // Track message sent
-    const hasAt = parts.some(
-      (p: any) => p.type === "text" && p.text?.includes("@"),
-    );
-    trackSendMessage(subChatModeRef.current, hasAt);
-
-    try {
-      await sendMessageRef.current({ role: "user", parts });
-    } catch (error) {
-      handleForceSendLog.error("Error sending message:", error);
-      // Restore editor content so the user can retry
-      editorRef.current?.setValue(finalText);
-    }
-  }, [
-    sandboxSetupStatus,
-    isArchived,
-    onRestoreWorkspace,
-    parentChatId,
-    subChatId,
-    handleStop,
-    clearAll,
-  ]);
+    utils,
+  });
 
   const { handleRetryMessage, handleEditMessage } = useMessageEditing({
     messages,
