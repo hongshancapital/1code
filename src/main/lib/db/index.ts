@@ -324,8 +324,7 @@ export function initDatabase() {
         parts TEXT NOT NULL DEFAULT '[]',
         metadata TEXT,
         "index" INTEGER NOT NULL,
-        created_at INTEGER,
-        FOREIGN KEY (sub_chat_id) REFERENCES sub_chats(id) ON DELETE CASCADE
+        created_at INTEGER
       )
     `)
     sqlite.exec(`CREATE INDEX IF NOT EXISTS sub_chat_messages_sub_chat_idx ON sub_chat_messages(sub_chat_id)`)
