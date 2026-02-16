@@ -49,6 +49,24 @@
         opacity: 0;
         pointer-events: none;
       }
+      /* CSS Custom Highlight API - Modern browser feature for high-performance text highlighting */
+      /* https://developer.mozilla.org/en-US/docs/Web/API/CSS_Custom_Highlight_API */
+      ::highlight(content-search) {
+        background-color: rgb(250 204 21 / 0.35);
+        color: inherit;
+      }
+      ::highlight(content-search-current) {
+        background-color: rgb(250 204 21 / 0.85);
+        color: hsl(0 0% 5%);
+      }
+      ::highlight(diff-search) {
+        background-color: rgb(250 204 21 / 0.35);
+        color: inherit;
+      }
+      ::highlight(diff-search-current) {
+        background-color: rgb(250 204 21 / 0.85);
+        color: hsl(0 0% 5%);
+      }
     </style>
   </head>
   <body>
