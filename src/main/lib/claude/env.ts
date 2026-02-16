@@ -299,7 +299,7 @@ export async function preloadShellEnvironment(): Promise<void> {
     )
     cachedShellEnv = env
   } catch (error) {
-    claudeEnvLog.warn("Async preload failed, will use fallback:", (error as Error).message)
+    claudeEnvLog.debug("Async preload failed, using fallback environment:", (error as Error).message)
     // Fill cache with fallback so sync call won't block either
     const env = platform.buildEnvironment()
     stripSensitiveKeys(env)

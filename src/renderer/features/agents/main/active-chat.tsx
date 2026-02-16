@@ -2315,7 +2315,7 @@ export function ChatView({
             const parsed = subChatMessagesData.parsedMessages;
             // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
             const existingMessages = existing.messages ?? [];
-            getOrCreateChatLog.info("Checking cache", {
+            getOrCreateChatLog.debug("Checking cache", {
               subChatId: subChatId.slice(-8),
               cachedMsgCount: existingMessages.length,
               newMsgCount: parsed.length,
