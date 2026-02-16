@@ -17,6 +17,8 @@ const vectorStoreLog = createLogger("VectorStore")
 let db: lancedb.Connection | null = null
 let observationsTable: lancedb.Table | null = null
 let initPromise: Promise<void> | null = null
+let lastInitError: string | null = null
+let retryTimer: ReturnType<typeof setTimeout> | null = null
 
 // Queue for async embedding generation
 interface EmbeddingQueueItem {
