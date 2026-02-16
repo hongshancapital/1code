@@ -1,25 +1,25 @@
 ---
 name: learn-from-mistakes
-description: Document lessons learned from errors into CLAUDE.md. Use after making mistakes, receiving corrections, or identifying improvement opportunities.
+description: "This skill should be used when the user says \"remember this mistake\", \"learn from this error\", \"add to lessons learned\", \"document this lesson\", or after making an error, receiving a correction, misunderstanding requirements, or identifying improvement opportunities. Documents lessons learned into CLAUDE.md."
 allowed-tools: Read, Edit, Write
 ---
 
-When a mistake occurs or user provides correction, document the lesson in CLAUDE.md.
+Document lessons learned from mistakes and corrections into CLAUDE.md for future reference.
 
-## When to Use
+## When to Apply
 
-- After making an error that user corrects
+- After making an error that the user corrects
 - After misunderstanding requirements
-- After using wrong approach or tool
+- After using the wrong approach or tool
 - After receiving feedback on code quality
 - When identifying patterns to avoid
 
 ## Process
 
-1. **Identify the mistake**: What went wrong?
-2. **Find root cause**: Why did it happen?
-3. **Extract lesson**: What to do differently?
-4. **Document concisely**: Add to CLAUDE.md
+1. **Identify the mistake** — Determine what went wrong.
+2. **Find root cause** — Analyze why it happened.
+3. **Extract lesson** — Define what to do differently.
+4. **Document concisely** — Append to CLAUDE.md.
 
 ## Format
 

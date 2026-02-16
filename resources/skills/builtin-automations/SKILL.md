@@ -1,49 +1,63 @@
 ---
 name: automations
-description: Manage background automations that run on schedules
+description: "This skill should be used when the user asks to \"create an automation\", \"schedule a task\", \"set up a cron job\", \"run something on a schedule\", \"manage automations\", \"list my automations\", \"delete an automation\", or \"trigger an automation manually\". Provides guidance for managing background automations via tRPC APIs."
 ---
 
 # Automations Management
 
-You can manage the user's automations using these MCP tools:
+Manage background automations using the following tRPC procedures.
 
-## List Automations
-Use `trpc.automations.list` to see all automations.
+## Workflow
 
-## Create Automation
-Use `trpc.automations.create` with:
-- name: string - Name of the automation
+1. List existing automations to understand current setup.
+2. Create, update, or delete automations as needed.
+3. Verify by listing again or triggering manually.
+4. Check execution history to confirm successful runs.
+
+## API Reference
+
+### List Automations
+Call `trpc.automations.list` to retrieve all automations.
+
+### Create Automation
+Call `trpc.automations.create` with:
+- name: string — Name of the automation
 - triggers: Array of trigger configs, e.g. `[{ type: "cron", config: { expression: "0 9 * * *" } }]`
-- agentPrompt: string - Instructions for the AI agent to follow
+- agentPrompt: string — Instructions for the AI agent to follow
 - actions: Array of action configs, e.g. `[{ type: "inbox" }]`
 
-### Cron Expression Examples
-- `0 9 * * *` - Every day at 9:00 AM
-- `0 */6 * * *` - Every 6 hours
-- `0 9 * * 1` - Every Monday at 9:00 AM
-- `0 9 1 * *` - First day of every month at 9:00 AM
+### Update Automation
+Call `trpc.automations.update` with:
+- id: string — Automation ID
+- name?: string — New name (optional)
+- isEnabled?: boolean — Enable/disable (optional)
+- triggers?: Array — New triggers (optional)
+- agentPrompt?: string — New instructions (optional)
+- actions?: Array — New actions (optional)
 
-## Update Automation
-Use `trpc.automations.update` with:
-- id: string - Automation ID
-- name?: string - New name (optional)
-- isEnabled?: boolean - Enable/disable (optional)
-- triggers?: Array - New triggers (optional)
-- agentPrompt?: string - New instructions (optional)
-- actions?: Array - New actions (optional)
+### Delete Automation
+Call `trpc.automations.delete` with:
+- id: string — Automation ID to delete
 
-## Delete Automation
-Use `trpc.automations.delete` with:
-- id: string - Automation ID to delete
+### Trigger Manually
+Call `trpc.automations.trigger` with:
+- id: string — Automation ID to execute immediately
 
-## Trigger Manually
-Use `trpc.automations.trigger` with:
-- id: string - Automation ID to execute immediately
+### View Execution History
+Call `trpc.automations.listExecutions` with:
+- automationId?: string — Filter by automation (optional)
+- limit?: number — Max results (default 20)
 
-## View Execution History
-Use `trpc.automations.listExecutions` with:
-- automationId?: string - Filter by automation (optional)
-- limit?: number - Max results (default 20)
+## Cron Expression Examples
+
+| Expression | Schedule |
+|-----------|----------|
+| `0 9 * * *` | Every day at 9:00 AM |
+| `0 */6 * * *` | Every 6 hours |
+| `0 9 * * 1` | Every Monday at 9:00 AM |
+| `0 9 1 * *` | First day of every month at 9:00 AM |
+| `0 9 * * 1-5` | Weekdays at 9:00 AM |
+| `*/30 * * * *` | Every 30 minutes |
 
 ## Action Types
 
@@ -53,7 +67,7 @@ Creates a new chat in the user's Inbox with the AI agent's response.
 { "type": "inbox" }
 ```
 
-## Example: Create a Daily Standup Automation
+## Example: Daily Standup Automation
 
 ```typescript
 await trpc.automations.create({

@@ -1,6 +1,6 @@
 ---
 name: "browser"
-description: "Use when tasks involve browsing web pages, filling forms, scraping content, testing web UIs, or any interaction with the built-in browser. Provides guidance on the browser MCP tool workflow, authentication handling, and troubleshooting."
+description: "This skill should be used when the user asks to \"open a web page\", \"fill a form\", \"click a button\", \"take a screenshot\", \"scrape a website\", \"test a web UI\", \"download a file from a page\", \"browse to URL\", or any task involving interaction with the built-in browser. Provides guidance on the browser MCP tool workflow, authentication handling, and troubleshooting."
 ---
 
 # Browser Automation Skill
@@ -49,11 +49,11 @@ Every browser session MUST follow this pattern:
 ### Always lock/unlock
 - Call `browser_lock` before ANY browser tool (except `browser_status`).
 - Call `browser_unlock` when ALL operations are complete.
-- Lock auto-releases after 5 minutes as a safety net, but don't rely on this.
+- Lock auto-releases after 5 minutes as a safety net — still always unlock explicitly.
 
 ### Refs reset on each snapshot
 - Element refs like `@e1` are only valid until the next `browser_snapshot` call.
-- After navigating or clicking that causes page changes, always re-snapshot.
+- After navigation or clicks that cause page changes, always re-snapshot.
 
 ### Screenshots always save to files
 - `browser_capture` NEVER returns image data inline.
@@ -92,7 +92,7 @@ Every browser session MUST follow this pattern:
 
 ### Single Page Applications (SPAs)
 - After clicking, use `browser_wait` with `selector` to wait for content changes.
-- Don't rely on page navigation events — SPAs update in-place.
+- Avoid relying on page navigation events — SPAs update in-place.
 
 ### Dropdowns and modals
 1. Click the trigger element to open.

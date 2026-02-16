@@ -1,6 +1,6 @@
 ---
 name: "doc"
-description: "Use when the task involves reading, creating, or editing `.docx` documents, especially when formatting or layout fidelity matters; prefer `python-docx` plus the bundled `scripts/render_docx.py` for visual checks."
+description: "This skill should be used when the user asks to \"read a docx\", \"create a Word document\", \"edit a .docx file\", \"convert docx to PDF\", \"review document layout\", or tasks involve `.docx` documents where formatting or layout fidelity matters. Prefer `python-docx` plus the bundled `scripts/render_docx.py` for visual checks."
 ---
 
 
@@ -78,3 +78,8 @@ python3 scripts/render_docx.py /path/to/file.docx --output_dir /tmp/docx_pages
 - Re-render and inspect every page at 100% zoom before final delivery.
 - Fix any spacing, alignment, or pagination issues and repeat the render loop.
 - Confirm there are no leftovers (temp files, duplicate renders) unless the user asks to keep them.
+
+## Bundled Resources
+
+### Scripts
+- **`scripts/render_docx.py`** — Convert DOCX to PNG pages for visual inspection. Requires `pdf2image` and Poppler.

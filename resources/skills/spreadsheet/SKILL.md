@@ -1,6 +1,6 @@
 ---
 name: "spreadsheet"
-description: "Use when tasks involve creating, editing, analyzing, or formatting spreadsheets (`.xlsx`, `.csv`, `.tsv`) using Python (`openpyxl`, `pandas`), especially when formulas, references, and formatting need to be preserved and verified."
+description: "This skill should be used when the user asks to \"create a spreadsheet\", \"edit an Excel file\", \"analyze CSV data\", \"format a .xlsx\", \"build a financial model\", \"add formulas\", \"create a pivot table\", or tasks involve creating, editing, analyzing, or formatting spreadsheets (`.xlsx`, `.csv`, `.tsv`) using Python (`openpyxl`, `pandas`), especially when formulas, references, and formatting need to be preserved."
 ---
 
 

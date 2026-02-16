@@ -1,0 +1,3 @@
+interface:
+  display_name: "MCP Guide"
+  short_description: "Install and configure MCP servers"

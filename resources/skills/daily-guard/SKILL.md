@@ -1,10 +1,10 @@
 ---
 name: daily-guard
-description: Daily usage protection and common issue prevention. Covers encoding, path safety, file backup, platform-specific quirks, and destructive operation guards.
+description: "This skill should be used when the user encounters \"non-ASCII paths\", \"Chinese characters in filenames\", \"encoding issues\", \"force push\", \"reset --hard\", \"delete branch\", \"modify config files\", \"cross-platform commands\", or works with paths containing spaces, credential files, or destructive git operations. Covers encoding, path safety, file backup, platform-specific quirks, and destructive operation guards."
 allowed-tools: Read, Bash, Edit, Write, Glob, Grep
 ---
 
-A collection of guards and best practices for daily development tasks. Use this skill proactively to prevent common issues.
+A collection of guards and best practices for daily development tasks. Apply proactively to prevent common issues.
 
 ## Quick Reference Index
 
