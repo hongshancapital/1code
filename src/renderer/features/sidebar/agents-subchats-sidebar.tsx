@@ -1387,6 +1387,7 @@ export function AgentsSubChatsSidebar({
                             <SubChatHoverPreview
                               key={subChat.id}
                               subChatId={subChat.id}
+                              disabled={!isActive}
                               onInputClick={(messageId) => {
                                 handleSubChatClick(subChat.id)
                                 setTimeout(() => {
@@ -1717,6 +1718,7 @@ export function AgentsSubChatsSidebar({
                             <SubChatHoverPreview
                               key={subChat.id}
                               subChatId={subChat.id}
+                              disabled={!isActive}
                               onInputClick={(messageId) => {
                                 handleSubChatClick(subChat.id)
                                 setTimeout(() => {

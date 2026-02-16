@@ -92,6 +92,7 @@ interface SubChatHoverPreviewProps {
   onInputClick?: (messageId: string) => void
   side?: "top" | "right" | "bottom" | "left"
   align?: "start" | "center" | "end"
+  disabled?: boolean
 }
 
 export function SubChatHoverPreview({
@@ -100,17 +101,23 @@ export function SubChatHoverPreview({
   onInputClick,
   side = "right",
   align = "start",
+  disabled = false,
 }: SubChatHoverPreviewProps) {
   const [open, setOpen] = useState(false)
 
   const { data, isLoading } = trpc.chats.getSubChatPreview.useQuery(
     { subChatId },
     {
-      enabled: open,
+      enabled: open && !disabled, // 只在打开且未禁用时查询
       staleTime: 0, // 每次打开都获取最新数据
       refetchOnWindowFocus: false,
     }
   )
+
+  // If disabled, just render children without hover preview
+  if (disabled) {
+    return <>{children}</>
+  }
 
   const handleInputClick = (messageId: string) => {
     onInputClick?.(messageId)

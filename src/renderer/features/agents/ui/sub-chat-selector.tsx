@@ -768,6 +768,7 @@ export function SubChatSelector({
                     subChatId={subChat.id}
                     side="bottom"
                     align="start"
+                    disabled={!isActive}
                     onInputClick={(messageId) => {
                       // Switch to this sub-chat first
                       onSwitch(subChat.id)
