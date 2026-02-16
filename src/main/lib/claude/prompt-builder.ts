@@ -61,12 +61,17 @@ export class PromptBuilder {
     const exePath = app.getPath("exe")
     const appVersion = app.getVersion()
 
+    // Inject current time
+    const now = new Date()
+    const currentTime = now.toISOString()
+
     let intro = `# About This Software
 You are running **Hóng** — an internal Cowork AI tool for HongShan (HSG), built on Claude Code Agent.
 
 - **Version**: v${appVersion}
 - **App Path**: ${appPath}
 - **Executable**: ${exePath}
+- **Current Time**: ${currentTime}
 
 Hóng is a local-first desktop application for AI-powered code assistance and collaboration.`
 

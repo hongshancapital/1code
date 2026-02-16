@@ -762,6 +762,7 @@ if (gotTheLock) {
       const { browserMcpExtension } = await import("./feature/browser-mcp")
       const { imageMcpExtension } = await import("./feature/image-mcp")
       const { chatTitleMcpExtension } = await import("./feature/chat-title-mcp")
+      const { timeMcpExtension } = await import("./feature/time-mcp")
       const { usageTrackingExtension } = await import(
         "./feature/usage-tracking"
       )
@@ -780,6 +781,7 @@ if (gotTheLock) {
       em.register(browserMcpExtension)
       em.register(imageMcpExtension)
       em.register(chatTitleMcpExtension)
+      em.register(timeMcpExtension)
       em.register(usageTrackingExtension)
       em.register(automationExtension)
       em.register(voiceExtension)
