@@ -79,7 +79,9 @@
     "enterUrl": "输入基础 URL 以加载可用模型",
     "modelsAvailable": "{{count}} 个模型可用",
     "connectionFailed": "连接 LiteLLM 失败",
-    "missingUrl": "请输入基础 URL"
+    "missingUrl": "请输入基础 URL",
+    "envPreFilled": "已从环境变量自动填充",
+    "envApiKeyConfigured": "API 密钥已通过环境变量配置"
   },
   "selectRepo": {
     "title": "选择仓库",

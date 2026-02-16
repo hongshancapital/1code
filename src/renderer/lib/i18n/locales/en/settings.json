@@ -52,7 +52,14 @@
       },
       "volume": "Volume",
       "notificationSound": "Notification Sound",
-      "choose": "Choose"
+      "choose": "Choose",
+      "perType": {
+        "toggle": "Set sounds separately",
+        "complete": "On complete",
+        "error": "On error",
+        "inputRequired": "On question",
+        "inherit": "Same"
+      }
     },
     "navigation": {
       "quickSwitch": {
@@ -552,7 +559,8 @@
     "noResults": "No results found",
     "sections": {
       "user": "User",
-      "project": "Project"
+      "project": "Project",
+      "plugin": "Plugin"
     },
     "detail": {
       "save": "Save",
@@ -816,6 +824,7 @@
       "title": "Data Management",
       "clearChats": "Clear Chats",
       "resetOnboarding": "Reset Onboarding",
+      "testOnboarding": "Test Onboarding",
       "resetAll": "Reset All",
       "factoryReset": "Factory Reset",
       "factoryResetDesc": "Clear all data, logout, and return to login screen",
@@ -841,6 +850,13 @@
       "productionDbCopied": "Production database copied",
       "productionDbCopiedDesc": "Reloading with new data...",
       "productionDbCopiedFrom": "Source"
+    },
+    "memory": {
+      "clearModelCache": "Clear Embedding Model Cache",
+      "clearModelCacheDesc": "Delete downloaded model files to re-test download flow",
+      "confirmClearModelCache": "Clear embedding model cache? The model will need to be re-downloaded.",
+      "clearButton": "Clear",
+      "modelCacheCleared": "Embedding model cache cleared"
     },
     "logViewer": {
       "title": "Log Viewer",
@@ -899,9 +915,23 @@
       "prompts": "Prompts",
       "vectors": "Vectors"
     },
+    "modelStatus": {
+      "ready": "Embedding model ready",
+      "downloading": "Downloading embedding model...",
+      "error": "Model load failed",
+      "notDownloaded": "Embedding model not downloaded",
+      "download": "Download",
+      "retry": "Retry",
+      "retrying": "Retrying model download...",
+      "startingDownload": "Starting model download..."
+    },
     "vectorStatus": {
       "enabled": "Vector search enabled",
-      "initializing": "Vector search initializing..."
+      "initializing": "Vector search initializing...",
+      "failed": "Vector search unavailable",
+      "reset": "Reset",
+      "resetSuccess": "Vector store reset successfully",
+      "resetFailed": "Failed to reset vector store"
     },
     "timeline": {
       "recentMemory": "Recent Memory",

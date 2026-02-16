@@ -79,7 +79,9 @@
     "enterUrl": "Enter a base URL to load available models",
     "modelsAvailable": "{{count}} model(s) available",
     "connectionFailed": "Failed to connect to LiteLLM",
-    "missingUrl": "Please enter a base URL"
+    "missingUrl": "Please enter a base URL",
+    "envPreFilled": "Pre-filled from environment configuration",
+    "envApiKeyConfigured": "API key configured via environment"
   },
   "selectRepo": {
     "title": "Select a repository",

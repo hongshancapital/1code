@@ -52,7 +52,14 @@
       },
       "volume": "音量",
       "notificationSound": "提示音",
-      "choose": "选择"
+      "choose": "选择",
+      "perType": {
+        "toggle": "分别设置提示音",
+        "complete": "完成时",
+        "error": "出错时",
+        "inputRequired": "提问时",
+        "inherit": "同上"
+      }
     },
     "navigation": {
       "quickSwitch": {
@@ -552,7 +559,8 @@
     "noResults": "未找到结果",
     "sections": {
       "user": "用户",
-      "project": "项目"
+      "project": "项目",
+      "plugin": "插件"
     },
     "detail": {
       "save": "保存",
@@ -816,6 +824,7 @@
       "title": "数据管理",
       "clearChats": "清除对话",
       "resetOnboarding": "重置引导",
+      "testOnboarding": "测试引导",
       "resetAll": "重置全部",
       "factoryReset": "恢复出厂设置",
       "factoryResetDesc": "清除所有数据、退出登录并返回登录页面",
@@ -841,6 +850,13 @@
       "productionDbCopied": "生产数据库已复制",
       "productionDbCopiedDesc": "正在使用新数据重新加载...",
       "productionDbCopiedFrom": "来源"
+    },
+    "memory": {
+      "clearModelCache": "清除向量模型缓存",
+      "clearModelCacheDesc": "删除已下载的模型文件，用于重新测试下载流程",
+      "confirmClearModelCache": "确定清除向量模型缓存？模型将需要重新下载。",
+      "clearButton": "清除",
+      "modelCacheCleared": "向量模型缓存已清除"
     },
     "logViewer": {
       "title": "日志查看器",
@@ -899,9 +915,23 @@
       "prompts": "提示",
       "vectors": "向量"
     },
+    "modelStatus": {
+      "ready": "向量模型就绪",
+      "downloading": "正在下载向量模型...",
+      "error": "模型加载失败",
+      "notDownloaded": "向量模型未下载",
+      "download": "下载",
+      "retry": "重试",
+      "retrying": "正在重试下载模型...",
+      "startingDownload": "开始下载模型..."
+    },
     "vectorStatus": {
       "enabled": "向量搜索已启用",
-      "initializing": "向量搜索初始化中..."
+      "initializing": "向量搜索初始化中...",
+      "failed": "向量搜索不可用",
+      "reset": "重置",
+      "resetSuccess": "向量数据库已重置",
+      "resetFailed": "向量数据库重置失败"
     },
     "timeline": {
       "recentMemory": "最近记忆",
