@@ -435,6 +435,10 @@ export const memoryRouter = router({
       // Get embedding model status
       const modelStatus = getModelStatus()
 
+      // Get InitManager status
+      const { MemoryInitManager } = await import("./lib/init-manager")
+      const initStatus = MemoryInitManager.getInstance().getStatus()
+
       return {
         observations: obsCount?.count || 0,
         sessions: sessionCount?.count || 0,
@@ -447,6 +451,13 @@ export const memoryRouter = router({
         embeddingModelProgress: modelStatus.progress,
         embeddingModelError: modelStatus.error,
         embeddingModelName: modelStatus.modelName,
+        initStatus: {
+          state: initStatus.state,
+          phase: initStatus.state === "initializing" ? initStatus.phase : undefined,
+          error: initStatus.state === "failed" ? initStatus.error : undefined,
+          retryCount: initStatus.state === "failed" ? initStatus.retryCount : undefined,
+          nextRetryAt: initStatus.state === "failed" ? initStatus.nextRetryAt : undefined,
+        },
       }
     }),
 
@@ -533,6 +544,16 @@ export const memoryRouter = router({
     ensureModelDownloaded().catch((err) => {
       memoryLog.error("Model download failed:", err)
     })
+    return { success: true }
+  }),
+
+  /**
+   * Retry memory system initialization (手动重试)
+   */
+  retryInit: publicProcedure.mutation(async () => {
+    const { MemoryInitManager } = await import("./lib/init-manager")
+    memoryLog.info("Manual retry triggered from UI")
+    await MemoryInitManager.getInstance().retry()
     return { success: true }
   }),
 

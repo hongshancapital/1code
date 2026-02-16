@@ -17,7 +17,6 @@ import type {
 import { ChatHook } from "../../lib/extension/hooks/chat-lifecycle"
 import { memoryHooks } from "./lib/hooks"
 import { setSummaryModelConfig } from "./lib/summarizer"
-import { isModelDownloaded, ensureModelDownloaded } from "./lib/embeddings"
 import { getDatabase, memorySessions, observations } from "../../lib/db"
 import { eq, desc } from "drizzle-orm"
 import { memoryRouter } from "./router"
@@ -187,17 +186,18 @@ class MemoryExtension implements ExtensionModule {
       { source: this.name, priority: 50 },
     )
 
-    // 异步检查并预加载 embedding 模型（不阻塞启动）
-    setTimeout(() => {
-      if (!isModelDownloaded()) {
-        memoryLog.info("Embedding model not found, starting background download...")
-      } else {
-        memoryLog.info("Embedding model found, preloading pipeline...")
-      }
-      ensureModelDownloaded().catch((err) => {
-        memoryLog.warn("Background model preload failed (will retry on demand):", err)
+    // 立即启动初始化（非阻塞）
+    import("./lib/init-manager")
+      .then(({ MemoryInitManager }) => {
+        MemoryInitManager.getInstance()
+          .initialize()
+          .catch((err) => {
+            memoryLog.warn("Memory initialization failed, will auto-retry:", err)
+          })
       })
-    }, 5_000) // 延迟 5 秒，等其他启动任务完成
+      .catch((err) => {
+        memoryLog.error("Failed to import MemoryInitManager:", err)
+      })
 
     return () => {
       offSessionStart()
@@ -206,6 +206,15 @@ class MemoryExtension implements ExtensionModule {
       offSessionEnd()
       offEnhancePrompt()
       sessionMap.clear()
+
+      // 清理 InitManager 资源
+      import("./lib/init-manager")
+        .then(({ MemoryInitManager }) => {
+          MemoryInitManager.getInstance().cleanup()
+        })
+        .catch(() => {
+          // Ignore cleanup errors
+        })
     }
   }
 }

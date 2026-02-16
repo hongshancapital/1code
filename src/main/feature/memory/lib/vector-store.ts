@@ -17,9 +17,6 @@ const vectorStoreLog = createLogger("VectorStore")
 let db: lancedb.Connection | null = null
 let observationsTable: lancedb.Table | null = null
 let initPromise: Promise<void> | null = null
-let lastInitError: string | null = null
-let consecutiveFailures = 0
-let retryTimer: ReturnType<typeof setTimeout> | null = null
 
 // Queue for async embedding generation
 interface EmbeddingQueueItem {
@@ -135,36 +132,16 @@ export async function initVectorStore(): Promise<void> {
       }
 
       vectorStoreLog.info("Initialized successfully")
-      consecutiveFailures = 0
+
+      // 初始化成功后，排空积压的 embedding 队列
+      if (embeddingQueue.length > 0) {
+        vectorStoreLog.info(`Recovery succeeded, draining ${embeddingQueue.length} queued items`)
+        processQueue().catch(() => {})
+      }
     } catch (error) {
-      // 初始化失败时重置状态，允许下次重试
-      db = null
-      observationsTable = null
-      initPromise = null
-      consecutiveFailures++
-      lastInitError = error instanceof Error ? error.message : String(error)
-      vectorStoreLog.error(`Initialization failed (attempt ${consecutiveFailures}):`, error)
-
-      // 指数退避自动重试：5s → 10s → 20s → 40s → 60s(封顶)
-      const delayMs = Math.min(5_000 * Math.pow(2, consecutiveFailures - 1), 60_000)
-      vectorStoreLog.info(`Scheduling auto-retry in ${delayMs / 1000}s`)
-      if (retryTimer) clearTimeout(retryTimer)
-      retryTimer = setTimeout(() => {
-        retryTimer = null
-        initVectorStore()
-          .then(() => {
-            // 恢复成功，排空积压的 embedding 队列
-            if (embeddingQueue.length > 0) {
-              vectorStoreLog.info(`Recovery succeeded, draining ${embeddingQueue.length} queued items`)
-              processQueue().catch(() => {})
-            }
-          })
-          .catch(() => {
-            // 重试失败会再次进入此处，继续退避
-          })
-      }, delayMs)
-      if (retryTimer.unref) retryTimer.unref()
-
+      // 初始化失败时直接 throw，由 InitManager 统一管理重试
+      vectorStoreLog.error("Initialization failed:", error)
+      initPromise = null // 允许 InitManager 重新触发初始化
       throw error
     }
   })()
@@ -233,6 +210,34 @@ async function processQueue(): Promise<void> {
 
   isProcessingQueue = true
 
+  // 检查 InitManager 状态
+  const { MemoryInitManager } = await import("./init-manager")
+  const initStatus = MemoryInitManager.getInstance().getStatus()
+
+  // 如果 InitManager 失败且不再重试，记录 error 并清空队列
+  if (initStatus.state === "failed" && initStatus.nextRetryAt === 0) {
+    vectorStoreLog.error(
+      `Memory system initialization failed permanently, dropping ${embeddingQueue.length} queued items`,
+    )
+    embeddingQueue.length = 0 // 清空队列
+    isProcessingQueue = false
+    return
+  }
+
+  // 如果正在初始化或等待重试，安排短延迟重试（不消耗重试次数）
+  if (
+    initStatus.state === "initializing" ||
+    initStatus.state === "retrying" ||
+    (initStatus.state === "failed" && initStatus.nextRetryAt > 0)
+  ) {
+    isProcessingQueue = false
+    vectorStoreLog.info(
+      `Infrastructure not ready (${embeddingQueue.length} items queued), will retry when init completes`,
+    )
+    scheduleQueueRetry()
+    return
+  }
+
   // Phase 1: 确保 vector store 和 embedding pipeline 都就绪
   try {
     await initVectorStore()
@@ -246,6 +251,11 @@ async function processQueue(): Promise<void> {
     // 安排延迟重试，等基础设施恢复后排空队列
     scheduleQueueRetry()
     return
+  }
+
+  // 队列积压超过 100 条时，记录 warn 日志
+  if (embeddingQueue.length > 100) {
+    vectorStoreLog.warn(`Large queue backlog: ${embeddingQueue.length} items pending`)
   }
 
   // Phase 2: 基础设施就绪，处理队列（isProcessingQueue 保持 true，无竞态窗口）
