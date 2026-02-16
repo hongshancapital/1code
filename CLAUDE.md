@@ -2,6 +2,8 @@
 
 > **维护规则**: 此文档只记录架构和关键约定，用于指导后续开发。变更相关架构后须及时同步。不相干的内容不写入。
 
+> **禁止行为**: 严禁在代码仓库中创建临时文档（如 `TRANSFORM_*.md`、`PERF_*.md`、`*_COMPLETE.md`、`*_PROGRESS.md`、`*_PLAN.md` 等）。工作规划、重构记录、优化总结等临时内容应在对话中呈现，不得落盘为文件。
+
 ## What is this?
 
 **Hong** — Local-first Electron desktop app for AI-powered code assistance. Chat sessions link to local project folders, interact with Claude in Plan or Agent mode, and execute tools in real-time.
