@@ -203,7 +203,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
   } = options
 
   // Queue store access
-  const { addToQueue, removeFromQueue, popItemFromQueue } = useMessageQueueStore()
+  const { addToQueue, removeFromQueue, popItem } = useMessageQueueStore()
 
   // ---------------------------------------------------------------------------
   // Expand custom slash commands
@@ -480,7 +480,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
   // ---------------------------------------------------------------------------
   const handleSendFromQueue = useCallback(
     async (itemId: string) => {
-      const item = popItemFromQueue(subChatId, itemId)
+      const item = popItem(subChatId, itemId)
       if (!item) return
 
       try {
@@ -532,7 +532,7 @@ export function useMessageSending(options: MessageSendingOptions): MessageSendin
         useMessageQueueStore.getState().prependItem(subChatId, item)
       }
     },
-    [subChatId, popItemFromQueue, handleStop, scrollToBottom]
+    [subChatId, popItem, handleStop, scrollToBottom]
   )
 
   // ---------------------------------------------------------------------------

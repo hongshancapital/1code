@@ -28,6 +28,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
+import { useCurrentRef } from "../../../hooks/use-current-ref";
 import { useShallow } from "zustand/react/shallow";
 import type { FileStatus } from "../../../../shared/changes-types";
 import { getQueryClient } from "../../../contexts/TRPCProvider";
@@ -356,8 +357,7 @@ const ChatViewInner = memo(function ChatViewInner({
   const hasTriggeredAutoGenerateRef = useRef(false);
 
   // Keep isActive in ref for use in callbacks (avoid stale closures)
-  const isActiveRef = useRef(isActive);
-  isActiveRef.current = isActive;
+  const isActiveRef = useCurrentRef(isActive);
 
   // Auto-scroll management via custom hook
   const {
@@ -433,10 +433,8 @@ const ChatViewInner = memo(function ChatViewInner({
 
   // Handler for renaming sub-chat
   // Using ref for mutation to avoid callback recreation
-  const renameSubChatMutationRef = useRef(renameSubChatMutation);
-  renameSubChatMutationRef.current = renameSubChatMutation;
-  const subChatNameRef = useRef(subChatName);
-  subChatNameRef.current = subChatName;
+  const renameSubChatMutationRef = useCurrentRef(renameSubChatMutation);
+  const subChatNameRef = useCurrentRef(subChatName);
 
   const handleRenameSubChat = useCallback(
     async (newName: string) => {
@@ -624,10 +622,8 @@ const ChatViewInner = memo(function ChatViewInner({
     });
 
   // Refs for useChat functions to keep callbacks stable across renders
-  const sendMessageRef = useRef(sendMessage);
-  sendMessageRef.current = sendMessage;
-  const stopRef = useRef(stop);
-  stopRef.current = stop;
+  const sendMessageRef = useCurrentRef(sendMessage);
+  const stopRef = useCurrentRef(stop);
 
   const isStreaming = status === "streaming" || status === "submitted";
 
@@ -665,8 +661,7 @@ const ChatViewInner = memo(function ChatViewInner({
   );
 
   // Ref for isStreaming to use in callbacks/effects that need fresh value
-  const isStreamingRef = useRef(isStreaming);
-  isStreamingRef.current = isStreaming;
+  const isStreamingRef = useCurrentRef(isStreaming);
 
   // Track compacting status from SDK
   const compactingSubChats = useAtomValue(compactingSubChatsAtom);
@@ -1271,14 +1266,10 @@ const ChatViewInner = memo(function ChatViewInner({
   }, [isActive, subChatId, isMobile]);
 
   // Refs for handleSend to avoid recreating callback on every messages change
-  const messagesLengthRef = useRef(messages.length);
-  messagesLengthRef.current = messages.length;
-  const subChatModeRef = useRef(subChatMode);
-  subChatModeRef.current = subChatMode;
-  const imagesRef = useRef(images);
-  imagesRef.current = images;
-  const filesRef = useRef(files);
-  filesRef.current = files;
+  const messagesLengthRef = useCurrentRef(messages.length);
+  const subChatModeRef = useCurrentRef(subChatMode);
+  const imagesRef = useCurrentRef(images);
+  const filesRef = useCurrentRef(files);
 
   // Message sending handlers (send, queue, force send, restore)
   const {
@@ -1996,7 +1987,7 @@ export function ChatView({
   // - gcTime: 10min — 切回旧 workspace 时能直接使用缓存
   // - select: 在 React Query 层面做一次 JSON.parse，结果自动缓存，避免 getOrCreateChat 中重复解析
   // - placeholderData: keepPreviousData — 切 tab 时保留旧 subchat 数据，避免 data 变 undefined 触发 loading gate
-  const { data: subChatMessagesData, isLoading: isLoadingMessages } =
+  const { data: subChatMessagesData, isLoading: isLoadingMessages, isPlaceholderData: isSubChatMessagesPlaceholder } =
     trpc.chats.getSubChatMessages.useQuery(
       { id: effectiveSubChatId! },
       {
@@ -2547,7 +2538,7 @@ export function ChatView({
           // 这修复了时序问题：Chat 在 subChatMessagesData 到达前被创建为空消息
           // [Perf] 使用 select 预解析的 parsedMessages，无需再次 JSON.parse
           const hasNewMessages =
-            subChatMessagesData?.parsedMessages && subChatId === activeSubChatId;
+            subChatMessagesData?.parsedMessages && subChatId === activeSubChatId && !isSubChatMessagesPlaceholder;
           if (hasNewMessages) {
             const parsed = subChatMessagesData.parsedMessages;
             // 使用 existing.messages 属性（来自 @ai-sdk/react Chat 类）
@@ -2580,7 +2571,7 @@ export function ChatView({
       // Remote chats still use messages from agentSubChats
       // [Perf] 使用 select 预解析的 parsedMessages，无需再次 JSON.parse
       let messages: unknown[] = [];
-      if (subChatMessagesData?.parsedMessages && subChatId === activeSubChatId) {
+      if (subChatMessagesData?.parsedMessages && subChatId === activeSubChatId && !isSubChatMessagesPlaceholder) {
         try {
           const parsed = subChatMessagesData.parsedMessages;
           // Transform messages from DB format to AI SDK format
@@ -2796,6 +2787,7 @@ export function ChatView({
       notifyAgentComplete,
       notifyAgentError,
       subChatMessagesData,
+      isSubChatMessagesPlaceholder,
       activeSubChatId,
     ],
   );
